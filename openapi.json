@@ -943,6 +943,11 @@
           },
           "risk": {
             "$ref": "#/components/schemas/RiskLimits"
+          },
+          "step_timeout": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
           }
         }
       },
@@ -1100,7 +1105,8 @@
             "type": "string",
             "default": "0.015"
           }
-        }
+        },
+        "additionalProperties": false
       },
       "Coverage": {
         "type": "object",
@@ -2966,7 +2972,8 @@
           "allow_holdout": {
             "type": "boolean"
           }
-        }
+        },
+        "additionalProperties": false
       },
       "StockIndex": {
         "type": "string",

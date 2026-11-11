@@ -55,6 +55,14 @@ async fn process_groups_logs_and_restarts() {
     fs::write(bots.join("buizz_bots/signals.py"), "WINDOW = 20\n").unwrap();
     assert_ne!(bot_hash(&steady.dir).unwrap(), steady.content_hash);
     fs::remove_dir_all(bots.join("buizz_bots")).unwrap();
+    fs::create_dir_all(temp.path().join("sdk/python/src/buizz")).unwrap();
+    fs::write(
+        temp.path().join("sdk/python/src/buizz/context.py"),
+        "LIMIT = 1\n",
+    )
+    .unwrap();
+    assert_ne!(bot_hash(&steady.dir).unwrap(), steady.content_hash);
+    fs::remove_dir_all(temp.path().join("sdk")).unwrap();
 
     let supervisor = Supervisor::new(SupervisorConfig {
         spine_url: "ws://127.0.0.1:1".into(),
@@ -144,6 +152,40 @@ async fn stopping_a_chatty_live_bot_nobody_reads_returns() {
         .await
         .expect("stop returns while the event queue is full")
         .unwrap();
+}
+
+#[tokio::test]
+async fn a_crashed_live_bot_whose_code_changed_is_not_restarted() {
+    let temp = tempfile::tempdir().unwrap();
+    let bots = temp.path().join("bots");
+    let edited = write_bot(&bots, "edited", "exit 3\n");
+    let supervisor = Supervisor::new(SupervisorConfig {
+        spine_url: "ws://127.0.0.1:1".into(),
+        log_dir: temp.path().join("logs"),
+        max_parallel_backtests: 1,
+        restart_delay: Duration::from_millis(200),
+        kill_grace: Duration::from_secs(2),
+    });
+    let script = edited.dir.join("run.sh");
+    let mut live = supervisor.keep_alive(Launch {
+        run_id: RunId(4),
+        token: "secret".into(),
+        bot: edited,
+    });
+    let mut seen = Vec::new();
+    while let Some(event) = live.events().recv().await {
+        if matches!(event, ProcessEvent::Exited { .. }) {
+            fs::write(&script, "exit 4\n").unwrap();
+        }
+        seen.push(event);
+    }
+    let exits = seen
+        .iter()
+        .filter(|event| matches!(event, ProcessEvent::Exited { .. }))
+        .count();
+    assert_eq!(exits, 1);
+    assert_eq!(seen.last(), Some(&ProcessEvent::Outdated));
+    live.stop().await.unwrap();
 }
 
 const SECRET: &str = "BUIZZ_ADMIN_PASSWORD";

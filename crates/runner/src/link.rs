@@ -5,12 +5,11 @@ use buizz_core::protocol::{
     self, Ack, BarBuffer, BotMessage, Data, DataResult, End, EndReason, ErrorCode, Hello,
     PROTOCOL_VERSION, ProtocolError, Query, QueryRequest, Ready, SpineMessage, Step,
 };
-use buizz_core::run::UniverseSpec;
+use buizz_core::run::{UNIVERSE_SESSIONS, UniverseSpec};
 use buizz_core::time::Timestamp;
 use buizz_core::visibility::calendar_known_through;
 use buizz_market::{HistoryRequest, MarketStore};
 
-pub(crate) const ACK_TIMEOUT: Duration = Duration::from_secs(60);
 const MAX_HISTORY_BARS: u32 = 10_000;
 const MAX_UNIVERSE_SYMBOLS: u32 = 10_000;
 
@@ -18,19 +17,24 @@ const MAX_UNIVERSE_SYMBOLS: u32 = 10_000;
 pub(crate) enum LinkError {
     #[error("the bot closed its connection")]
     Closed,
-    #[error("the bot sent no frame within {} s", ACK_TIMEOUT.as_secs())]
-    Timeout,
+    #[error("the bot sent no frame within {} s", .0.as_secs())]
+    Timeout(Duration),
     #[error("{1}")]
     Violation(ErrorCode, String),
 }
 
 pub(crate) struct BotLink {
     socket: WebSocket,
+    timeout: Duration,
 }
 
 impl BotLink {
-    pub(crate) async fn handshake(socket: WebSocket, ready: Ready) -> Result<Self, LinkError> {
-        let mut link = Self { socket };
+    pub(crate) async fn handshake(
+        socket: WebSocket,
+        ready: Ready,
+        timeout: Duration,
+    ) -> Result<Self, LinkError> {
+        let mut link = Self { socket, timeout };
         match link.receive().await? {
             BotMessage::Hello(Hello { protocol, .. }) if protocol == PROTOCOL_VERSION => {}
             BotMessage::Hello(Hello { protocol, .. }) => {
@@ -55,14 +59,13 @@ impl BotLink {
         &mut self,
         step: Step,
         market: &MarketStore,
-        adv_sessions: u32,
     ) -> Result<Ack, LinkError> {
         let (seq, clock) = (step.seq, step.clock);
         self.send(&SpineMessage::Step(Box::new(step))).await?;
         loop {
             match self.receive().await? {
                 BotMessage::Query(Query { id, request }) => {
-                    let answer = match answer(market, request, clock, adv_sessions).await {
+                    let answer = match answer(market, request, clock).await {
                         Ok(result) => SpineMessage::Data(Data { id, result }),
                         Err(message) => SpineMessage::Error(ProtocolError {
                             id: Some(id),
@@ -117,9 +120,9 @@ impl BotLink {
 
     async fn receive(&mut self) -> Result<BotMessage, LinkError> {
         loop {
-            let frame = tokio::time::timeout(ACK_TIMEOUT, self.socket.recv())
+            let frame = tokio::time::timeout(self.timeout, self.socket.recv())
                 .await
-                .map_err(|_| LinkError::Timeout)?;
+                .map_err(|_| LinkError::Timeout(self.timeout))?;
             match frame {
                 Some(Ok(Message::Binary(bytes))) => {
                     return match protocol::decode(&bytes) {
@@ -148,7 +151,6 @@ async fn answer(
     market: &MarketStore,
     request: QueryRequest,
     clock: Timestamp,
-    adv_sessions: u32,
 ) -> Result<DataResult, String> {
     match request {
         QueryRequest::History {
@@ -212,10 +214,21 @@ async fn answer(
                 return Err(format!("the universe of {date} is known from {known}"));
             }
             let symbols = market
-                .universe(&universe, date, adv_sessions)
+                .universe(&universe, date, UNIVERSE_SESSIONS)
                 .await
                 .map_err(|error| error.to_string())?;
-            Ok(DataResult::Universe { symbols })
+            let reliable_from = match universe {
+                UniverseSpec::Index { index } => market
+                    .index_history(index)
+                    .await
+                    .map_err(|error| error.to_string())?
+                    .and_then(|history| history.reliable_from),
+                _ => None,
+            };
+            Ok(DataResult::Universe {
+                symbols,
+                reliable_from,
+            })
         }
         QueryRequest::Instruments { symbols } => {
             let instruments = market

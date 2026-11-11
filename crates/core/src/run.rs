@@ -1,5 +1,6 @@
 use std::fmt;
 use std::str::FromStr;
+use std::time::Duration;
 
 use chrono::{Months, NaiveDate, NaiveTime, TimeDelta};
 use rust_decimal::Decimal;
@@ -11,7 +12,7 @@ use utoipa::openapi::{RefOr, Schema};
 use utoipa::{PartialSchema, ToSchema};
 
 use crate::market::{AssetClass, Bar, Session, StockIndex, Symbol, Timeframe};
-use crate::money::{round_cash, round_price};
+use crate::money::{PRICE_DECIMALS, round_cash, round_price};
 use crate::order::{RejectReason, Side};
 use crate::time::Timestamp;
 
@@ -169,7 +170,7 @@ impl<'de> Deserialize<'de> for Wake {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct CostModel {
     pub commission_per_share: Decimal,
     pub commission_min: Decimal,
@@ -207,13 +208,41 @@ impl Default for CostModel {
 impl CostModel {
     pub const TRADING_DAYS_PER_YEAR: u32 = 252;
 
+    pub fn invalid(&self) -> Option<&'static str> {
+        let amounts = [
+            self.commission_per_share,
+            self.commission_min,
+            self.slippage_bps,
+            self.slippage_per_share,
+            self.borrow_rate,
+            self.financing_spread,
+        ];
+        if amounts.iter().any(|amount| *amount < Decimal::ZERO) {
+            return Some("costs must not be negative");
+        }
+        if self
+            .commission_tiers
+            .iter()
+            .any(|tier| tier.per_share < Decimal::ZERO)
+        {
+            return Some("commission tier prices must not be negative");
+        }
+        if self.adv_participation <= Decimal::ZERO || self.adv_participation > Decimal::ONE {
+            return Some("adv_participation must be above 0 and at most 1");
+        }
+        if self.adv_sessions == 0 {
+            return Some("adv_sessions must be at least 1");
+        }
+        None
+    }
+
     pub fn market_fill_price(&self, side: Side, price: Decimal) -> Decimal {
         let slip = self.slippage_bps / Decimal::new(10_000, 0);
         let moved = match side {
             Side::Buy => price * (Decimal::ONE + slip) + self.slippage_per_share,
             Side::Sell => price * (Decimal::ONE - slip) - self.slippage_per_share,
         };
-        round_price(moved)
+        round_price(moved).max(Decimal::new(1, PRICE_DECIMALS))
     }
 
     pub fn stop_fill_price(&self, side: Side, stop: Decimal, bar: &Bar) -> Option<Decimal> {
@@ -279,6 +308,12 @@ impl CostModel {
 }
 
 pub const MOC_CUTOFF_MINUTES: i64 = 10;
+
+pub const RATE_LOOKBACK_DAYS: i64 = 31;
+
+pub const HALF_DAY_MINUTES: u32 = 210;
+
+pub const UNIVERSE_SESSIONS: u32 = 20;
 
 pub const DRAWDOWN_STOP: &str = "stopped by drawdown limit";
 
@@ -543,6 +578,8 @@ pub struct BotManifest {
     pub benchmark: Symbol,
     #[serde(default)]
     pub risk: RiskLimits,
+    #[serde(default = "BotManifest::default_step_timeout")]
+    pub step_timeout: u32,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -556,8 +593,18 @@ pub enum ManifestError {
 impl BotManifest {
     pub const FILE_NAME: &'static str = "bot.toml";
 
+    pub const MAX_STEP_TIMEOUT: u32 = 3600;
+
     fn default_benchmark() -> Symbol {
         Symbol::new("SPY")
+    }
+
+    fn default_step_timeout() -> u32 {
+        60
+    }
+
+    pub fn step_timeout(&self) -> Duration {
+        Duration::from_secs(u64::from(self.step_timeout))
     }
 
     pub fn from_toml(text: &str) -> Result<Self, ManifestError> {
@@ -574,6 +621,18 @@ impl BotManifest {
         }
         if !manifest.risk.are_positive() {
             return Err(ManifestError::Invalid("risk limits must be positive"));
+        }
+        if !(1..=Self::MAX_STEP_TIMEOUT).contains(&manifest.step_timeout) {
+            return Err(ManifestError::Invalid(
+                "step_timeout must be between 1 and 3600 seconds",
+            ));
+        }
+        if let Wake::BeforeClose { minutes } = manifest.wake
+            && minutes >= HALF_DAY_MINUTES
+        {
+            return Err(ManifestError::Invalid(
+                "before_close must be under 210 minutes, the length of a half-day session",
+            ));
         }
 
         match &manifest.universe {
@@ -594,6 +653,17 @@ impl BotManifest {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_pre_close_wake_that_would_skip_half_days_is_refused() {
+        let manifest = |wake: &str| {
+            BotManifest::from_toml(&format!(
+                "command = [\"true\"]\ntimeframe = \"1d\"\nwake = \"{wake}\"\nuniverse = {{ symbols = [\"SPY\"] }}\n"
+            ))
+        };
+        assert!(manifest("before_close:209m").is_ok());
+        assert!(manifest("before_close:210m").is_err());
+    }
 
     #[test]
     fn without_limits_no_order_is_rejected_for_exposure_even_at_negative_equity() {

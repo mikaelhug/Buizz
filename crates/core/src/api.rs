@@ -133,6 +133,7 @@ pub struct EventsPage {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
 pub struct StartBacktest {
     pub preset: Option<PeriodPreset>,
     pub period: Option<Period>,

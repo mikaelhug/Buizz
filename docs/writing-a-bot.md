@@ -10,7 +10,7 @@ bots/red_green/
   bot.py
 ```
 
-The spine rescans `bots/` on every request, so a new or edited bot shows up without a restart. A folder is a bot when it holds a `bot.toml`; folders starting with `.` are ignored. Each run records a content hash of the folder and never continues under different code: when a backtest is (re)started after a restart, or a live run is started or resumed, with edited bot code, the backtest fails and the live run pauses with the reason. Stop it and start a new run.
+The spine rescans `bots/` on every request, so a new or edited bot shows up without a restart. A folder is a bot when it holds a `bot.toml`; folders starting with `.` are ignored. Each run records a content hash of the folder and never continues under different code: when a backtest is (re)started after a restart, or a live run is started, resumed or restarted after its bot crashed, with edited bot code, the backtest fails and the live run pauses with the reason. Stop it and start a new run.
 
 ## Python environment and shared code
 
@@ -18,7 +18,7 @@ Bots run in one shared uv project, `bots/pyproject.toml` (package `buizz-bots`),
 
 Code that more than one bot needs lives in the package `bots/buizz_bots/` and is imported as `from buizz_bots.<module> import ...`, for example a bot reusing the signal functions of another. Move the functions into a module there, import them from both bots, and do not copy them. The folder has no `bot.toml`, so it is not a bot. It is installed into the bots environment: editable locally, copied into the image. Shared modules follow the same lint and strict type checks as bots (`just lint`) and must not import a bot's `bot.py`.
 
-The content hash of a run covers the bot folder plus the shared package `bots/buizz_bots/`, `bots/pyproject.toml` and `bots/uv.lock`, so editing shared code or dependencies changes the hash of every bot, and a live or resumed run whose code changed is stopped instead of continuing under the old hash.
+The content hash of a run covers the bot folder plus the shared package `bots/buizz_bots/`, `bots/pyproject.toml`, `bots/uv.lock` and the SDK source `sdk/python/src/` beside the bots folder (where the repository and the image both keep it), so editing shared code, the SDK or dependencies changes the hash of every bot, and a live or resumed run whose code changed is stopped instead of continuing under the old hash.
 
 ## Walkthrough: `red_green`
 
@@ -64,9 +64,10 @@ if __name__ == "__main__":
 | `timeframe` | yes | `"1d"` or `"1m"`: the bar size the bot is stepped on |
 | `wake` | no, default `"bar"` | When the bot is called, see below |
 | `universe` | yes | `{ symbols = ["SPY", "QQQ"] }` (not empty), `{ top_dollar_volume = 500 }` (positive, optionally with `asset_class = "stock"` or `"etf"`) or `{ index = "sp500" }` |
-| `params` | no | Default parameters, available as `ctx.params` |
+| `params` | no | Default parameters, available as `ctx.params`. A backtest request may override them but not add others: an unknown name is refused, as are unknown request and cost fields |
 | `benchmark` | no, default `"SPY"` | Symbol the equity curve is compared with |
 | `[risk]` | no | Risk limits for live runs and the default for backtests, see [Risk limits](#risk-limits) |
+| `step_timeout` | no, default `60` | Seconds the spine waits for the bot to connect and for each of its frames, up to `3600`: raise it for a bot that trains a model inside one step. A bot that stays silent longer fails its backtest or pauses its live run |
 
 The spine starts `command` with `BUIZZ_SPINE_URL`, `BUIZZ_RUN_ID` and `BUIZZ_RUN_TOKEN` set. Of the spine's own environment the bot only inherits `PATH`, `HOME`, `LANG`, `TZ`, `TMPDIR` and the `UV_*` and `PYTHON*` variables, so API keys and the admin password never reach it. Output on stdout and stderr is captured to `logs/<run_id>.log` under the spine's data directory (`BUIZZ_DATA_DIR`, default `data`).
 
@@ -79,7 +80,7 @@ The spine starts `command` with `BUIZZ_SPINE_URL`, `BUIZZ_RUN_ID` and `BUIZZ_RUN
 - `bar`: every bar.
 - `every:30m` or `every:2h`: when the time since the session open is a positive multiple of the interval, up to the close. `1m` bots only.
 - `at:15:55`: when the exchange-local (New York) time is 15:55. `1m` bots only.
-- `before_close:10m`: that many minutes before each session's close, so 15:50 on a normal day and 12:50 on a half day. A `1d` bot then wakes only there, ten minutes into the last part of the session, instead of at the close: see [Deciding before the close](#deciding-before-the-close).
+- `before_close:10m`: that many minutes before each session's close, so 15:50 on a normal day and 12:50 on a half day; it must be under 210 minutes, the length of a half day. A `1d` bot then wakes only there, ten minutes into the last part of the session, instead of at the close: see [Deciding before the close](#deciding-before-the-close).
 
 **Params.** The values in `bot.toml` are defaults. A backtest request, or `buizz backtest --param weight=0.5`, overrides single keys; the merged object is stored with the run.
 
@@ -268,11 +269,11 @@ The spine starts every run with 100,000 start cash and this cost model, whose fi
 | `commission_tiers` | none | Volume tiers, e.g. `[{"above": 300000, "per_share": "0.002"}]`: a fill pays the rate of the highest tier whose `above` the run's shares traded so far this calendar month have reached, like IBKR's tiered pricing |
 | `slippage_bps` | `5` | Basis points against you on market, stop and auction fills and on limit orders already marketable at the open |
 | `slippage_per_share` | `0` | A further amount per share against you on the same fills, e.g. `0.001` |
-| `adv_participation`, `adv_sessions` | `0.05`, `20` | Volume cap: that fraction of the average daily volume of the last sessions, per symbol and session; the rest of the order stays working. A symbol with no average daily volume fills uncapped and the run gets one data warning event for it |
+| `adv_participation`, `adv_sessions` | `0.05`, `20` | Volume cap: that fraction of the average daily volume of the last `adv_sessions` sessions, per symbol and session (universes always rank over 20 sessions, whatever this is); the rest of the order stays working. A symbol with no average daily volume fills uncapped and the run gets one data warning event for it |
 | `borrow_rate` | `0.02` | Per year on short positions, charged at each session close |
-| `financing_spread` | `0.015` | Added to the T-bill rate of the session (the US Treasury series, as of that date) for the financing of negative cash |
+| `financing_spread` | `0.015` | Added to the T-bill rate for the financing of negative cash: the US Treasury 3-month rate last published before the session (within 31 days). Without one the spread alone is charged and the run gets a data warning |
 
-Shorting is allowed for instruments flagged shortable.
+A cost model with a negative cost or tier price, an `adv_participation` outside 0 (excluded) to 1, or `adv_sessions` below 1 is refused, and slippage never moves a fill price below 0.0001. Shorting is allowed for instruments flagged shortable.
 
 **Leverage.** Buying for more than the cash makes the cash negative, and selling short adds the proceeds to it. Each session close charges a `financing` ledger entry of negative cash × (T-bill rate + `financing_spread`) / 252, the same way borrow is charged on shorts, so a book that is flat before the close pays neither. Gross exposure is limited only by `max_gross_exposure` (below); set it to the book the strategy means, for example `4.0` for two dollars long and two short per dollar of equity. There are no margin calls: the drawdown stop is the only forced exit.
 
@@ -301,7 +302,7 @@ max_drawdown = 0.2
 
 They apply to every live run and are the default for backtests; the `risk` field of a backtest request replaces them for that run, and so do the limits in the UI's backtest dialog (in percent, empty for none) and `buizz backtest --risk max_drawdown=0.3`, which changes one limit and keeps the bot's others (`--risk max_drawdown=none` removes it).
 
- A run keeps the limits it started with: a live run captures them when it goes live, so after changing them stop the live run and go live again. An order that would grow a position past `max_position_weight`, or the book past `max_gross_exposure`, is rejected; while equity is at or below zero every order that grows a position breaks a limit that is set. Without limits nothing is rejected for exposure. `max_drawdown` is a stop-loss, the same in backtests and live runs: when equity falls by that fraction from its peak, the run records a risk breach, the bot gets `end` with reason `risk_limit` and no further orders are taken, working orders are cancelled and every position is closed with a market order at the next open through the normal fills (slippage, commission and volume cap; what the cap leaves open is closed at the following opens). Once flat the run ends as `failed` with the message "stopped by drawdown limit"; a backtest ends there instead of running to its end date, and going live again starts a fresh run with a fresh peak. Its metrics, equity and ledger include the closing fills. To test a strategy without the stop, remove `max_drawdown`. Without a `[risk]` section a run has no limits.
+ A run keeps the limits it started with: a live run captures them when it goes live, so after changing them stop the live run and go live again. An order that would grow a position past `max_position_weight`, or the book past `max_gross_exposure`, is rejected; while equity is at or below zero every order that grows a position breaks a limit that is set. Without limits nothing is rejected for exposure. `max_drawdown` is a stop-loss, the same in backtests and live runs: when equity falls by that fraction from its peak, the run records a risk breach, the bot gets `end` with reason `risk_limit` and no further orders are taken, working orders are cancelled (except a market-on-close already past its 10-minute cutoff, which still fills at that close) and every position is closed with a market order at the next open through the normal fills (slippage, commission and volume cap; what the cap leaves open is closed at the following opens). Once flat the run ends as `failed` with the message "stopped by drawdown limit"; a backtest ends there instead of running to its end date, and going live again starts a fresh run with a fresh peak. Its metrics, equity and ledger include the closing fills. To test a strategy without the stop, remove `max_drawdown`. Without a `[risk]` section a run has no limits.
 
 ## Holdout and honest data
 

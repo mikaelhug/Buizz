@@ -15,8 +15,8 @@ use buizz_core::money::CASH_DECIMALS;
 use buizz_core::ops::{CoverageGap, DataWarning};
 use buizz_core::performance::Metrics;
 use buizz_core::run::{
-    CostModel, DesiredState, Mode, PeriodPreset, RunBadge, RunConfig, RunEvent, RunEventKind,
-    RunId, RunStatus, UniverseSpec,
+    DesiredState, Mode, PeriodPreset, RunBadge, RunConfig, RunEvent, RunEventKind, RunId,
+    RunStatus, UNIVERSE_SESSIONS, UniverseSpec,
 };
 use buizz_core::time::Timestamp;
 use buizz_engine::ENGINE_VERSION;
@@ -74,7 +74,6 @@ pub enum RunnerError {
 pub struct RunnerConfig {
     pub bots_dir: PathBuf,
     pub start_cash: Decimal,
-    pub cost: CostModel,
 }
 
 pub struct RunnerDeps {
@@ -443,7 +442,26 @@ impl Runner {
         let defaults = &self.inner.config;
         let manifest = &spec.manifest;
         let mut params = manifest.params.clone();
-        params.extend(request.params.unwrap_or_default());
+        let requested = request.params.unwrap_or_default();
+        let unknown: Vec<&str> = requested
+            .keys()
+            .filter(|name| !params.contains_key(*name))
+            .map(String::as_str)
+            .collect();
+        if !unknown.is_empty() {
+            let known: Vec<&str> = params.keys().map(String::as_str).collect();
+            return Err(RunnerError::InvalidRequest(format!(
+                "bot {} has no params {}; its params are {}",
+                spec.name,
+                unknown.join(", "),
+                if known.is_empty() {
+                    "none".to_owned()
+                } else {
+                    known.join(", ")
+                }
+            )));
+        }
+        params.extend(requested);
         let start_cash = request.start_cash.unwrap_or(defaults.start_cash);
         if start_cash <= Decimal::ZERO || start_cash.normalize().scale() > CASH_DECIMALS {
             return Err(RunnerError::InvalidRequest(
@@ -459,6 +477,10 @@ impl Runner {
             Some(seed) => seed,
             None => rand::random_range(0..SEED_LIMIT),
         };
+        let cost = request.cost.unwrap_or_default();
+        if let Some(problem) = cost.invalid() {
+            return Err(RunnerError::InvalidRequest(problem.to_owned()));
+        }
         let risk = request.risk.unwrap_or(manifest.risk);
         if !risk.are_positive() {
             return Err(RunnerError::InvalidRequest(
@@ -475,7 +497,7 @@ impl Runner {
             start,
             end,
             start_cash,
-            cost: request.cost.unwrap_or_else(|| defaults.cost.clone()),
+            cost,
             risk,
             seed,
             benchmark: manifest.benchmark.clone(),
@@ -615,7 +637,7 @@ async fn universe_at(
     date: NaiveDate,
 ) -> Result<Vec<Symbol>, MarketError> {
     market
-        .universe(&config.universe, date, config.cost.adv_sessions)
+        .universe(&config.universe, date, UNIVERSE_SESSIONS)
         .await
 }
 

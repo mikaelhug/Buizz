@@ -133,13 +133,29 @@ pub struct Data {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum DataResult {
-    History { bars: BarBuffer },
-    Fundamentals { points: Vec<FundamentalPoint> },
-    Instruments { instruments: Vec<InstrumentProfile> },
-    Earnings { releases: Vec<EarningsRelease> },
-    Calendar { sessions: Vec<Session> },
-    Universe { symbols: Vec<Symbol> },
-    Macro { points: Vec<MacroPoint> },
+    History {
+        bars: BarBuffer,
+    },
+    Fundamentals {
+        points: Vec<FundamentalPoint>,
+    },
+    Instruments {
+        instruments: Vec<InstrumentProfile>,
+    },
+    Earnings {
+        releases: Vec<EarningsRelease>,
+    },
+    Calendar {
+        sessions: Vec<Session>,
+    },
+    Universe {
+        symbols: Vec<Symbol>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reliable_from: Option<NaiveDate>,
+    },
+    Macro {
+        points: Vec<MacroPoint>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

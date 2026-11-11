@@ -114,6 +114,7 @@ fn load(name: String, dir: PathBuf) -> Result<BotSpec, SupervisorError> {
 }
 
 const SHARED_BOT_CODE: [&str; 3] = ["buizz_bots", "pyproject.toml", "uv.lock"];
+const SDK_SOURCE: &str = "sdk/python/src";
 
 pub fn bot_hash(dir: &Path) -> Result<String, SupervisorError> {
     let mut hasher = blake3::Hasher::new();
@@ -126,6 +127,11 @@ pub fn bot_hash(dir: &Path) -> Result<String, SupervisorError> {
             } else if shared.is_file() {
                 hash_file(&shared, Path::new(name), &mut hasher)?;
             }
+        }
+        if let Some(root) = bots_dir.parent()
+            && root.join(SDK_SOURCE).is_dir()
+        {
+            hash_tree(root, Path::new(SDK_SOURCE), &mut hasher)?;
         }
     }
     Ok(hasher.finalize().to_hex().to_string())
@@ -202,6 +208,7 @@ pub enum ProcessEvent {
     Line { stream: OutputStream, line: String },
     Exited { code: Option<i32> },
     Restarting { attempt: u32, delay: Duration },
+    Outdated,
 }
 
 pub struct BotProcess {
@@ -429,6 +436,14 @@ impl Supervisor {
     ) {
         let mut restarts: VecDeque<Instant> = VecDeque::new();
         loop {
+            let dir = launch.bot.dir.clone();
+            let hashed = tokio::task::spawn_blocking(move || bot_hash(&dir))
+                .await
+                .expect("hashing a bot does not panic");
+            if hashed.is_ok_and(|hash| hash != launch.bot.content_hash) {
+                let _ = events.send(ProcessEvent::Outdated).await;
+                return;
+            }
             match self.spawn(&launch).await {
                 Ok(mut process) => loop {
                     tokio::select! {

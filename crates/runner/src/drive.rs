@@ -12,8 +12,8 @@ use buizz_core::protocol::{
     StepEvent,
 };
 use buizz_core::run::{
-    DRAWDOWN_STOP, DesiredState, EquityPoint, LogLevel, Mode, RunBadge, RunEvent, RunEventKind,
-    RunId, RunStatus,
+    DRAWDOWN_STOP, DesiredState, EquityPoint, LogLevel, Mode, RunBadge, RunConfig, RunEvent,
+    RunEventKind, RunId, RunStatus,
 };
 use buizz_core::time::Timestamp;
 use buizz_core::visibility::{close_auction_session, open_auction_session, order_session};
@@ -25,19 +25,21 @@ use buizz_state::{RunOutcome, StateError, StepCommit};
 use buizz_supervisor::{
     BotProcess, BotSpec, LiveProcess, OutputStream, ProcessEvent, SupervisorError, bot_hash,
 };
+use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, watch};
 
 use crate::commit::Committer;
-use crate::link::{ACK_TIMEOUT, BotLink, LinkError};
+use crate::link::{BotLink, LinkError};
 use crate::timeline::{Point, Timeline};
 use crate::{Inner, gate_symbols, now, report};
 
 const EXIT_GRACE: Duration = Duration::from_secs(5);
 const IDLE_RECHECK: Duration = Duration::from_secs(60);
 const EVENT_PAGE: u32 = 1000;
+const ORDER_PAGE: u32 = 1000;
 const BACKTEST_EQUITY_EVERY: Duration = Duration::from_millis(250);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -228,8 +230,8 @@ pub(crate) async fn run(mut launch: Launch) {
     let token = inner.issue_token(run_id);
     let (exit, closing) = match prepare(&inner, &launch.run, &mut launch.receiver).await {
         Err(exit) => (exit, None),
-        Ok(slot) => {
-            let opened = Driver::open(launch, &token).await;
+        Ok((slot, minutes)) => {
+            let opened = Driver::open(launch, &token, minutes).await;
             match opened {
                 Err(exit) => (exit, None),
                 Ok(mut driver) => (driver.drive().await, Some((driver, slot))),
@@ -260,39 +262,54 @@ pub(crate) async fn run(mut launch: Launch) {
     inner.forget(run_id, &token);
 }
 
+type Prepared = (Option<tokio::sync::OwnedSemaphorePermit>, BTreeSet<Symbol>);
+
 async fn prepare(
     inner: &Inner,
     run: &RunSummary,
     control: &mut watch::Receiver<Control>,
-) -> Flow<Option<tokio::sync::OwnedSemaphorePermit>> {
+) -> Flow<Prepared> {
     if run.mode == Mode::Live {
-        return Ok(None);
+        return Ok((None, BTreeSet::new()));
     }
+    let mut minutes = BTreeSet::new();
     if run.config.needs_minute_bars() {
         let config = &run.config;
-        let end = config.end.unwrap_or(config.start);
         let symbols = gate_symbols(&inner.market, config).await?;
-        tokio::select! {
-            ensured = inner.ingest.ensure_minute_coverage(&symbols, config.start, end) => ensured?,
-            exit = interrupted(control) => return Err(exit),
-        }
-        let gaps = inner
-            .market
-            .coverage_gaps(symbols, Timeframe::Minute, config.start, end)
-            .await?;
-        if let Some(gap) = gaps.first() {
-            return Err(Exit::Failed(format!(
-                "market data has {} minute-bar gaps, the first {} from {} to {}",
-                gaps.len(),
-                gap.symbol,
-                gap.from,
-                gap.to
-            )));
-        }
+        backfill_minutes(inner, config, &symbols, config.start, control).await?;
+        minutes.extend(symbols);
     }
     tokio::select! {
-        slot = inner.supervisor.backtest_slot() => Ok(Some(slot)),
+        slot = inner.supervisor.backtest_slot() => Ok((Some(slot), minutes)),
         exit = interrupted(control) => Err(exit),
+    }
+}
+
+async fn backfill_minutes(
+    inner: &Inner,
+    config: &RunConfig,
+    symbols: &[Symbol],
+    from: NaiveDate,
+    control: &mut watch::Receiver<Control>,
+) -> Flow<()> {
+    let end = config.end.unwrap_or(config.start);
+    tokio::select! {
+        ensured = inner.ingest.ensure_minute_coverage(symbols, from, end) => ensured?,
+        exit = interrupted(control) => return Err(exit),
+    }
+    let gaps = inner
+        .market
+        .coverage_gaps(symbols.to_vec(), Timeframe::Minute, from, end)
+        .await?;
+    match gaps.first() {
+        None => Ok(()),
+        Some(gap) => Err(Exit::Failed(format!(
+            "market data has {} minute-bar gaps, the first {} from {} to {}",
+            gaps.len(),
+            gap.symbol,
+            gap.from,
+            gap.to
+        ))),
     }
 }
 
@@ -367,6 +384,19 @@ pub(crate) async fn conclude(
     Ok(())
 }
 
+async fn client_ids(inner: &Inner, run_id: RunId) -> Result<BTreeSet<String>, StateError> {
+    let mut ids = BTreeSet::new();
+    let mut after = None;
+    loop {
+        let page = inner.state.orders(run_id, after, ORDER_PAGE).await?;
+        let Some(last) = page.last() else {
+            return Ok(ids);
+        };
+        after = Some(last.id.0);
+        ids.extend(page.into_iter().map(|order| order.client_id));
+    }
+}
+
 async fn last_event_seq(inner: &Inner, run_id: RunId) -> Result<u64, StateError> {
     let mut last = 0;
     loop {
@@ -399,6 +429,7 @@ struct Driver {
     after: Timestamp,
     clock: Option<Timestamp>,
     session: Option<Session>,
+    minutes: BTreeSet<Symbol>,
     link: Option<BotLink>,
     process: Option<Process>,
     status: RunStatus,
@@ -412,7 +443,7 @@ struct Driver {
 }
 
 impl Driver {
-    async fn open(launch: Launch, token: &str) -> Flow<Self> {
+    async fn open(launch: Launch, token: &str, minutes: BTreeSet<Symbol>) -> Flow<Self> {
         let Launch {
             inner,
             run,
@@ -427,7 +458,11 @@ impl Driver {
         let checkpoint = inner.state.checkpoint(run.id).await?;
         let (engine, after, clock, last_step, bot_state, frame) = match checkpoint {
             Some(checkpoint) => (
-                Engine::restore(config, &checkpoint.engine_checkpoint)?,
+                Engine::restore(
+                    config,
+                    &checkpoint.engine_checkpoint,
+                    client_ids(&inner, run.id).await?,
+                )?,
                 checkpoint.clock,
                 Some(checkpoint.clock),
                 checkpoint.step_seq,
@@ -454,6 +489,7 @@ impl Driver {
                 )
             }
         };
+        let session = clock.and_then(|clock| timeline.calendar().containing(clock).copied());
         Ok(Self {
             token: token.to_owned(),
             control_tx,
@@ -468,7 +504,8 @@ impl Driver {
             frame,
             after,
             clock,
-            session: None,
+            session,
+            minutes,
             link: None,
             process: None,
             status: run.status,
@@ -559,20 +596,26 @@ impl Driver {
         uncovered
     }
 
+    fn recorded_hash(&self) -> &str {
+        self.run
+            .reproducibility
+            .as_ref()
+            .map_or(&self.spec.content_hash, |recorded| &recorded.bot_hash)
+    }
+
+    fn outdated_message(&self) -> String {
+        format!(
+            "the code of bot {} changed since this run started; stop the run and start a new one",
+            self.run.bot
+        )
+    }
+
     async fn outdated(&mut self) -> Flow<Option<String>> {
-        let Some(recorded) = self.run.reproducibility.as_ref() else {
-            return Ok(None);
-        };
         let dir = self.spec.dir.clone();
         let current = tokio::task::spawn_blocking(move || bot_hash(&dir))
             .await
             .expect("hashing a bot does not panic")?;
-        Ok((current != recorded.bot_hash).then(|| {
-            format!(
-                "the code of bot {} changed since this run started; stop the run and start a new one",
-                self.run.bot
-            )
-        }))
+        Ok((current != self.recorded_hash()).then(|| self.outdated_message()))
     }
 
     async fn enter_next_session(&mut self) -> Flow<()> {
@@ -616,7 +659,7 @@ impl Driver {
                         self.wake().await?;
                     }
                 }
-                None if self.frame.due && (self.benched() || self.link.is_some()) => {
+                None if self.frame.due && self.deliverable() => {
                     self.wake().await?;
                 }
                 None => {
@@ -631,6 +674,10 @@ impl Driver {
                 }
             }
         }
+    }
+
+    fn deliverable(&self) -> bool {
+        self.benched() || (self.link.is_some() && self.session.is_some())
     }
 
     fn arrived_while_deciding(&self) -> bool {
@@ -680,7 +727,8 @@ impl Driver {
 
     async fn launch(&mut self) -> Flow<()> {
         if self.engine.drawdown_stop().is_some() {
-            return Ok(());
+            self.enter_next_session().await?;
+            return self.lease_stream().await;
         }
         if let Some(message) = self.outdated().await? {
             return match self.run.mode {
@@ -696,7 +744,10 @@ impl Driver {
         let launch = buizz_supervisor::Launch {
             run_id: self.run.id,
             token: self.token.clone(),
-            bot: self.spec.clone(),
+            bot: BotSpec {
+                content_hash: self.recorded_hash().to_owned(),
+                ..self.spec.clone()
+            },
         };
         let supervisor = &self.inner.supervisor;
         self.process = Some(match self.run.mode {
@@ -746,12 +797,17 @@ impl Driver {
     }
 
     async fn cycle(&mut self, point: &Point) -> Flow<()> {
-        if self.session.map(|session| session.date) != Some(point.session.date) {
+        let entering = self.session.map(|session| session.date) != Some(point.session.date);
+        if entering || self.timeline.session().date != Some(point.session.date) {
             if self.live() {
                 self.timeline.refresh().await?;
+                if entering {
+                    self.timeline.leave_session();
+                }
             }
             let held = self.held();
             self.timeline.enter(&point.session, &held).await?;
+            self.backfill_newcomers(point.session.date).await?;
             self.lease_stream().await?;
         }
         let bars = if point.pre_close {
@@ -813,6 +869,31 @@ impl Driver {
             }
             None => Ok(()),
         }
+    }
+
+    async fn backfill_newcomers(&mut self, from: NaiveDate) -> Flow<()> {
+        if self.live() || !self.run.config.needs_minute_bars() {
+            return Ok(());
+        }
+        let newcomers: Vec<Symbol> = self
+            .timeline
+            .tracked()
+            .difference(&self.minutes)
+            .cloned()
+            .collect();
+        if newcomers.is_empty() {
+            return Ok(());
+        }
+        backfill_minutes(
+            &self.inner,
+            &self.run.config,
+            &newcomers,
+            from,
+            &mut self.control,
+        )
+        .await?;
+        self.minutes.extend(newcomers);
+        Ok(())
     }
 
     fn held(&self) -> BTreeSet<Symbol> {
@@ -930,7 +1011,8 @@ impl Driver {
     }
 
     async fn await_bot(&mut self) -> Flow<()> {
-        let deadline = tokio::time::Instant::now() + ACK_TIMEOUT;
+        let timeout = self.spec.manifest.step_timeout();
+        let deadline = tokio::time::Instant::now() + timeout;
         while self.link.is_none() {
             tokio::select! {
                 socket = self.sockets.recv() => self.attach(socket).await?,
@@ -939,7 +1021,7 @@ impl Driver {
                 _ = tokio::time::sleep_until(deadline) => {
                     let message = format!(
                         "the bot did not connect within {} s",
-                        ACK_TIMEOUT.as_secs()
+                        timeout.as_secs()
                     );
                     if self.live() {
                         return self.pause(EndReason::Failed, Some(message)).await;
@@ -974,7 +1056,7 @@ impl Driver {
         }
         let ready = self.ready().await?;
         let universe = ready.universe.clone();
-        match BotLink::handshake(socket, ready).await {
+        match BotLink::handshake(socket, ready, self.spec.manifest.step_timeout()).await {
             Ok(link) => {
                 self.link = Some(link);
                 self.arrived_while_deciding = None;
@@ -1038,13 +1120,12 @@ impl Driver {
         };
         let sent_universe = universe_changed.then(|| universe.clone());
         let market = self.inner.market.clone();
-        let adv_sessions = self.run.config.cost.adv_sessions;
         let asked = self.visible_through();
         let Some(link) = self.link.as_mut() else {
             return Ok(());
         };
         let answered = {
-            let mut answer = std::pin::pin!(link.step(step, &market, adv_sessions));
+            let mut answer = std::pin::pin!(link.step(step, &market));
             loop {
                 tokio::select! {
                     answered = &mut answer => break Some(answered),
@@ -1148,6 +1229,7 @@ impl Driver {
         if ordered {
             let held = self.held();
             self.timeline.track(held).await?;
+            self.backfill_newcomers(current.date).await?;
         }
         self.lease_stream().await?;
         self.commit(false).await
@@ -1230,6 +1312,11 @@ impl Driver {
                 }
                 return Ok(());
             }
+            Some(ProcessEvent::Outdated) => {
+                self.link = None;
+                let message = self.outdated_message();
+                return self.pause(EndReason::Failed, Some(message)).await;
+            }
             None => {
                 self.process = None;
                 if self.live() && !self.paused {
@@ -1309,11 +1396,7 @@ impl Driver {
             self.absorb();
         }
         self.show_backtest_equity(true);
-        let persisted = match status {
-            Some(_) => self.commit(true).await,
-            None => self.commit(true).await,
-        };
-        let flushed = match persisted {
+        let flushed = match self.commit(true).await {
             Ok(()) => self
                 .committer
                 .finish()

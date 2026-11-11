@@ -135,6 +135,10 @@ impl Session {
         (self.close - self.open).num_minutes()
     }
 
+    pub fn is_closed_at(&self, at: Timestamp) -> bool {
+        at >= self.close
+    }
+
     pub fn last_bar_start(&self, timeframe: Timeframe) -> Timestamp {
         match timeframe {
             Timeframe::Day => self.open,

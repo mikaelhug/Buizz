@@ -90,7 +90,6 @@ async fn spine() -> Spine {
         RunnerConfig {
             bots_dir: data.path().join("bots"),
             start_cash: Decimal::from(100_000),
-            cost: CostModel::default(),
         },
         RunnerDeps {
             market: market.clone(),

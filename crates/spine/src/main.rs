@@ -6,7 +6,6 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use buizz_api::{ApiConfig, AppState};
-use buizz_core::run::CostModel;
 use buizz_feed::{FeedConfig, FeedManager};
 use buizz_ingest::{Ingest, IngestConfig};
 use buizz_market::MarketStore;
@@ -106,7 +105,6 @@ async fn main() -> Result<()> {
         RunnerConfig {
             bots_dir: config.bots_dir.clone(),
             start_cash: START_CASH,
-            cost: CostModel::default(),
         },
         RunnerDeps {
             market: market.clone(),

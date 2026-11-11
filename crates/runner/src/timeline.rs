@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use buizz_core::market::{Bar, Calendar, CorporateAction, Instrument, Session, Symbol, Timeframe};
-use buizz_core::run::{RunConfig, UniverseSpec, Wake};
+use buizz_core::run::{Mode, RATE_LOOKBACK_DAYS, RunConfig, UNIVERSE_SESSIONS, UniverseSpec, Wake};
 use buizz_core::time::Timestamp;
 use buizz_core::visibility::bar_visible_at;
 use buizz_market::{MarketError, MarketStore, TIMESTAMP_RESOLUTION};
@@ -19,7 +19,7 @@ pub(crate) struct Point {
 
 impl Point {
     pub(crate) fn closes_session(&self) -> bool {
-        !self.pre_close && self.visible_at >= self.session.close
+        !self.pre_close && self.session.is_closed_at(self.visible_at)
     }
 }
 
@@ -30,7 +30,7 @@ pub(crate) struct SessionData {
     pub actions: Vec<CorporateAction>,
     pub average_daily_volume: BTreeMap<Symbol, u64>,
     pub delisted: Vec<Symbol>,
-    pub risk_free_rate: Decimal,
+    pub risk_free_rate: Option<Decimal>,
 }
 
 struct Fetched {
@@ -38,10 +38,8 @@ struct Fetched {
     tracked: BTreeSet<Symbol>,
     actions: Vec<CorporateAction>,
     average_daily_volume: BTreeMap<Symbol, u64>,
-    risk_free_rate: Decimal,
+    risk_free_rate: Option<Decimal>,
 }
-
-const RATE_LOOKBACK_DAYS: i64 = 31;
 
 type Upcoming = (NaiveDate, JoinHandle<Result<Fetched, MarketError>>);
 
@@ -59,6 +57,7 @@ pub(crate) struct Timeline {
     wake: Wake,
     universe: UniverseSpec,
     adv_sessions: u32,
+    prefetch_sessions: bool,
     start: NaiveDate,
     end: Option<NaiveDate>,
     calendar: Calendar,
@@ -78,6 +77,7 @@ impl Timeline {
             wake: config.wake,
             universe: config.universe.clone(),
             adv_sessions: config.cost.adv_sessions,
+            prefetch_sessions: config.mode == Mode::Backtest,
             start: config.start,
             end: config.end,
             calendar: Calendar::default(),
@@ -110,6 +110,10 @@ impl Timeline {
 
     pub(crate) fn instrument(&self, symbol: &Symbol) -> Option<&Instrument> {
         self.instruments.get(symbol)
+    }
+
+    pub(crate) fn tracked(&self) -> &BTreeSet<Symbol> {
+        &self.tracked
     }
 
     pub(crate) fn session(&self) -> &SessionData {
@@ -148,6 +152,10 @@ impl Timeline {
             visible_at: bar_visible_at(self.timeframe, start, &session),
             pre_close: false,
         })
+    }
+
+    pub(crate) fn leave_session(&mut self) {
+        self.session = SessionData::default();
     }
 
     pub(crate) async fn enter(
@@ -190,7 +198,8 @@ impl Timeline {
             risk_free_rate: fetched.risk_free_rate,
         };
         self.tracked = fetched.tracked;
-        if let Some(next) = self.calendar.next_after(session.date)
+        if self.prefetch_sessions
+            && let Some(next) = self.calendar.next_after(session.date)
             && self.end.is_none_or(|end| next.date <= end)
         {
             let fetch = self.fetch(next.date, self.tracked.clone());
@@ -213,7 +222,7 @@ impl Timeline {
             .and_then(|previous| previous.date.succ_opt())
             .unwrap_or(date);
         async move {
-            let universe = market.universe(&universe, date, adv_sessions).await?;
+            let universe = market.universe(&universe, date, UNIVERSE_SESSIONS).await?;
             let tracked: BTreeSet<Symbol> = universe.iter().cloned().chain(held).collect();
             let symbols: Vec<Symbol> = tracked.iter().cloned().collect();
             let actions = market
@@ -225,8 +234,9 @@ impl Timeline {
             let risk_free_rate = market
                 .risk_free_rates(date - TimeDelta::days(RATE_LOOKBACK_DAYS), date)
                 .await?
-                .last()
-                .map_or(Decimal::ZERO, |rate| rate.percent / Decimal::ONE_HUNDRED);
+                .iter()
+                .rfind(|rate| rate.date < date)
+                .map(|rate| rate.percent / Decimal::ONE_HUNDRED);
             Ok(Fetched {
                 universe,
                 tracked,

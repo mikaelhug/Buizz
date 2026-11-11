@@ -11,15 +11,15 @@ use buizz_core::order::{
 };
 use buizz_core::protocol::{Holdings, StepEvent};
 use buizz_core::run::{
-    CostModel, DRAWDOWN_STOP, EquityPoint, MOC_CUTOFF_MINUTES, Mode, RiskLimit, RiskLimits,
-    RunConfig,
+    CostModel, DRAWDOWN_STOP, EquityPoint, MOC_CUTOFF_MINUTES, Mode, RATE_LOOKBACK_DAYS, RiskLimit,
+    RiskLimits, RunConfig,
 };
 use buizz_core::time::Timestamp;
 use chrono::{Datelike, NaiveDate, TimeDelta};
 use rust_decimal::{Decimal, RoundingStrategy};
 use serde::{Deserialize, Serialize};
 
-pub const ENGINE_VERSION: u32 = 4;
+pub const ENGINE_VERSION: u32 = 5;
 
 #[derive(Debug, thiserror::Error)]
 pub enum EngineError {
@@ -40,7 +40,7 @@ pub struct Cycle<'a> {
     pub actions: &'a [CorporateAction],
     pub average_daily_volume: &'a BTreeMap<Symbol, u64>,
     pub delisted: &'a [Symbol],
-    pub risk_free_rate: Decimal,
+    pub risk_free_rate: Option<Decimal>,
 }
 
 pub struct Decision<'a> {
@@ -54,6 +54,13 @@ impl Decision<'_> {
     fn auction_closed(&self) -> bool {
         self.at > self.on_close.close - TimeDelta::minutes(MOC_CUTOFF_MINUTES)
     }
+}
+
+fn locked_on_close(order: &Order, session: &Session, at: Timestamp) -> bool {
+    order.order_type == OrderType::MarketOnClose
+        && order.session == Some(session.date)
+        && at > session.close - TimeDelta::minutes(MOC_CUTOFF_MINUTES)
+        && at < session.close
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -87,6 +94,7 @@ struct State {
     portfolio: Portfolio,
     last_close: BTreeMap<Symbol, Decimal>,
     working: BTreeMap<OrderId, Order>,
+    #[serde(skip)]
     client_ids: BTreeSet<String>,
     orders_issued: u64,
     ledger_len: u64,
@@ -94,6 +102,7 @@ struct State {
     session: Option<Session>,
     session_filled: BTreeMap<Symbol, u64>,
     volume_unknown: BTreeSet<Symbol>,
+    rate_missing: bool,
     breached: Vec<RiskLimit>,
     stopped_at: Option<Timestamp>,
     chain: [u8; 32],
@@ -153,7 +162,11 @@ impl Engine {
         engine
     }
 
-    pub fn restore(config: &RunConfig, checkpoint: &[u8]) -> Result<Self, EngineError> {
+    pub fn restore(
+        config: &RunConfig,
+        checkpoint: &[u8],
+        client_ids: BTreeSet<String>,
+    ) -> Result<Self, EngineError> {
         let header: CheckpointHeader = rmp_serde::from_slice(checkpoint)?;
         let written = match header.version {
             WrittenBy::Engine(version) => version,
@@ -164,7 +177,8 @@ impl Engine {
         if !resumable {
             return Err(EngineError::Version(written));
         }
-        let CheckpointIn { state } = rmp_serde::from_slice(checkpoint)?;
+        let CheckpointIn { mut state } = rmp_serde::from_slice(checkpoint)?;
+        state.client_ids = client_ids;
         Ok(Self {
             timeframe: config.timeframe,
             cost: config.cost.clone(),
@@ -213,9 +227,11 @@ impl Engine {
 
     pub fn drawdown_stop(&self) -> Option<DrawdownStop> {
         self.state.stopped_at?;
-        Some(match self.state.portfolio.open_positions().next() {
-            Some(_) => DrawdownStop::Closing,
-            None => DrawdownStop::Flat,
+        let flat =
+            self.state.portfolio.open_positions().next().is_none() && self.state.working.is_empty();
+        Some(match flat {
+            true => DrawdownStop::Flat,
+            false => DrawdownStop::Closing,
         })
     }
 
@@ -339,8 +355,7 @@ impl Engine {
         };
         let id = order.id;
         if order.order_type == OrderType::MarketOnClose {
-            let locked = order.session == Some(decision.on_close.date) && decision.auction_closed();
-            if !locked {
+            if !locked_on_close(order, decision.on_close, decision.at) {
                 self.close_where(decision.at, OrderStatus::Cancelled, |order| order.id == id);
             }
             return;
@@ -501,6 +516,7 @@ impl Engine {
             .state
             .working
             .values()
+            .filter(|order| order.order_type != OrderType::MarketOnClose)
             .map(|order| &order.symbol)
             .collect();
         let uncovered: Vec<(Symbol, i64)> = self
@@ -570,7 +586,7 @@ impl Engine {
         });
         self.execute(cycle, cycle.start, continuous);
         self.trail(cycle, bars);
-        if cycle.visible_at >= cycle.session.close {
+        if cycle.session.is_closed_at(cycle.visible_at) {
             let closing = self.priced(cycle, |order| match order.order_type {
                 OrderType::MarketOnClose => official
                     .get(&order.symbol)
@@ -617,7 +633,7 @@ impl Engine {
             if qty == 0 {
                 continue;
             }
-            *used += qty;
+            *used = used.saturating_add(qty);
             let commission = self.cost.commission(qty, self.state.month_shares);
             self.state.month_shares = self.state.month_shares.saturating_add(qty);
             let fill = Fill {
@@ -683,7 +699,7 @@ impl Engine {
             self.state.last_close.insert((*symbol).clone(), bar.close);
             self.state.portfolio.mark(symbol, bar.close);
         }
-        let session_closed = cycle.visible_at >= cycle.session.close;
+        let session_closed = cycle.session.is_closed_at(cycle.visible_at);
         if session_closed {
             let shorts: Vec<(Symbol, i64, Decimal)> = self
                 .state
@@ -706,14 +722,26 @@ impl Engine {
                 }
             }
             let balance = self.state.portfolio.cash;
-            let rate = self.cost.financing_rate(cycle.risk_free_rate);
+            if cycle.risk_free_rate.is_some() {
+                self.state.rate_missing = false;
+            } else if balance < Decimal::ZERO
+                && !std::mem::replace(&mut self.state.rate_missing, true)
+            {
+                self.outbox.warnings.push(format!(
+                    "no risk-free rate was published in the {RATE_LOOKBACK_DAYS} days before {}, so negative cash is financed at the spread alone until one is",
+                    cycle.session.date
+                ));
+            }
+            let rate = self
+                .cost
+                .financing_rate(cycle.risk_free_rate.unwrap_or_default());
             let amount = self.cost.financing_fee(balance, rate);
             if !amount.is_zero() {
                 self.post(
                     cycle.visible_at,
                     LedgerKind::Financing {
                         balance,
-                        rate,
+                        rate: rate.normalize(),
                         amount,
                     },
                 );
@@ -790,7 +818,10 @@ impl Engine {
                 });
                 if limit == RiskLimit::MaxDrawdown {
                     self.state.stopped_at = Some(at);
-                    self.cancel_all(at);
+                    let session = self.state.session;
+                    self.close_where(at, OrderStatus::Cancelled, |order| {
+                        !session.is_some_and(|session| locked_on_close(order, &session, at))
+                    });
                 }
             }
         }
@@ -1030,7 +1061,7 @@ mod tests {
             actions: &[],
             average_daily_volume: &average_daily_volume,
             delisted: &[],
-            risk_free_rate: Decimal::ZERO,
+            risk_free_rate: None,
         });
     }
 
@@ -1078,25 +1109,36 @@ mod tests {
 
     #[test]
     fn identical_runs_hash_the_same_whatever_the_decimal_scale() {
-        let hash = |start_cash, commission_min| {
+        let hash = |start_cash, commission_min, financing_spread: &str| {
             let (first, second) = (session(20), session(21));
-            let mut engine = Engine::new(&config(start_cash, commission_min), first.open);
+            let config = RunConfig {
+                cost: CostModel {
+                    financing_spread: financing_spread.parse().unwrap(),
+                    ..config(start_cash, commission_min).cost
+                },
+                ..config(start_cash, commission_min)
+            };
+            let mut engine = Engine::new(&config, first.open);
             step(
                 &mut engine,
                 &first,
                 &[bar(&first, "100", "99", "100")],
                 &[("AAA", 1_000_000)],
             );
-            submit(&mut engine, &first, vec![buy("AAA-1", 100)]);
+            submit(&mut engine, &first, vec![buy("AAA-1", 1500)]);
             step(
                 &mut engine,
                 &second,
                 &[bar(&second, "101", "100", "102")],
                 &[("AAA", 1_000_000)],
             );
+            assert!(engine.portfolio().cash < Decimal::ZERO);
             engine.result_hash()
         };
-        assert_eq!(hash("100000", "1"), hash("100000.00", "1.00"));
+        assert_eq!(
+            hash("100000", "1", "0.015"),
+            hash("100000.00", "1.00", "0.01500")
+        );
     }
 
     #[test]
@@ -1197,7 +1239,7 @@ mod tests {
             actions: &[split],
             average_daily_volume: &BTreeMap::new(),
             delisted: &[],
-            risk_free_rate: Decimal::ZERO,
+            risk_free_rate: None,
         });
         let expired = &engine.drain().orders[0];
         assert_eq!(expired.status, OrderStatus::Expired);
@@ -1312,6 +1354,91 @@ mod tests {
     }
 
     #[test]
+    fn a_drawdown_stop_after_the_cutoff_keeps_the_locked_market_on_close() {
+        let (first, second) = (session(20), session(21));
+        let mut config = config("100000", "1");
+        config.risk.max_drawdown = Some("0.1".parse().unwrap());
+        let mut engine = Engine::new(&config, first.open);
+        step(
+            &mut engine,
+            &first,
+            &[bar(&first, "100", "99", "100")],
+            &[("AAA", 1_000_000)],
+        );
+        submit(
+            &mut engine,
+            &first,
+            vec![
+                buy("AAA-1", 500),
+                order(
+                    "AAA-2",
+                    OrderSize::Qty { qty: 10 },
+                    OrderType::MarketOnClose,
+                ),
+            ],
+        );
+        let crash = bar(&second, "100", "40", "50");
+        engine.run_cycle(&Cycle {
+            session: &second,
+            start: second.open,
+            visible_at: second.close - TimeDelta::minutes(5),
+            bars: std::slice::from_ref(&crash),
+            official: &[],
+            actions: &[],
+            average_daily_volume: &BTreeMap::new(),
+            delisted: &[],
+            risk_free_rate: None,
+        });
+        assert_eq!(engine.drawdown_stop(), Some(DrawdownStop::Closing));
+        let working = engine.holdings().working;
+        assert_eq!(working.len(), 1);
+        assert_eq!(working[0].order_type, OrderType::MarketOnClose);
+    }
+
+    #[test]
+    fn a_checkpoint_leaves_client_ids_to_the_orders_and_a_restored_engine_still_rejects_repeats() {
+        let first = session(20);
+        let config = config("100000", "1");
+        let mut engine = Engine::new(&config, first.open);
+        step(
+            &mut engine,
+            &first,
+            &[bar(&first, "100", "99", "100")],
+            &[("AAA", 1_000_000)],
+        );
+        let placed = submit(
+            &mut engine,
+            &first,
+            vec![buy("client-id-kept-by-orders", 1)],
+        );
+        engine.cancel_all(first.close);
+        let checkpoint = engine.checkpoint();
+        assert!(
+            !checkpoint
+                .windows(placed[0].client_id.len())
+                .any(|window| window == placed[0].client_id.as_bytes())
+        );
+        let ids = placed.into_iter().map(|order| order.client_id).collect();
+        let mut restored = Engine::restore(&config, &checkpoint, ids).unwrap();
+        let decision = Decision {
+            at: first.close,
+            session: &first,
+            on_open: &first,
+            on_close: &first,
+        };
+        restored.accept(
+            &decision,
+            vec![buy("client-id-kept-by-orders", 1)],
+            Vec::new(),
+            |_| Err(RejectReason::UnknownSymbol),
+        );
+        assert_eq!(
+            restored.drain().rejections[0].reject_reason,
+            Some(RejectReason::DuplicateClientId)
+        );
+    }
+
+    #[test]
     fn a_live_run_resumes_from_an_older_engine_checkpoint_and_a_backtest_refuses() {
         #[derive(Serialize)]
         struct Legacy<'a> {
@@ -1330,10 +1457,10 @@ mod tests {
             state: &engine.state,
         })
         .unwrap();
-        let resumed = Engine::restore(&live, &checkpoint).unwrap();
+        let resumed = Engine::restore(&live, &checkpoint, BTreeSet::new()).unwrap();
         assert_eq!(resumed.result_hash(), engine.result_hash());
         assert!(matches!(
-            Engine::restore(&backtest, &checkpoint),
+            Engine::restore(&backtest, &checkpoint, BTreeSet::new()),
             Err(EngineError::Version(1))
         ));
     }
