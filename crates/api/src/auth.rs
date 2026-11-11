@@ -204,7 +204,7 @@ fn client_address(peer: Option<IpAddr>, headers: &HeaderMap) -> IpAddr {
         .filter_map(|value| value.to_str().ok())
         .flat_map(|value| value.split(','))
         .filter_map(|entry| entry.trim().parse::<IpAddr>().ok())
-        .last();
+        .next_back();
     match forwarded {
         Some(client) if behind_proxy => client,
         _ => peer,
