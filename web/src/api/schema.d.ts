@@ -1143,7 +1143,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description server-sent events; the event name is the `type` field. Log events carry the id `<run>:<seq>`; reconnecting with `Last-Event-ID` replays that run's missed log events from the state store */
+            /** @description server-sent events; the event name is the `type` field */
             200: {
                 headers: {
                     [name: string]: unknown;
