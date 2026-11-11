@@ -1,4 +1,4 @@
-use buizz_core::api::RunSummary;
+use buizz_core::api::{RunSummary, SparkPoint};
 use buizz_core::ledger::{LedgerEntry, LedgerKind, Portfolio};
 use buizz_core::order::{Fill, Order};
 use buizz_core::run::{
@@ -407,6 +407,25 @@ pub fn equity(connection: &Connection, run_id: RunId) -> Result<Vec<EquityPoint>
                 equity: read_decimal(row, 1)?,
                 cash: read_decimal(row, 2)?,
                 gross_exposure: read_decimal(row, 3)?,
+            })
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    Ok(points)
+}
+
+pub fn sparkline(connection: &Connection, run_id: RunId, points: u32) -> Result<Vec<SparkPoint>> {
+    let mut statement = connection.prepare_cached(
+        "SELECT at, equity FROM (SELECT at, equity, \
+         ROW_NUMBER() OVER (ORDER BY at) - 1 AS position, COUNT(*) OVER () AS total \
+         FROM equity_point WHERE run_id = ?1) \
+         WHERE position % MAX((total + ?2 - 1) / ?2, 1) = 0 OR position = total - 1 \
+         ORDER BY at",
+    )?;
+    let points = statement
+        .query_map(params![run_id.0, points.max(1)], |row| {
+            Ok(SparkPoint {
+                at: read_timestamp(row, 0)?,
+                equity: read_decimal(row, 1)?,
             })
         })?
         .collect::<rusqlite::Result<_>>()?;

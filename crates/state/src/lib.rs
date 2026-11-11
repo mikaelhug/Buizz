@@ -6,7 +6,7 @@ mod runs;
 use std::path::Path;
 use std::sync::Arc;
 
-use buizz_core::api::RunSummary;
+use buizz_core::api::{RunSummary, SparkPoint};
 use buizz_core::ledger::{LedgerEntry, Portfolio};
 use buizz_core::market::{DataSource, Dataset, Symbol};
 use buizz_core::ops::{JobOutcome, JobRun, SourceFetch};
@@ -205,6 +205,12 @@ impl StateStore {
     pub async fn equity(&self, run_id: RunId) -> Result<Vec<EquityPoint>> {
         self.db
             .read(move |connection| runs::equity(connection, run_id))
+            .await
+    }
+
+    pub async fn sparkline(&self, run_id: RunId, points: u32) -> Result<Vec<SparkPoint>> {
+        self.db
+            .read(move |connection| runs::sparkline(connection, run_id, points))
             .await
     }
 
