@@ -88,6 +88,7 @@ async fn companyfacts_become_append_only_point_in_time_facts() {
 
     let tickers = client.ticker_map().await.unwrap();
     assert_eq!(tickers.get(&apple), Some(&320193));
+    assert_eq!(tickers.get(&Symbol::new("BRK.B")), Some(&1067983));
 
     let facts = client
         .company_facts(&apple, tickers[&apple], &weekday_calendar())

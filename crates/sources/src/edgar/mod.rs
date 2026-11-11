@@ -74,7 +74,7 @@ impl EdgarClient {
             .map_err(|error| SourceError::Decode(error.to_string()))?;
         Ok(entries
             .into_values()
-            .map(|entry| (Symbol::new(&entry.ticker), entry.cik_str))
+            .map(|entry| (Symbol::new(&entry.ticker.replace('-', ".")), entry.cik_str))
             .collect())
     }
 
