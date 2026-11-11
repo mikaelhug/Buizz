@@ -7,9 +7,8 @@ use chrono::NaiveDate;
 use reqwest::header::AUTHORIZATION;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Deserializer};
-use serde_json::Number;
 
-use crate::http::{HttpClient, RateLimit, SourceError};
+use crate::http::{HttpClient, RateLimit, SourceError, decimal};
 
 pub const BASE_URL: &str = "https://api.tiingo.com";
 pub const RATE_LIMIT: RateLimit = RateLimit {
@@ -114,12 +113,7 @@ struct Amount(Decimal);
 
 impl<'de> Deserialize<'de> for Amount {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let number = Number::deserialize(deserializer)?;
-        number
-            .to_string()
-            .parse()
-            .map(Self)
-            .map_err(serde::de::Error::custom)
+        decimal(deserializer).map(Self)
     }
 }
 

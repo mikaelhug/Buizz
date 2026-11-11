@@ -7,19 +7,12 @@ use buizz_core::market::{
 use buizz_core::time::Timestamp;
 use chrono::{NaiveDate, NaiveTime};
 use rust_decimal::Decimal;
-use serde::{Deserialize, Deserializer, de};
+use serde::Deserialize;
 
-use crate::http::SourceError;
+use crate::http::{SourceError, decimal};
 
 pub trait Paged {
     fn take_next_page_token(&mut self) -> Option<String>;
-}
-
-fn decimal<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Decimal, D::Error> {
-    serde_json::Number::deserialize(deserializer)?
-        .to_string()
-        .parse()
-        .map_err(de::Error::custom)
 }
 
 #[derive(Deserialize)]

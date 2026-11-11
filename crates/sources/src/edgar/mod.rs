@@ -9,7 +9,6 @@ use crate::http::{HttpClient, RateLimit, SourceError};
 mod concepts;
 mod normalize;
 
-pub use concepts::metric_for;
 pub use normalize::normalize_company_facts;
 
 pub const DATA_URL: &str = "https://data.sec.gov";

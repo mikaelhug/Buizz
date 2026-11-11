@@ -206,21 +206,3 @@ pub const WEIGHTED_AVERAGE_SHARES: &[&str] = &[
     "WeightedAverageNumberOfSharesOutstandingBasic",
     "WeightedAverageNumberOfShareOutstandingBasicAndDiluted",
 ];
-
-pub fn metric_for(taxonomy: &str, concept: &str) -> Option<(FundamentalMetric, UnitKind)> {
-    let table = match taxonomy {
-        US_GAAP => US_GAAP_PRIMARY,
-        IFRS => IFRS_PRIMARY,
-        _ => &[],
-    };
-    let primary = table
-        .iter()
-        .find(|(name, _, _)| *name == concept)
-        .map(|(_, metric, kind)| (*metric, *kind));
-    let fallback = match taxonomy {
-        US_GAAP => WEIGHTED_AVERAGE_SHARES.contains(&concept),
-        DEI => concept == COVER_PAGE_SHARES,
-        _ => false,
-    };
-    primary.or(fallback.then_some((M::SharesOutstanding, Shares)))
-}

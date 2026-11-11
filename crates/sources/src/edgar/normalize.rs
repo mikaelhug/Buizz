@@ -1,5 +1,4 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::str::FromStr;
 
 use buizz_core::market::{Calendar, FundamentalFact, FundamentalMetric, PeriodType, Symbol};
 use buizz_core::visibility::fundamental_visible_at;
@@ -11,7 +10,7 @@ use super::concepts::{
     COVER_PAGE_SHARES, DEI, IFRS, IFRS_PRIMARY, US_GAAP, US_GAAP_PRIMARY, WEIGHTED_AVERAGE_SHARES,
 };
 use super::{ACCEPTED_FORMS, UnitKind};
-use crate::http::SourceError;
+use crate::http::{SourceError, json_decimal};
 
 const SHARES_GAP_DAYS: i64 = 90;
 const SHARE_SCALE_MIN: i64 = 1_000;
@@ -143,7 +142,7 @@ impl Collector<'_> {
             let Some(period_type) = period_type(observation) else {
                 continue;
             };
-            let Some(mut value) = decimal(&observation.val) else {
+            let Some(mut value) = json_decimal(&observation.val) else {
                 continue;
             };
             if source.kind == UnitKind::Shares && source.taxonomy != DEI {
@@ -195,13 +194,6 @@ impl Collector<'_> {
     }
 }
 
-fn decimal(number: &serde_json::Number) -> Option<Decimal> {
-    let text = number.to_string();
-    Decimal::from_str(&text)
-        .or_else(|_| Decimal::from_scientific(&text))
-        .ok()
-}
-
 fn pick_unit(units: &BTreeMap<String, Vec<Observation>>, kind: UnitKind) -> Option<&str> {
     let is_currency =
         |key: &str| key.len() == 3 && key.chars().all(|letter| letter.is_ascii_uppercase());
@@ -238,7 +230,7 @@ fn cover_counts(node: Option<&Concept>) -> Vec<(NaiveDate, Decimal)> {
         .and_then(|concept| concept.units.get("shares"))
         .into_iter()
         .flatten()
-        .filter_map(|observation| Some((observation.end, decimal(&observation.val)?)))
+        .filter_map(|observation| Some((observation.end, json_decimal(&observation.val)?)))
         .filter(|(_, value)| *value > Decimal::ZERO)
         .collect();
     counts.sort();

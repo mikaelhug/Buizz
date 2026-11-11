@@ -1,8 +1,12 @@
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
 use reqwest::header::RETRY_AFTER;
 use reqwest::{RequestBuilder, Response, StatusCode};
+use rust_decimal::Decimal;
+use serde::{Deserialize, Deserializer, de};
+use serde_json::Number;
 use tokio::sync::Mutex;
 use tokio::time::Instant;
 
@@ -88,4 +92,16 @@ impl HttpClient {
         drop(next_slot);
         tokio::time::sleep_until(slot).await;
     }
+}
+
+pub(crate) fn json_decimal(number: &Number) -> Option<Decimal> {
+    let text = number.to_string();
+    Decimal::from_str(&text)
+        .or_else(|_| Decimal::from_scientific(&text))
+        .ok()
+}
+
+pub(crate) fn decimal<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Decimal, D::Error> {
+    let number = Number::deserialize(deserializer)?;
+    json_decimal(&number).ok_or_else(|| de::Error::custom(format!("{number} is not a decimal")))
 }
