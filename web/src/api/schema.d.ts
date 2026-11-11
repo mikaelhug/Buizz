@@ -623,7 +623,7 @@ export interface components {
             weight: string;
         };
         /** @enum {string} */
-        RejectReason: "unknown_symbol" | "duplicate_client_id" | "zero_quantity" | "invalid_limit_price" | "no_price" | "not_shortable" | "max_position_weight" | "max_gross_exposure";
+        RejectReason: "unknown_symbol" | "duplicate_client_id" | "zero_quantity" | "invalid_limit_price" | "no_price" | "not_shortable" | "max_position_weight" | "max_gross_exposure" | "invalid_size";
         Reproducibility: {
             bot_hash: string;
             engine_version: string;

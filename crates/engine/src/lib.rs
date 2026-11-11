@@ -217,6 +217,15 @@ impl Engine {
 
     fn apply_actions(&mut self, cycle: &Cycle<'_>) {
         for action in cycle.actions {
+            if let CorporateActionKind::Split { old_rate, new_rate } = action.kind
+                && (old_rate <= Decimal::ZERO || new_rate <= Decimal::ZERO)
+            {
+                self.outbox.warnings.push(format!(
+                    "the {} split on {} has a rate of {old_rate} for {new_rate} and was not applied",
+                    action.symbol, action.ex_date
+                ));
+                continue;
+            }
             self.outbox
                 .step_events
                 .push(StepEvent::CorporateAction(action.clone()));
@@ -487,10 +496,12 @@ impl Engine {
         {
             return Err(RejectReason::InvalidLimitPrice);
         }
-        let price = *self
+        let price = self
             .state
             .last_close
             .get(&order.symbol)
+            .copied()
+            .filter(|price| *price > Decimal::ZERO)
             .ok_or(RejectReason::NoPrice)?;
         let portfolio = &self.state.portfolio;
         let equity = portfolio.equity();
@@ -500,16 +511,19 @@ impl Engine {
             .collect();
         for working in self.state.working.values() {
             if working.session == Some(session) {
-                *projected.entry(&working.symbol).or_default() += working.signed_remaining();
+                let held = projected.entry(&working.symbol).or_default();
+                *held = held
+                    .checked_add(working.signed_remaining())
+                    .ok_or(RejectReason::InvalidSize)?;
             }
         }
         let before = projected.get(&order.symbol).copied().unwrap_or(0);
         let delta = match order.requested {
-            OrderSize::Qty { qty } => qty,
-            OrderSize::TargetWeight { weight } => {
-                target_weight_qty(weight, equity, price).ok_or(RejectReason::NoPrice)? - before
-            }
-        };
+            OrderSize::Qty { qty } => Some(qty),
+            OrderSize::TargetWeight { weight } => target_weight_qty(weight, equity, price)
+                .and_then(|target| target.checked_sub(before)),
+        }
+        .ok_or(RejectReason::InvalidSize)?;
         order.side = Side::of_qty(delta);
         order.qty = delta.unsigned_abs();
         if delta == 0 {
@@ -525,7 +539,7 @@ impl Engine {
                 return Err(RejectReason::InvalidLimitPrice);
             }
         }
-        let after = before + delta;
+        let after = before.checked_add(delta).ok_or(RejectReason::InvalidSize)?;
         if after.abs() <= before.abs() {
             return Ok(());
         }
@@ -855,5 +869,38 @@ mod tests {
         let outbox = engine.drain();
         assert_eq!(outbox.fills.len(), 2);
         assert_eq!(outbox.warnings.len(), 1);
+    }
+
+    #[test]
+    fn sizes_that_overflow_are_rejected_instead_of_panicking() {
+        let first = session(20);
+        let mut engine = Engine::new(&config("100000", "1"), first.open);
+        step(
+            &mut engine,
+            &first,
+            &[bar(&first, "100", "99", "100")],
+            &[("AAA", 1_000_000)],
+        );
+        let huge = OrderSize::TargetWeight {
+            weight: Decimal::MAX,
+        };
+        let orders = submit(
+            &mut engine,
+            &first,
+            vec![
+                order("AAA-1", huge, OrderType::Market),
+                buy("AAA-2", i64::MAX),
+                buy("AAA-3", i64::MAX),
+            ],
+        );
+        let reasons: Vec<_> = orders.iter().map(|order| order.reject_reason).collect();
+        assert_eq!(
+            reasons,
+            [
+                Some(RejectReason::InvalidSize),
+                None,
+                Some(RejectReason::InvalidSize)
+            ]
+        );
     }
 }
