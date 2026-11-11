@@ -104,6 +104,39 @@ pub const US_GAAP_PRIMARY: &[Entry] = &[
         Currency,
     ),
     ("CommonStockSharesOutstanding", M::SharesOutstanding, Shares),
+    ("DebtCurrent", M::ShortTermDebt, Currency),
+    ("ShortTermBorrowings", M::ShortTermBorrowings, Currency),
+    ("LongTermDebtCurrent", M::CurrentLongTermDebt, Currency),
+    ("LongTermDebtNoncurrent", M::LongTermDebtNoncurrent, Currency),
+    ("PreferredStockValue", M::PreferredStock, Currency),
+    ("PreferredStockValueOutstanding", M::PreferredStock, Currency),
+    ("MinorityInterest", M::MinorityInterest, Currency),
+    (
+        "RetainedEarningsAccumulatedDeficit",
+        M::RetainedEarnings,
+        Currency,
+    ),
+    ("AccruedIncomeTaxesCurrent", M::IncomeTaxesPayable, Currency),
+    ("ShortTermInvestments", M::ShortTermInvestments, Currency),
+    ("MarketableSecuritiesCurrent", M::ShortTermInvestments, Currency),
+    (
+        "AvailableForSaleSecuritiesDebtSecuritiesCurrent",
+        M::ShortTermInvestments,
+        Currency,
+    ),
+    (
+        "AvailableForSaleSecuritiesCurrent",
+        M::ShortTermInvestments,
+        Currency,
+    ),
+    ("ConvertibleDebt", M::ConvertibleDebt, Currency),
+    ("ConvertibleNotesPayable", M::ConvertibleDebt, Currency),
+    ("SecuredDebt", M::SecuredDebt, Currency),
+    ("Land", M::Land, Currency),
+    ("LandAndLandImprovements", M::Land, Currency),
+    ("BuildingsAndImprovementsGross", M::Buildings, Currency),
+    ("PropertyPlantAndEquipmentGross", M::PpeGross, Currency),
+    ("AdvertisingExpense", M::Advertising, Currency),
 ];
 
 pub const IFRS_PRIMARY: &[Entry] = &[
@@ -200,6 +233,26 @@ pub const IFRS_PRIMARY: &[Entry] = &[
         Shares,
     ),
     ("NumberOfSharesOutstanding", M::SharesOutstanding, Shares),
+    (
+        "CurrentBorrowingsAndCurrentPortionOfNoncurrentBorrowings",
+        M::ShortTermDebt,
+        Currency,
+    ),
+    ("ShorttermBorrowings", M::ShortTermBorrowings, Currency),
+    (
+        "CurrentPortionOfLongtermBorrowings",
+        M::CurrentLongTermDebt,
+        Currency,
+    ),
+    (
+        "NoncurrentPortionOfNoncurrentBorrowings",
+        M::LongTermDebtNoncurrent,
+        Currency,
+    ),
+    ("NoncontrollingInterests", M::MinorityInterest, Currency),
+    ("RetainedEarnings", M::RetainedEarnings, Currency),
+    ("CurrentTaxLiabilitiesCurrent", M::IncomeTaxesPayable, Currency),
+    ("CurrentTaxLiabilities", M::IncomeTaxesPayable, Currency),
 ];
 
 pub const WEIGHTED_AVERAGE_SHARES: &[&str] = &[

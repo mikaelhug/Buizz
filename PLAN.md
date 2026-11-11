@@ -125,6 +125,7 @@ Out of v1: brokers and real money; options, crypto, FX; tick/quote simulation; e
    - The "Drawdown stop" badge is inferred in the web UI from the failed status and message; store it as a run badge in the state store instead.
 4. Implement the bot backlog in `bots/BRIEFS.md`, one Opus 5.5 agent per bot, each followed by a critical review of that implementation against its brief. Contract gaps (G1–G13) land as their own PRs before the bots they block.
    Gap decisions (free sources first; nothing is ever derived or modelled in place of data):
+   - Landed: G16 (15 new EDGAR metrics; employees refused, only about 50 filers tag it).
    - Free and official: G3 SIC codes and G7 earnings-release dates (8-K Item 2.02 filing times) from EDGAR submissions; G15 rates and macro series from FRED (free API key) and the Treasury feed already ingested; G16 extra metrics from EDGAR XBRL concepts.
    - G11 index membership: rebuild point-in-time S&P 500 membership from Wikipedia's current-constituents and changes tables (MediaWiki API, CC BY-SA), joined with Alpaca's inactive assets for delisted prices; results keep a caveat where the change log is thin.
    - G10 borrow: start recording Interactive Brokers' public short-availability file (borrow fee and shares available per symbol) daily now, so real point-in-time borrow history accumulates; the bots it blocks stay paused until that history covers what they need.

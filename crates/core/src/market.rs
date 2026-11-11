@@ -305,6 +305,21 @@ pub enum FundamentalMetric {
     ShareRepurchases,
     Acquisitions,
     SharesOutstanding,
+    ShortTermDebt,
+    ShortTermBorrowings,
+    CurrentLongTermDebt,
+    LongTermDebtNoncurrent,
+    PreferredStock,
+    MinorityInterest,
+    RetainedEarnings,
+    IncomeTaxesPayable,
+    ShortTermInvestments,
+    ConvertibleDebt,
+    SecuredDebt,
+    Land,
+    Buildings,
+    PpeGross,
+    Advertising,
 }
 
 #[derive(

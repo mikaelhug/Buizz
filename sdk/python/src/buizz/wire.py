@@ -47,6 +47,21 @@ type Metric = Literal[
     "share_repurchases",
     "acquisitions",
     "shares_outstanding",
+    "short_term_debt",
+    "short_term_borrowings",
+    "current_long_term_debt",
+    "long_term_debt_noncurrent",
+    "preferred_stock",
+    "minority_interest",
+    "retained_earnings",
+    "income_taxes_payable",
+    "short_term_investments",
+    "convertible_debt",
+    "secured_debt",
+    "land",
+    "buildings",
+    "ppe_gross",
+    "advertising",
 ]
 
 
