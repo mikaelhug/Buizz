@@ -6,7 +6,7 @@ import { href, navigate } from "../lib/route";
 import { PAGE_SIZE, type Paged, usePaged } from "../lib/usePaged";
 import { useResource } from "../lib/useResource";
 import { confirmDialog } from "../ui/Dialog";
-import { Failure, LoadMore, Loading } from "../ui/Feedback";
+import { Failure, LoadMore, Loading, StaleFailure } from "../ui/Feedback";
 import { MetricValue } from "../ui/Metrics";
 import { RunBadges, StatusPill } from "../ui/Status";
 import { notify } from "../ui/Toaster";
@@ -43,6 +43,7 @@ export function BotDetail({ name, runId }: { name: string; runId: number | undef
 
   return (
     <div className="detail">
+      <StaleFailure resource={detail} />
       <header className="detail-head">
         <h1 title={`Bot hash ${detail.data.bot_hash}`}>{summary.name}</h1>
         <span className="tf">{summary.timeframe}</span>
@@ -112,6 +113,7 @@ function RunHistory({ history, selected, name, onCancelled }: HistoryProps) {
   return (
     <section className="panel">
       <h2>Runs</h2>
+      <StaleFailure resource={history} />
       {!history.data ? (
         history.error ? <Failure message={history.error} onRetry={history.reload} /> : <Loading />
       ) : history.data.items.length === 0 ? (

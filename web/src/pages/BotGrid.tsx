@@ -5,7 +5,7 @@ import { href } from "../lib/route";
 import { appendPoints } from "../lib/series";
 import { useFrameBatch } from "../lib/useFrameBatch";
 import { useResource } from "../lib/useResource";
-import { Failure, Loading } from "../ui/Feedback";
+import { Failure, Loading, StaleFailure } from "../ui/Feedback";
 import { HOVER_METRICS, METRICS, MetricValue } from "../ui/Metrics";
 import { Sparkline } from "../ui/Sparkline";
 import { StatusPill } from "../ui/Status";
@@ -55,11 +55,14 @@ export function BotGrid() {
     return <p className="empty">No bots in bots/</p>;
   }
   return (
-    <section className="bot-grid">
+    <>
+      <StaleFailure resource={bots} />
+      <section className="bot-grid">
       {bots.data.map((bot) => (
         <BotCard key={bot.name} bot={bot} onChanged={bots.reload} />
-      ))}
-    </section>
+        ))}
+      </section>
+    </>
   );
 }
 

@@ -7,7 +7,7 @@ import { useFrameBatch } from "../lib/useFrameBatch";
 import { PAGE_SIZE, type Paged, usePaged } from "../lib/usePaged";
 import { type Resource, useResource } from "../lib/useResource";
 import { EquityChart } from "../ui/EquityChart";
-import { Failure, LoadMore, Loading } from "../ui/Feedback";
+import { Failure, LoadMore, Loading, StaleFailure } from "../ui/Feedback";
 import { MetricGrid } from "../ui/Metrics";
 import { RunBadges, StatusPill } from "../ui/Status";
 
@@ -69,12 +69,14 @@ export function RunView({ runId }: { runId: number }) {
   }
   return (
     <>
+      <StaleFailure resource={run} />
       <RunHeader run={run.data} />
       <section className="panel chart-panel">
         <div className="legend">
           <span className="swatch swatch-equity">{run.data.bot}</span>
           <span className="swatch swatch-bench">{run.data.config.benchmark}</span>
         </div>
+        <StaleFailure resource={curve} />
         {curve.data ? (
           curve.data.points.length > 0 ? (
             <EquityChart runId={runId} points={curve.data.points} benchmark={curve.data.benchmark} />
@@ -200,6 +202,7 @@ function Positions({ positions }: { positions: Resource<Schemas["PositionView"][
   return (
     <section className="panel">
       <h2>Positions</h2>
+      <StaleFailure resource={positions} />
       {!positions.data ? (
         positions.error ? <Failure message={positions.error} onRetry={positions.reload} /> : <Loading />
       ) : positions.data.length === 0 ? (
@@ -252,6 +255,7 @@ function Orders({ orders }: { orders: Paged<Schemas["OrderView"]> }) {
   return (
     <section className="panel">
       <h2>Orders</h2>
+      <StaleFailure resource={orders} />
       {!orders.data ? (
         orders.error ? <Failure message={orders.error} onRetry={orders.reload} /> : <Loading />
       ) : orders.data.items.length === 0 ? (
@@ -349,6 +353,7 @@ function Events({ events }: { events: Paged<Schemas["RunEvent"]> }) {
           ))}
         </div>
       </header>
+      <StaleFailure resource={events} />
       {!events.data ? (
         events.error ? <Failure message={events.error} onRetry={events.reload} /> : <Loading />
       ) : items.length === 0 ? (

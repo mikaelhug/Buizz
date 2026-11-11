@@ -17,6 +17,7 @@ export function useResource<T>(load: () => Promise<T>, deps: DependencyList): Re
   const loadLatest = useEffectEvent(load);
 
   useEffect(() => {
+    setState((current) => (current.data === undefined && current.error === undefined ? current : {}));
     let live = true;
     let inFlight = false;
     let again = false;
