@@ -31,7 +31,7 @@ Finished slices are deleted from this file (CLAUDE.md directive 6). Wave 0 (cont
 | Bot protocol | WebSocket, binary MessagePack, columnar bar buffers | Language-agnostic, one frame each way per step; Python is not the bottleneck |
 | Bot SDK | Python 3.13, uv, msgspec, websockets, numpy | Strategy ecosystem; other languages can implement the protocol later |
 | Web UI | React + TypeScript (strict) + Vite + TradingView lightweight-charts; SSE for live updates; types generated from OpenAPI (utoipa) | Lean, typed against the API, proper financial charts |
-| Tooling | `just`, GitHub Actions, sccache, clippy/rustfmt, ruff + pyright, zero-comment lint | One command surface; CI enforces what HUG lost when its CI was removed |
+| Tooling | `just`, clippy/rustfmt, ruff + pyright, zero-comment lint | One command surface; `just check` gates every merge to `main` |
 
 Versions: latest stable at Wave 0, pinned by committed lockfiles.
 
@@ -134,7 +134,7 @@ Wave 1 is merged. Handoff notes for Wave 2 (the code is the reference):
 | Slice | Owns | Done when | Model |
 |---|---|---|---|
 | End-to-end + fake Alpaca | `e2e/` | The seven scenarios below are green; slice-level checks they supersede are deleted | Opus |
-| Deploy | `Dockerfile`, `.github/workflows/release.yaml` | amd64 image on `ghcr.io/mikaelhug/buizz`, `tini` PID 1, bots' uv env synced `--frozen` at build | Sonnet |
+| Deploy | `Dockerfile`, `.github/workflows/release.yaml` | Release workflow modelled on `../Engly/.github/workflows/release.yaml`: on push to `main` and `v*` tags only, build the amd64 image and push it to `ghcr.io/mikaelhug/buizz` with the same version scheme; `tini` PID 1, bots' uv env synced `--frozen` at build, dependency layer cached so DuckDB only rebuilds when `Cargo.lock` changes | Sonnet |
 | Docs | `README.md`, `docs/` (not `protocol.md`) | Small and current: run, write a bot, architecture | Sonnet |
 
 **Merge protocol**
@@ -175,5 +175,5 @@ Final manual check: `just dev`, run every example bot over the standard period f
 ## Needed from you
 
 - A free Alpaca account (paper API key + secret).
-- A private GitHub repo `mikaelhug/buizz` (CI and image builds).
+- A private GitHub repo `mikaelhug/buizz` (image builds).
 - Confirm the Tiingo key and SEC user-agent from HUG may be reused.
