@@ -519,7 +519,7 @@ export interface components {
             feed: components["schemas"]["Feed"];
         };
         /** @enum {string} */
-        JobOutcome: "ok" | "noop" | "backoff" | "failed";
+        JobOutcome: "ok" | "partial" | "noop" | "backoff" | "failed";
         JobView: {
             name: string;
             every: string;

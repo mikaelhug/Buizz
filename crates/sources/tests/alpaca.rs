@@ -39,7 +39,11 @@ async fn bars(
 ) -> Response {
     record(&seen, "bars", &headers, &params);
     if params["symbols"] == "LIMITED" {
-        return (StatusCode::TOO_MANY_REQUESTS, [(header::RETRY_AFTER, "120")]).into_response();
+        return (
+            StatusCode::TOO_MANY_REQUESTS,
+            [(header::RETRY_AFTER, "120")],
+        )
+            .into_response();
     }
     match (params["timeframe"].as_str(), params.get("page_token")) {
         ("1Day", None) => json(include_str!("../fixtures/alpaca/bars_1d_page1.json")),

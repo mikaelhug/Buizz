@@ -17,7 +17,7 @@ impl Ingest {
         if let Some(work) = self.backoff_work(now, DataSource::Edgar).await? {
             return Ok(work);
         }
-        let due = self.companies_due(now, Dataset::Companies).await?;
+        let (due, more) = self.companies_due(now, Dataset::Companies).await?;
         if due.is_empty() {
             return Ok(Work::noop("no company needs a refresh"));
         }
@@ -62,6 +62,9 @@ impl Ingest {
                     }
                 }
             }
+        }
+        if more {
+            batch.more_remains("companies");
         }
         let mut work = batch.finish("filings");
         if without_cik > 0 {

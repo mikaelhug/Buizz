@@ -1456,6 +1456,7 @@
         "type": "string",
         "enum": [
           "ok",
+          "partial",
           "noop",
           "backoff",
           "failed"

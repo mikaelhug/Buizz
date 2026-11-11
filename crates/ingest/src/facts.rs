@@ -7,7 +7,7 @@ use crate::fetch::{Batch, FetchKey, Work};
 use crate::reference::CALENDAR_HORIZON_DAYS;
 use crate::{Ingest, IngestError};
 
-const COMPANIES_PER_RUN: usize = 1_000;
+const COMPANIES_PER_RUN: usize = 500;
 const REFRESH_AFTER: TimeDelta = TimeDelta::days(7);
 pub(crate) const NO_CIK: &str = "no SEC CIK for this ticker";
 
@@ -19,7 +19,7 @@ impl Ingest {
         if let Some(work) = self.backoff_work(now, DataSource::Edgar).await? {
             return Ok(work);
         }
-        let due = self.companies_due(now, Dataset::Fundamentals).await?;
+        let (due, more) = self.companies_due(now, Dataset::Fundamentals).await?;
         if due.is_empty() {
             return Ok(Work::noop("no company needs a refresh"));
         }
@@ -63,6 +63,9 @@ impl Ingest {
                 }
             }
         }
+        if more {
+            batch.more_remains("companies");
+        }
         let mut work = batch.finish("fundamentals");
         if without_cik > 0 {
             work.message
@@ -75,11 +78,11 @@ impl Ingest {
         &self,
         now: Timestamp,
         dataset: Dataset,
-    ) -> Result<Vec<Symbol>, IngestError> {
+    ) -> Result<(Vec<Symbol>, bool), IngestError> {
         let mut due: Vec<Symbol> = Vec::new();
         for instrument in self.active_instruments().await? {
             if due.len() == COMPANIES_PER_RUN {
-                break;
+                return Ok((due, true));
             }
             if instrument.asset_class == AssetClass::Stock
                 && self.company_due(now, dataset, &instrument.symbol).await?
@@ -87,7 +90,7 @@ impl Ingest {
                 due.push(instrument.symbol);
             }
         }
-        Ok(due)
+        Ok((due, false))
     }
 
     async fn company_due(

@@ -90,7 +90,7 @@ pub(crate) fn due_at(spec: &JobSpec, latest: Option<&JobRun>, failures: u32) -> 
             FIRST_FAILURE_RETRY.saturating_mul(1 << failures.saturating_sub(1).min(16))
         }
         Some(JobOutcome::Ok) => spec.every,
-        None => Duration::ZERO,
+        Some(JobOutcome::Partial) | None => Duration::ZERO,
     };
     Some(run.started_at + delta(wait.min(spec.every)))
 }
