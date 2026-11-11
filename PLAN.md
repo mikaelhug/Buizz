@@ -112,20 +112,12 @@ Each slice owns its paths exclusively. Agents run in git worktrees at medium eff
 
 Contract notes for slice owners: stub parameters are `_`-prefixed and stub structs empty, so rename and add fields freely inside your crate. The SDK must use the websockets sans-I/O `ClientProtocol` over a blocking socket (the only transport that met the 20k steps/s gate, ~24k measured). TypeScript stays on 5.9 while openapi-typescript requires it.
 
-**Wave 1 — parallel (10 agents)**
-
-| Slice | Owns | Done when | Model |
-|---|---|---|---|
-| Market store | `crates/market/` | Fixture loads; as-of bars, adjusted history, fundamentals match expected boundaries under concurrent writer + readers | Opus |
-| Engine | `crates/engine/` | `fixtures/scenarios` reproduce to the cent with a stable hash | Opus |
-| State store | `crates/state/` | Run + ledger + checkpoint round-trip atomically; fold gives positions | Sonnet |
-| Metrics | `crates/metrics/` | Matches hand-computed values for the fixture equity curve | Sonnet |
-| Supervisor | `crates/supervisor/` | Spawns, kills by group, captures logs, backs off restarts on a real child | Sonnet |
-| Alpaca REST | `crates/sources/src/alpaca/` | Recorded fixtures normalise via a real client against a local server; 429 backoff | Sonnet |
-| Alpaca stream | `crates/sources/src/alpaca_stream/` | Fake WebSocket replay; reconnect emits a gap | Sonnet |
-| Tiingo + Treasury | `crates/sources/src/{tiingo,treasury}/` | Recorded fixtures; overlap gate rejects a mismatched tail | Sonnet |
-| EDGAR | `crates/sources/src/edgar/` | Companyfacts fixture yields append-only facts with `available_at` and canonical metrics | Sonnet |
-| Python SDK + CLI | `sdk/python/` | Conforms to golden frames; `buizz backtest` client | Sonnet |
+Wave 1 is merged. Handoff notes for Wave 2 (the code is the reference):
+- Runner: `commit_step` needs `step_seq` exactly last+1; drain the engine Outbox and `checkpoint()` in that same commit. Screen unknown and unshortable symbols before `engine.accept` (the engine has no instrument data). Repeated `client_id`s are dropped silently. Bots get `BUIZZ_RUN_TOKEN`; logs land in `data/logs/<run_id>.log` relative to the spine's working directory.
+- Runner/feed: market watermarks are in memory only; re-advance them on boot. Use `bars_between` for chunk preloads and apply `bar_visible_at` yourself.
+- Ingest: load the calendar before bars and facts (rows outside it are dropped); widen corporate-action ranges (Alpaca filters on process date); budget Tiingo's 1000/day and 500 symbols/month; back off on `RateLimited{retry_after}` via `record_fetch`; snapshots need a fresh dated path.
+- Metrics fields that are not `Option` (total return, CAGR, volatility, drawdown, exposure, turnover) read 0.0 with too little data; make them `Option` in a contract PR before the UI shows them.
+- Unverified until Alpaca keys exist: calendar times assumed America/New_York; SDK throughput (~19.5k steps/s measured against a Python fake under heavy load) is re-measured against the real runner.
 
 **Wave 2 — parallel (6 agents)**
 
@@ -150,7 +142,7 @@ Contract notes for slice owners: stub parameters are `_`-prefixed and stub struc
 - One slice = one squash PR, rebased on main, `just check` green.
 - Slices never edit `crates/core`, schemas, root manifests, lockfiles, generated files or `PLAN.md`.
 - A contract or dependency change is its own PR touching only those files, merged first; open worktrees rebase.
-- Wave 1 merges in any order. Wave 2 merges runner → feed → ingest → API → web → bots. A wave starts only from a green main.
+- Wave 2 merges runner → feed → ingest → API → web → bots. A wave starts only from a green main.
 - The orchestrating session spawns the agents, merges, and prunes `PLAN.md`.
 
 ## Deployment (after Wave 3, separate repo, with your go-ahead)
