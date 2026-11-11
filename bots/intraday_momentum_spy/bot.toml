@@ -1,0 +1,10 @@
+description = "Gao, Han, Li & Zhou's market intraday momentum: SPY long or short over the last half hour by the sign of the return from the previous close to 10:00 (with use_r12 also of 15:00 to 15:30), flat at the close; half days are skipped."
+command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
+timeframe = "1m"
+wake = "at:15:30"
+universe = { symbols = ["SPY"] }
+params = { use_r12 = false, size = 1.0 }
+
+[risk]
+max_position_weight = 1.0
+max_gross_exposure = 1.0
