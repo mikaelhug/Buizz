@@ -4,11 +4,11 @@ pub const PRICE_DECIMALS: u32 = 4;
 pub const CASH_DECIMALS: u32 = 2;
 
 pub fn round_price(value: Decimal) -> Decimal {
-    value.round_dp_with_strategy(PRICE_DECIMALS, RoundingStrategy::MidpointNearestEven)
+    fixed(value, PRICE_DECIMALS)
 }
 
 pub fn round_cash(value: Decimal) -> Decimal {
-    value.round_dp_with_strategy(CASH_DECIMALS, RoundingStrategy::MidpointNearestEven)
+    fixed(value, CASH_DECIMALS)
 }
 
 fn fixed(value: Decimal, decimals: u32) -> Decimal {
@@ -18,7 +18,7 @@ fn fixed(value: Decimal, decimals: u32) -> Decimal {
 }
 
 macro_rules! wire_format {
-    ($name:ident, $optional:ident, $decimals:expr) => {
+    ($name:ident, $optional:ident, $round:path) => {
         pub mod $name {
             use rust_decimal::Decimal;
             use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -27,7 +27,7 @@ macro_rules! wire_format {
                 value: &Decimal,
                 serializer: S,
             ) -> Result<S::Ok, S::Error> {
-                Serialize::serialize(&super::fixed(*value, $decimals), serializer)
+                Serialize::serialize(&$round(*value), serializer)
             }
 
             pub fn deserialize<'de, D: Deserializer<'de>>(
@@ -45,9 +45,7 @@ macro_rules! wire_format {
                 value: &Option<Decimal>,
                 serializer: S,
             ) -> Result<S::Ok, S::Error> {
-                value
-                    .map(|value| super::fixed(value, $decimals))
-                    .serialize(serializer)
+                value.map($round).serialize(serializer)
             }
 
             pub fn deserialize<'de, D: Deserializer<'de>>(
@@ -59,5 +57,5 @@ macro_rules! wire_format {
     };
 }
 
-wire_format!(cash, cash_option, super::CASH_DECIMALS);
-wire_format!(price, price_option, super::PRICE_DECIMALS);
+wire_format!(cash, cash_option, super::round_cash);
+wire_format!(price, price_option, super::round_price);

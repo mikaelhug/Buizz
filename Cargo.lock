@@ -518,6 +518,7 @@ dependencies = [
  "rmp-serde",
  "rust_decimal",
  "serde",
+ "serde_json",
  "thiserror",
 ]
 

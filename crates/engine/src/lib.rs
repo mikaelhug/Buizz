@@ -92,22 +92,18 @@ pub struct Engine {
 
 impl Engine {
     pub fn new(config: &RunConfig, start: Timestamp) -> Self {
+        let start_cash = round_cash(config.start_cash);
         let mut engine = Self {
             cost: config.cost,
             risk: config.risk,
             state: State {
-                peak_equity: config.start_cash,
+                peak_equity: start_cash,
                 ..State::default()
             },
             outbox: Outbox::default(),
             changed_orders: BTreeMap::new(),
         };
-        engine.post(
-            start,
-            LedgerKind::Deposit {
-                amount: config.start_cash,
-            },
-        );
+        engine.post(start, LedgerKind::Deposit { amount: start_cash });
         engine
     }
 
@@ -291,7 +287,7 @@ impl Engine {
                 let kind = LedgerKind::Liquidation {
                     symbol: symbol.clone(),
                     qty: -position.qty,
-                    price: position.last_price,
+                    price: round_price(position.last_price),
                 };
                 self.post(cycle.start, kind);
             }
@@ -586,5 +582,136 @@ impl Engine {
         hasher.update(tag);
         hasher.update(&bytes);
         self.state.chain = *hasher.finalize().as_bytes();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use buizz_core::market::Feed;
+    use buizz_core::market::Timeframe;
+    use buizz_core::order::TimeInForce;
+    use buizz_core::run::{Mode, UniverseSpec, Wake};
+    use chrono::NaiveTime;
+
+    use super::*;
+
+    fn config(start_cash: &str, commission_min: &str) -> RunConfig {
+        RunConfig {
+            bot: "test".to_owned(),
+            mode: Mode::Backtest,
+            params: serde_json::Map::new(),
+            universe: UniverseSpec::Symbols {
+                symbols: vec![Symbol::new("AAA")],
+            },
+            timeframe: Timeframe::Day,
+            wake: Wake::Bar,
+            start: day(1),
+            end: None,
+            start_cash: start_cash.parse().unwrap(),
+            cost: CostModel {
+                commission_min: commission_min.parse().unwrap(),
+                ..CostModel::default()
+            },
+            risk: RiskLimits::default(),
+            seed: 1,
+            benchmark: Symbol::new("SPY"),
+            holdout: false,
+        }
+    }
+
+    fn day(day: u32) -> NaiveDate {
+        NaiveDate::from_ymd_opt(2024, 11, day).unwrap()
+    }
+
+    fn session(date: u32) -> Session {
+        let at = |hour, minute| {
+            Timestamp::at_exchange_time(
+                day(date),
+                NaiveTime::from_hms_opt(hour, minute, 0).unwrap(),
+            )
+            .unwrap()
+        };
+        Session {
+            date: day(date),
+            open: at(9, 30),
+            close: at(16, 0),
+        }
+    }
+
+    fn bar(session: &Session, open: &str, low: &str, close: &str) -> Bar {
+        Bar {
+            symbol: Symbol::new("AAA"),
+            start: session.open,
+            open: open.parse().unwrap(),
+            high: open.parse::<Decimal>().unwrap().max(close.parse().unwrap()),
+            low: low.parse().unwrap(),
+            close: close.parse().unwrap(),
+            volume: 1_000_000,
+            feed: Feed::Sip,
+        }
+    }
+
+    fn step(engine: &mut Engine, session: &Session, bars: &[Bar], volume: &[(&str, u64)]) {
+        let average_daily_volume = volume
+            .iter()
+            .map(|(symbol, volume)| (Symbol::new(symbol), *volume))
+            .collect();
+        engine.run_cycle(&Cycle {
+            session,
+            start: session.open,
+            visible_at: session.close,
+            bars,
+            actions: &[],
+            average_daily_volume: &average_daily_volume,
+            delisted: &[],
+        });
+    }
+
+    fn order(client_id: &str, size: OrderSize, order_type: OrderType) -> OrderRequest {
+        OrderRequest {
+            client_id: client_id.to_owned(),
+            symbol: Symbol::new("AAA"),
+            size,
+            order_type,
+            tif: TimeInForce::Day,
+            reason: "test".to_owned(),
+        }
+    }
+
+    fn buy(client_id: &str, qty: i64) -> OrderRequest {
+        order(client_id, OrderSize::Qty { qty }, OrderType::Market)
+    }
+
+    fn submit(engine: &mut Engine, session: &Session, orders: Vec<OrderRequest>) -> Vec<Order> {
+        engine.accept(
+            session.close,
+            session.date.succ_opt().unwrap(),
+            orders,
+            Vec::new(),
+        );
+        engine.drain().orders
+    }
+
+    #[test]
+    fn identical_runs_hash_the_same_whatever_the_decimal_scale() {
+        let hash = |start_cash, commission_min| {
+            let (first, second) = (session(20), session(21));
+            let mut engine = Engine::new(&config(start_cash, commission_min), first.open);
+            step(
+                &mut engine,
+                &first,
+                &[bar(&first, "100", "99", "100")],
+                &[("AAA", 1_000_000)],
+            );
+            submit(&mut engine, &first, vec![buy("AAA-1", 100)]);
+            step(
+                &mut engine,
+                &second,
+                &[bar(&second, "101", "100", "102")],
+                &[("AAA", 1_000_000)],
+            );
+            engine.result_hash()
+        };
+        assert_eq!(hash("100000", "1"), hash("100000.00", "1.00"));
     }
 }
