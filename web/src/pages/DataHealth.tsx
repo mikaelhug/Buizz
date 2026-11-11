@@ -75,7 +75,7 @@ function FeedPanel({ feed }: { feed: Resource<Schemas["FeedSlots"]> }) {
   if (!feed.data) {
     return <section className="panel">{feed.error ? <Failure message={feed.error} onRetry={feed.reload} /> : <Loading />}</section>;
   }
-  const { cap, used, connected, holders } = feed.data;
+  const { cap, used, connected, error, holders } = feed.data;
   const fill = cap > 0 ? used / cap : 0;
   return (
     <section className="panel">
@@ -83,7 +83,7 @@ function FeedPanel({ feed }: { feed: Resource<Schemas["FeedSlots"]> }) {
         <h2 className="help" title="Real-time IEX minute-bar symbols in use out of the plan's cap">
           Stream slots
         </h2>
-        <span className={`stream-dot stream-${connected ? "open" : "down"}`} title={connected ? "Stream connected" : "Stream disconnected"} />
+        <span className={`stream-dot stream-${connected ? "open" : "down"}`} title={connected ? "Stream connected" : (error ?? "Stream disconnected")} />
         <span className="num slots">
           {used}/{cap}
         </span>
@@ -91,6 +91,11 @@ function FeedPanel({ feed }: { feed: Resource<Schemas["FeedSlots"]> }) {
       <div className={`meter ${fill >= 0.9 ? "meter-hot" : ""}`} role="meter" aria-valuemin={0} aria-valuemax={cap} aria-valuenow={used} aria-label="Stream slots">
         <span style={{ width: `${Math.min(fill, 1) * 100}%` }} />
       </div>
+      {error && (
+        <p className="form-error" role="status">
+          {error}
+        </p>
+      )}
       {holders.length === 0 ? (
         <p className="empty">No holders</p>
       ) : (
