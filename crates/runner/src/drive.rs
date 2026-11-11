@@ -570,7 +570,9 @@ impl Driver {
         {
             self.frame.due = true;
         }
-        if let Some(breach) = self.absorb() {
+        if let Some(breach) = self.absorb()
+            && !self.paused
+        {
             let message = format!(
                 "drawdown {:.2}% breached the {:.2}% limit; the bot is paused",
                 breach.0 * Decimal::ONE_HUNDRED,
