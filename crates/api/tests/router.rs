@@ -1,10 +1,13 @@
+use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
 use axum::Router;
 use axum::body::{Body, to_bytes};
+use axum::extract::ConnectInfo;
 use axum::http::{HeaderMap, HeaderName, Request, StatusCode, header};
 use buizz_api::{ApiConfig, AppState};
+use buizz_core::protocol::BOT_PATH;
 use buizz_core::run::{CostModel, RiskLimits};
 use buizz_feed::{FeedConfig, FeedManager};
 use buizz_ingest::{Ingest, IngestConfig};
@@ -218,4 +221,24 @@ async fn pages_forbid_framing_sniffing_and_foreign_scripts() {
     assert_eq!(page.header(header::X_CONTENT_TYPE_OPTIONS), Some("nosniff"));
     assert_eq!(page.header(header::X_FRAME_OPTIONS), Some("DENY"));
     assert_eq!(page.header(header::REFERRER_POLICY), Some("same-origin"));
+}
+
+fn bot_dial(peer: [u8; 4]) -> Request<Body> {
+    let mut request = Request::get(BOT_PATH)
+        .header(header::AUTHORIZATION, "Bearer guessed")
+        .body(Body::empty())
+        .expect("request");
+    request
+        .extensions_mut()
+        .insert(ConnectInfo(SocketAddr::from((peer, 40_000))));
+    request
+}
+
+#[tokio::test]
+async fn the_bot_socket_refuses_peers_outside_the_spine_host() {
+    let spine = spine().await;
+    let outside = send(&spine, bot_dial([10, 42, 0, 7])).await;
+    assert_eq!(outside.status, StatusCode::FORBIDDEN);
+    let local = send(&spine, bot_dial([127, 0, 0, 1])).await;
+    assert_ne!(local.status, StatusCode::FORBIDDEN);
 }

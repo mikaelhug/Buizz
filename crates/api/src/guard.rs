@@ -1,4 +1,6 @@
-use axum::extract::Request;
+use std::net::SocketAddr;
+
+use axum::extract::{ConnectInfo, Request};
 use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, header};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
@@ -37,6 +39,22 @@ pub(crate) async fn reject_cross_site(request: Request, next: Next) -> Response 
         next.run(request).await
     } else {
         Failure::new(StatusCode::FORBIDDEN, "cross-site request refused").into_response()
+    }
+}
+
+pub(crate) async fn loopback_only(request: Request, next: Next) -> Response {
+    let loopback = request
+        .extensions()
+        .get::<ConnectInfo<SocketAddr>>()
+        .is_some_and(|ConnectInfo(peer)| peer.ip().to_canonical().is_loopback());
+    if loopback {
+        next.run(request).await
+    } else {
+        Failure::new(
+            StatusCode::FORBIDDEN,
+            "bots connect from the spine's host only",
+        )
+        .into_response()
     }
 }
 

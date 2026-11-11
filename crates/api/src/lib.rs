@@ -30,7 +30,7 @@ use utoipa_axum::router::OpenApiRouter;
 
 use crate::auth::{Auth, require_session};
 use crate::error::Failure;
-use crate::guard::{reject_cross_site, security_headers};
+use crate::guard::{loopback_only, reject_cross_site, security_headers};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ApiConfig {
@@ -84,7 +84,10 @@ pub fn router(app: AppState) -> Router {
     let router = protected
         .route_layer(from_fn_with_state(api.auth.clone(), require_session))
         .merge(public)
-        .route(BOT_PATH, get(bot_socket))
+        .route(
+            BOT_PATH,
+            get(bot_socket).route_layer(from_fn(loopback_only)),
+        )
         .route("/api", any(unknown_api_route))
         .route("/api/{*rest}", any(unknown_api_route))
         .with_state(api);
