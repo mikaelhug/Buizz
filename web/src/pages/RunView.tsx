@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api, must, type Schemas } from "../api/client";
+import { api, must, mustSucceed, type Schemas } from "../api/client";
 import { useSpineEvents } from "../api/stream";
 import { ABSENT, fmt, label, tone } from "../lib/format";
 import { appendPoints } from "../lib/series";
@@ -396,7 +396,11 @@ function ProcessLog({ runId, failed }: { runId: number; failed: boolean }) {
 }
 
 function LogTail({ runId }: { runId: number }) {
-  const log = useResource(() => must(api.GET("/api/runs/{id}/logs", { params: { path: { id: runId } }, parseAs: "text" })), [runId]);
+  const log = useResource(async () => {
+    const pending = api.GET("/api/runs/{id}/logs", { params: { path: { id: runId } }, parseAs: "text" });
+    await mustSucceed(pending);
+    return (await pending).data ?? "";
+  }, [runId]);
   const text = useRef<HTMLPreElement>(null);
 
   useSpineEvents((event) => {
