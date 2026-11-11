@@ -11,7 +11,7 @@ just setup
 just dev
 ```
 
-`just dev` starts the spine on `127.0.0.1:8080` and the web UI on <http://localhost:5173>. Log in with the password `dev`. It loads the small fixture data set in `fixtures/market/` (AAA, BBB and SPY, daily bars 2024-11-20 to 2024-12-04, some 1m bars) and does not call any data provider, so only the `red_green` bot has data to run on.
+`just dev` starts the spine on `127.0.0.1:8080` and the web UI on <http://localhost:5173>. Log in with the password `buizz-dev-admin`. It loads the small fixture data set in `fixtures/market/` (AAA, BBB and SPY, daily bars 2024-11-20 to 2024-12-04, some 1m bars) and does not call any data provider, so only the `red_green` bot has data to run on.
 
 Backtest it from the UI (bot detail, Backtest) or headless from a second terminal:
 
