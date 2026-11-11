@@ -55,6 +55,11 @@ pub struct WireObservation {
 }
 
 #[derive(Debug, Deserialize)]
+struct WireVintageDates {
+    vintage_dates: Vec<NaiveDate>,
+}
+
+#[derive(Debug, Deserialize)]
 struct WirePage {
     count: usize,
     observations: Vec<WireObservation>,
@@ -75,6 +80,33 @@ impl FredClient {
                 ..config
             },
         })
+    }
+
+    pub async fn vintage_dates_since(
+        &self,
+        series: MacroSeries,
+        since: NaiveDate,
+    ) -> Result<Vec<NaiveDate>, SourceError> {
+        let id = series
+            .fred_id()
+            .ok_or_else(|| SourceError::Decode(format!("{series:?} is not a FRED series")))?;
+        let url = format!("{}/fred/series/vintagedates", self.config.base_url);
+        let since = since.to_string();
+        let request = self.http.client().get(&url).query(&[
+            ("series_id", id),
+            ("api_key", self.config.api_key.as_str()),
+            ("file_type", "json"),
+            ("realtime_start", since.as_str()),
+        ]);
+        let page: WireVintageDates = self
+            .http
+            .send(request)
+            .await
+            .map_err(without_url)?
+            .json()
+            .await
+            .map_err(|error| SourceError::Http(error.without_url()))?;
+        Ok(page.vintage_dates)
     }
 
     pub async fn vintages(

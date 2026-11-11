@@ -2,6 +2,7 @@ use std::collections::HashSet;
 
 use buizz_core::market::{DataSource, Dataset, MacroObservation, MacroSeries};
 use buizz_core::time::Timestamp;
+use chrono::TimeDelta;
 
 use crate::fetch::{Batch, FetchKey, Work};
 use crate::{Ingest, IngestError};
@@ -15,24 +16,51 @@ impl Ingest {
             return Ok(work);
         }
         let mut batch = Batch::default();
-        let mut changed: Vec<MacroObservation> = Vec::new();
         for series in MacroSeries::FRED {
             let key = FetchKey::new(DataSource::Fred, Dataset::Macro, None, None);
+            let stored: HashSet<MacroObservation> = self
+                .market
+                .macro_observations(series)
+                .await?
+                .into_iter()
+                .collect();
+            if let Some(last) = stored.iter().map(|observation| observation.published).max() {
+                match fred
+                    .vintage_dates_since(series, last + TimeDelta::days(1))
+                    .await
+                {
+                    Ok(dates) if dates.is_empty() => {
+                        batch.success(0);
+                        continue;
+                    }
+                    Ok(_) => {}
+                    Err(error) => {
+                        self.record_failure(now, &key, &error).await?;
+                        let label = series.fred_id().unwrap_or_default();
+                        if batch.source_error(label, &error) {
+                            break;
+                        }
+                        continue;
+                    }
+                }
+            }
             match fred.vintages(series).await {
                 Ok(vintages) => {
-                    self.record_fetched(now, &key, vintages.len()).await?;
-                    batch.success(0);
-                    let stored: HashSet<MacroObservation> = self
-                        .market
-                        .macro_observations(series)
-                        .await?
+                    let fetched = vintages.len();
+                    let changed: Vec<MacroObservation> = vintages
                         .into_iter()
+                        .filter(|vintage| !stored.contains(vintage))
                         .collect();
-                    changed.extend(
-                        vintages
-                            .into_iter()
-                            .filter(|vintage| !stored.contains(vintage)),
-                    );
+                    let rows = if changed.is_empty() {
+                        0
+                    } else {
+                        self.market
+                            .upsert_macro_observations(DataSource::Fred, changed)
+                            .await?
+                            .rows
+                    };
+                    self.record_fetched(now, &key, fetched).await?;
+                    batch.success(rows);
                 }
                 Err(error) => {
                     self.record_failure(now, &key, &error).await?;
@@ -42,13 +70,6 @@ impl Ingest {
                     }
                 }
             }
-        }
-        if !changed.is_empty() {
-            let summary = self
-                .market
-                .upsert_macro_observations(DataSource::Fred, changed)
-                .await?;
-            batch.success(summary.rows);
         }
         Ok(batch.finish("macro"))
     }

@@ -98,6 +98,7 @@ impl FakeProviders {
                 get(treasury),
             )
             .route("/fred/series/observations", get(fred))
+            .route("/fred/series/vintagedates", get(fred_vintage_dates))
             .route("/control/release", post(release))
             .with_state(fake.clone());
         let listener = TcpListener::bind("127.0.0.1:0")
@@ -554,6 +555,10 @@ async fn treasury(State(fake): State<Arc<Fake>>, Path(year): Path<i32>) -> Respo
         ));
     }
     csv.into_response()
+}
+
+async fn fred_vintage_dates() -> Response {
+    Json(json!({"vintage_dates": []})).into_response()
 }
 
 async fn fred(State(fake): State<Arc<Fake>>, Query(params): Query<Params>) -> Response {
