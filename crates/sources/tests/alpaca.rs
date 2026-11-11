@@ -194,8 +194,20 @@ async fn alpaca_client_pages_filters_and_normalizes_against_fixtures() {
         .1["end"]
         .parse()
         .unwrap();
-    let now = Timestamp::from_datetime(chrono::Utc::now()).unwrap();
-    assert!(now - sip_end >= chrono::TimeDelta::minutes(15));
+    assert!(Timestamp::now() - sip_end >= chrono::TimeDelta::minutes(15));
+
+    let mid_session = request(Timeframe::Day, &["AAPL"], at("2024-07-05", "14:00"));
+    client.bars(&mid_session, &calendar).await.unwrap();
+    let daily_end = seen
+        .lock()
+        .unwrap()
+        .iter()
+        .rev()
+        .find(|(route, _)| route == "bars")
+        .unwrap()
+        .1["end"]
+        .clone();
+    assert_eq!(daily_end, "2024-07-03");
 
     let seen_bars = seen.lock().unwrap().clone();
     assert!(

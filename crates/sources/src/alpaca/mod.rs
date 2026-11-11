@@ -98,11 +98,19 @@ impl AlpacaClient {
             return Ok(Vec::new());
         }
         let (timeframe, start, end) = match request.timeframe {
-            Timeframe::Day => (
-                "1Day",
-                request.from.exchange_date().to_string(),
-                to.exchange_date().to_string(),
-            ),
+            Timeframe::Day => {
+                let sessions = calendar.sessions();
+                let closed = sessions.partition_point(|session| session.close <= to);
+                let from = request.from.exchange_date();
+                let Some(last) = closed
+                    .checked_sub(1)
+                    .map(|index| sessions[index].date)
+                    .filter(|last| *last >= from)
+                else {
+                    return Ok(Vec::new());
+                };
+                ("1Day", from.to_string(), last.to_string())
+            }
             Timeframe::Minute => ("1Min", request.from.to_string(), to.to_string()),
         };
         let feed = match request.feed {
