@@ -554,7 +554,7 @@ impl Driver {
                     if self.frame.due {
                         self.publish_equity();
                     }
-                    self.commit(true).await?;
+                    self.checkpoint().await?;
                     if next.is_none() {
                         self.timeline.refresh().await?;
                     }
@@ -1050,6 +1050,17 @@ impl Driver {
         short.then_some(RejectReason::NotShortable)
     }
 
+    async fn checkpoint(&mut self) -> Flow<()> {
+        if self.paused || self.frame.events.is_empty() {
+            return self.commit(true).await;
+        }
+        let events = std::mem::take(&mut self.pending.events);
+        if !events.is_empty() {
+            self.inner.state.append_events(self.run.id, events).await?;
+        }
+        Ok(())
+    }
+
     async fn commit(&mut self, force: bool) -> Flow<()> {
         if !self.pending.dirty || !(force || self.committer.idle()) {
             return Ok(());
@@ -1209,7 +1220,11 @@ impl Driver {
             self.absorb();
         }
         let mut message = message.or_else(|| self.halted.clone());
-        let flushed = match self.commit(true).await {
+        let persisted = match status {
+            Some(_) => self.commit(true).await,
+            None => self.checkpoint().await,
+        };
+        let flushed = match persisted {
             Ok(()) => self
                 .committer
                 .finish()
