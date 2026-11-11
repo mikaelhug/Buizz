@@ -979,7 +979,7 @@ impl Driver {
                 level: LogLevel::Info,
                 message: format!("bot process {pid} started"),
             },
-            Some(ProcessEvent::Line { stream, line, .. }) => RunEventKind::Log {
+            Some(ProcessEvent::Line { stream, line }) => RunEventKind::Log {
                 level: match stream {
                     OutputStream::Stdout => LogLevel::Info,
                     OutputStream::Stderr => LogLevel::Warn,

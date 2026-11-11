@@ -7,8 +7,6 @@ use std::time::Duration;
 
 use buizz_core::protocol::{ENV_RUN_ID, ENV_RUN_TOKEN, ENV_SPINE_URL};
 use buizz_core::run::{BotManifest, RunId};
-use buizz_core::time::Timestamp;
-use chrono::Utc;
 use nix::errno::Errno;
 use nix::sys::signal::{Signal, killpg};
 use nix::unistd::Pid;
@@ -186,7 +184,6 @@ pub enum ProcessEvent {
     Line {
         stream: OutputStream,
         line: String,
-        at: Timestamp,
     },
     Exited {
         code: Option<i32>,
@@ -272,8 +269,7 @@ async fn pump_output(
         match line {
             Ok(Some(line)) => {
                 let _ = log.write_all(format!("{line}\n").as_bytes()).await;
-                let at = Timestamp::from_datetime(Utc::now()).unwrap_or_default();
-                let _ = events.try_send(ProcessEvent::Line { stream, line, at });
+                let _ = events.try_send(ProcessEvent::Line { stream, line });
             }
             Ok(None) | Err(_) => match stream {
                 OutputStream::Stdout => stdout_open = false,
