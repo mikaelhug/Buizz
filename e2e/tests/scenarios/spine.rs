@@ -298,12 +298,16 @@ impl Spine {
         self.get(&format!("/api/runs/{id}")).await
     }
 
-    pub async fn finished(&self, id: RunId) -> RunSummary {
-        let run = eventually("the run to finish", || async {
+    pub async fn ended(&self, id: RunId) -> RunSummary {
+        eventually("the run to finish", || async {
             let run = self.run(id).await;
             run.status.is_finished().then_some(run)
         })
-        .await;
+        .await
+    }
+
+    pub async fn finished(&self, id: RunId) -> RunSummary {
+        let run = self.ended(id).await;
         assert_eq!(
             run.status,
             buizz_core::run::RunStatus::Completed,

@@ -5,16 +5,18 @@ use buizz_core::market::{Bar, CorporateAction, CorporateActionKind, Instrument, 
 use buizz_core::money::{round_cash, round_price, round_price_with};
 use buizz_core::order::{
     Fill, Order, OrderId, OrderRequest, OrderSize, OrderStatus, OrderType, OrderUpdate,
-    RejectReason, Side, target_weight_qty,
+    RejectReason, Side, TimeInForce, target_weight_qty,
 };
 use buizz_core::protocol::{Holdings, StepEvent};
-use buizz_core::run::{CostModel, EquityPoint, Mode, RiskLimit, RiskLimits, RunConfig};
+use buizz_core::run::{
+    CostModel, DRAWDOWN_STOP, EquityPoint, Mode, RiskLimit, RiskLimits, RunConfig,
+};
 use buizz_core::time::Timestamp;
 use chrono::NaiveDate;
 use rust_decimal::{Decimal, RoundingStrategy};
 use serde::{Deserialize, Serialize};
 
-pub const ENGINE_VERSION: u32 = 2;
+pub const ENGINE_VERSION: u32 = 3;
 
 #[derive(Debug, thiserror::Error)]
 pub enum EngineError {
@@ -34,6 +36,12 @@ pub struct Cycle<'a> {
     pub actions: &'a [CorporateAction],
     pub average_daily_volume: &'a BTreeMap<Symbol, u64>,
     pub delisted: &'a [Symbol],
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DrawdownStop {
+    Closing,
+    Flat,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -69,6 +77,7 @@ struct State {
     session_filled: BTreeMap<Symbol, u64>,
     volume_unknown: BTreeSet<Symbol>,
     breached: Vec<RiskLimit>,
+    stopped_at: Option<Timestamp>,
     chain: [u8; 32],
 }
 
@@ -159,9 +168,21 @@ impl Engine {
             self.state.session = Some(*cycle.session);
             self.state.session_filled.clear();
         }
+        self.close_positions(cycle);
         self.fill(cycle, &bars);
-        self.mark(cycle, &bars);
-        self.check_limits();
+        let session_closed = self.mark(cycle, &bars);
+        self.check_limits(cycle.visible_at);
+        if !session_closed && self.drawdown_stop() == Some(DrawdownStop::Flat) {
+            self.record_equity(cycle.visible_at);
+        }
+    }
+
+    pub fn drawdown_stop(&self) -> Option<DrawdownStop> {
+        self.state.stopped_at?;
+        Some(match self.state.portfolio.open_positions().next() {
+            Some(_) => DrawdownStop::Closing,
+            None => DrawdownStop::Flat,
+        })
     }
 
     pub fn accept<'a>(
@@ -343,6 +364,50 @@ impl Engine {
         });
     }
 
+    fn close_positions(&mut self, cycle: &Cycle<'_>) {
+        let Some(decided_at) = self.state.stopped_at else {
+            return;
+        };
+        let covered: BTreeSet<&Symbol> = self
+            .state
+            .working
+            .values()
+            .map(|order| &order.symbol)
+            .collect();
+        let uncovered: Vec<(Symbol, i64)> = self
+            .state
+            .portfolio
+            .open_positions()
+            .filter(|(symbol, _)| !covered.contains(symbol))
+            .map(|(symbol, position)| (symbol.clone(), -position.qty))
+            .collect();
+        for (symbol, qty) in uncovered {
+            self.state.orders_issued += 1;
+            let id = OrderId(self.state.orders_issued);
+            let mut client_id = format!("drawdown-stop-{}", id.0);
+            while !self.state.client_ids.insert(client_id.clone()) {
+                client_id.push('+');
+            }
+            self.record(Order {
+                id,
+                client_id,
+                symbol,
+                side: Side::of_qty(qty),
+                qty: qty.unsigned_abs(),
+                filled_qty: 0,
+                requested: OrderSize::Qty { qty },
+                order_type: OrderType::Market,
+                tif: TimeInForce::Day,
+                reason: DRAWDOWN_STOP.to_owned(),
+                decided_at,
+                session: Some(cycle.session.date),
+                status: OrderStatus::Working,
+                reject_reason: None,
+                updated_at: cycle.start,
+            });
+        }
+    }
+
     fn fill(&mut self, cycle: &Cycle<'_>, bars: &BTreeMap<&Symbol, &Bar>) {
         let due: Vec<Order> = self
             .state
@@ -416,7 +481,7 @@ impl Engine {
         }
     }
 
-    fn mark(&mut self, cycle: &Cycle<'_>, bars: &BTreeMap<&Symbol, &Bar>) {
+    fn mark(&mut self, cycle: &Cycle<'_>, bars: &BTreeMap<&Symbol, &Bar>) -> bool {
         for (symbol, bar) in bars {
             self.state.last_close.insert((*symbol).clone(), bar.close);
             self.state.portfolio.mark(symbol, bar.close);
@@ -444,20 +509,24 @@ impl Engine {
                 }
             }
         }
-        let portfolio = &self.state.portfolio;
-        let equity = portfolio.equity();
-        self.state.peak_equity = self.state.peak_equity.max(equity);
+        self.state.peak_equity = self.state.peak_equity.max(self.state.portfolio.equity());
         if session_closed {
-            self.outbox.equity_points.push(EquityPoint {
-                at: cycle.visible_at,
-                equity,
-                cash: portfolio.cash,
-                gross_exposure: portfolio.gross_exposure(),
-            });
+            self.record_equity(cycle.visible_at);
         }
+        session_closed
     }
 
-    fn check_limits(&mut self) {
+    fn record_equity(&mut self, at: Timestamp) {
+        let portfolio = &self.state.portfolio;
+        self.outbox.equity_points.push(EquityPoint {
+            at,
+            equity: portfolio.equity(),
+            cash: portfolio.cash,
+            gross_exposure: portfolio.gross_exposure(),
+        });
+    }
+
+    fn check_limits(&mut self, at: Timestamp) {
         let portfolio = &self.state.portfolio;
         let equity = portfolio.equity();
         let peak = self.state.peak_equity;
@@ -489,6 +558,7 @@ impl Engine {
         }
         if let Some(threshold) = self.risk.max_drawdown
             && peak > Decimal::ZERO
+            && self.state.stopped_at.is_none()
         {
             readings.push((
                 RiskLimit::MaxDrawdown,
@@ -508,6 +578,10 @@ impl Engine {
                     value,
                     threshold,
                 });
+                if limit == RiskLimit::MaxDrawdown {
+                    self.state.stopped_at = Some(at);
+                    self.cancel_all(at);
+                }
             }
         }
     }
@@ -656,7 +730,6 @@ impl Engine {
 mod tests {
     use buizz_core::market::Timeframe;
     use buizz_core::market::{AssetClass, Feed};
-    use buizz_core::order::TimeInForce;
     use buizz_core::run::{UniverseSpec, Wake};
     use chrono::NaiveTime;
 

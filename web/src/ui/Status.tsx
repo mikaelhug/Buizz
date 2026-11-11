@@ -14,10 +14,17 @@ const BADGES: Record<Schemas["RunBadge"], { text: string; title: string }> = {
   data_warnings: { text: "Data warnings", title: "The run saw data warnings; see its events" },
 };
 
-export function RunBadges({ badges }: { badges: Schemas["RunBadge"][] }) {
+const DRAWDOWN_STOP = "stopped by drawdown limit";
+
+export function RunBadges({ run }: { run: Schemas["RunSummary"] }) {
   return (
     <>
-      {badges.map((badge) => (
+      {run.status === "failed" && run.message === DRAWDOWN_STOP && (
+        <span className="badge badge-drawdown_stop help" title="Equity fell by the max drawdown limit from its peak; every position was closed and the run ended">
+          Drawdown stop
+        </span>
+      )}
+      {run.badges.map((badge) => (
         <span key={badge} className={`badge badge-${badge} help`} title={BADGES[badge].title}>
           {BADGES[badge].text}
         </span>

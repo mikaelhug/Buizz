@@ -118,7 +118,7 @@ function costTitle(cost: Schemas["CostModel"], risk: Schemas["RiskLimits"]): str
     `Borrow ${fmt.percent(cost.borrow_rate)}`,
     `Max position ${fmt.percent(risk.max_position_weight)}`,
     `Max gross ${fmt.percent(risk.max_gross_exposure)}`,
-    `Drawdown kill ${fmt.percent(risk.max_drawdown)}`,
+    `Drawdown stop ${fmt.percent(risk.max_drawdown)}`,
   ].join("\n");
 }
 
@@ -147,7 +147,7 @@ function RunHeader({ run }: { run: Run }) {
       </h2>
       <span className="muted">{run.mode}</span>
       <StatusPill status={run.status} />
-      <RunBadges badges={run.badges} />
+      <RunBadges run={run} />
       {run.message && <span className="run-message">{run.message}</span>}
       <dl className="facts">
         <div>

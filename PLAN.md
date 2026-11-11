@@ -79,7 +79,7 @@ Reuse from HUG (port the logic, cite the file in the slice brief):
 - EDGAR companyfacts parsing, FY/Q classification, share-scale fix, concept map — `../HUG/backend/adapters/edgar/{client,adapter,concept_map}.py`
 - UI primitives and rules — `../HUG/frontend/src/components/ui/{Dialog,Toaster}.tsx`, `../HUG/CLAUDE.md:66-83`
 
-Tables. DuckDB: `instrument`, `calendar`, `bar_1d`, `bar_1m`, `corporate_action`, `fundamental_fact`, `rate_daily`, `coverage`, `ingest_batch`. SQLite: `run`, `run_order`, `ledger_entry`, `equity_point`, `run_event`, `job_run`, `source_fetch`. No `bot` table (scan `bots/`), no `position` table (fold the ledger). `bar_1m` and `fundamental_fact` have no primary key (DuckDB index memory): writers replace bars per symbol-session and dedupe facts on their identity fields. `equity_point` is written at session close only; intraday marks go out over SSE.
+Tables. DuckDB: `instrument`, `calendar`, `bar_1d`, `bar_1m`, `corporate_action`, `fundamental_fact`, `rate_daily`, `coverage`, `ingest_batch`. SQLite: `run`, `run_order`, `ledger_entry`, `equity_point`, `run_event`, `job_run`, `source_fetch`. No `bot` table (scan `bots/`), no `position` table (fold the ledger). `bar_1m` and `fundamental_fact` have no primary key (DuckDB index memory): writers replace bars per symbol-session and dedupe facts on their identity fields. `equity_point` is written at session close only, plus the moment a drawdown stop leaves an intraday run flat; intraday marks go out over SSE.
 
 Known parity gap, stated honestly: live minute bars are IEX (partial volume), backtests use SIP history. Live fills are tagged `feed=iex`; the volume cap is ADV-based so it is identical in both modes. Daily live runs use the official daily bar and no stream slots.
 
@@ -96,7 +96,7 @@ Known parity gap, stated honestly: live minute bars are IEX (partial volume), ba
 In v1:
 1. Benchmark (SPY buy & hold) and metrics per run: CAGR, volatility, Sharpe, Sortino, max drawdown, Calmar, win rate, profit factor, exposure, turnover, alpha/beta.
 2. Cost model: commission, slippage bps, ADV participation cap, borrow rate.
-3. Risk limits per run: max position weight, max gross exposure, drawdown kill switch (auto-pause).
+3. Risk limits per run: max position weight, max gross exposure, drawdown stop-loss (closes every position and ends the run).
 4. Overfitting guard: the last 12 months are a locked holdout; running on it is explicit and counted per bot.
 5. Bad-data gate: refuse runs with coverage gaps; flag >40% overnight moves with no corporate action.
 6. Survivorship honesty: delisted positions liquidate at last close; runs carry a "survivorship-biased universe" badge.
@@ -118,12 +118,11 @@ Out of v1: brokers and real money; options, crypto, FX; tick/quote simulation; e
 2. Confirm every worktree branch is merged into `main` and pruned.
 3. Code review each module of Buizz (one review per crate, the SDK and the web app); fix confirmed findings.
    Known issues to fold into the reviews:
-   - The UI and CLI cannot override a bot's risk limits for one backtest; a drawdown breach in a backtest reads as a pause with reason `risk_limit`.
+   - The UI and CLI cannot override a bot's risk limits for one backtest.
    - A live run's SPY benchmark only extends on reload or status change.
    - No time seam: the runner, feed, ingest, API and supervisor call the wall clock directly, so the live e2e scenarios must sleep between 23:28 and 00:11 ET. Add one `now()` in `buizz_core::time` with a test offset.
    - The spine cannot report its bound address when `BUIZZ_BIND` uses port 0; e2e works around it with relaunch-on-collision.
    - The bot WebSocket's loopback-only guard refuses bots when `BUIZZ_BIND` names a specific non-loopback address (bots then connect from that address); accept the spine's own bound IP too.
-   Decided: the drawdown limit is a true stop-loss in both modes. On a breach the engine closes every position at the next open with normal costs, and the run ends as failed with the message "stopped by drawdown limit" (backtest and live alike; going live again starts a fresh run). To test a strategy without the stop, remove `max_drawdown` from its `[risk]`. Implemented after the core/engine and runner fix agents merge.
 4. Implement the bot backlog in `bots/BRIEFS.md`, one Opus 5.5 agent per bot, each followed by a critical review of that implementation against its brief. Contract gaps (G1–G13) land as their own PRs before the bots they block.
 
 ## Deployment (after Wave 3, separate repo, with your go-ahead)

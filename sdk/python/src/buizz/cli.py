@@ -99,13 +99,15 @@ def backtest(api: Api, args: argparse.Namespace) -> int:
         if run["clock"] != last_clock:
             last_clock = run["clock"]
             print(f"  {run['status']} {last_clock} equity {run['equity']}")
-    if run["status"] != "completed":
+    completed = run["status"] == "completed"
+    if completed or run["metrics"] is not None:
+        metrics: dict[str, Any] = run["metrics"] or {}
+        for name, value in metrics.items():
+            print(f"{name:<16} {format_value(value)}")
+        print("\n".join(trade_summary(api, run["id"])))
+    if not completed:
         print(f"run {run['id']} {run['status']}: {run['message'] or 'no message'}", file=sys.stderr)
         return 1
-    metrics: dict[str, Any] = run["metrics"] or {}
-    for name, value in metrics.items():
-        print(f"{name:<16} {format_value(value)}")
-    print("\n".join(trade_summary(api, run["id"])))
     return 0
 
 

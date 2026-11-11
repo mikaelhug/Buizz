@@ -25,7 +25,7 @@ spine -> end {reason, message?}
 - Strict alternation: after a `step` the spine only answers queries until it receives the `ack` with the same `seq`. A second `hello`, an ack with the wrong `seq` or any frame outside this order ends the run with `error {code: protocol_violation}`.
 - `error` with `id: null` is fatal and is followed by the socket closing; with an `id` it answers that query and the step continues.
 - Identical in backtest and live. In live, bars that become visible while the bot is deciding coalesce into the next step: `bars` then holds several rows per symbol.
-- `end` reasons: `completed`, `paused`, `stopped`, `risk_limit`, `failed`. On `paused` the process is stopped; resuming starts a new connection that receives `ready` with the saved `state` and current holdings, never the paused interval.
+- `end` reasons: `completed`, `paused`, `stopped`, `risk_limit`, `failed`. `risk_limit` is the drawdown stop: the spine closes every position without the bot and the run ends as failed. On `paused` the process is stopped; resuming starts a new connection that receives `ready` with the saved `state` and current holdings, never the paused interval.
 
 ## Step
 
