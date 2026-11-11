@@ -51,7 +51,13 @@ export function useResource<T>(load: () => Promise<T>, deps: DependencyList): Re
   const reload = useCallback(() => fetchLatest.current(), []);
   const mutate = useCallback(
     (update: (current: T) => T) =>
-      setState((current) => (current.data === undefined ? current : { ...current, data: update(current.data) })),
+      setState((current) => {
+        if (current.data === undefined) {
+          return current;
+        }
+        const data = update(current.data);
+        return data === current.data ? current : { ...current, data };
+      }),
     [],
   );
 

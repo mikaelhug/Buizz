@@ -1,8 +1,9 @@
 import { api, must, type Schemas } from "../api/client";
-import { useSpineEvents } from "../api/stream";
+import { type SpineEvent, useSpineEvents } from "../api/stream";
 import { fmt } from "../lib/format";
 import { href } from "../lib/route";
 import { appendPoints } from "../lib/series";
+import { useFrameBatch } from "../lib/useFrameBatch";
 import { useResource } from "../lib/useResource";
 import { Failure, Loading } from "../ui/Feedback";
 import { HOVER_METRICS, METRICS, MetricValue } from "../ui/Metrics";
@@ -11,20 +12,39 @@ import { StatusPill } from "../ui/Status";
 import { BotActions } from "./BotActions";
 
 type Bot = Schemas["BotSummary"];
+type EquityEvent = Extract<SpineEvent, { type: "equity" }>;
+
+const SPARKLINE_CAP = 120;
+
+function rebucket<P>(points: P[]): P[] {
+  return points.length <= SPARKLINE_CAP ? points : points.filter((_, index) => index % 2 === 0 || index === points.length - 1);
+}
+
+function withEquity(bot: Bot, events: EquityEvent[]): Bot {
+  const mine = events.filter((event) => event.run_id === bot.live_run);
+  const last = mine.at(-1);
+  if (!last) {
+    return bot;
+  }
+  const points = mine.map((event) => ({ at: event.at, equity: event.equity }));
+  return { ...bot, equity: last.equity, sparkline: rebucket(appendPoints(bot.sparkline, points)) };
+}
 
 export function BotGrid() {
   const bots = useResource(() => must(api.GET("/api/bots")), []);
 
+  const applyEquity = useFrameBatch<EquityEvent>((events) =>
+    bots.mutate((current) => {
+      const next = current.map((bot) => withEquity(bot, events));
+      return next.some((bot, index) => bot !== current[index]) ? next : current;
+    }),
+  );
+
   useSpineEvents((event) => {
     if (event.type === "run_status") {
       bots.reload();
-    } else if (event.type === "equity") {
-      const point = { at: event.at, equity: event.equity };
-      bots.mutate((current) =>
-        current.map((bot) =>
-          bot.live_run === event.run_id ? { ...bot, equity: event.equity, sparkline: appendPoints(bot.sparkline, [point]) } : bot,
-        ),
-      );
+    } else if (event.type === "equity" && bots.data?.some((bot) => bot.live_run === event.run_id)) {
+      applyEquity(event);
     }
   });
 
