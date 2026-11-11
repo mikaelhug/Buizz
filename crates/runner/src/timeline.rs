@@ -19,7 +19,7 @@ pub(crate) struct Point {
 
 impl Point {
     pub(crate) fn closes_session(&self) -> bool {
-        !self.pre_close && self.visible_at >= self.session.close
+        !self.pre_close && self.session.is_closed_at(self.visible_at)
     }
 }
 

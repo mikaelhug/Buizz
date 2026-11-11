@@ -586,7 +586,7 @@ impl Engine {
         });
         self.execute(cycle, cycle.start, continuous);
         self.trail(cycle, bars);
-        if cycle.visible_at >= cycle.session.close {
+        if cycle.session.is_closed_at(cycle.visible_at) {
             let closing = self.priced(cycle, |order| match order.order_type {
                 OrderType::MarketOnClose => official
                     .get(&order.symbol)
@@ -699,7 +699,7 @@ impl Engine {
             self.state.last_close.insert((*symbol).clone(), bar.close);
             self.state.portfolio.mark(symbol, bar.close);
         }
-        let session_closed = cycle.visible_at >= cycle.session.close;
+        let session_closed = cycle.session.is_closed_at(cycle.visible_at);
         if session_closed {
             let shorts: Vec<(Symbol, i64, Decimal)> = self
                 .state

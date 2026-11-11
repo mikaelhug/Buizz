@@ -1395,11 +1395,7 @@ impl Driver {
             self.absorb();
         }
         self.show_backtest_equity(true);
-        let persisted = match status {
-            Some(_) => self.commit(true).await,
-            None => self.commit(true).await,
-        };
-        let flushed = match persisted {
+        let flushed = match self.commit(true).await {
             Ok(()) => self
                 .committer
                 .finish()
