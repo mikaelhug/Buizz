@@ -10,7 +10,7 @@ import {
 } from "lightweight-charts";
 import { useEffect, useRef } from "react";
 import type { Schemas } from "../api/client";
-import { fmt } from "../lib/format";
+import { exchangeWallSeconds, fmt } from "../lib/format";
 import { useColorScheme } from "../lib/theme";
 
 type Point = { at: string; equity: string };
@@ -18,7 +18,7 @@ type Point = { at: string; equity: string };
 function toLine(points: Point[]): LineData<UTCTimestamp>[] {
   const line: LineData<UTCTimestamp>[] = [];
   for (const point of points) {
-    const time = Math.floor(Date.parse(point.at) / 1000) as UTCTimestamp;
+    const time = exchangeWallSeconds(point.at) as UTCTimestamp;
     const previous = line.at(-1);
     const value = Number(point.equity);
     if (previous && previous.time === time) {

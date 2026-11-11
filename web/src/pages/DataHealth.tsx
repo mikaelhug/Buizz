@@ -37,18 +37,27 @@ export function DataHealth() {
               <dt className="help" title="Latest daily bar visible to runs">
                 Daily
               </dt>
-              <dd>{fmt.dateTime(health.data.watermarks.day)}</dd>
+              <dd>{fmt.market(health.data.watermarks.day)}</dd>
             </div>
             <div>
               <dt className="help" title="Latest minute bar visible to runs">
                 Minute
               </dt>
-              <dd>{fmt.dateTime(health.data.watermarks.minute)}</dd>
+              <dd>{fmt.market(health.data.watermarks.minute)}</dd>
             </div>
-            <div>
-              <dt>Stale jobs</dt>
-              <dd className={stale ? "down" : undefined}>{fmt.integer(stale ?? health.data.stale_jobs)}</dd>
-            </div>
+            {health.data.ingest_enabled ? (
+              <div>
+                <dt>Stale jobs</dt>
+                <dd className={stale ? "down" : undefined}>{fmt.integer(stale ?? health.data.stale_jobs)}</dd>
+              </div>
+            ) : (
+              <div>
+                <dt className="help" title="Scheduled data jobs are disabled (BUIZZ_INGEST=false)">
+                  Ingest
+                </dt>
+                <dd className="muted">off</dd>
+              </div>
+            )}
           </dl>
         )}
       </header>
@@ -66,7 +75,7 @@ function FeedPanel({ feed }: { feed: Resource<Schemas["FeedSlots"]> }) {
   if (!feed.data) {
     return <section className="panel">{feed.error ? <Failure message={feed.error} onRetry={feed.reload} /> : <Loading />}</section>;
   }
-  const { cap, used, connected, holders } = feed.data;
+  const { cap, used, connected, error, holders } = feed.data;
   const fill = cap > 0 ? used / cap : 0;
   return (
     <section className="panel">
@@ -74,7 +83,7 @@ function FeedPanel({ feed }: { feed: Resource<Schemas["FeedSlots"]> }) {
         <h2 className="help" title="Real-time IEX minute-bar symbols in use out of the plan's cap">
           Stream slots
         </h2>
-        <span className={`stream-dot stream-${connected ? "open" : "down"}`} title={connected ? "Stream connected" : "Stream disconnected"} />
+        <span className={`stream-dot stream-${connected ? "open" : "down"}`} title={connected ? "Stream connected" : (error ?? "Stream disconnected")} />
         <span className="num slots">
           {used}/{cap}
         </span>
@@ -82,6 +91,11 @@ function FeedPanel({ feed }: { feed: Resource<Schemas["FeedSlots"]> }) {
       <div className={`meter ${fill >= 0.9 ? "meter-hot" : ""}`} role="meter" aria-valuemin={0} aria-valuemax={cap} aria-valuenow={used} aria-label="Stream slots">
         <span style={{ width: `${Math.min(fill, 1) * 100}%` }} />
       </div>
+      {error && (
+        <p className="form-error" role="status">
+          {error}
+        </p>
+      )}
       {holders.length === 0 ? (
         <p className="empty">No holders</p>
       ) : (
@@ -171,10 +185,10 @@ function JobsPanel({ jobs }: { jobs: Resource<Schemas["JobView"][]> }) {
                   <td>{job.every}</td>
                   <td>{job.last_outcome ? <StatusPill status={job.last_outcome} /> : ABSENT}</td>
                   <td className="reason">{job.last_message ?? ""}</td>
-                  <td className="nowrap muted" title={`Started ${fmt.dateTime(job.last_started)}`}>
-                    {fmt.dateTime(job.last_finished)}
+                  <td className="nowrap muted" title={`Started ${fmt.local(job.last_started)}`}>
+                    {fmt.local(job.last_finished)}
                   </td>
-                  <td className="nowrap muted">{fmt.dateTime(job.next_due)}</td>
+                  <td className="nowrap muted">{fmt.local(job.next_due)}</td>
                 </tr>
               ))}
             </tbody>
@@ -229,7 +243,7 @@ function CoveragePanel({ health }: { health: Resource<Schemas["DataHealth"]> }) 
                   <td>{label(row.source)}</td>
                   <td className="nowrap">{row.first}</td>
                   <td className="nowrap">{row.last}</td>
-                  <td className="nowrap muted">{fmt.dateTime(row.updated_at)}</td>
+                  <td className="nowrap muted">{fmt.local(row.updated_at)}</td>
                 </tr>
               ))}
             </tbody>

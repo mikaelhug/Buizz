@@ -93,6 +93,7 @@ pub(crate) async fn data_health(State(app): State<AppState>) -> Result<Json<Data
         coverage,
         warnings,
         stale_jobs: u32::try_from(stale_jobs).unwrap_or(u32::MAX),
+        ingest_enabled: app.ingest.enabled(),
     }))
 }
 

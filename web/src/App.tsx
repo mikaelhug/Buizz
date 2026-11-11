@@ -1,34 +1,59 @@
 import { useEffect, useState } from "react";
-import { api, errorMessage, must, mustSucceed, UNAUTHORIZED_EVENT } from "./api/client";
+import { api, ApiFailure, errorMessage, must, mustSucceed, UNAUTHORIZED_EVENT } from "./api/client";
 import { connectStream, useStreamStatus } from "./api/stream";
 import { href, type Route, useRoute } from "./lib/route";
 import { BotDetail } from "./pages/BotDetail";
 import { BotGrid } from "./pages/BotGrid";
 import { DataHealth } from "./pages/DataHealth";
 import { Leaderboard } from "./pages/Leaderboard";
-import { Login } from "./pages/Login";
+import { Login, Unreachable } from "./pages/Login";
 import { DialogHost } from "./ui/Dialog";
 import { notify, Toaster } from "./ui/Toaster";
 
-type Auth = "checking" | "in" | "out";
+type Auth = { state: "checking" | "in" | "out" } | { state: "unreachable"; reason: string; retry: () => void };
+
+const RETRY_MS = { first: 1000, max: 30_000 };
 
 export function App() {
-  const [auth, setAuth] = useState<Auth>("checking");
+  const [auth, setAuth] = useState<Auth>({ state: "checking" });
 
   useEffect(() => {
-    must(api.GET("/api/auth/session")).then(
-      (session) => setAuth(session.authenticated ? "in" : "out"),
-      () => setAuth("out"),
-    );
-    const signOut = () => setAuth("out");
+    let live = true;
+    let attempt = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const check = () => {
+      clearTimeout(timer);
+      must(api.GET("/api/auth/session")).then(
+        (session) => live && setAuth({ state: session.authenticated ? "in" : "out" }),
+        (error: unknown) => {
+          if (!live) {
+            return;
+          }
+          if (error instanceof ApiFailure && error.status === 401) {
+            setAuth({ state: "out" });
+            return;
+          }
+          setAuth({ state: "unreachable", reason: errorMessage(error), retry: check });
+          timer = setTimeout(check, Math.min(RETRY_MS.first * 2 ** attempt, RETRY_MS.max));
+          attempt += 1;
+        },
+      );
+    };
+    check();
+    const signOut = () => setAuth({ state: "out" });
     window.addEventListener(UNAUTHORIZED_EVENT, signOut);
-    return () => window.removeEventListener(UNAUTHORIZED_EVENT, signOut);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+      window.removeEventListener(UNAUTHORIZED_EVENT, signOut);
+    };
   }, []);
 
   return (
     <>
-      {auth === "in" && <Shell onLoggedOut={() => setAuth("out")} />}
-      {auth === "out" && <Login onLoggedIn={() => setAuth("in")} />}
+      {auth.state === "in" && <Shell onLoggedOut={() => setAuth({ state: "out" })} />}
+      {auth.state === "out" && <Login onLoggedIn={() => setAuth({ state: "in" })} />}
+      {auth.state === "unreachable" && <Unreachable reason={auth.reason} onRetry={auth.retry} />}
       <DialogHost />
       <Toaster />
     </>

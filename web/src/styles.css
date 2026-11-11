@@ -459,6 +459,10 @@ h2 {
   }
 }
 
+.split.split-wide {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 540px), 1fr));
+}
+
 .loading {
   height: 64px;
   border-radius: var(--radius);
@@ -550,6 +554,10 @@ h2 {
 
 .table tr.selected {
   background: var(--info-bg);
+}
+
+.table tr.quiet {
+  opacity: 0.5;
 }
 
 .table tr.stale td:first-child {
@@ -897,8 +905,13 @@ h2 {
 }
 
 .event time {
+  min-width: 19ch;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+}
+
+.event time.wall {
+  font-style: italic;
 }
 
 .event-kind {
@@ -1016,6 +1029,14 @@ h2 {
   font-size: 22px;
 }
 
+.unreachable {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--muted);
+}
+
 .form-error {
   margin: 0;
   color: var(--down);
@@ -1060,6 +1081,31 @@ h2 {
   justify-content: flex-end;
   gap: 8px;
   align-self: stretch;
+}
+
+.bot-actions {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.period-range {
+  display: flex;
+  gap: 10px;
+  align-self: stretch;
+}
+
+.period-range label {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.period-range .input {
+  width: 100%;
+  min-width: 0;
 }
 
 .toggle {

@@ -28,6 +28,7 @@ pub enum BotStatus {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct SparkPoint {
     pub at: Timestamp,
+    #[serde(with = "crate::money::cash")]
     pub equity: Decimal,
 }
 
@@ -38,6 +39,7 @@ pub struct BotSummary {
     pub timeframe: Timeframe,
     pub status: BotStatus,
     pub live_run: Option<RunId>,
+    #[serde(default, with = "crate::money::cash_option")]
     pub equity: Option<Decimal>,
     pub sparkline: Vec<SparkPoint>,
     pub stats: Option<Metrics>,
@@ -66,6 +68,7 @@ pub struct RunSummary {
     pub started_at: Option<Timestamp>,
     pub finished_at: Option<Timestamp>,
     pub clock: Option<Timestamp>,
+    #[serde(default, with = "crate::money::cash_option")]
     pub equity: Option<Decimal>,
     pub metrics: Option<Metrics>,
     pub result_hash: Option<String>,
@@ -85,6 +88,7 @@ pub struct EquitySeries {
 pub struct OrderView {
     #[serde(flatten)]
     pub order: Order,
+    #[serde(default, with = "crate::money::price_option")]
     pub avg_fill_price: Option<Decimal>,
 }
 
@@ -98,10 +102,15 @@ pub struct OrdersPage {
 pub struct PositionView {
     pub symbol: Symbol,
     pub qty: i64,
+    #[serde(with = "crate::money::price")]
     pub avg_cost: Decimal,
+    #[serde(with = "crate::money::price")]
     pub last_price: Decimal,
+    #[serde(with = "crate::money::cash")]
     pub market_value: Decimal,
+    #[serde(with = "crate::money::cash")]
     pub unrealized_pnl: Decimal,
+    #[serde(with = "crate::money::cash")]
     pub realized_pnl: Decimal,
     pub weight: Decimal,
 }
@@ -148,6 +157,7 @@ pub struct DataHealth {
     pub coverage: Vec<Coverage>,
     pub warnings: Vec<DataWarning>,
     pub stale_jobs: u32,
+    pub ingest_enabled: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -205,6 +215,7 @@ pub enum SpineEvent {
         run_id: RunId,
         bot: String,
         at: Timestamp,
+        #[serde(with = "crate::money::cash")]
         equity: Decimal,
     },
     Order {

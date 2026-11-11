@@ -1,6 +1,7 @@
 use std::time::Duration;
 
-use buizz_core::api::{BotSummary, EquitySeries, OrderView, RunSummary};
+use buizz_core::api::{BotSummary, EquitySeries, FeedSlots, OrderView, RunSummary};
+use buizz_core::order::OrderStatus;
 use buizz_core::run::{RunEventKind, RunId, RunStatus};
 use buizz_core::time::Timestamp;
 use chrono::{NaiveTime, TimeDelta, Utc};
@@ -120,7 +121,7 @@ pub async fn assert_matches_backtest(spine: &Spine, live: &RunSummary) {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn live_pause_and_resume_in_the_browser_while_an_unpaused_twin_matches_its_backtest() {
+async fn live_pause_resume_and_stop_in_the_browser_while_an_unpaused_twin_matches_its_backtest() {
     let fake = FakeProviders::serve(live_world().await).await;
     let spine = Spine::start(
         fake,
@@ -132,9 +133,16 @@ async fn live_pause_and_resume_in_the_browser_while_an_unpaused_twin_matches_its
     .await;
     spine.ingested().await;
 
-    let seen = browser::drive("live", &spine).await;
+    let seen = browser::drive("live", &spine, &[]).await;
 
-    let tape = live_run(&spine, "tape").await;
+    let runs: Vec<RunSummary> = spine.get("/api/runs?bot=tape&mode=live").await;
+    let tape = &runs[0];
+    assert_eq!(tape.status, RunStatus::Cancelled, "stop ends the live run");
+    let feed: FeedSlots = spine.get("/api/data/feed").await;
+    assert!(
+        feed.holders.iter().all(|holder| holder.run_id != tape.id),
+        "the stopped run released its stream slots: {feed:?}"
+    );
     let events = spine.events(tape.id).await;
     let statuses: Vec<RunStatus> = events
         .iter()
@@ -151,11 +159,17 @@ async fn live_pause_and_resume_in_the_browser_while_an_unpaused_twin_matches_its
         "pause stops the bot and resume starts a new one"
     );
     assert!(!alive(pids[0]), "the paused bot process is gone");
+    assert!(!alive(pids[1]), "the stopped bot process is gone");
     let paused = (
         stamp(seen["paused"]["from"].as_str().expect("paused from")),
         stamp(seen["paused"]["through"].as_str().expect("paused through")),
     );
     for order in spine.orders(tape.id).await {
+        assert_ne!(
+            order.order.status,
+            OrderStatus::Working,
+            "stop cancels working orders"
+        );
         let decided = order.order.decided_at;
         assert!(
             decided <= paused.0 || decided > paused.1 + TimeDelta::minutes(1),

@@ -388,8 +388,7 @@ impl Runner {
     }
 
     pub async fn benchmark(&self, run: &RunSummary) -> Result<Vec<SparkPoint>, RunnerError> {
-        let through = run.clock.map_or(run.config.start, Timestamp::exchange_date);
-        report::benchmark(&self.inner.market, run, through).await
+        report::benchmark(&self.inner.market, run, now().exchange_date()).await
     }
 
     pub async fn shutdown(&self) {

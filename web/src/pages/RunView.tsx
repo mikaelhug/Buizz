@@ -35,6 +35,7 @@ export function RunView({ runId }: { runId: number }) {
     switch (event.type) {
       case "run_status":
         run.reload();
+        curve.reload();
         break;
       case "equity": {
         const point = { at: event.at, equity: event.equity };
@@ -71,7 +72,7 @@ export function RunView({ runId }: { runId: number }) {
           curve.data.points.length > 0 ? (
             <EquityChart runId={runId} points={curve.data.points} benchmark={curve.data.benchmark} />
           ) : (
-            <p className="empty chart-empty">No equity yet</p>
+            <p className="empty chart-empty">{awaitingData(run.data) ? "Waiting for market data" : "No equity yet"}</p>
           )
         ) : curve.error ? (
           <Failure message={curve.error} onRetry={curve.reload} />
@@ -82,13 +83,17 @@ export function RunView({ runId }: { runId: number }) {
       <section className="panel">
         <MetricGrid metrics={run.data.metrics} />
       </section>
-      <div className="split">
+      <div className="split split-wide">
         <Positions positions={positions} />
         <Events events={events} />
       </div>
       <Orders orders={orders} />
     </>
   );
+}
+
+function awaitingData(run: Run): boolean {
+  return run.mode === "live" && !run.clock && (run.status === "starting" || run.status === "running");
 }
 
 function universe(spec: Schemas["UniverseSpec"]): string {
@@ -116,7 +121,7 @@ function reproTitle(run: Run): string | undefined {
     `Bot ${repro.bot_hash}`,
     `Engine ${repro.engine_version}`,
     `Seed ${repro.seed}`,
-    `Data to ${fmt.dateTime(repro.data_watermark)}`,
+    `Data to ${fmt.market(repro.data_watermark)}`,
     `Result ${run.result_hash ?? ABSENT}`,
   ].join("\n");
 }
@@ -143,7 +148,15 @@ function RunHeader({ run }: { run: Run }) {
         </div>
         <div>
           <dt>Clock</dt>
-          <dd>{fmt.dateTime(run.clock)}</dd>
+          <dd>
+            {awaitingData(run) ? (
+              <span className="muted" title="Waiting for market data since the run started (local time)">
+                waiting since {fmt.local(run.started_at ?? run.created_at)}
+              </span>
+            ) : (
+              fmt.market(run.clock)
+            )}
+          </dd>
         </div>
         <div>
           <dt>Start cash</dt>
@@ -263,12 +276,16 @@ function Orders({ orders }: { orders: Paged<Schemas["OrderView"]> }) {
             </thead>
             <tbody>
               {orders.data.items.map((order) => (
-                <tr key={order.id}>
+                <tr key={order.id} className={order.qty === 0 ? "quiet" : undefined}>
                   <td className="nowrap muted" title={order.client_id}>
-                    {fmt.dateTime(order.decided_at)}
+                    {fmt.market(order.decided_at)}
                   </td>
                   <td className="sym">{order.symbol}</td>
-                  <td className={order.side === "buy" ? "up" : "down"}>{order.side}</td>
+                  {order.qty === 0 ? (
+                    <td className="muted">{ABSENT}</td>
+                  ) : (
+                    <td className={order.side === "buy" ? "up" : "down"}>{order.side}</td>
+                  )}
                   <td className="r num nowrap">
                     {fmt.integer(order.filled_qty)}/{fmt.integer(order.qty)}
                   </td>
@@ -342,9 +359,15 @@ function Events({ events }: { events: Paged<Schemas["RunEvent"]> }) {
         <ol className="event-log">
           {items.map((event) => (
             <li key={event.seq} className={`event event-${event.kind.type === "log" ? event.kind.level : event.kind.type}`}>
-              <time className="muted" title={`Wall ${fmt.dateTime(event.at)}`}>
-                {fmt.dateTime(event.clock ?? event.at)}
-              </time>
+              {event.clock ? (
+                <time className="muted" dateTime={event.clock} title={`Local ${fmt.local(event.at)}`}>
+                  {fmt.market(event.clock)}
+                </time>
+              ) : (
+                <time className="muted wall" dateTime={event.at} title="Local time">
+                  {fmt.local(event.at)}
+                </time>
+              )}
               <span className="event-kind">{event.kind.type === "log" ? event.kind.level : label(event.kind.type)}</span>
               <span className="event-text">{describe(event.kind)}</span>
             </li>

@@ -115,7 +115,7 @@ async fn an_empty_spine_backfills_backs_off_rejects_a_bad_tiingo_tail_and_restar
         )
     );
 
-    browser::drive("data", &spine).await;
+    browser::drive("data", &spine, &[]).await;
 
     let mut before = fake.hits();
     before.remove("stream");

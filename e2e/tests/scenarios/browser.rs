@@ -4,12 +4,13 @@ use tokio::process::Command;
 use crate::spine::{PASSWORD, Spine};
 use crate::world::repository;
 
-pub async fn drive(script: &str, spine: &Spine) -> Value {
+pub async fn drive(script: &str, spine: &Spine, vars: &[(&str, String)]) -> Value {
     let output = Command::new("node")
         .arg(repository().join(format!("e2e/browser/{script}.ts")))
         .env("BUIZZ_URL", &spine.base)
         .env("BUIZZ_PASSWORD", PASSWORD)
         .env("FAKE_URL", &spine.fake.url)
+        .envs(vars.iter().map(|(name, value)| (name, value)))
         .output()
         .await
         .expect("node runs the browser script");

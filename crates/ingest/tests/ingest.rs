@@ -283,6 +283,7 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
             snapshot_dir: directory.path().join("snapshots"),
             snapshot_keep: 1,
             history_start: date(HISTORY_START),
+            enabled: true,
         },
         market.clone(),
         state.clone(),

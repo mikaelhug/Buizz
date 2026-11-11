@@ -1083,6 +1083,10 @@ impl Driver {
         if let Some(process) = self.process.take() {
             process.stop().await;
         }
+        if matches!(status, Some(RunStatus::Cancelled | RunStatus::Failed)) {
+            self.engine.cancel_all(self.after);
+            self.absorb();
+        }
         let mut message = message.or_else(|| self.halted.clone());
         let flushed = match self.commit(true).await {
             Ok(()) => self
