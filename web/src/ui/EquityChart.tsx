@@ -62,6 +62,7 @@ export function EquityChart({ runId, points, benchmark }: Props) {
     }
     const created = createChart(host.current, {
       autoSize: true,
+      layout: { attributionLogo: false },
       handleScale: { mouseWheel: false },
       handleScroll: { mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
       localization: { priceFormatter: (value: number) => fmt.money(value) },
@@ -90,7 +91,6 @@ export function EquityChart({ runId, points, benchmark }: Props) {
         textColor: cssVar("--muted"),
         fontFamily: cssVar("--font"),
         fontSize: 11,
-        attributionLogo: false,
       },
       grid: { vertLines: { color: cssVar("--grid") }, horzLines: { color: cssVar("--grid") } },
       crosshair: { vertLine: { labelBackgroundColor: cssVar("--accent") }, horzLine: { labelBackgroundColor: cssVar("--accent") } },
