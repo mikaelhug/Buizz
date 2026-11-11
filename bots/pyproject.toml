@@ -17,7 +17,7 @@ dev = [
 ]
 
 [tool.uv.sources]
-buizz = { path = "../sdk/python" }
+buizz = { path = "../sdk/python", editable = true }
 
 [build-system]
 requires = ["hatchling>=1.27"]
