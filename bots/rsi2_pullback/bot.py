@@ -1,8 +1,8 @@
-from datetime import UTC, datetime
-from typing import Any, NamedTuple
+from typing import NamedTuple
 
 import numpy as np
 import numpy.typing as npt
+from buizz_bots.preclose import ProxyLog, session_so_far
 
 from buizz import Bot, Context, run
 
@@ -54,44 +54,32 @@ def signal(closes: npt.NDArray[np.float64], rules: Rules) -> Signal | None:
     )
 
 
-def check_proxy(ctx: Context, proxy: dict[str, Any], symbol: str, day: str, official: Signal, rules: Rules) -> None:
-    decision = proxy["decisions"].get(symbol)
-    if proxy["session"] != day or decision is None:
-        return
-    rule, acted = decision
-    settled = official.exits() if rule == "exit" else official.enters(rules)
-    if acted != settled:
-        ctx.log(f"pre-close {rule} decision for {symbol} on {day} was {acted}, the official close gives {settled}")
-
-
 class Rsi2Pullback(Bot):
     def on_step(self, ctx: Context) -> None:
         params = ctx.params
         rules = Rules(params["rsi_period"], params["entry_rsi"], params["trend_sma"], params["exit_sma"])
         max_positions: int = params["max_positions"]
-        proxy: dict[str, Any] = ctx.state.get("proxy", {"session": "", "decisions": {}})
+        proxy = ProxyLog(ctx)
         history = ctx.history(ctx.universe, "1d", rules.trend_sma + RSI_WARMUP, adjust="all")
         today: dict[str, Signal] = {}
         for symbol in ctx.universe:
             bars = history[symbol]
-            bar = ctx.bars.get(symbol)
-            if len(bars.close) == 0 or bar is None or bar.start != ctx.session.open:
+            bar = session_so_far(ctx, symbol)
+            if len(bars.close) == 0 or bar is None:
                 continue
             official = signal(bars.close, rules)
             if official is not None:
-                day = datetime.fromtimestamp(int(bars.start[-1]) / 1e9, UTC).date().isoformat()
-                check_proxy(ctx, proxy, symbol, day, official, rules)
+                proxy.check(symbol, bars, {"exit": official.exits(), "entry": official.enters(rules)})
             current = signal(np.append(bars.close, bar.close), rules)
             if current is not None:
                 today[symbol] = current
         held = [symbol for symbol in ctx.universe if ctx.position(symbol).qty != 0]
-        ctx.state["proxy"] = {
-            "session": ctx.session.date.isoformat(),
-            "decisions": {
-                symbol: ["exit", s.exits()] if symbol in held else ["entry", s.enters(rules)]
-                for symbol, s in today.items()
-            },
-        }
+        for symbol, s in today.items():
+            if symbol in held:
+                proxy.record(symbol, "exit", s.exits())
+            else:
+                proxy.record(symbol, "entry", s.enters(rules))
+        proxy.save()
         staying = len(held)
         for symbol in held:
             s = today.get(symbol)
