@@ -499,7 +499,7 @@ impl Runner {
                 status,
                 desired: DesiredState::Running,
                 bot_hash: spec.content_hash.clone(),
-                engine_version: ENGINE_VERSION.to_owned(),
+                engine_version: ENGINE_VERSION.to_string(),
                 badges,
                 created_at,
             })

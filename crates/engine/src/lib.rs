@@ -8,20 +8,22 @@ use buizz_core::order::{
     RejectReason, Side, target_weight_qty,
 };
 use buizz_core::protocol::{Holdings, StepEvent};
-use buizz_core::run::{CostModel, EquityPoint, RiskLimit, RiskLimits, RunConfig};
+use buizz_core::run::{CostModel, EquityPoint, Mode, RiskLimit, RiskLimits, RunConfig};
 use buizz_core::time::Timestamp;
 use chrono::NaiveDate;
 use rust_decimal::{Decimal, RoundingStrategy};
 use serde::{Deserialize, Serialize};
 
-pub const ENGINE_VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const ENGINE_VERSION: u32 = 2;
 
 #[derive(Debug, thiserror::Error)]
 pub enum EngineError {
     #[error("engine checkpoint is unreadable: {0}")]
     Checkpoint(#[from] rmp_serde::decode::Error),
-    #[error("engine checkpoint was written by engine {0}")]
-    Version(String),
+    #[error(
+        "engine checkpoint was written by engine {0}, this backtest cannot resume on engine {ENGINE_VERSION}"
+    )]
+    Version(u32),
 }
 
 pub struct Cycle<'a> {
@@ -54,6 +56,7 @@ pub struct Outbox {
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
 struct State {
     portfolio: Portfolio,
     last_close: BTreeMap<Symbol, Decimal>,
@@ -71,13 +74,20 @@ struct State {
 
 #[derive(Serialize)]
 struct CheckpointOut<'a> {
-    version: &'a str,
+    version: u32,
     state: &'a State,
 }
 
 #[derive(Deserialize)]
+#[serde(untagged)]
+enum WrittenBy {
+    Engine(u32),
+    Workspace(serde::de::IgnoredAny),
+}
+
+#[derive(Deserialize)]
 struct CheckpointHeader {
-    version: String,
+    version: WrittenBy,
 }
 
 #[derive(Deserialize)]
@@ -112,8 +122,14 @@ impl Engine {
 
     pub fn restore(config: &RunConfig, checkpoint: &[u8]) -> Result<Self, EngineError> {
         let header: CheckpointHeader = rmp_serde::from_slice(checkpoint)?;
-        if header.version != ENGINE_VERSION {
-            return Err(EngineError::Version(header.version));
+        let written = match header.version {
+            WrittenBy::Engine(version) => version,
+            WrittenBy::Workspace(_) => 1,
+        };
+        let resumable =
+            written == ENGINE_VERSION || (written < ENGINE_VERSION && config.mode == Mode::Live);
+        if !resumable {
+            return Err(EngineError::Version(written));
         }
         let CheckpointIn { state } = rmp_serde::from_slice(checkpoint)?;
         Ok(Self {
@@ -641,7 +657,7 @@ mod tests {
     use buizz_core::market::Timeframe;
     use buizz_core::market::{AssetClass, Feed};
     use buizz_core::order::TimeInForce;
-    use buizz_core::run::{Mode, UniverseSpec, Wake};
+    use buizz_core::run::{UniverseSpec, Wake};
     use chrono::NaiveTime;
 
     use super::*;
@@ -983,5 +999,32 @@ mod tests {
             Some(RejectReason::DuplicateClientId)
         );
         assert_eq!(engine.holdings().working.len(), 1);
+    }
+
+    #[test]
+    fn a_live_run_resumes_from_an_older_engine_checkpoint_and_a_backtest_refuses() {
+        #[derive(Serialize)]
+        struct Legacy<'a> {
+            version: &'a str,
+            state: &'a State,
+        }
+        let first = session(20);
+        let backtest = config("100000", "1");
+        let live = RunConfig {
+            mode: Mode::Live,
+            ..backtest.clone()
+        };
+        let engine = Engine::new(&live, first.open);
+        let checkpoint = rmp_serde::to_vec_named(&Legacy {
+            version: "0.1.0",
+            state: &engine.state,
+        })
+        .unwrap();
+        let resumed = Engine::restore(&live, &checkpoint).unwrap();
+        assert_eq!(resumed.result_hash(), engine.result_hash());
+        assert!(matches!(
+            Engine::restore(&backtest, &checkpoint),
+            Err(EngineError::Version(1))
+        ));
     }
 }
