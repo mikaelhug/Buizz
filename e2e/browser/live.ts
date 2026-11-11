@@ -29,7 +29,7 @@ function minutes({ from, through }: Released): string[] {
   return stamps;
 }
 
-async function pauseAndResume(page: Page): Promise<{ paused: Released; resumed: Released }> {
+async function pauseAndResumeThenStop(page: Page): Promise<{ paused: Released; resumed: Released }> {
   const card = (name: string) => page.locator("article.bot-card").filter({ has: page.getByRole("link", { name, exact: true }) });
   for (const name of ["tape_twin", "tape"]) {
     await card(name).getByRole("button", { name: "Live" }).click();
@@ -65,7 +65,12 @@ async function pauseAndResume(page: Page): Promise<{ paused: Released; resumed: 
   if (leaked.length > 0) {
     throw new Error(`the bot saw bars from its paused interval: ${leaked.join(", ")}`);
   }
+
+  await head.getByRole("button", { name: "Stop" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Stop run" }).click();
+  await pill(run, "cancelled").waitFor();
+  await head.getByRole("button", { name: "Live" }).waitFor();
   return { paused, resumed };
 }
 
-await signedIn(pauseAndResume);
+await signedIn(pauseAndResumeThenStop);
