@@ -57,6 +57,8 @@ def parse_param(text: str) -> tuple[str, Any]:
 
 
 def format_value(value: Any) -> str:
+    if value is None:
+        return "-"
     return f"{value:.4f}" if isinstance(value, float) else str(value)
 
 
@@ -83,12 +85,13 @@ def trade_summary(api: Api, run_id: int) -> list[str]:
     return lines
 
 
-def backtest(api: Api, bot: str, start: str, end: str, params: dict[str, Any]) -> int:
-    body: dict[str, Any] = {"period": {"from": start, "to": end}}
-    if params:
-        body["params"] = params
+def backtest(api: Api, args: argparse.Namespace) -> int:
+    bot = Path(args.bot).name
+    body: dict[str, Any] = {"period": {"from": args.start, "to": args.end}, "allow_holdout": args.allow_holdout}
+    if args.param:
+        body["params"] = dict(args.param)
     run = api.call("POST", f"/api/bots/{bot}/backtests", body)
-    print(f"run {run['id']} queued for {bot} {start}..{end}")
+    print(f"run {run['id']} queued for {bot} {args.start}..{args.end}")
     last_clock = None
     while run["status"] not in FINISHED:
         time.sleep(POLL_SECONDS)
@@ -115,6 +118,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--from", dest="start", required=True, metavar="YYYY-MM-DD")
     run.add_argument("--to", dest="end", required=True, metavar="YYYY-MM-DD")
     run.add_argument("--param", action="append", default=[], type=parse_param, metavar="KEY=VALUE")
+    run.add_argument("--allow-holdout", action="store_true", help="allow an end date inside the locked holdout")
     return parser
 
 
@@ -125,7 +129,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "bots":
             list_bots(api)
             return 0
-        return backtest(api, Path(args.bot).name, args.start, args.end, dict(args.param))
+        return backtest(api, args)
     except CliError as exc:
         print(f"buizz: {exc}", file=sys.stderr)
         return 1

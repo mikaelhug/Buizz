@@ -6,7 +6,7 @@ use buizz_core::run::{RunEventKind, RunId, RunStatus};
 use buizz_core::time::Timestamp;
 use chrono::{NaiveTime, TimeDelta, Utc};
 use nix::errno::Errno;
-use nix::sys::signal::kill;
+use nix::sys::signal::killpg;
 use nix::unistd::Pid;
 use serde_json::{Value, json};
 
@@ -53,8 +53,8 @@ pub fn bot_pids(events: &[buizz_core::run::RunEvent]) -> Vec<i32> {
         .collect()
 }
 
-pub fn alive(pid: i32) -> bool {
-    kill(Pid::from_raw(pid), None) != Err(Errno::ESRCH)
+pub fn alive(group: i32) -> bool {
+    killpg(Pid::from_raw(group), None) != Err(Errno::ESRCH)
 }
 
 pub async fn through_the_close(spine: &Spine, id: RunId) -> RunSummary {

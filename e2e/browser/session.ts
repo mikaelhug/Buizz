@@ -19,7 +19,7 @@ export function pill(scope: Locator, status: string): Locator {
 }
 
 export async function signedIn(run: (page: Page) => Promise<unknown>): Promise<void> {
-  const browser: Browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser: Browser = await chromium.launch({ headless: true });
   try {
     const context = await browser.newContext({ baseURL: env("BUIZZ_URL"), timezoneId: "UTC" });
     context.setDefaultTimeout(TIMEOUT_MS);

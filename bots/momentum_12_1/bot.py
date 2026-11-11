@@ -17,14 +17,11 @@ class Momentum121(Bot):
         ctx.state["month"] = month
         count = max(1, int(len(returns) * ctx.params["top_fraction"]))
         winners = sorted(returns, key=lambda symbol: returns[symbol], reverse=True)[:count]
-        weight = float(ctx.params["gross"]) / count
-        for symbol in winners:
-            ctx.order_target_weight(
-                symbol, weight, reason=f"12-1 return {returns[symbol]:.1%}, top {count} of {len(returns)}"
-            )
-        for symbol, position in ctx.portfolio.positions.items():
-            if position.qty != 0 and symbol not in winners:
-                ctx.order_target_weight(symbol, 0, reason="dropped out of the top decile")
+        ctx.rebalance(
+            dict.fromkeys(winners, float(ctx.params["gross"]) / count),
+            reason={symbol: f"12-1 return {returns[symbol]:.1%}, top {count} of {len(returns)}" for symbol in winners},
+            exit_reason="dropped out of the top decile",
+        )
 
 
 if __name__ == "__main__":

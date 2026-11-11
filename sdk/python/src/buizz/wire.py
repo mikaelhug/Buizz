@@ -12,6 +12,42 @@ STATE_LIMIT = 64 * 1024
 type Timeframe = Literal["1d", "1m"]
 type Adjust = Literal["raw", "split", "all"]
 type LogLevel = Literal["debug", "info", "warn", "error"]
+type EndReason = Literal["completed", "paused", "stopped", "risk_limit", "failed", "disconnected"]
+type Metric = Literal[
+    "revenue",
+    "cost_of_revenue",
+    "gross_profit",
+    "research_development",
+    "sga_expense",
+    "operating_expenses",
+    "operating_income",
+    "interest_expense",
+    "pretax_income",
+    "income_tax",
+    "net_income",
+    "eps_diluted",
+    "total_assets",
+    "current_assets",
+    "cash_and_equivalents",
+    "inventory",
+    "receivables",
+    "ppe_net",
+    "goodwill",
+    "current_liabilities",
+    "long_term_debt",
+    "total_liabilities",
+    "equity",
+    "operating_cash_flow",
+    "depreciation_amortization",
+    "stock_based_comp",
+    "capex",
+    "investing_cash_flow",
+    "financing_cash_flow",
+    "dividends_paid",
+    "share_repurchases",
+    "acquisitions",
+    "shares_outstanding",
+]
 
 
 class Position(msgspec.Struct, frozen=True):
@@ -20,14 +56,22 @@ class Position(msgspec.Struct, frozen=True):
     avg_cost: Decimal
 
 
+class Market(msgspec.Struct, frozen=True, tag_field="type", tag="market"):
+    pass
+
+
+class Limit(msgspec.Struct, frozen=True, tag_field="type", tag="limit"):
+    limit_price: Decimal
+
+
 class WorkingOrder(msgspec.Struct, frozen=True):
     order_id: int
     client_id: str
     symbol: str
-    side: str
+    side: Literal["buy", "sell"]
     qty: int
     filled_qty: int
-    order_type: dict[str, Any]
+    order_type: Market | Limit
 
 
 class Holdings(msgspec.Struct, frozen=True):
@@ -112,7 +156,7 @@ class Step(msgspec.Struct, frozen=True, tag_field="type", tag="step"):
 
 class FundamentalFact(msgspec.Struct, frozen=True):
     symbol: str
-    metric: str
+    metric: Metric
     period_type: Literal["FY", "Q"]
     period_start: date | None
     period_end: date
@@ -142,7 +186,7 @@ class Error(msgspec.Struct, frozen=True, tag_field="type", tag="error"):
 
 
 class End(msgspec.Struct, frozen=True, tag_field="type", tag="end"):
-    reason: Literal["completed", "paused", "stopped", "risk_limit", "failed"]
+    reason: EndReason
     message: str | None
 
 
@@ -160,7 +204,7 @@ class HistoryRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="history
 
 class FundamentalsRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="fundamentals"):
     symbols: list[str]
-    metrics: list[str]
+    metrics: list[Metric]
 
 
 class Query(msgspec.Struct, frozen=True, tag_field="type", tag="query"):
@@ -174,14 +218,6 @@ class QtySize(msgspec.Struct, frozen=True, tag_field="by", tag="qty"):
 
 class WeightSize(msgspec.Struct, frozen=True, tag_field="by", tag="target_weight"):
     weight: Decimal
-
-
-class Market(msgspec.Struct, frozen=True, tag_field="type", tag="market"):
-    pass
-
-
-class Limit(msgspec.Struct, frozen=True, tag_field="type", tag="limit"):
-    limit_price: Decimal
 
 
 class OrderRequest(msgspec.Struct, frozen=True):

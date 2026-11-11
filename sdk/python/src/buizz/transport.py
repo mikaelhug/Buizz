@@ -59,6 +59,9 @@ class Connection:
             self._pump()
         return self._messages.popleft()
 
+    def wait_at_most(self, seconds: float) -> None:
+        self._sock.settimeout(seconds)
+
     def _flush(self) -> None:
         for chunk in self._protocol.data_to_send():
             if chunk:

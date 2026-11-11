@@ -2,9 +2,7 @@ from datetime import timedelta
 
 import numpy as np
 
-from buizz import Bot, Context, run
-
-NANOSECONDS_PER_SECOND = 1_000_000_000
+from buizz import Bot, Context, run, to_ns
 
 
 class OpeningRange(Bot):
@@ -17,17 +15,15 @@ class OpeningRange(Bot):
         entered: list[str] = ctx.state["entered"]
 
         if ctx.clock >= session.close - timedelta(minutes=ctx.params["flatten_minutes_before_close"]):
-            for symbol, position in ctx.portfolio.positions.items():
-                if position.qty != 0:
-                    ctx.order_target_weight(symbol, 0, reason="flat before the close")
+            ctx.rebalance({}, exit_reason="flat before the close")
             return
 
         range_minutes: int = ctx.params["range_minutes"]
         elapsed = int((ctx.clock - session.open).total_seconds() // 60)
         if elapsed <= range_minutes:
             return
-        open_ns = int(session.open.timestamp()) * NANOSECONDS_PER_SECOND
-        range_end_ns = open_ns + range_minutes * 60 * NANOSECONDS_PER_SECOND
+        open_ns = to_ns(session.open)
+        range_end_ns = to_ns(session.open + timedelta(minutes=range_minutes))
         buffer = float(ctx.params["limit_buffer_bps"]) / 10_000
         weight: float = ctx.params["weight"]
 
