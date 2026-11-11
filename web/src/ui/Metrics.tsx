@@ -56,21 +56,24 @@ type Benchmark = { symbol: string; metrics: Metrics };
 export function MetricGrid({ metrics, benchmark }: { metrics: Metrics | null | undefined; benchmark: Benchmark | undefined }) {
   return (
     <dl className="metric-grid">
-      {Object.values(METRICS).map((spec) => (
-        <div key={spec.key} className="metric">
-          <dt className={spec.title ? "help" : undefined} title={spec.title}>
-            {spec.label}
-          </dt>
-          <dd>
-            <MetricValue metrics={metrics} metric={spec.key} />
-            {benchmark && BENCHMARKED.has(spec.key) && (
-              <span className="metric-bench" title={`${benchmark.symbol} buy and hold over the same period`}>
-                {benchmark.symbol} {spec.render(benchmark.metrics[spec.key] as number | null | undefined)}
-              </span>
-            )}
-          </dd>
-        </div>
-      ))}
+      {Object.values(METRICS).map((spec) => {
+        const reference = benchmark && BENCHMARKED.has(spec.key) ? benchmark.metrics[spec.key] : undefined;
+        return (
+          <div key={spec.key} className="metric">
+            <dt className={spec.title ? "help" : undefined} title={spec.title}>
+              {spec.label}
+            </dt>
+            <dd>
+              <MetricValue metrics={metrics} metric={spec.key} />
+              {benchmark && reference !== undefined && reference !== null && (
+                <span className="metric-bench" title={`${benchmark.symbol} buy and hold over the same period`}>
+                  {benchmark.symbol} {spec.render(reference)}
+                </span>
+              )}
+            </dd>
+          </div>
+        );
+      })}
     </dl>
   );
 }

@@ -105,7 +105,10 @@ export function RunView({ runId }: { runId: number }) {
         )}
       </section>
       <section className="panel">
-        <MetricGrid metrics={run.data.metrics} benchmark={curve.data && { symbol: run.data.config.benchmark, metrics: curve.data.benchmark_metrics }} />
+        <MetricGrid
+          metrics={run.data.metrics ?? curve.data?.interim_metrics}
+          benchmark={curve.data && (run.data.finished_at || run.data.mode === "live") ? { symbol: run.data.config.benchmark, metrics: curve.data.benchmark_metrics } : undefined}
+        />
       </section>
       {curve.data && (
         <MonthlyReturns points={curve.data.points} benchmark={curve.data.benchmark} benchmarkSymbol={run.data.config.benchmark} startCash={run.data.config.start_cash} />

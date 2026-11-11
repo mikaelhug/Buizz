@@ -96,11 +96,17 @@ pub(crate) async fn run_equity(
     let points = app.state.equity(id).await?;
     let benchmark = app.runner.benchmark(&run).await?;
     let benchmark_metrics = app.runner.benchmark_metrics(&run, &benchmark).await?;
+    let interim_metrics = if run.status.is_finished() || points.is_empty() {
+        None
+    } else {
+        Some(app.runner.metrics(&run).await?)
+    };
     Ok(Json(EquitySeries {
         run_id: id,
         points,
         benchmark,
         benchmark_metrics,
+        interim_metrics,
     }))
 }
 

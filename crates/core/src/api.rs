@@ -84,6 +84,7 @@ pub struct EquitySeries {
     pub points: Vec<EquityPoint>,
     pub benchmark: Vec<SparkPoint>,
     pub benchmark_metrics: Metrics,
+    pub interim_metrics: Option<Metrics>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]

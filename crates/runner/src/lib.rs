@@ -389,6 +389,10 @@ impl Runner {
         report::benchmark(&self.inner.market, run, now().exchange_date()).await
     }
 
+    pub async fn metrics(&self, run: &RunSummary) -> Result<Metrics, RunnerError> {
+        report::metrics(&self.inner.market, &self.inner.state, run).await
+    }
+
     pub async fn benchmark_metrics(
         &self,
         run: &RunSummary,

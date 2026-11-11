@@ -27,7 +27,8 @@ function change(end: number, base: number): number {
 
 function calendar(points: Point[], benchmark: Point[], startCash: number): Year[] {
   const ends = monthEnds(points);
-  const benchmarkYears = yearEnds(monthEnds(benchmark));
+  const through = points.at(-1)?.at;
+  const benchmarkYears = yearEnds(monthEnds(through ? benchmark.filter((point) => Date.parse(point.at) <= Date.parse(through)) : []));
   const years = new Map<number, Year>();
   let base = startCash;
   let yearBase = startCash;

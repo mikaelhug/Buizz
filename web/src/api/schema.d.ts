@@ -502,6 +502,7 @@ export interface components {
             points: components["schemas"]["EquityPoint"][];
             benchmark: components["schemas"]["SparkPoint"][];
             benchmark_metrics: components["schemas"]["Metrics"];
+            interim_metrics?: components["schemas"]["Metrics"] | null;
         };
         EventsPage: {
             items: components["schemas"]["RunEvent"][];

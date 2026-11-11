@@ -1368,6 +1368,16 @@
           },
           "benchmark_metrics": {
             "$ref": "#/components/schemas/Metrics"
+          },
+          "interim_metrics": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Metrics"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         }
       },
