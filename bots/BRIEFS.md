@@ -1,6 +1,6 @@
 # Bot backlog
 
-Thirty-five strategy briefs, one per `bots/<name>/BRIEF.md`, each to be researched and implemented by its own agent. The six example bots (`red_green`, `sma_cross`, `momentum_12_1`, `value_quality`, `cannibal`, `opening_range`) belong to the Wave 2 slice and stay simple SDK demos. `buffett` and `singleton` here are the research-faithful versions of `value_quality` and `cannibal`. Delete this file when the last brief is gone.
+Thirty-six briefs (35 strategies and one research exercise), one per `bots/<name>/BRIEF.md`, each to be researched and implemented by its own agent. The six example bots (`red_green`, `sma_cross`, `momentum_12_1`, `value_quality`, `cannibal`, `opening_range`) belong to the Wave 2 slice and stay simple SDK demos. `buffett` and `singleton` here are the research-faithful versions of `value_quality` and `cannibal`. Delete this file when the last brief is gone.
 
 **Design rule: the research decides the bot, not the platform.** A brief describes the strategy exactly as its source defines it. Where Buizz cannot express part of it, the brief names a gap below. Nobody ships a reduced version to fit today's contracts.
 
@@ -10,24 +10,29 @@ Each gap is its own contract PR, merged before the bots it blocks.
 
 | Gap | What the research needs | Proposed contract change | Blocks |
 |---|---|---|---|
-| G1 Calendar lookahead | Knowing a session is the last of its week or month, or that the next day is a holiday | `ctx.calendar(from, to)` query over the exchange calendar | sixty_forty, halloween, turn_of_month, gtaa5, dual_momentum, sector_rotation, low_volatility, short_term_reversal, trend_following, multi_factor_composite, gbm_ranker, betting_against_beta, risk_managed_momentum, meta_allocator, buffett, ml_trend_quarterly |
-| G2 Asset-class universe filter | Stock-only cross-sections (otherwise SHV wins "lowest vol" and SPY/IVV/VOO win "closest pair"); hedging ETFs stay tradable | `universe.asset_class` in `bot.toml`, applied to `top_dollar_volume` | bollinger_reversion, low_volatility, short_term_reversal, pead_sue, piotroski_fscore, pairs_distance, multi_factor_composite, stat_arb_pca, gbm_ranker, betting_against_beta, risk_managed_momentum, buffett, munger, graham, singleton, ml_trend_quarterly |
+| G1 Calendar lookahead | Knowing a session is the last of its week or month, or that the next day is a holiday | `ctx.calendar(from, to)` query over the exchange calendar | sixty_forty, halloween, turn_of_month, gtaa5, dual_momentum, sector_rotation, low_volatility, short_term_reversal, trend_following, multi_factor_composite, gbm_ranker, betting_against_beta, risk_managed_momentum, meta_allocator, buffett, ml_trend_quarterly, alpha_lab |
+| G2 Asset-class universe filter | Stock-only cross-sections (otherwise SHV wins "lowest vol" and SPY/IVV/VOO win "closest pair"); hedging ETFs stay tradable | `universe.asset_class` in `bot.toml`, applied to `top_dollar_volume` | bollinger_reversion, low_volatility, short_term_reversal, pead_sue, piotroski_fscore, pairs_distance, multi_factor_composite, stat_arb_pca, gbm_ranker, betting_against_beta, risk_managed_momentum, buffett, munger, graham, singleton, ml_trend_quarterly, alpha_lab |
 | G3 Industry classification | Industry-neutral ranks, same-industry pairs, industry-ETF residuals, excluding financials and utilities | SIC code from EDGAR submissions on `instrument`, exposed to bots | multi_factor_composite, gbm_ranker, munger, stat_arb_pca (ETF variants), pairs_distance (industry variant), graham (defensive variant) |
 | G4 Leverage and margin model | Gross exposure above 1× with a financing cost | Margin model: financing rate on negative cash and a gross cap above 1 | donchian_breakout, trend_following, betting_against_beta, risk_managed_momentum, stat_arb_pca, noise_boundary_spy, meta_allocator, buffett, hrp_allocation (levered variant) |
-| G5 Python dependencies | hmmlearn, lightgbm, scipy, torch | One dependency PR to the bots' uv env | regime_hmm, gbm_ranker, hrp_allocation, meta_allocator, ml_trend_quarterly |
+| G5 Python dependencies | hmmlearn, lightgbm, scipy, torch | One dependency PR to the bots' uv env | regime_hmm, gbm_ranker, hrp_allocation, meta_allocator, ml_trend_quarterly, alpha_lab |
 | G6 Auction orders | Trading at the official close or open, as the papers do. Daily bots need a pre-close decision point (e.g. 15:45–15:50 with the bar so far) to submit market-on-close orders | `MarketOnClose` and `MarketOnOpen` order types plus a pre-close wake for daily bots | turn_of_month, rsi2_pullback, ibs_reversion, bollinger_reversion, overnight_drift, intraday_momentum_spy, stat_arb_pca, noise_boundary_spy, vol_premium_etf, meta_allocator |
 | G7 Earnings announcement dates | PEAD and announcement-return features measure from the earnings release, not the later 10-Q | 8-K Item 2.02 filing timestamps from EDGAR as point-in-time events | pead_sue, gbm_ranker |
 | G8 Volatility data | VIX and VIX3M, intraday, since the decision is taken before their 16:15 close | Cboe index series (1m and daily) in the market store | vol_premium_etf |
 | G9 Stop and trailing-stop orders | Protective and trailing stops filled intrabar | Stop and trailing-stop order types, matched like limits | donchian_breakout, vwap_reversion |
 | G10 Per-name borrow | Realistic cost and availability for shorting small, high-beta or crowded names | Borrow rate per instrument and a hard-to-borrow flag | short_term_reversal, pead_sue, piotroski_fscore, pairs_distance, multi_factor_composite, stat_arb_pca, gbm_ranker, betting_against_beta, risk_managed_momentum, buffett, singleton (long/short variant) |
 | G11 Historical index membership | S&P 500, Russell 1000 or CRSP universes as used in the papers | Out of v1 per PLAN.md; results carry the survivorship caveat | low_volatility, multi_factor_composite, stat_arb_pca, gbm_ranker, betting_against_beta, risk_managed_momentum, buffett |
-| G12 Point-in-time universe history | Past cross-sections before the run starts, to train on years of history | Query for the universe as-of a past date | gbm_ranker, ml_trend_quarterly |
-| G13 Shared code between bots | One bot reusing another bot's signal functions without copying them | A shared bots package or an import convention | meta_allocator, buffett |
+| G12 Point-in-time universe history | Past cross-sections before the run starts, to train on years of history | Query for the universe as-of a past date | gbm_ranker, ml_trend_quarterly, alpha_lab |
+| G13 Shared code between bots | One bot reusing another bot's signal functions without copying them | A shared bots package or an import convention | meta_allocator, buffett, alpha_lab |
 | G14 Fundamentals before 2009 | 10- to 30-year accounting records (EDGAR XBRL starts 2009) | A second fundamentals source with pre-XBRL history; none is free, so this needs a decision on a paid source | gbm_ranker, graham (defensive variant) |
 | G15 Rates and macro series for bots | T-bill and Treasury yields, Moody's AAA, CPI-U and the Welch–Goyal predictors as point-in-time data | Expose `rate_daily` to bots and add the FRED series | buffett, gbm_ranker, graham (defensive and 1976 variants) |
 | G16 Missing fundamentals | Short-term debt, preferred stock, minority interest, retained earnings, income taxes payable, short-term investments, strictly noncurrent long-term debt; employees, convertible and secured debt, buildings and land, advertising | New `FundamentalMetric`s in the EDGAR concept map | multi_factor_composite, gbm_ranker, buffett, munger, graham, singleton |
 | G17 Listing exchange | NYSE breakpoints for size and decile sorts | Expose `instrument.exchange` to bots, point-in-time | risk_managed_momentum, buffett |
 | G18 Per-share costs | $/share slippage and volume-tiered commissions, as intraday papers assume | Per-share slippage and commission tiers in `CostModel` | noise_boundary_spy |
+| G19 Insider transactions | Insider purchases and sales by role, point-in-time | Forms 3/4/5 from EDGAR (XML since mid-2003, filed within two business days), keyed by acceptance time, as a bot query | alpha_lab |
+| G20 Filing text | 10-K and 10-Q text by section (MD&A, risk factors), point-in-time | Ingest EDGAR full-text filings with section extraction, keyed by acceptance time, as a bot query | alpha_lab |
+| G21 News | Headlines and bodies tagged by symbol, point-in-time | Alpaca's Benzinga news API (history since 2015; check the free plan's current terms), keyed by publish time | alpha_lab |
+| G22 Search attention | Google search volume per ticker, as it was known at the time | A daily recorder that snapshots Google Trends for the universe from the day it lands, like the borrow recorder. Earlier history only through the gated Trends API alpha, flagged as revised data | alpha_lab |
+| G23 Sweep harness | Running a declared grid of trials, counting every one, and ranking them against overfitting | `buizz sweep bots/<name>` over a `sweep.toml` grid on the 10y preset: trial ledger in `state.db`, shared feature cache, resume by config hash, deflated Sharpe and PBO, live progress pushed to the website. Reverses PLAN.md's "no sweeps in v1" | alpha_lab |
 
 G11 and G18 are caveats, not blockers (G18's error is under 0.02 bps a side). Every other gap blocks the bots it lists, except where it's marked as a variant.
 
@@ -55,6 +60,7 @@ Execution rule: papers that rebalance monthly or less often trade at the signal'
 | + G8 | vol_premium_etf |
 | + G12 | ml_trend_quarterly |
 | + G14 | gbm_ranker |
+| + G13, G19, G20, G21, G22, G23 | alpha_lab |
 
 ## Index
 
@@ -112,6 +118,12 @@ Execution rule: papers that rebalance monthly or less often trade at the signal'
 | `munger` | Five Gray–Carlisle franchise-power compounders at median-or-better EBIT/TEV, no rebalancing | G2, G3, G16 |
 | `graham` | Net-nets below two-thirds of NCAV (primary); defensive criteria and the 1976 rule as variants | G2, G16; G3, G14, G15 (variants) |
 | `singleton` | Value repurchasers: bottom-decile net issuance in the top book-to-market quintile, held 48 months | G2, G16, G10 (variant) |
+
+### Research exercises
+
+| Bot | Idea | Gaps |
+|---|---|---|
+| `alpha_lab` | Overnight sweep: every combination of price, report numbers, insider trades, report text, news and search attention × four model complexities × three horizons × two universes, ranked by deflated Sharpe with each data group's Shapley value | G1, G2, G5, G12, G13, G19, G20, G21, G22, G23 |
 
 ## Agent prompt
 
