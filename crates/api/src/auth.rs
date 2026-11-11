@@ -1,12 +1,13 @@
 use std::collections::{HashMap, VecDeque};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
-use axum::Json;
-use axum::extract::{Request, State};
-use axum::http::{HeaderValue, StatusCode, header};
+use axum::extract::{ConnectInfo, Request, State};
+use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
+use axum::{Extension, Json};
 use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
 use buizz_core::api::{ApiError, LoginRequest, SESSION_COOKIE, SessionInfo};
 use subtle::ConstantTimeEq;
@@ -49,7 +50,7 @@ pub(crate) struct Auth {
     password: String,
     secure_cookies: bool,
     sessions: Mutex<HashMap<String, Session>>,
-    failures: Mutex<VecDeque<Instant>>,
+    failures: Mutex<HashMap<IpAddr, VecDeque<Instant>>>,
 }
 
 fn locked<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -71,16 +72,20 @@ impl Auth {
         }
     }
 
-    fn login(&self, password: &str) -> Result<String, Refused> {
+    fn login(&self, client: IpAddr, password: &str) -> Result<String, Refused> {
         let now = Instant::now();
         {
-            let mut failures = locked(&self.failures);
-            while failures
-                .front()
-                .is_some_and(|failed| now.duration_since(*failed) >= FAILURE_WINDOW)
-            {
-                failures.pop_front();
+            let mut clients = locked(&self.failures);
+            for history in clients.values_mut() {
+                while history
+                    .front()
+                    .is_some_and(|failed| now.duration_since(*failed) >= FAILURE_WINDOW)
+                {
+                    history.pop_front();
+                }
             }
+            clients.retain(|_, history| !history.is_empty());
+            let failures = clients.entry(client).or_default();
             if failures.len() >= MAX_FAILURES
                 && let Some(oldest) = failures.front()
             {
@@ -161,10 +166,13 @@ pub(crate) async fn require_session(
             headers(("retry-after" = u64)))))]
 pub(crate) async fn login(
     State(auth): State<Arc<Auth>>,
+    peer: Option<Extension<ConnectInfo<SocketAddr>>>,
+    headers: HeaderMap,
     jar: CookieJar,
     Json(request): Json<LoginRequest>,
 ) -> Response {
-    match auth.login(&request.password) {
+    let peer = peer.map(|Extension(ConnectInfo(address))| address.ip());
+    match auth.login(client_address(peer, &headers), &request.password) {
         Ok(token) => (jar.add(auth.cookie(token)), StatusCode::NO_CONTENT).into_response(),
         Err(Refused::WrongPassword) => {
             Failure::new(StatusCode::UNAUTHORIZED, "wrong password").into_response()
@@ -181,6 +189,25 @@ pub(crate) async fn login(
                 .insert(header::RETRY_AFTER, HeaderValue::from(seconds));
             response
         }
+    }
+}
+
+fn client_address(peer: Option<IpAddr>, headers: &HeaderMap) -> IpAddr {
+    let peer = peer.unwrap_or(IpAddr::V4(Ipv4Addr::UNSPECIFIED));
+    let behind_proxy = match peer {
+        IpAddr::V4(address) => address.is_private() || address.is_loopback(),
+        IpAddr::V6(address) => address.is_loopback() || address.is_unique_local(),
+    };
+    let forwarded = headers
+        .get_all("x-forwarded-for")
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .flat_map(|value| value.split(','))
+        .filter_map(|entry| entry.trim().parse::<IpAddr>().ok())
+        .last();
+    match forwarded {
+        Some(client) if behind_proxy => client,
+        _ => peer,
     }
 }
 
@@ -216,19 +243,44 @@ mod tests {
     }
 
     #[test]
-    fn repeated_wrong_passwords_lock_out_even_the_right_one() {
+    fn wrong_passwords_lock_out_only_the_client_that_sent_them() {
         let auth = auth();
+        let attacker = IpAddr::V4(Ipv4Addr::new(203, 0, 113, 7));
+        let owner = IpAddr::V4(Ipv4Addr::new(198, 51, 100, 2));
         for _ in 0..MAX_FAILURES {
-            assert!(matches!(auth.login("guess"), Err(Refused::WrongPassword)));
+            assert!(matches!(
+                auth.login(attacker, "guess"),
+                Err(Refused::WrongPassword)
+            ));
         }
-        assert!(matches!(auth.login("secret"), Err(Refused::Locked { .. })));
+        assert!(matches!(
+            auth.login(attacker, "secret"),
+            Err(Refused::Locked { .. })
+        ));
+        assert!(auth.login(owner, "secret").is_ok());
+    }
+
+    #[test]
+    fn forwarded_addresses_count_only_behind_a_private_proxy() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "x-forwarded-for",
+            HeaderValue::from_static("1.2.3.4, 203.0.113.7"),
+        );
+        let proxy = IpAddr::V4(Ipv4Addr::new(10, 42, 0, 5));
+        let direct = IpAddr::V4(Ipv4Addr::new(198, 51, 100, 2));
+        assert_eq!(
+            client_address(Some(proxy), &headers),
+            IpAddr::V4(Ipv4Addr::new(203, 0, 113, 7))
+        );
+        assert_eq!(client_address(Some(direct), &headers), direct);
     }
 
     #[test]
     fn a_revoked_session_no_longer_authenticates() {
         let auth = auth();
         let token = auth
-            .login("secret")
+            .login(IpAddr::V4(Ipv4Addr::LOCALHOST), "secret")
             .ok()
             .expect("the right password logs in");
         assert!(auth.authenticate(&token).is_some());
