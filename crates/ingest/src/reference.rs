@@ -1,6 +1,8 @@
 use std::collections::{BTreeMap, HashSet};
 
-use buizz_core::market::{DataSource, Dataset, Instrument, RiskFreeRate, Session, Symbol};
+use buizz_core::market::{
+    AssetClass, DataSource, Dataset, Instrument, RiskFreeRate, Session, Symbol,
+};
 use buizz_core::time::Timestamp;
 use chrono::{Datelike, NaiveDate, TimeDelta};
 
@@ -22,10 +24,7 @@ impl Ingest {
             None,
             Some((from, to)),
         );
-        if let Some(work) = self
-            .backoff_work(now, DataSource::Alpaca, Dataset::Calendar)
-            .await?
-        {
+        if let Some(work) = self.backoff_work(now, DataSource::Alpaca).await? {
             return Ok(work);
         }
         let sessions = match alpaca.calendar(from, to).await {
@@ -41,20 +40,19 @@ impl Ingest {
             .iter()
             .copied()
             .collect();
-        let changed: Vec<Session> = sessions
-            .into_iter()
-            .filter(|session| !stored.contains(session))
-            .collect();
-        if changed.is_empty() {
+        let fetched: HashSet<Session> = sessions.iter().copied().collect();
+        let added = fetched.difference(&stored).count();
+        let removed = stored.difference(&fetched).count();
+        if added == 0 && removed == 0 {
             return Ok(Work::noop("calendar unchanged"));
         }
         let summary = self
             .market
-            .upsert_sessions(DataSource::Alpaca, changed)
+            .replace_sessions(DataSource::Alpaca, from, to, sessions)
             .await?;
         Ok(Work::ok(
             summary.rows,
-            format!("calendar: {} sessions", summary.rows),
+            format!("calendar: {added} sessions new or changed, {removed} removed"),
         ))
     }
 
@@ -63,13 +61,10 @@ impl Ingest {
             return Ok(Work::unconfigured("Alpaca"));
         };
         let key = FetchKey::new(DataSource::Alpaca, Dataset::Instruments, None, None);
-        if let Some(work) = self
-            .backoff_work(now, DataSource::Alpaca, Dataset::Instruments)
-            .await?
-        {
+        if let Some(work) = self.backoff_work(now, DataSource::Alpaca).await? {
             return Ok(work);
         }
-        let assets = match alpaca.assets().await {
+        let mut assets = match alpaca.assets().await {
             Ok(assets) => assets,
             Err(error) => return self.source_failure(now, &key, &error).await,
         };
@@ -81,28 +76,51 @@ impl Ingest {
             .into_iter()
             .map(|instrument| (instrument.symbol.clone(), instrument))
             .collect();
+        let mut batch = Batch::default();
+        let funds = match &self.sources.edgar {
+            None => None,
+            Some(edgar) => {
+                let key = FetchKey::new(DataSource::Edgar, Dataset::Instruments, None, None);
+                match edgar.fund_tickers().await {
+                    Ok(funds) => {
+                        self.record_fetched(now, &key, funds.len()).await?;
+                        Some(funds)
+                    }
+                    Err(error) => {
+                        self.record_failure(now, &key, &error).await?;
+                        batch.failure("SEC fund tickers", &error);
+                        None
+                    }
+                }
+            }
+        };
+        for asset in &mut assets {
+            asset.asset_class = match &funds {
+                Some(funds) if funds.contains(&asset.symbol) => AssetClass::Etf,
+                Some(_) => AssetClass::Stock,
+                None => stored
+                    .get(&asset.symbol)
+                    .map_or(AssetClass::Stock, |known| known.asset_class),
+            };
+        }
         let changed: Vec<Instrument> = assets
             .into_iter()
             .filter(|asset| stored.get(&asset.symbol) != Some(asset))
             .collect();
-        if changed.is_empty() {
-            return Ok(Work::noop("instruments unchanged"));
-        }
-        let summary = self
-            .market
-            .upsert_instruments(DataSource::Alpaca, changed)
-            .await?;
-        Ok(Work::ok(
-            summary.rows,
-            format!("instruments: {} new or changed", summary.rows),
-        ))
+        let rows = if changed.is_empty() {
+            0
+        } else {
+            self.market
+                .upsert_instruments(DataSource::Alpaca, changed)
+                .await?
+                .rows
+        };
+        batch.success(rows);
+        Ok(batch.finish("instruments"))
     }
 
     pub(crate) async fn rates(&self, now: Timestamp) -> Result<Work, IngestError> {
-        if let Some(work) = self
-            .backoff_work(now, DataSource::Treasury, Dataset::Rates)
-            .await?
-        {
+        if let Some(work) = self.backoff_work(now, DataSource::Treasury).await? {
             return Ok(work);
         }
         let treasury = &self.sources.treasury;

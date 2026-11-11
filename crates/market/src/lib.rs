@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 use std::sync::{Arc, PoisonError, RwLock};
 
@@ -41,6 +41,8 @@ pub enum MarketError {
     Closed,
     #[error("market store worker failed: {0}")]
     Worker(#[from] tokio::task::JoinError),
+    #[error("market store job panicked: {0}")]
+    Panicked(String),
 }
 
 pub type Result<T> = std::result::Result<T, MarketError>;
@@ -141,7 +143,17 @@ impl MarketStore {
             .into_iter()
             .map(ActionRow::into_action)
             .collect::<Result<Vec<_>>>()?;
-        self.upsert_corporate_actions(source, actions).await?;
+        let covered: Vec<Symbol> = actions
+            .iter()
+            .map(|action| action.symbol.clone())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
+        let ex_dates = actions.iter().map(|action| action.ex_date);
+        if let (Some(from), Some(to)) = (ex_dates.clone().min(), ex_dates.max()) {
+            self.upsert_corporate_actions(source, actions, covered, from, to)
+                .await?;
+        }
         let facts = fixture::rows(dir, "fundamental_facts.csv").await?;
         self.append_fundamental_facts(source, facts).await?;
         self.upsert_risk_free_rates(source, fixture::rows(dir, "rates.csv").await?)
@@ -169,10 +181,30 @@ impl MarketStore {
         source: DataSource,
         sessions: Vec<Session>,
     ) -> Result<WriteSummary> {
+        self.write_sessions(source, None, sessions).await
+    }
+
+    pub async fn replace_sessions(
+        &self,
+        source: DataSource,
+        from: NaiveDate,
+        to: NaiveDate,
+        sessions: Vec<Session>,
+    ) -> Result<WriteSummary> {
+        self.write_sessions(source, Some((from, to)), sessions)
+            .await
+    }
+
+    async fn write_sessions(
+        &self,
+        source: DataSource,
+        replaced: Option<(NaiveDate, NaiveDate)>,
+        sessions: Vec<Session>,
+    ) -> Result<WriteSummary> {
         let shared = Arc::clone(&self.shared);
         self.writer
             .run(move |connection| {
-                let summary = write::sessions(connection, source, sessions)?;
+                let summary = write::sessions(connection, source, replaced, sessions)?;
                 shared.refresh_calendar(connection)?;
                 Ok(summary)
             })
@@ -197,9 +229,14 @@ impl MarketStore {
         &self,
         source: DataSource,
         actions: Vec<CorporateAction>,
+        covered: Vec<Symbol>,
+        from: NaiveDate,
+        to: NaiveDate,
     ) -> Result<WriteSummary> {
         self.writer
-            .run(move |connection| write::corporate_actions(connection, source, actions))
+            .run(move |connection| {
+                write::corporate_actions(connection, source, actions, &covered, (from, to))
+            })
             .await
     }
 
@@ -296,11 +333,8 @@ impl MarketStore {
         metrics: Vec<FundamentalMetric>,
         as_of: Timestamp,
     ) -> Result<Vec<FundamentalPoint>> {
-        let calendar = self.shared.calendar();
         self.readers
-            .run(move |connection| {
-                read::fundamentals(connection, &calendar, &symbols, &metrics, as_of)
-            })
+            .run(move |connection| read::fundamentals(connection, &symbols, &metrics, as_of))
             .await
     }
 

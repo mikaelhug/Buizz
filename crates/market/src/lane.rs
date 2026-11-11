@@ -1,3 +1,5 @@
+use std::any::Any;
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::thread;
 
@@ -43,10 +45,40 @@ impl Lane {
         let (reply, response) = oneshot::channel();
         self.0
             .send(Box::new(move |connection| {
-                let _ = reply.send(work(connection));
+                let result = catch_unwind(AssertUnwindSafe(|| work(connection)))
+                    .unwrap_or_else(|panic| Err(panicked(panic.as_ref())));
+                let _ = reply.send(result);
             }))
             .await
             .map_err(|_| MarketError::Closed)?;
         response.await.map_err(|_| MarketError::Closed)?
+    }
+}
+
+fn panicked(panic: &(dyn Any + Send)) -> MarketError {
+    let message = panic
+        .downcast_ref::<&str>()
+        .map(|text| (*text).to_owned())
+        .or_else(|| panic.downcast_ref::<String>().cloned())
+        .unwrap_or_else(|| "unknown panic".to_owned());
+    tracing::error!(%message, "a market store job panicked; the worker keeps serving");
+    MarketError::Panicked(message)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn a_panicking_job_fails_alone_and_the_worker_keeps_serving() {
+        let lane = Lane::spawn("test", vec![Connection::open_in_memory().unwrap()]).unwrap();
+        let failed = lane.run(|_| -> Result<()> { panic!("boom") }).await;
+        assert!(matches!(failed, Err(MarketError::Panicked(message)) if message == "boom"));
+        let answer = lane
+            .run(
+                |connection| Ok(connection.query_row("SELECT 42", [], |row| row.get::<_, i64>(0))?),
+            )
+            .await;
+        assert_eq!(answer.unwrap(), 42);
     }
 }

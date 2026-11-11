@@ -193,8 +193,20 @@ async fn alpaca_client_pages_filters_and_normalizes_against_fixtures() {
         .1["end"]
         .parse()
         .unwrap();
-    let now = Timestamp::from_datetime(chrono::Utc::now()).unwrap();
-    assert!(now - sip_end >= chrono::TimeDelta::minutes(15));
+    assert!(Timestamp::now() - sip_end >= chrono::TimeDelta::minutes(15));
+
+    let mid_session = request(Timeframe::Day, &["AAPL"], at("2024-07-05", "14:00"));
+    client.bars(&mid_session, &calendar).await.unwrap();
+    let daily_end = seen
+        .lock()
+        .unwrap()
+        .iter()
+        .rev()
+        .find(|(route, _)| route == "bars")
+        .unwrap()
+        .1["end"]
+        .clone();
+    assert_eq!(daily_end, "2024-07-03");
 
     let seen_bars = seen.lock().unwrap().clone();
     assert!(
@@ -217,8 +229,11 @@ async fn alpaca_client_pages_filters_and_normalizes_against_fixtures() {
 
     let instruments = client.assets().await.unwrap();
     assert_eq!(instruments.len(), 3);
-    assert_eq!(instruments[0].asset_class, AssetClass::Stock);
-    assert_eq!(instruments[1].asset_class, AssetClass::Etf);
+    assert!(
+        instruments
+            .iter()
+            .all(|instrument| instrument.asset_class == AssetClass::Stock)
+    );
     assert_eq!(instruments[1].exchange, "ARCA");
     assert!(instruments[0].active && !instruments[2].active);
 
@@ -249,6 +264,13 @@ async fn alpaca_client_pages_filters_and_normalizes_against_fixtures() {
         CorporateActionKind::Split {
             old_rate: decimal("50"),
             new_rate: decimal("1")
+        }
+    )));
+    assert!(kinds.contains(&(
+        "AAPL",
+        date("2024-05-10"),
+        CorporateActionKind::CashDividend {
+            rate: decimal("0.35")
         }
     )));
     assert!(kinds.contains(&(

@@ -264,20 +264,15 @@ impl Ingest {
         Ok(Work::from_failure(error))
     }
 
-    pub(crate) async fn backoff_until(
+    pub(crate) async fn rate_limited_until(
         &self,
         now: Timestamp,
         source: DataSource,
-        dataset: Dataset,
-        symbol: Option<&Symbol>,
     ) -> Result<Option<Timestamp>, IngestError> {
-        let latest = self
+        Ok(self
             .state
-            .recent_fetches(source, dataset, symbol.cloned(), 1)
-            .await?;
-        Ok(latest
-            .first()
-            .and_then(|fetch| fetch.retry_after)
+            .rate_limited_until(source)
+            .await?
             .filter(|until| *until > now))
     }
 
@@ -285,10 +280,9 @@ impl Ingest {
         &self,
         now: Timestamp,
         source: DataSource,
-        dataset: Dataset,
     ) -> Result<Option<Work>, IngestError> {
         Ok(self
-            .backoff_until(now, source, dataset, None)
+            .rate_limited_until(now, source)
             .await?
             .map(|until| Work::backoff(0, format!("rate limited until {until}"))))
     }

@@ -16,10 +16,7 @@ impl Ingest {
         let Some(edgar) = &self.sources.edgar else {
             return Ok(Work::unconfigured("SEC EDGAR"));
         };
-        if let Some(work) = self
-            .backoff_work(now, DataSource::Edgar, Dataset::Fundamentals)
-            .await?
-        {
+        if let Some(work) = self.backoff_work(now, DataSource::Edgar).await? {
             return Ok(work);
         }
         let mut due: Vec<Symbol> = Vec::new();

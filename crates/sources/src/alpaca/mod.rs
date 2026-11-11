@@ -1,13 +1,18 @@
+use std::collections::BTreeMap;
+use std::fmt;
 use std::time::Duration;
 
+pub use buizz_core::market::SIP_DELAY;
 use buizz_core::market::{
-    Bar, Calendar, CorporateAction, Feed, Instrument, Session, Symbol, Timeframe,
+    Bar, Calendar, CorporateAction, CorporateActionKind, Feed, Instrument, Session, Symbol,
+    Timeframe,
 };
 use buizz_core::time::Timestamp;
-use chrono::{NaiveDate, TimeDelta, Utc};
+use chrono::{NaiveDate, TimeDelta};
+use rust_decimal::Decimal;
 use serde::de::DeserializeOwned;
 
-use crate::http::{HttpClient, RateLimit, SourceError};
+use crate::http::{HttpClient, REDACTED, RateLimit, SourceError};
 
 mod wire;
 
@@ -20,12 +25,11 @@ pub const RATE_LIMIT: RateLimit = RateLimit {
     per: Duration::from_secs(60),
 };
 pub const HISTORY_START: NaiveDate = NaiveDate::from_ymd_opt(2016, 1, 1).expect("valid date");
-pub const SIP_DELAY: Duration = Duration::from_secs(15 * 60);
 pub const MAX_PAGE_LIMIT: u32 = 10_000;
 pub const ACTIONS_PAGE_LIMIT: u32 = 1_000;
 const ACTIONS_SYMBOLS_PER_REQUEST: usize = 100;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct AlpacaConfig {
     pub key_id: String,
     pub secret_key: String,
@@ -41,6 +45,17 @@ impl AlpacaConfig {
             data_url: DATA_URL.to_owned(),
             trading_url: TRADING_URL.to_owned(),
         }
+    }
+}
+
+impl fmt::Debug for AlpacaConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AlpacaConfig")
+            .field("key_id", &self.key_id)
+            .field("secret_key", &REDACTED)
+            .field("data_url", &self.data_url)
+            .field("trading_url", &self.trading_url)
+            .finish()
     }
 }
 
@@ -75,8 +90,7 @@ impl AlpacaClient {
         let to = match request.feed {
             Feed::Sip => {
                 let delay = TimeDelta::from_std(SIP_DELAY).expect("SIP delay fits a time delta");
-                let latest = Timestamp::from_datetime(Utc::now()).map(|now| now - delay);
-                latest.map_or(request.to, |latest| request.to.min(latest))
+                request.to.min(Timestamp::now() - delay)
             }
             Feed::Iex => request.to,
         };
@@ -84,11 +98,19 @@ impl AlpacaClient {
             return Ok(Vec::new());
         }
         let (timeframe, start, end) = match request.timeframe {
-            Timeframe::Day => (
-                "1Day",
-                request.from.exchange_date().to_string(),
-                to.exchange_date().to_string(),
-            ),
+            Timeframe::Day => {
+                let sessions = calendar.sessions();
+                let closed = sessions.partition_point(|session| session.close <= to);
+                let from = request.from.exchange_date();
+                let Some(last) = closed
+                    .checked_sub(1)
+                    .map(|index| sessions[index].date)
+                    .filter(|last| *last >= from)
+                else {
+                    return Ok(Vec::new());
+                };
+                ("1Day", from.to_string(), last.to_string())
+            }
             Timeframe::Minute => ("1Min", request.from.to_string(), to.to_string()),
         };
         let feed = match request.feed {
@@ -160,7 +182,7 @@ impl AlpacaClient {
                 actions.extend(page.into_actions());
             }
         }
-        Ok(actions)
+        Ok(sum_dividends_per_ex_date(actions))
     }
 
     async fn get<T: DeserializeOwned>(
@@ -199,6 +221,31 @@ impl AlpacaClient {
             query.push(("page_token", token));
         }
     }
+}
+
+fn sum_dividends_per_ex_date(actions: Vec<CorporateAction>) -> Vec<CorporateAction> {
+    let mut dividends: BTreeMap<(Symbol, NaiveDate), Decimal> = BTreeMap::new();
+    let mut merged = Vec::with_capacity(actions.len());
+    for action in actions {
+        match action.kind {
+            CorporateActionKind::CashDividend { rate } => {
+                *dividends
+                    .entry((action.symbol, action.ex_date))
+                    .or_default() += rate;
+            }
+            CorporateActionKind::Split { .. } => merged.push(action),
+        }
+    }
+    merged.extend(
+        dividends
+            .into_iter()
+            .map(|((symbol, ex_date), rate)| CorporateAction {
+                symbol,
+                ex_date,
+                kind: CorporateActionKind::CashDividend { rate },
+            }),
+    );
+    merged
 }
 
 fn join_symbols(symbols: &[Symbol]) -> String {

@@ -21,7 +21,7 @@ use buizz_market::{MarketError, MarketStore};
 use buizz_sources::Sources;
 use buizz_sources::http::SourceError;
 use buizz_state::{StateError, StateStore};
-use chrono::{NaiveDate, NaiveTime, TimeDelta, Utc};
+use chrono::{NaiveDate, NaiveTime, TimeDelta};
 use tokio::sync::{Mutex, broadcast};
 use tokio::task::JoinHandle;
 
@@ -54,7 +54,7 @@ pub struct IngestConfig {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct JobSpec {
+pub(crate) struct JobSpec {
     pub name: &'static str,
     pub every: Duration,
 }
@@ -91,19 +91,17 @@ impl Ingest {
         }
     }
 
-    pub fn jobs(&self) -> &[JobSpec] {
-        &JOBS
-    }
-
     pub async fn tick(&self, now: Timestamp) -> Result<TickReport, IngestError> {
         let _serial = self.gate.lock().await;
         let started = tokio::time::Instant::now();
         let at = || now + TimeDelta::from_std(started.elapsed()).unwrap_or_default();
         let latest = self.state.latest_jobs().await?;
+        let failures = self.state.failure_streaks().await?;
         let mut report = TickReport::default();
         for spec in JOBS {
             let previous = latest.iter().find(|run| run.job == spec.name);
-            if due_at(&spec, previous).is_some_and(|due| due > at()) {
+            let streak = failures.get(spec.name).copied().unwrap_or(0);
+            if due_at(&spec, previous, streak).is_some_and(|due| due > at()) {
                 continue;
             }
             let run_id = self.state.start_job(spec.name, at()).await?;
@@ -135,11 +133,13 @@ impl Ingest {
 
     pub async fn job_views(&self, now: Timestamp) -> Result<Vec<JobView>, IngestError> {
         let latest = self.state.latest_jobs().await?;
+        let failures = self.state.failure_streaks().await?;
         let mut views = Vec::with_capacity(JOBS.len());
         for spec in JOBS {
             let previous = latest.iter().find(|run| run.job == spec.name);
+            let streak = failures.get(spec.name).copied().unwrap_or(0);
             let success = self.state.last_job_success(spec.name).await?;
-            let view = schedule::view(&spec, previous, success.as_ref(), now);
+            let view = schedule::view(&spec, previous, streak, success.as_ref(), now);
             views.push(JobView {
                 stale: self.config.enabled && view.stale,
                 ..view
@@ -169,7 +169,7 @@ impl Ingest {
             interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
             loop {
                 interval.tick().await;
-                if let Err(error) = ingest.tick(wall_clock()).await {
+                if let Err(error) = ingest.tick(Timestamp::now()).await {
                     tracing::error!(%error, "ingest tick failed");
                 }
             }
@@ -219,10 +219,6 @@ impl Ingest {
             .filter_map(|row| Some((row.symbol.clone()?, row)))
             .collect())
     }
-}
-
-pub(crate) fn wall_clock() -> Timestamp {
-    Timestamp::from_datetime(Utc::now()).expect("current time fits in nanoseconds")
 }
 
 pub(crate) fn day_start(date: NaiveDate) -> Timestamp {

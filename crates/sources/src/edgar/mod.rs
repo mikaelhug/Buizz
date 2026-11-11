@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
 
 use buizz_core::market::{Calendar, FundamentalFact, Symbol};
@@ -9,7 +9,6 @@ use crate::http::{HttpClient, RateLimit, SourceError};
 mod concepts;
 mod normalize;
 
-pub use concepts::metric_for;
 pub use normalize::normalize_company_facts;
 
 pub const DATA_URL: &str = "https://data.sec.gov";
@@ -59,6 +58,16 @@ struct TickerEntry {
     ticker: String,
 }
 
+#[derive(Deserialize)]
+struct FundTable {
+    fields: Vec<String>,
+    data: Vec<Vec<serde_json::Value>>,
+}
+
+fn symbol(ticker: &str) -> Symbol {
+    Symbol::new(&ticker.replace('-', "."))
+}
+
 impl EdgarClient {
     pub fn new(config: EdgarConfig) -> Result<Self, SourceError> {
         Ok(Self {
@@ -75,7 +84,24 @@ impl EdgarClient {
             .map_err(|error| SourceError::Decode(error.to_string()))?;
         Ok(entries
             .into_values()
-            .map(|entry| (Symbol::new(&entry.ticker), entry.cik_str))
+            .map(|entry| (symbol(&entry.ticker), entry.cik_str))
+            .collect())
+    }
+
+    pub async fn fund_tickers(&self) -> Result<BTreeSet<Symbol>, SourceError> {
+        let url = format!("{}/files/company_tickers_mf.json", self.www_url);
+        let body = self.fetch(url).await?;
+        let table: FundTable = serde_json::from_slice(&body)
+            .map_err(|error| SourceError::Decode(error.to_string()))?;
+        let column = table
+            .fields
+            .iter()
+            .position(|field| field == "symbol")
+            .ok_or_else(|| SourceError::Decode("fund tickers without a symbol field".to_owned()))?;
+        Ok(table
+            .data
+            .iter()
+            .filter_map(|row| row.get(column)?.as_str().map(symbol))
             .collect())
     }
 

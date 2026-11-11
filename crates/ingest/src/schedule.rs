@@ -20,6 +20,7 @@ const HOUR: Duration = Duration::from_secs(60 * 60);
 const DAY: Duration = Duration::from_secs(24 * 60 * 60);
 const SIX_HOURS: Duration = Duration::from_secs(6 * 60 * 60);
 const SHORT_RETRY: Duration = HOUR;
+const FIRST_FAILURE_RETRY: Duration = Duration::from_secs(5 * 60);
 const STALE_AFTER_INTERVALS: i32 = 3;
 
 pub(crate) const JOBS: [JobSpec; 8] = [
@@ -61,18 +62,22 @@ fn delta(duration: Duration) -> TimeDelta {
     TimeDelta::from_std(duration).unwrap_or(TimeDelta::MAX)
 }
 
-pub(crate) fn due_at(spec: &JobSpec, latest: Option<&JobRun>) -> Option<Timestamp> {
+pub(crate) fn due_at(spec: &JobSpec, latest: Option<&JobRun>, failures: u32) -> Option<Timestamp> {
     let run = latest?;
     let wait = match run.outcome {
-        Some(JobOutcome::Noop | JobOutcome::Backoff) => spec.every.min(SHORT_RETRY),
-        _ => spec.every,
+        Some(JobOutcome::Noop | JobOutcome::Backoff) => SHORT_RETRY,
+        Some(JobOutcome::Failed) => {
+            FIRST_FAILURE_RETRY.saturating_mul(1 << failures.saturating_sub(1).min(16))
+        }
+        Some(JobOutcome::Ok) | None => spec.every,
     };
-    Some(run.started_at + delta(wait))
+    Some(run.started_at + delta(wait.min(spec.every)))
 }
 
 pub(crate) fn view(
     spec: &JobSpec,
     latest: Option<&JobRun>,
+    failures: u32,
     success: Option<&JobRun>,
     now: Timestamp,
 ) -> JobView {
@@ -85,7 +90,7 @@ pub(crate) fn view(
         last_finished: latest.and_then(|run| run.finished_at),
         last_outcome: latest.and_then(|run| run.outcome),
         last_message: latest.and_then(|run| run.message.clone()),
-        next_due: due_at(spec, latest),
+        next_due: due_at(spec, latest, failures),
         stale: healthy_since.is_none_or(|since| now - since > stale_after),
     }
 }

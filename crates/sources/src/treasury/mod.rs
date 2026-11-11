@@ -11,7 +11,6 @@ pub const RATE_LIMIT: RateLimit = RateLimit {
     requests: 1,
     per: Duration::from_secs(1),
 };
-pub const FIRST_YEAR: i32 = 1990;
 pub const URL_ENV: &str = "TREASURY_URL";
 const DATE_COLUMN: &str = "Date";
 const THREE_MONTH_COLUMN: &str = "3 Mo";

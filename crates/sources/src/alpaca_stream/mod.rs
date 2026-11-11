@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use buizz_core::market::{Bar, Symbol};
 use buizz_core::time::Timestamp;
-use chrono::{TimeDelta, Utc};
+use chrono::TimeDelta;
 use futures::{SinkExt, StreamExt};
 use serde_json::json;
 use tokio::net::TcpStream;
@@ -131,7 +131,7 @@ async fn run(
                 return;
             }
             Exit::Dropped(reason) => {
-                dropped_at = Some(now());
+                dropped_at = Some(Timestamp::now());
                 delay = config.reconnect_initial;
                 reason
             }
@@ -220,7 +220,7 @@ async fn serve(
     {
         let gap = StreamEvent::Gap {
             from: minute_floor(dropped) - TimeDelta::minutes(1),
-            to: minute_floor(now()),
+            to: minute_floor(Timestamp::now()),
         };
         emit(events, gap).await?;
     }
@@ -296,10 +296,6 @@ async fn next_frames(socket: &mut Socket) -> Result<Vec<Frame>, String> {
 
 async fn emit(events: &mpsc::Sender<StreamEvent>, event: StreamEvent) -> Result<(), Exit> {
     events.send(event).await.map_err(|_| Exit::Stop)
-}
-
-fn now() -> Timestamp {
-    Timestamp::from_datetime(Utc::now()).expect("current time fits in i64 nanoseconds")
 }
 
 fn minute_floor(at: Timestamp) -> Timestamp {

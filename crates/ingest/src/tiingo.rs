@@ -10,7 +10,7 @@ use crate::fetch::{Batch, FetchKey, Work};
 use crate::{Ingest, IngestError, day_start};
 
 const OVERLAP_WINDOW_DAYS: i64 = 45;
-const SYMBOLS_PER_RUN: u64 = 40;
+const SYMBOLS_PER_RUN: u64 = 3;
 const MONTH: TimeDelta = TimeDelta::days(30);
 const DAY: TimeDelta = TimeDelta::days(1);
 
@@ -19,10 +19,7 @@ impl Ingest {
         let Some(tiingo) = &self.sources.tiingo else {
             return Ok(Work::unconfigured("Tiingo"));
         };
-        if let Some(work) = self
-            .backoff_work(now, DataSource::Tiingo, Dataset::Bars1d)
-            .await?
-        {
+        if let Some(work) = self.backoff_work(now, DataSource::Tiingo).await? {
             return Ok(work);
         }
         let history_start = self.config.history_start;
@@ -120,7 +117,13 @@ impl Ingest {
                 .upsert_bars(DataSource::Tiingo, Timeframe::Day, bars)
                 .await?;
             self.market
-                .upsert_corporate_actions(DataSource::Tiingo, actions)
+                .upsert_corporate_actions(
+                    DataSource::Tiingo,
+                    actions,
+                    vec![symbol.clone()],
+                    history_start,
+                    gap_end,
+                )
                 .await?;
             batch.success(written.rows);
         }

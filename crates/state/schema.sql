@@ -103,3 +103,6 @@ CREATE TABLE IF NOT EXISTS source_fetch (
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS source_fetch_by_key ON source_fetch (source, dataset, symbol, at);
+
+CREATE INDEX IF NOT EXISTS source_fetch_rate_limits ON source_fetch (source, retry_after)
+    WHERE status = 'rate_limited';

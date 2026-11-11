@@ -7,19 +7,12 @@ use buizz_core::market::{
 use buizz_core::time::Timestamp;
 use chrono::{NaiveDate, NaiveTime};
 use rust_decimal::Decimal;
-use serde::{Deserialize, Deserializer, de};
+use serde::Deserialize;
 
-use crate::http::SourceError;
+use crate::http::{SourceError, decimal};
 
 pub trait Paged {
     fn take_next_page_token(&mut self) -> Option<String>;
-}
-
-fn decimal<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Decimal, D::Error> {
-    serde_json::Number::deserialize(deserializer)?
-        .to_string()
-        .parse()
-        .map_err(de::Error::custom)
 }
 
 #[derive(Deserialize)]
@@ -120,19 +113,11 @@ impl WireAsset {
         if self.class != "us_equity" {
             return None;
         }
-        let is_etf = self
-            .name
-            .split(|c: char| !c.is_alphanumeric())
-            .any(|word| word.eq_ignore_ascii_case("etf"));
         Some(Instrument {
             symbol: Symbol::new(&self.symbol),
             name: self.name,
             exchange: self.exchange,
-            asset_class: if is_etf {
-                AssetClass::Etf
-            } else {
-                AssetClass::Stock
-            },
+            asset_class: AssetClass::Stock,
             active: self.status == "active",
             shortable: self.shortable,
             first_session: None,

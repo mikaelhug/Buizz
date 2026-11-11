@@ -10,7 +10,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Router, serve};
 use buizz_core::api::SpineEvent;
-use buizz_core::market::{DataSource, Dataset, Symbol, Timeframe};
+use buizz_core::market::{AssetClass, DataSource, Dataset, Symbol, Timeframe};
 use buizz_core::ops::{FetchStatus, JobOutcome};
 use buizz_core::time::Timestamp;
 use buizz_ingest::{Ingest, IngestConfig};
@@ -30,6 +30,7 @@ const ACTIONS_PAGE_1: &str =
 const ACTIONS_PAGE_2: &str =
     include_str!("../../sources/fixtures/alpaca/corporate_actions_page2.json");
 const TICKERS: &str = include_str!("../../sources/fixtures/edgar/company_tickers.json");
+const FUND_TICKERS: &str = include_str!("../../sources/fixtures/edgar/company_tickers_mf.json");
 const COMPANY_FACTS: &str = include_str!("../../sources/fixtures/edgar/companyfacts_sample.json");
 const YIELDS: &str = include_str!("../../sources/fixtures/treasury/par_yield_2025.csv");
 
@@ -37,10 +38,17 @@ const HISTORY_START: &str = "2016-01-01";
 const ALPACA_FIRST_BAR: &str = "2016-03-01";
 const CALENDAR_END: &str = "2025-06-30";
 const ALPACA_LAST_BAR: &str = "2016-04-29";
+const SPY_REVISED: &str = "2024-07-05";
 
 #[derive(Default)]
 struct Fake {
     rate_limit_bars: AtomicBool,
+    fail_bars: AtomicBool,
+    closed: Mutex<Option<NaiveDate>>,
+    revised: AtomicBool,
+    last_bars: Mutex<Params>,
+    listed_later: AtomicBool,
+    action_requests: Mutex<Vec<Params>>,
     hits: Mutex<HashMap<&'static str, u32>>,
 }
 
@@ -79,12 +87,14 @@ fn json(body: String) -> Response {
     ([(header::CONTENT_TYPE, "application/json")], body).into_response()
 }
 
-async fn calendar(Query(params): Query<Params>) -> Response {
+async fn calendar(State(fake): State<Arc<Fake>>, Query(params): Query<Params>) -> Response {
+    let closed = *fake.closed.lock().unwrap();
     let days: Vec<String> = weekdays(
         date(&params["start"]),
         date(&params["end"]).min(date(CALENDAR_END)),
     )
     .into_iter()
+    .filter(|day| Some(*day) != closed)
     .map(|day| format!(r#"{{"date":"{day}","open":"09:30","close":"16:00"}}"#))
     .collect();
     json(format!("[{}]", days.join(",")))
@@ -99,28 +109,48 @@ async fn bars(State(fake): State<Arc<Fake>>, Query(params): Query<Params>) -> Re
         )
             .into_response();
     }
-    let from = date(&params["start"]).max(date(ALPACA_FIRST_BAR));
-    let to = date(&params["end"]).min(date(ALPACA_LAST_BAR));
-    let rows: Vec<String> = weekdays(from, to)
-        .into_iter()
-        .map(|day| {
-            let close = alpaca_close(day);
-            format!(
-                r#"{{"t":"{day}T12:00:00Z","o":{close},"h":{close},"l":{close},"c":{close},"v":1000}}"#
-            )
-        })
-        .collect();
-    let aapl = if params["symbols"].contains("AAPL") {
+    if fake.fail_bars.load(Ordering::SeqCst) {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    }
+    *fake.last_bars.lock().unwrap() = params.clone();
+    let requested = |symbol: &str, first: NaiveDate, last: NaiveDate| {
+        if !params["symbols"].split(',').any(|listed| listed == symbol) {
+            return String::new();
+        }
+        let from = date(&params["start"]).max(first);
+        let to = date(&params["end"]).min(last);
+        let rows: Vec<String> = weekdays(from, to)
+            .into_iter()
+            .map(|day| {
+                let revision = i64::from(
+                    symbol == "SPY" && day == date(SPY_REVISED) && fake.revised.load(Ordering::SeqCst),
+                );
+                let close = alpaca_close(day) + revision;
+                format!(
+                    r#"{{"t":"{day}T12:00:00Z","o":{close},"h":{close},"l":{close},"c":{close},"v":1000}}"#
+                )
+            })
+            .collect();
         rows.join(",")
-    } else {
-        String::new()
     };
+    let aapl = requested("AAPL", date(ALPACA_FIRST_BAR), date(ALPACA_LAST_BAR));
+    let spy = requested("SPY", date(HISTORY_START), date(CALENDAR_END));
     json(format!(
-        r#"{{"bars":{{"AAPL":[{aapl}]}},"next_page_token":null}}"#
+        r#"{{"bars":{{"AAPL":[{aapl}],"SPY":[{spy}]}},"next_page_token":null}}"#
     ))
 }
 
-async fn actions(Query(params): Query<Params>) -> Response {
+async fn assets(State(fake): State<Arc<Fake>>) -> Response {
+    let later = r#",{"class":"us_equity","exchange":"NASDAQ","symbol":"MSFT","name":"Microsoft Corporation Common Stock","status":"active","shortable":true}]"#;
+    if fake.listed_later.load(Ordering::SeqCst) {
+        json(ASSETS.trim_end().trim_end_matches(']').to_owned() + later)
+    } else {
+        json(ASSETS.to_owned())
+    }
+}
+
+async fn actions(State(fake): State<Arc<Fake>>, Query(params): Query<Params>) -> Response {
+    fake.action_requests.lock().unwrap().push(params.clone());
     json(
         if params.contains_key("page_token") {
             ACTIONS_PAGE_2
@@ -171,11 +201,15 @@ async fn yields() -> Response {
 async fn serve_fakes(fake: Arc<Fake>) -> String {
     let router = Router::new()
         .route("/v2/calendar", get(calendar))
-        .route("/v2/assets", get(|| async { json(ASSETS.to_owned()) }))
+        .route("/v2/assets", get(assets))
         .route("/v2/stocks/bars", get(bars))
         .route("/v1/corporate-actions", get(actions))
         .route("/tiingo/daily/{symbol}/prices", get(tiingo))
         .route("/files/company_tickers.json", get(tickers))
+        .route(
+            "/files/company_tickers_mf.json",
+            get(|| async { json(FUND_TICKERS.to_owned()) }),
+        )
         .route("/api/xbrl/companyfacts/{file}", get(company_facts))
         .route(
             "/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv/{year}/all",
@@ -309,6 +343,26 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
     let backfilled = rows(&market).await;
     assert!(backfilled.sessions > 2_000);
     assert_eq!(backfilled.instruments, 3);
+    let classes: Vec<(String, AssetClass)> = market
+        .instruments()
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|instrument| {
+            (
+                instrument.symbol.as_str().to_owned(),
+                instrument.asset_class,
+            )
+        })
+        .collect();
+    assert_eq!(
+        classes,
+        vec![
+            ("AAPL".to_owned(), AssetClass::Stock),
+            ("SIVB".to_owned(), AssetClass::Stock),
+            ("SPY".to_owned(), AssetClass::Etf),
+        ]
+    );
     assert_eq!(
         backfilled.bars,
         weekdays(date(ALPACA_FIRST_BAR), date(ALPACA_LAST_BAR)).len()
@@ -362,12 +416,27 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
         ]
     );
     assert_eq!(rows(&market).await, backfilled);
+    assert_eq!(fake.last_bars.lock().unwrap()["symbols"], "SPY");
     assert_eq!(fake.hits("tiingo"), 1);
     let snapshots: Vec<_> = std::fs::read_dir(directory.path().join("snapshots"))
         .unwrap()
         .map(|entry| entry.unwrap().file_name().into_string().unwrap())
         .collect();
     assert_eq!(snapshots, vec!["state-2024-07-07.db".to_owned()]);
+
+    *fake.closed.lock().unwrap() = Some(date("2025-01-09"));
+    fake.fail_bars.store(true, Ordering::SeqCst);
+    let failed_at = first_at + TimeDelta::hours(49);
+    let failed = ingest.tick(failed_at).await.unwrap();
+    assert!(failed.ran.contains(&("calendar", JobOutcome::Ok)));
+    assert_eq!(rows(&market).await.sessions, backfilled.sessions - 1);
+    assert!(failed.ran.contains(&("bars_1d", JobOutcome::Failed)));
+    fake.fail_bars.store(false, Ordering::SeqCst);
+    let recovered = ingest
+        .tick(failed_at + TimeDelta::minutes(6))
+        .await
+        .unwrap();
+    assert_eq!(recovered.ran, vec![("bars_1d", JobOutcome::Noop)]);
 
     fake.rate_limit_bars.store(true, Ordering::SeqCst);
     let limited_at = first_at + TimeDelta::hours(55);
@@ -388,4 +457,38 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
         .unwrap();
     assert!(retried.ran.contains(&("bars_1d", JobOutcome::Backoff)));
     assert_eq!(fake.hits("bars"), hits);
+
+    fake.rate_limit_bars.store(false, Ordering::SeqCst);
+    fake.revised.store(true, Ordering::SeqCst);
+    fake.listed_later.store(true, Ordering::SeqCst);
+    fake.action_requests.lock().unwrap().clear();
+    let inside_sip_delay = stamp("2024-07-08T20:10:00Z");
+    let revised = ingest.tick(inside_sip_delay).await.unwrap();
+    assert!(revised.ran.contains(&("bars_1d", JobOutcome::Ok)));
+    assert_eq!(fake.last_bars.lock().unwrap()["end"], SPY_REVISED);
+    let spy = market
+        .bars_between(
+            Timeframe::Day,
+            vec![Symbol::new("SPY")],
+            stamp("2024-07-05T00:00:00Z"),
+            stamp("2024-07-06T00:00:00Z"),
+        )
+        .await
+        .unwrap();
+    assert_eq!(spy[0].close, (alpaca_close(date(SPY_REVISED)) + 1).into());
+    let action_starts: Vec<(String, String)> = fake
+        .action_requests
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|params| !params.contains_key("page_token"))
+        .map(|params| (params["symbols"].clone(), params["start"].clone()))
+        .collect();
+    assert_eq!(
+        action_starts,
+        vec![
+            ("MSFT".to_owned(), "2015-12-02".to_owned()),
+            ("AAPL,SPY".to_owned(), "2024-03-10".to_owned()),
+        ]
+    );
 }

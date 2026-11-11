@@ -1,23 +1,17 @@
 use std::error::Error;
 
 use buizz_core::time::Timestamp;
+use buizz_core::wire;
 use rusqlite::Row;
 use rusqlite::types::{Type, ValueRef};
 use rust_decimal::Decimal;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
-use serde::ser::Error as _;
-use serde_json::Value;
 
-use crate::{Result, StateError};
+use crate::Result;
 
 pub fn enum_text<T: Serialize>(value: &T) -> Result<String> {
-    match serde_json::to_value(value)? {
-        Value::String(text) => Ok(text),
-        _ => Err(StateError::Encoding(serde_json::Error::custom(
-            "expected a unit enum",
-        ))),
-    }
+    Ok(wire::name(value)?)
 }
 
 pub fn json_text<T: Serialize>(value: &T) -> Result<String> {
@@ -42,9 +36,7 @@ fn parsed<T, E: Into<Box<dyn Error + Send + Sync>>>(
 }
 
 pub fn read_enum<T: DeserializeOwned>(row: &Row, index: usize) -> rusqlite::Result<T> {
-    parsed(row, index, |text| {
-        serde_json::from_value(Value::String(text))
-    })
+    parsed(row, index, |text| wire::from_name(&text))
 }
 
 pub fn read_json<T: DeserializeOwned>(row: &Row, index: usize) -> rusqlite::Result<T> {
