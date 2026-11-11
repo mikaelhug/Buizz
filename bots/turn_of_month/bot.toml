@@ -1,0 +1,10 @@
+description = "SPY over the turn of the month, trading days -1 to +3 close to close, T-bills (BIL) otherwise."
+command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
+timeframe = "1d"
+wake = "bar"
+universe = { symbols = ["SPY", "BIL"] }
+params = { first_day = -1, last_day = 3, weight = 0.98 }
+
+[risk]
+max_position_weight = 1.0
+max_gross_exposure = 1.0
