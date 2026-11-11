@@ -43,7 +43,7 @@ test:
 lint:
     cargo fmt --all --check
     cargo clippy --workspace --all-targets --locked -- -D warnings
-    cd sdk/python && uv run --frozen ruff format --check && uv run --frozen ruff check && uv run --frozen pyright
+    cd sdk/python && uv run --frozen ruff format --check . ../../bots && uv run --frozen ruff check . ../../bots && uv run --frozen pyright . ../../bots
     cd web && npm run --silent typecheck
     uv run --no-project --python 3.13 python scripts/no_comments.py
 

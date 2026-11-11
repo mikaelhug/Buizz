@@ -67,7 +67,7 @@ pub fn scan_bots(dir: &Path) -> Result<BotScan, SupervisorError> {
     for entry in fs::read_dir(dir).map_err(io)? {
         let entry = entry.map_err(io)?;
         let name = entry.file_name().to_string_lossy().into_owned();
-        if entry.path().is_dir() && !name.starts_with('.') {
+        if entry.path().join(BotManifest::FILE_NAME).is_file() && !name.starts_with('.') {
             folders.push((name, entry.path()));
         }
     }
