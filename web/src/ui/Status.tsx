@@ -1,8 +1,19 @@
 import type { Schemas } from "../api/client";
 import { label } from "../lib/format";
 
-export function StatusPill({ status }: { status: Schemas["BotStatus"] | Schemas["RunStatus"] | Schemas["OrderStatus"] | Schemas["JobOutcome"] }) {
-  return <span className={`pill pill-${status}`}>{label(status)}</span>;
+type Status = Schemas["BotStatus"] | Schemas["RunStatus"] | Schemas["OrderStatus"] | Schemas["JobOutcome"];
+
+const STATUS_TITLES: Partial<Record<Status, string>> = {
+  stopped: "The latest run ended at its drawdown stop",
+};
+
+export function StatusPill({ status }: { status: Status }) {
+  const title = STATUS_TITLES[status];
+  return (
+    <span className={`pill pill-${status}${title ? " help" : ""}`} title={title}>
+      {label(status)}
+    </span>
+  );
 }
 
 const BADGES: Record<Schemas["RunBadge"], { text: string; short: string; title: string }> = {

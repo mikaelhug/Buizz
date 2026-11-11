@@ -20,15 +20,15 @@ const SPARKLINE_CAP = 120;
 type StatusFilter = "all" | Bot["status"];
 type Order = "attention" | "name" | "recent";
 
-const STATUS_FILTERS: readonly StatusFilter[] = ["all", "error", "live", "paused", "backtesting", "idle"];
-const ATTENTION: Record<Bot["status"], number> = { error: 0, live: 1, paused: 2, backtesting: 3, idle: 4 };
+const STATUS_FILTERS: readonly StatusFilter[] = ["all", "error", "stopped", "live", "paused", "backtesting", "idle"];
+const ATTENTION: Record<Bot["status"], number> = { error: 0, stopped: 1, live: 2, paused: 3, backtesting: 4, idle: 5 };
 
 const byName = (a: Bot, b: Bot) => a.name.localeCompare(b.name);
 
 const ORDERS: Record<Order, { text: string; compare: (a: Bot, b: Bot) => number }> = {
-  attention: { text: "Status", compare: (a, b) => ATTENTION[a.status] - ATTENTION[b.status] || byName(a, b) },
-  name: { text: "Name", compare: byName },
-  recent: { text: "Last run", compare: (a, b) => (b.last_run_at ?? "").localeCompare(a.last_run_at ?? "") || byName(a, b) },
+  attention: { text: "By status", compare: (a, b) => ATTENTION[a.status] - ATTENTION[b.status] || byName(a, b) },
+  name: { text: "By name", compare: byName },
+  recent: { text: "By last run", compare: (a, b) => (b.last_run_at ?? "").localeCompare(a.last_run_at ?? "") || byName(a, b) },
 };
 
 function rebucket<P>(points: P[]): P[] {

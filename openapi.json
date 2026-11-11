@@ -912,6 +912,7 @@
           "live",
           "paused",
           "backtesting",
+          "stopped",
           "error"
         ]
       },

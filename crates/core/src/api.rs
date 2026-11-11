@@ -22,6 +22,7 @@ pub enum BotStatus {
     Live,
     Paused,
     Backtesting,
+    Stopped,
     Error,
 }
 

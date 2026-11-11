@@ -382,7 +382,7 @@ export interface components {
             risk?: components["schemas"]["RiskLimits"];
         };
         /** @enum {string} */
-        BotStatus: "idle" | "live" | "paused" | "backtesting" | "error";
+        BotStatus: "idle" | "live" | "paused" | "backtesting" | "stopped" | "error";
         BotSummary: {
             name: string;
             description: string;

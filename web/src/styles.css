@@ -257,6 +257,7 @@ h2 {
 }
 
 .pill-paused,
+.pill-stopped,
 .pill-backoff {
   background: var(--warn-bg);
   color: var(--warn);
@@ -630,7 +631,8 @@ h2 {
   box-shadow: inset 3px 0 var(--up);
 }
 
-.bot-card.status-paused {
+.bot-card.status-paused,
+.bot-card.status-stopped {
   box-shadow: inset 3px 0 var(--warn);
 }
 
@@ -1220,6 +1222,11 @@ h2 {
 
   .page {
     padding: 12px;
+  }
+
+  .page-filter {
+    flex: 1 1 140px;
+    width: auto;
   }
 
   .detail-actions {
