@@ -1,5 +1,6 @@
 use buizz_core::market::{CorporateActionKind, Feed, Symbol};
 use buizz_core::time::Timestamp;
+use buizz_core::wire;
 use duckdb::ToSql;
 use duckdb::types::{
     Decimal as DbDecimal, FromSql, FromSqlError, FromSqlResult, TimeUnit, ToSqlOutput, Value,
@@ -8,7 +9,6 @@ use duckdb::types::{
 use rust_decimal::Decimal;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
-use serde::de::value::{Error as WireError, StrDeserializer};
 
 pub(crate) struct Ts(pub Timestamp);
 
@@ -77,28 +77,14 @@ pub(crate) struct Wire<T>(pub T);
 
 impl<T: DeserializeOwned> FromSql for Wire<T> {
     fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
-        parse_wire(value.as_str()?)
+        wire::from_name(value.as_str()?)
             .map(Self)
             .map_err(|error| FromSqlError::Other(Box::new(error)))
     }
 }
 
-pub(crate) fn parse_wire<T: DeserializeOwned>(text: &str) -> Result<T, WireError> {
-    T::deserialize(StrDeserializer::<WireError>::new(text))
-}
-
 pub(crate) fn wire_name<T: Serialize>(value: &T) -> String {
-    let mut writer = csv::WriterBuilder::new()
-        .has_headers(false)
-        .from_writer(Vec::new());
-    let written = writer
-        .serialize(value)
-        .ok()
-        .and_then(|()| writer.into_inner().ok())
-        .and_then(|bytes| String::from_utf8(bytes).ok());
-    written
-        .map(|text| text.trim_end().to_owned())
-        .unwrap_or_default()
+    wire::name(value).expect("market columns hold unit enum variants")
 }
 
 pub(crate) fn feed_name(feed: Feed) -> &'static str {

@@ -9,3 +9,4 @@ pub mod protocol;
 pub mod run;
 pub mod time;
 pub mod visibility;
+pub mod wire;
