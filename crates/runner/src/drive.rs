@@ -50,7 +50,6 @@ pub(crate) struct Launch {
     pub control: watch::Sender<Control>,
     pub receiver: watch::Receiver<Control>,
     pub sockets: mpsc::Receiver<WebSocket>,
-    pub lease: Option<FeedLease>,
 }
 
 enum Exit {
@@ -329,7 +328,7 @@ struct Driver {
     control: watch::Receiver<Control>,
     sockets: mpsc::Receiver<WebSocket>,
     watermarks: watch::Receiver<Watermarks>,
-    _lease: Option<FeedLease>,
+    lease: Option<FeedLease>,
     engine: Engine,
     timeline: Timeline,
     committer: Committer,
@@ -358,7 +357,6 @@ impl Driver {
             control: control_tx,
             receiver: control,
             sockets,
-            lease,
         } = launch;
         let config = &run.config;
         let timeline = Timeline::open(inner.market.clone(), config).await?;
@@ -390,7 +388,7 @@ impl Driver {
             control,
             sockets,
             watermarks: inner.market.watermarks(),
-            _lease: lease,
+            lease: None,
             engine,
             timeline,
             committer: Committer::spawn(inner.state.clone(), last_step),
@@ -416,6 +414,82 @@ impl Driver {
 
     fn live(&self) -> bool {
         self.run.mode == Mode::Live
+    }
+
+    fn streams(&self) -> bool {
+        self.live() && self.run.config.timeframe == Timeframe::Minute
+    }
+
+    fn wanted(&self) -> BTreeSet<Symbol> {
+        self.timeline
+            .session()
+            .universe
+            .iter()
+            .cloned()
+            .chain(self.held())
+            .collect()
+    }
+
+    async fn lease_stream(&mut self) -> Flow<()> {
+        if !self.streams() || self.paused {
+            return Ok(());
+        }
+        let wanted = self.wanted();
+        let leased = match self.lease.as_mut() {
+            Some(lease) => lease.cover(wanted),
+            None => self
+                .inner
+                .feed
+                .acquire(self.run.id, &self.run.bot, wanted)
+                .map(|lease| self.lease = Some(lease)),
+        };
+        match leased {
+            Ok(()) => Ok(()),
+            Err(error) => {
+                let message = format!("{error}; the run is paused");
+                self.pause(EndReason::Failed, Some(message)).await
+            }
+        }
+    }
+
+    fn lease_orders(&mut self, orders: &[OrderRequest]) -> BTreeSet<Symbol> {
+        if !self.streams() {
+            return BTreeSet::new();
+        }
+        let symbols: BTreeSet<Symbol> = orders
+            .iter()
+            .map(|order| order.symbol.clone())
+            .filter(|symbol| self.timeline.instrument(symbol).is_some())
+            .collect();
+        let Some(lease) = self.lease.as_mut() else {
+            return BTreeSet::new();
+        };
+        let mut uncovered = BTreeSet::new();
+        for symbol in symbols {
+            if lease.symbols().contains(&symbol) {
+                continue;
+            }
+            let wanted: Vec<Symbol> = lease
+                .symbols()
+                .iter()
+                .cloned()
+                .chain([symbol.clone()])
+                .collect();
+            if lease.cover(wanted).is_err() {
+                uncovered.insert(symbol);
+            }
+        }
+        uncovered
+    }
+
+    async fn enter_next_session(&mut self) -> Flow<()> {
+        if self.timeline.session().date.is_none()
+            && let Some(point) = self.timeline.next_point(self.after)
+        {
+            let held = self.held();
+            self.timeline.enter(&point.session, &held).await?;
+        }
+        Ok(())
     }
 
     async fn drive(&mut self) -> Exit {
@@ -503,6 +577,11 @@ impl Driver {
     }
 
     async fn launch(&mut self) -> Flow<()> {
+        self.enter_next_session().await?;
+        self.lease_stream().await?;
+        if self.paused {
+            return Ok(());
+        }
         let launch = buizz_supervisor::Launch {
             run_id: self.run.id,
             token: self.token.clone(),
@@ -518,6 +597,7 @@ impl Driver {
 
     async fn pause(&mut self, reason: EndReason, message: Option<String>) -> Flow<()> {
         self.paused = true;
+        self.lease = None;
         self.engine.cancel_all(self.after);
         self.absorb();
         self.frame.discard();
@@ -559,6 +639,7 @@ impl Driver {
             }
             let held = self.held();
             self.timeline.enter(&point.session, &held).await?;
+            self.lease_stream().await?;
         }
         let visible_through = self.live().then(|| self.visible_through()).flatten();
         let bars = self.timeline.bars(point, visible_through).await?;
@@ -751,12 +832,7 @@ impl Driver {
     }
 
     async fn ready(&mut self) -> Flow<Ready> {
-        if self.timeline.session().date.is_none()
-            && let Some(point) = self.timeline.next_point(self.after)
-        {
-            let held = self.held();
-            self.timeline.enter(&point.session, &held).await?;
-        }
+        self.enter_next_session().await?;
         let config = &self.run.config;
         let portfolio = self.engine.portfolio();
         Ok(Ready {
@@ -879,11 +955,15 @@ impl Driver {
                 message: line.message,
             });
         }
+        let unleased = self.lease_orders(&orders);
         let (accepted, rejected): (Vec<OrderRequest>, Vec<(OrderRequest, RejectReason)>) =
             orders.into_iter().fold(
                 (Vec::new(), Vec::new()),
                 |(mut accepted, mut rejected), order| {
-                    match self.screen(&order) {
+                    let unleased = unleased
+                        .contains(&order.symbol)
+                        .then_some(RejectReason::NoStreamSlot);
+                    match self.screen(&order).or(unleased) {
                         Some(reason) => rejected.push((order, reason)),
                         None => accepted.push(order),
                     }
@@ -909,6 +989,7 @@ impl Driver {
             let held = self.held();
             self.timeline.track(held);
         }
+        self.lease_stream().await?;
         self.commit(false).await
     }
 

@@ -118,7 +118,7 @@ ctx.log(message, level="info")
 - `cancel` cancels a working order by client id.
 - `log` writes a line of the given level (`debug`, `info`, `warn`, `error`) into the run's event log; the bot's stdout and stderr go to the log file.
 
-Orders are rejected, with the reason on the order and in the run events, for: `unknown_symbol`, `zero_quantity`, `invalid_limit_price`, `no_price` (no close seen yet), `not_shortable`, `max_position_weight`, `max_gross_exposure` and `run_paused`.
+Orders are rejected, with the reason on the order and in the run events, for: `unknown_symbol`, `zero_quantity`, `invalid_limit_price`, `no_price` (no close seen yet), `not_shortable`, `max_position_weight`, `max_gross_exposure`, `run_paused` and, for live `1m` runs, `no_stream_slot` (the symbol is outside the universe and holdings and the 30-symbol stream has no free slot for it).
 
 ### State
 

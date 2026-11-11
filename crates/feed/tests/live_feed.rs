@@ -219,13 +219,11 @@ async fn leases_share_stream_slots_and_live_bars_land_with_gaps_backfilled() {
 
     let alpha = feed
         .acquire(RunId(1), "alpha", symbols(&["AAA", "BBB"]))
-        .await
         .unwrap();
-    let _beta = feed
+    let mut beta = feed
         .acquire(RunId(2), "beta", symbols(&["BBB", "CCC"]))
-        .await
         .unwrap();
-    let refused = feed.acquire(RunId(3), "gamma", symbols(&["DDD"])).await;
+    let refused = feed.acquire(RunId(3), "gamma", symbols(&["DDD"]));
     let Err(FeedError::CapExceeded {
         requested,
         available,
@@ -259,10 +257,16 @@ async fn leases_share_stream_slots_and_live_bars_land_with_gaps_backfilled() {
     );
     assert_eq!(feed.slots().borrow().used, 2);
 
-    let _gamma = feed
-        .acquire(RunId(3), "gamma", symbols(&["DDD"]))
-        .await
-        .unwrap();
+    assert!(matches!(
+        beta.cover(symbols(&["BBB", "CCC", "DDD", "EEE"])),
+        Err(FeedError::CapExceeded {
+            requested: 4,
+            available: 3,
+            ..
+        })
+    ));
+    assert_eq!(beta.symbols(), symbols(&["BBB", "CCC"]));
+    let _gamma = feed.acquire(RunId(3), "gamma", symbols(&["DDD"])).unwrap();
     eventually(|| async {
         frames(&fake, "subscribe")
             .concat()

@@ -18,7 +18,7 @@ use buizz_core::run::{
 };
 use buizz_core::time::Timestamp;
 use buizz_engine::ENGINE_VERSION;
-use buizz_feed::{FeedError, FeedLease, FeedManager};
+use buizz_feed::{FeedError, FeedManager};
 use buizz_ingest::{Ingest, IngestError};
 use buizz_market::{MarketError, MarketStore};
 use buizz_state::{NewRun, RunFilter, StateError, StateStore};
@@ -199,24 +199,13 @@ impl Runner {
                     continue;
                 }
             };
-            let mut lease = None;
             if run.mode == Mode::Backtest {
                 state
                     .set_status(run.id, RunStatus::Queued, None, now())
                     .await?;
-            } else if run.config.timeframe == Timeframe::Minute {
-                match self.lease(&run).await {
-                    Ok(acquired) => lease = Some(acquired),
-                    Err(error) => {
-                        state.set_desired(run.id, DesiredState::Paused).await?;
-                        state
-                            .set_status(run.id, RunStatus::Paused, Some(error.to_string()), now())
-                            .await?;
-                    }
-                }
+                run = self.summary(run.id).await?;
             }
-            run = self.summary(run.id).await?;
-            self.spawn(run, spec, lease);
+            self.spawn(run, spec);
         }
         Ok(())
     }
@@ -270,15 +259,22 @@ impl Runner {
         let run = self
             .create(config, &spec, RunStatus::Queued, warnings)
             .await?;
-        self.spawn(run.clone(), spec, None);
+        self.spawn(run.clone(), spec);
         Ok(run)
     }
 
     pub async fn go_live(&self, bot: &str) -> Result<RunSummary, RunnerError> {
         let spec = self.bot(bot).await?;
+        let today = now().exchange_date();
         if let Some(run) = self.live_run(bot).await? {
             if run.desired != DesiredState::Paused {
                 return Err(RunnerError::AlreadyLive(bot.to_owned()));
+            }
+            if run.config.timeframe == Timeframe::Minute {
+                let portfolio = self.inner.state.portfolio(run.id).await?;
+                let held = portfolio.open_positions().map(|(symbol, _)| symbol.clone());
+                let universe = universe_at(&self.inner.market, &run.config, today).await?;
+                self.inner.feed.admits(universe.into_iter().chain(held))?;
             }
             self.inner
                 .state
@@ -287,7 +283,6 @@ impl Runner {
             self.inner.steer(run.id, DesiredState::Running);
             return self.summary(run.id).await;
         }
-        let today = now().exchange_date();
         let config = self.run_config(
             &spec,
             Mode::Live,
@@ -305,6 +300,10 @@ impl Runner {
                 allow_holdout: false,
             },
         )?;
+        if config.timeframe == Timeframe::Minute {
+            let universe = universe_at(&self.inner.market, &config, today).await?;
+            self.inner.feed.admits(universe)?;
+        }
         let run = match self
             .create(config, &spec, RunStatus::Starting, Vec::new())
             .await
@@ -314,19 +313,7 @@ impl Runner {
             }
             created => created?,
         };
-        let lease = if run.config.timeframe == Timeframe::Minute {
-            match self.lease(&run).await {
-                Ok(lease) => Some(lease),
-                Err(error) => {
-                    self.conclude(run.id, RunStatus::Failed, Some(error.to_string()))
-                        .await?;
-                    return Err(error);
-                }
-            }
-        } else {
-            None
-        };
-        self.spawn(run.clone(), spec, lease);
+        self.spawn(run.clone(), spec);
         Ok(run)
     }
 
@@ -471,11 +458,6 @@ impl Runner {
         })
     }
 
-    async fn lease(&self, run: &RunSummary) -> Result<FeedLease, RunnerError> {
-        let symbols = universe_at(&self.inner.market, &run.config).await?;
-        Ok(self.inner.feed.acquire(run.id, &run.bot, symbols).await?)
-    }
-
     async fn create(
         &self,
         config: RunConfig,
@@ -561,7 +543,7 @@ impl Runner {
         Ok(())
     }
 
-    fn spawn(&self, run: RunSummary, spec: BotSpec, lease: Option<FeedLease>) {
+    fn spawn(&self, run: RunSummary, spec: BotSpec) {
         let (control, receiver) = watch::channel(Control {
             desired: run.desired,
             shutdown: false,
@@ -580,7 +562,6 @@ impl Runner {
             control: control.clone(),
             receiver,
             sockets: incoming,
-            lease,
         }));
         runs.insert(
             run_id,
@@ -593,12 +574,16 @@ impl Runner {
     }
 }
 
-async fn universe_at(market: &MarketStore, config: &RunConfig) -> Result<Vec<Symbol>, MarketError> {
+async fn universe_at(
+    market: &MarketStore,
+    config: &RunConfig,
+    date: NaiveDate,
+) -> Result<Vec<Symbol>, MarketError> {
     match &config.universe {
         UniverseSpec::Symbols { symbols } => Ok(symbols.clone()),
         UniverseSpec::TopDollarVolume { top_dollar_volume } => {
             market
-                .top_dollar_volume(*top_dollar_volume, config.start, config.cost.adv_sessions)
+                .top_dollar_volume(*top_dollar_volume, date, config.cost.adv_sessions)
                 .await
         }
     }
@@ -608,7 +593,7 @@ pub(crate) async fn gate_symbols(
     market: &MarketStore,
     config: &RunConfig,
 ) -> Result<Vec<Symbol>, MarketError> {
-    let mut symbols = universe_at(market, config).await?;
+    let mut symbols = universe_at(market, config, config.start).await?;
     symbols.push(config.benchmark.clone());
     symbols.sort();
     symbols.dedup();

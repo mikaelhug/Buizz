@@ -57,7 +57,7 @@ The engine only ever reads the market store. Ingest and the feed manager write b
 
 For each bar the runner runs one cycle: corporate actions, order expiry, fills at the bar's open, then at the bar's visible time mark to market, risk limits, wake the bot, accept its orders. A bar's cycle finishes before the next bar's begins. Each step is committed together with the engine checkpoint.
 
-Live runs on 1m bars use the real-time IEX stream; backtests use SIP history, so volume is partial live. Live fills are tagged with the feed. The volume cap uses the average daily volume, so it is the same in both modes. Live runs on daily bars use the official daily bar and take no stream slot.
+Live runs on 1m bars use the real-time IEX stream; backtests use SIP history, so volume is partial live. A live 1m run leases stream slots for its session's universe plus the symbols it holds or has orders in, again at every new session and after every step; going live or resuming is refused when the slots are not free, a paused run holds none, and an order for a symbol no free slot can cover is rejected with `no_stream_slot`. Live fills are tagged with the feed. The volume cap uses the average daily volume, so it is the same in both modes. Live runs on daily bars use the official daily bar and take no stream slot.
 When bars arrive in live while the bot is still deciding, they coalesce into its next step. Pausing a live run cancels its working orders and stops the bot process while the spine keeps marking equity; resuming starts the bot again with its saved state and current holdings and never replays the paused interval.
 
 ## Guarantees
