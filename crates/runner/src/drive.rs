@@ -560,20 +560,26 @@ impl Driver {
         uncovered
     }
 
+    fn recorded_hash(&self) -> &str {
+        self.run
+            .reproducibility
+            .as_ref()
+            .map_or(&self.spec.content_hash, |recorded| &recorded.bot_hash)
+    }
+
+    fn outdated_message(&self) -> String {
+        format!(
+            "the code of bot {} changed since this run started; stop the run and start a new one",
+            self.run.bot
+        )
+    }
+
     async fn outdated(&mut self) -> Flow<Option<String>> {
-        let Some(recorded) = self.run.reproducibility.as_ref() else {
-            return Ok(None);
-        };
         let dir = self.spec.dir.clone();
         let current = tokio::task::spawn_blocking(move || bot_hash(&dir))
             .await
             .expect("hashing a bot does not panic")?;
-        Ok((current != recorded.bot_hash).then(|| {
-            format!(
-                "the code of bot {} changed since this run started; stop the run and start a new one",
-                self.run.bot
-            )
-        }))
+        Ok((current != self.recorded_hash()).then(|| self.outdated_message()))
     }
 
     async fn enter_next_session(&mut self) -> Flow<()> {
@@ -701,7 +707,10 @@ impl Driver {
         let launch = buizz_supervisor::Launch {
             run_id: self.run.id,
             token: self.token.clone(),
-            bot: self.spec.clone(),
+            bot: BotSpec {
+                content_hash: self.recorded_hash().to_owned(),
+                ..self.spec.clone()
+            },
         };
         let supervisor = &self.inner.supervisor;
         self.process = Some(match self.run.mode {
@@ -1238,6 +1247,11 @@ impl Driver {
                     }));
                 }
                 return Ok(());
+            }
+            Some(ProcessEvent::Outdated) => {
+                self.link = None;
+                let message = self.outdated_message();
+                return self.pause(EndReason::Failed, Some(message)).await;
             }
             None => {
                 self.process = None;

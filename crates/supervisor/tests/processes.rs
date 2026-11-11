@@ -146,6 +146,40 @@ async fn stopping_a_chatty_live_bot_nobody_reads_returns() {
         .unwrap();
 }
 
+#[tokio::test]
+async fn a_crashed_live_bot_whose_code_changed_is_not_restarted() {
+    let temp = tempfile::tempdir().unwrap();
+    let bots = temp.path().join("bots");
+    let edited = write_bot(&bots, "edited", "exit 3\n");
+    let supervisor = Supervisor::new(SupervisorConfig {
+        spine_url: "ws://127.0.0.1:1".into(),
+        log_dir: temp.path().join("logs"),
+        max_parallel_backtests: 1,
+        restart_delay: Duration::from_millis(200),
+        kill_grace: Duration::from_secs(2),
+    });
+    let script = edited.dir.join("run.sh");
+    let mut live = supervisor.keep_alive(Launch {
+        run_id: RunId(4),
+        token: "secret".into(),
+        bot: edited,
+    });
+    let mut seen = Vec::new();
+    while let Some(event) = live.events().recv().await {
+        if matches!(event, ProcessEvent::Exited { .. }) {
+            fs::write(&script, "exit 4\n").unwrap();
+        }
+        seen.push(event);
+    }
+    let exits = seen
+        .iter()
+        .filter(|event| matches!(event, ProcessEvent::Exited { .. }))
+        .count();
+    assert_eq!(exits, 1);
+    assert_eq!(seen.last(), Some(&ProcessEvent::Outdated));
+    live.stop().await.unwrap();
+}
+
 const SECRET: &str = "BUIZZ_ADMIN_PASSWORD";
 const ENVIRONMENT_TEST: &str = "bots_see_only_the_protocol_and_toolchain_environment";
 

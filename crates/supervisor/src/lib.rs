@@ -202,6 +202,7 @@ pub enum ProcessEvent {
     Line { stream: OutputStream, line: String },
     Exited { code: Option<i32> },
     Restarting { attempt: u32, delay: Duration },
+    Outdated,
 }
 
 pub struct BotProcess {
@@ -429,6 +430,14 @@ impl Supervisor {
     ) {
         let mut restarts: VecDeque<Instant> = VecDeque::new();
         loop {
+            let dir = launch.bot.dir.clone();
+            let hashed = tokio::task::spawn_blocking(move || bot_hash(&dir))
+                .await
+                .expect("hashing a bot does not panic");
+            if hashed.is_ok_and(|hash| hash != launch.bot.content_hash) {
+                let _ = events.send(ProcessEvent::Outdated).await;
+                return;
+            }
             match self.spawn(&launch).await {
                 Ok(mut process) => loop {
                     tokio::select! {
