@@ -26,6 +26,8 @@ CREATE TABLE IF NOT EXISTS run (
 
 CREATE INDEX IF NOT EXISTS run_by_bot ON run (bot, created_at);
 CREATE INDEX IF NOT EXISTS run_by_desired ON run (desired, status);
+CREATE UNIQUE INDEX IF NOT EXISTS run_one_live_per_bot ON run (bot)
+    WHERE mode = 'live' AND status IN ('queued', 'starting', 'running', 'paused');
 
 CREATE TABLE IF NOT EXISTS run_order (
     run_id INTEGER NOT NULL REFERENCES run (id) ON DELETE CASCADE,
