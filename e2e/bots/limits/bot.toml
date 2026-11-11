@@ -1,0 +1,5 @@
+description = "Asks for an oversized AAA position, then keeps BBB at a target weight every day"
+command = ["uv", "run", "--frozen", "--quiet", "--project", "../../../sdk/python", "python", "bot.py"]
+timeframe = "1d"
+universe = { symbols = ["AAA", "BBB"] }
+params = { oversized = 0.9, weight = 0.55 }

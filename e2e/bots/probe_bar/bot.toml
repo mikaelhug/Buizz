@@ -1,0 +1,15 @@
+description = "Lookahead probe on minute bars: asks for every view on each bar"
+command = ["uv", "run", "--frozen", "--quiet", "--project", "../../../sdk/python", "python", "../probe/bot.py"]
+timeframe = "1m"
+wake = "bar"
+universe = { symbols = ["AAA", "BBB"] }
+
+[params]
+queries = [
+    { tf = "1m", bars = 10, adjust = "raw" },
+    { tf = "1m", bars = 30, adjust = "all" },
+    { tf = "1d", bars = 1, adjust = "raw" },
+]
+fundamentals = ["BBB"]
+metrics = ["net_income"]
+order_at = ["2024-11-29T14:31:00Z", "2024-11-29T17:59:00Z", "2024-11-29T18:00:00Z"]

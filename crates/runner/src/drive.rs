@@ -347,6 +347,7 @@ struct Driver {
     event_seq: u64,
     step_seq: u64,
     bot_state: Option<Vec<u8>>,
+    arrived_while_deciding: Option<(Timestamp, Timestamp)>,
 }
 
 impl Driver {
@@ -407,6 +408,7 @@ impl Driver {
             event_seq: last_event_seq(&inner, run.id).await?,
             step_seq: last_step,
             bot_state,
+            arrived_while_deciding: None,
             spec,
             run,
             inner,
@@ -440,7 +442,13 @@ impl Driver {
                 continue;
             }
             match next.filter(|point| self.processable(point)) {
-                Some(point) => self.cycle(&point).await?,
+                Some(_) if !self.paused && self.link.is_none() => self.await_bot().await?,
+                Some(point) => {
+                    self.cycle(&point).await?;
+                    if self.frame.due && self.link.is_some() && !self.arrived_while_deciding() {
+                        self.wake().await?;
+                    }
+                }
                 None if self.frame.due && (self.paused || self.link.is_some()) => {
                     self.wake().await?;
                 }
@@ -456,6 +464,18 @@ impl Driver {
                 }
             }
         }
+    }
+
+    fn arrived_while_deciding(&self) -> bool {
+        self.arrived_while_deciding.is_some_and(|(asked, decided)| {
+            self.timeline
+                .next_point(self.after)
+                .is_some_and(|next| asked < next.visible_at && next.visible_at <= decided)
+        })
+    }
+
+    fn visible_through(&self) -> Option<Timestamp> {
+        self.watermarks.borrow().get(self.run.config.timeframe)
     }
 
     fn processable(&mut self, point: &Point) -> bool {
@@ -541,10 +561,7 @@ impl Driver {
             let held = self.held();
             self.timeline.enter(&point.session, &held).await?;
         }
-        let visible_through = self
-            .live()
-            .then(|| self.watermarks.borrow().get(self.run.config.timeframe))
-            .flatten();
+        let visible_through = self.live().then(|| self.visible_through()).flatten();
         let bars = self.timeline.bars(point, visible_through).await?;
         let data = self.timeline.session();
         self.engine.run_cycle(&Cycle {
@@ -570,7 +587,9 @@ impl Driver {
         {
             self.frame.due = true;
         }
-        if let Some(breach) = self.absorb() {
+        if let Some(breach) = self.absorb()
+            && !self.paused
+        {
             let message = format!(
                 "drawdown {:.2}% breached the {:.2}% limit; the bot is paused",
                 breach.0 * Decimal::ONE_HUNDRED,
@@ -676,10 +695,14 @@ impl Driver {
                 event = next_process_event(&mut self.process) => self.on_process(event).await?,
                 _ = self.control.changed() => self.reconcile().await?,
                 _ = tokio::time::sleep_until(deadline) => {
-                    return Err(Exit::Failed(format!(
+                    let message = format!(
                         "the bot did not connect within {} s",
                         ACK_TIMEOUT.as_secs()
-                    )));
+                    );
+                    if self.live() {
+                        return self.pause(EndReason::Failed, Some(message)).await;
+                    }
+                    return Err(Exit::Failed(message));
                 }
             }
             if self.paused {
@@ -712,6 +735,7 @@ impl Driver {
         match BotLink::handshake(socket, ready).await {
             Ok(link) => {
                 self.link = Some(link);
+                self.arrived_while_deciding = None;
                 self.frame.holdings = None;
                 self.frame.universe = Some(universe);
                 self.set_status(RunStatus::Running, None).await
@@ -777,6 +801,7 @@ impl Driver {
         };
         let sent_universe = universe_changed.then(|| universe.clone());
         let market = self.inner.market.clone();
+        let asked = self.visible_through();
         let Some(link) = self.link.as_mut() else {
             return Ok(());
         };
@@ -787,6 +812,7 @@ impl Driver {
         match answered {
             None => self.reconcile().await,
             Some(Ok(ack)) => {
+                self.arrived_while_deciding = asked.zip(self.visible_through());
                 self.frame.discard();
                 self.frame.holdings = Some(holdings);
                 if sent_universe.is_some() {

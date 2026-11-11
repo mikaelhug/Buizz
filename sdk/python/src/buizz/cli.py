@@ -76,11 +76,10 @@ def trade_summary(api: Api, run_id: int) -> list[str]:
         if after is None:
             break
     statuses = Counter(order["status"] for order in orders)
-    net: Counter[str] = Counter()
-    for order in orders:
-        net[order["symbol"]] += order["filled_qty"] * (1 if order["side"] == "buy" else -1)
+    held = {position["symbol"]: position["qty"] for position in api.call("GET", f"/api/runs/{run_id}/positions")}
+    traded = {order["symbol"] for order in orders if order["filled_qty"] > 0}
     lines = [f"orders: {len(orders)} ({', '.join(f'{n} {status}' for status, n in sorted(statuses.items()))})"]
-    lines += [f"  {symbol:<8} net {qty:+d} shares" for symbol, qty in sorted(net.items())]
+    lines += [f"  {symbol:<8} net {held.get(symbol, 0):+d} shares" for symbol in sorted(traded | held.keys())]
     return lines
 
 

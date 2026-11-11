@@ -1,0 +1,6 @@
+description = "The tape bot under a second name, left running while tape is paused"
+command = ["uv", "run", "--frozen", "--quiet", "--project", "../../../sdk/python", "python", "../tape/bot.py"]
+timeframe = "1m"
+wake = "bar"
+universe = { symbols = ["AAA", "BBB"] }
+params = { weight = 0.2 }

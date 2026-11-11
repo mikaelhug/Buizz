@@ -458,17 +458,12 @@ dependencies = [
  "buizz-ingest",
  "buizz-market",
  "buizz-runner",
- "buizz-sources",
  "buizz-state",
- "buizz-supervisor",
  "chrono",
  "futures",
  "rand 0.10.3",
- "reqwest",
  "rust_decimal",
- "serde_json",
  "subtle",
- "tempfile",
  "tokio",
  "tokio-stream",
  "tower-http 0.7.1",
@@ -495,6 +490,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "buizz-e2e"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "buizz-core",
+ "buizz-market",
+ "buizz-sources",
+ "chrono",
+ "csv",
+ "nix",
+ "reqwest",
+ "rust_decimal",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "buizz-engine"
 version = "0.1.0"
 dependencies = [
@@ -504,7 +518,6 @@ dependencies = [
  "rmp-serde",
  "rust_decimal",
  "serde",
- "serde_json",
  "thiserror",
 ]
 
@@ -579,7 +592,6 @@ dependencies = [
  "buizz-ingest",
  "buizz-market",
  "buizz-metrics",
- "buizz-sources",
  "buizz-state",
  "buizz-supervisor",
  "chrono",
@@ -588,10 +600,8 @@ dependencies = [
  "rmp-serde",
  "rust_decimal",
  "serde_json",
- "tempfile",
  "thiserror",
  "tokio",
- "tokio-tungstenite 0.30.0",
  "tracing",
 ]
 

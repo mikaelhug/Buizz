@@ -10,7 +10,7 @@ use buizz_core::market::{
 use buizz_core::ops::{CoverageGap, DataWarning};
 use buizz_core::protocol::BarRow;
 use buizz_core::time::Timestamp;
-use chrono::NaiveDate;
+use chrono::{NaiveDate, TimeDelta};
 use duckdb::Connection;
 use tokio::sync::watch;
 
@@ -26,6 +26,7 @@ mod write;
 
 pub const SCHEMA: &str = include_str!("../schema.sql");
 pub const FILE_NAME: &str = "market.duckdb";
+pub const TIMESTAMP_RESOLUTION: TimeDelta = TimeDelta::microseconds(1);
 
 #[derive(Debug, thiserror::Error)]
 pub enum MarketError {

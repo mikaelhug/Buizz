@@ -16,7 +16,11 @@ impl ToSql for Ts {
     fn to_sql(&self) -> duckdb::Result<ToSqlOutput<'_>> {
         Ok(ToSqlOutput::Owned(Value::Timestamp(
             TimeUnit::Microsecond,
-            self.0.nanos().div_euclid(1_000),
+            self.0.nanos().div_euclid(
+                crate::TIMESTAMP_RESOLUTION
+                    .num_nanoseconds()
+                    .expect("the resolution fits in nanoseconds"),
+            ),
         )))
     }
 }

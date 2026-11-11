@@ -1,0 +1,5 @@
+description = "Counts the steps a minute bot waking at 15:55 receives"
+command = ["uv", "run", "--frozen", "--quiet", "--project", "../../../sdk/python", "python", "../probe/bot.py"]
+timeframe = "1m"
+wake = "at:15:55"
+universe = { symbols = ["AAA", "BBB"] }

@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use axum::Json;
 use axum::extract::State;
 use buizz_core::api::{DataHealth, FeedSlots, JobView};
-use buizz_core::market::{Coverage, Dataset, Symbol, Timeframe, Watermarks};
+use buizz_core::market::{Coverage, DataSource, Dataset, Symbol, Timeframe, Watermarks};
 use buizz_core::ops::{CoverageGap, DataWarning};
 use chrono::{NaiveDate, TimeDelta};
 
@@ -69,7 +69,18 @@ async fn warnings(
 pub(crate) async fn data_health(State(app): State<AppState>) -> Result<Json<DataHealth>, Failure> {
     let watermarks = *app.market.watermarks().borrow();
     let coverage = app.market.coverage().await?;
-    let warnings = warnings(&app, watermarks, &coverage).await?;
+    let mut warnings = warnings(&app, watermarks, &coverage).await?;
+    let rejected = app
+        .state
+        .latest_rejections(DataSource::Tiingo, Dataset::Bars1d)
+        .await?;
+    warnings.extend(rejected.into_iter().filter_map(|fetch| {
+        Some(DataWarning::OverlapRejected {
+            symbol: fetch.symbol?,
+            source: fetch.source,
+            message: fetch.message.unwrap_or_default(),
+        })
+    }));
     let stale_jobs = app
         .ingest
         .job_views(now())

@@ -1,0 +1,14 @@
+{
+  "name": "buizz-e2e-browser",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "playwright-core": "1.65.0",
+    "typescript": "5.9.3"
+  }
+}
