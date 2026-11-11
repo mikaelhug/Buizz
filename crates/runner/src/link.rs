@@ -6,6 +6,7 @@ use buizz_core::protocol::{
     PROTOCOL_VERSION, ProtocolError, Query, QueryRequest, Ready, SpineMessage, Step,
 };
 use buizz_core::time::Timestamp;
+use buizz_core::visibility::calendar_known_through;
 use buizz_market::{HistoryRequest, MarketStore};
 
 pub(crate) const ACK_TIMEOUT: Duration = Duration::from_secs(60);
@@ -174,6 +175,19 @@ async fn answer(
                 .await
                 .map_err(|error| error.to_string())?;
             Ok(DataResult::Fundamentals { points })
+        }
+        QueryRequest::Calendar { from, to } => {
+            if from > to {
+                return Err(format!("calendar from {from} is after to {to}"));
+            }
+            let through = calendar_known_through(clock);
+            if to > through {
+                return Err(format!(
+                    "the calendar is published through {through} at the clock, not through {to}"
+                ));
+            }
+            let sessions = market.published_sessions(from, to, clock);
+            Ok(DataResult::Calendar { sessions })
         }
     }
 }

@@ -174,9 +174,16 @@ class FundamentalsResult(msgspec.Struct, frozen=True, tag_field="kind", tag="fun
     points: list[FundamentalFact]
 
 
+class CalendarResult(msgspec.Struct, frozen=True, tag_field="kind", tag="calendar"):
+    sessions: list[SessionFrame]
+
+
+type Result = HistoryResult | FundamentalsResult | CalendarResult
+
+
 class Data(msgspec.Struct, frozen=True, tag_field="type", tag="data"):
     id: int
-    result: HistoryResult | FundamentalsResult
+    result: Result
 
 
 class Error(msgspec.Struct, frozen=True, tag_field="type", tag="error"):
@@ -207,9 +214,17 @@ class FundamentalsRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="fu
     metrics: list[Metric]
 
 
+class CalendarRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="calendar"):
+    start: date = msgspec.field(name="from")
+    end: date = msgspec.field(name="to")
+
+
+type Request = HistoryRequest | FundamentalsRequest | CalendarRequest
+
+
 class Query(msgspec.Struct, frozen=True, tag_field="type", tag="query"):
     id: int
-    request: HistoryRequest | FundamentalsRequest
+    request: Request
 
 
 class QtySize(msgspec.Struct, frozen=True, tag_field="by", tag="qty"):

@@ -10,7 +10,7 @@ use buizz_core::market::{
 use buizz_core::ops::{CoverageGap, DataWarning};
 use buizz_core::protocol::BarRow;
 use buizz_core::time::Timestamp;
-use buizz_core::visibility::bar_visible_at;
+use buizz_core::visibility::{bar_visible_at, published_sessions};
 use chrono::{NaiveDate, TimeDelta};
 use duckdb::Connection;
 use tokio::sync::watch;
@@ -288,6 +288,15 @@ impl MarketStore {
         Ok(Calendar::new(
             self.shared.calendar().between(from, to).to_vec(),
         ))
+    }
+
+    pub fn published_sessions(
+        &self,
+        from: NaiveDate,
+        to: NaiveDate,
+        as_of: Timestamp,
+    ) -> Vec<Session> {
+        published_sessions(&self.shared.calendar(), from, to, as_of)
     }
 
     pub async fn instruments(&self) -> Result<Vec<Instrument>> {

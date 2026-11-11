@@ -195,6 +195,20 @@ async fn a_probe_asking_for_everything_never_sees_past_the_clock() {
             "{case}"
         );
     }
+    let calendar = &daily["calendar"];
+    let refused = calendar["refused_days"].as_str().expect("refused days");
+    for step in probe {
+        assert_eq!(
+            step.report["calendar"][refused], "bad_query",
+            "a calendar past the published horizon at {}",
+            step.clock
+        );
+    }
+    for case in calendar["cases"].as_array().expect("calendar cases") {
+        let step = at(probe, &case["clock"]);
+        let days = case["days"].as_str().expect("days");
+        assert_eq!(step.report["calendar"][days], case["sessions"], "{case}");
+    }
     assert_filled_at(&spine.orders(runs["probe"].id).await, &daily["fills"]);
 
     for (wake, count) in minute["step_counts"].as_object().expect("step counts") {

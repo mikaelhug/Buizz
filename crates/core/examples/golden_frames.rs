@@ -356,6 +356,32 @@ fn main() {
 
     write(
         &dir,
+        "query_calendar",
+        &BotMessage::Query(Query {
+            id: 4,
+            request: QueryRequest::Calendar {
+                from: date("2024-11-28"),
+                to: date("2024-12-02"),
+            },
+        }),
+    );
+
+    write(
+        &dir,
+        "data_calendar",
+        &SpineMessage::Data(Data {
+            id: 4,
+            result: DataResult::Calendar {
+                sessions: vec![
+                    session("2024-11-29", "18:00:00"),
+                    session("2024-12-02", "21:00:00"),
+                ],
+            },
+        }),
+    );
+
+    write(
+        &dir,
         "ack_backtest",
         &BotMessage::Ack(Ack {
             seq: 1,

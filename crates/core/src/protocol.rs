@@ -102,6 +102,10 @@ pub enum QueryRequest {
         symbols: Vec<Symbol>,
         metrics: Vec<FundamentalMetric>,
     },
+    Calendar {
+        from: NaiveDate,
+        to: NaiveDate,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -115,6 +119,7 @@ pub struct Data {
 pub enum DataResult {
     History { bars: BarBuffer },
     Fundamentals { points: Vec<FundamentalPoint> },
+    Calendar { sessions: Vec<Session> },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

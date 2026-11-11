@@ -16,6 +16,8 @@ from buizz.wire import (
     Ack,
     Adjust,
     BarBuffer,
+    CalendarRequest,
+    CalendarResult,
     Event,
     FundamentalsRequest,
     FundamentalsResult,
@@ -30,6 +32,9 @@ from buizz.wire import (
     Position,
     QtySize,
     Ready,
+    Request,
+    Result,
+    SessionFrame,
     Step,
     Timeframe,
     WeightSize,
@@ -39,7 +44,7 @@ from buizz.wire import (
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
 
-type QueryFn = Callable[[HistoryRequest | FundamentalsRequest], HistoryResult | FundamentalsResult]
+type QueryFn = Callable[[Request], Result]
 
 EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 INTRADAY_STAMP = "%Y-%m-%dT%H:%M"
@@ -84,6 +89,12 @@ def wire_decimal(name: str, value: object) -> Decimal:
     if number != 0 and not DECIMAL_MIN <= abs(number) <= DECIMAL_MAX:
         raise ValueError(f"{name} {value} is outside the decimal range the spine accepts")
     return number
+
+
+def day(name: str, value: object) -> date:
+    if isinstance(value, datetime) or not isinstance(value, date):
+        raise TypeError(f"{name} must be a date, got {type(value).__name__} {value!r}")
+    return value
 
 
 def whole_shares(qty: object) -> int:
@@ -137,6 +148,10 @@ class Session(msgspec.Struct, frozen=True):
     date: date
     open: datetime
     close: datetime
+
+
+def session_of(frame: SessionFrame) -> Session:
+    return Session(frame.date, from_ns(frame.open), from_ns(frame.close))
 
 
 class Portfolio(msgspec.Struct, frozen=True):
@@ -250,8 +265,7 @@ class Context:
 
     @property
     def session(self) -> Session:
-        session = self._current("ctx.session").session
-        return Session(session.date, from_ns(session.open), from_ns(session.close))
+        return session_of(self._current("ctx.session").session)
 
     @property
     def universe(self) -> list[str]:
@@ -313,6 +327,13 @@ class Context:
             )
             for f in result.points
         ]
+
+    def calendar(self, start: date, end: date) -> list[Session]:
+        self._current("ctx.calendar")
+        result = self._query(CalendarRequest(day("start", start), day("end", end)))
+        if not isinstance(result, CalendarResult):
+            raise ProtocolError(f"calendar query answered with {type(result).__name__}")
+        return [session_of(frame) for frame in result.sessions]
 
     def order(
         self,

@@ -2,12 +2,12 @@ use std::path::{Path, PathBuf};
 
 use buizz_core::market::{
     Adjustment, CorporateAction, CorporateActionKind, DataSource, FundamentalFact,
-    FundamentalMetric, PeriodType, Symbol, Timeframe,
+    FundamentalMetric, PeriodType, Session, Symbol, Timeframe,
 };
 use buizz_core::protocol::BarRow;
 use buizz_core::time::Timestamp;
 use buizz_market::{FILE_NAME, HistoryRequest, MarketStore};
-use chrono::{NaiveDate, TimeDelta};
+use chrono::{Datelike, NaiveDate, TimeDelta};
 use rust_decimal::Decimal;
 use serde_json::Value;
 
@@ -315,5 +315,63 @@ async fn as_of_boundaries_hold_while_a_writer_rewrites_the_data() {
     assert_eq!(
         store.watermarks().borrow().minute,
         Some(loaded_through + TimeDelta::minutes(i64::try_from(ROUNDS - 1).unwrap()))
+    );
+}
+
+#[tokio::test]
+async fn a_late_closure_stays_a_published_session_until_it_was_announced() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = MarketStore::open(&dir.path().join(FILE_NAME), 1)
+        .await
+        .unwrap();
+    let day = |text: &str| text.parse::<NaiveDate>().unwrap();
+    let sessions: Vec<Session> = day("2018-11-26")
+        .iter_days()
+        .take_while(|date| *date <= day("2018-12-11"))
+        .filter(|date| date.weekday().number_from_monday() <= 5 && *date != day("2018-12-05"))
+        .map(|date| Session {
+            date,
+            open: format!("{date}T14:30:00Z").parse().unwrap(),
+            close: format!("{date}T21:00:00Z").parse().unwrap(),
+        })
+        .collect();
+    store
+        .upsert_sessions(DataSource::Fixture, sessions)
+        .await
+        .unwrap();
+    let dates = |clock: &str| -> Vec<NaiveDate> {
+        store
+            .published_sessions(day("2018-12-03"), day("2018-12-07"), clock.parse().unwrap())
+            .iter()
+            .map(|session| session.date)
+            .collect()
+    };
+
+    assert_eq!(
+        store.published_sessions(
+            day("2018-12-05"),
+            day("2018-12-05"),
+            "2018-11-30T21:00:00Z".parse().unwrap(),
+        ),
+        [Session {
+            date: day("2018-12-05"),
+            open: "2018-12-05T14:30:00Z".parse().unwrap(),
+            close: "2018-12-05T21:00:00Z".parse().unwrap(),
+        }]
+    );
+    assert_eq!(
+        dates("2018-12-03T14:29:00Z"),
+        [
+            "2018-12-03",
+            "2018-12-04",
+            "2018-12-05",
+            "2018-12-06",
+            "2018-12-07"
+        ]
+        .map(day)
+    );
+    assert_eq!(
+        dates("2018-12-03T14:30:00Z"),
+        ["2018-12-03", "2018-12-04", "2018-12-06", "2018-12-07"].map(day)
     );
 }
