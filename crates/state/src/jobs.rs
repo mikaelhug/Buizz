@@ -4,8 +4,8 @@ use buizz_core::time::Timestamp;
 use chrono::TimeDelta;
 use rusqlite::{Connection, OptionalExtension, Row, params};
 
-use crate::Result;
 use crate::codec::{enum_text, int, read_enum, read_optional, read_timestamp, read_u64};
+use crate::{FetchUsage, Result};
 
 const TRANSIENT_BACKOFF: TimeDelta = TimeDelta::hours(6);
 const PERMANENT_BACKOFF: TimeDelta = TimeDelta::days(30);
@@ -125,6 +125,24 @@ pub fn record_fetch(connection: &Connection, fetch: &SourceFetch) -> Result<()> 
         ],
     )?;
     Ok(())
+}
+
+pub fn fetch_usage(
+    connection: &Connection,
+    source: DataSource,
+    since: Timestamp,
+) -> Result<FetchUsage> {
+    let usage = connection.query_row(
+        "SELECT COUNT(*), COUNT(DISTINCT symbol) FROM source_fetch WHERE source = ? AND at >= ?",
+        params![enum_text(&source)?, since.nanos()],
+        |row| {
+            Ok(FetchUsage {
+                requests: read_u64(row, 0)?,
+                symbols: read_u64(row, 1)?,
+            })
+        },
+    )?;
+    Ok(usage)
 }
 
 pub fn recent_fetches(

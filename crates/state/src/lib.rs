@@ -41,6 +41,12 @@ pub enum StateError {
 
 pub type Result<T> = std::result::Result<T, StateError>;
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct FetchUsage {
+    pub requests: u64,
+    pub symbols: u64,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct NewRun {
     pub config: RunConfig,
@@ -263,6 +269,12 @@ impl StateStore {
     pub async fn record_fetch(&self, fetch: SourceFetch) -> Result<()> {
         self.db
             .transaction(move |transaction| jobs::record_fetch(transaction, &fetch))
+            .await
+    }
+
+    pub async fn fetch_usage(&self, source: DataSource, since: Timestamp) -> Result<FetchUsage> {
+        self.db
+            .read(move |connection| jobs::fetch_usage(connection, source, since))
             .await
     }
 
