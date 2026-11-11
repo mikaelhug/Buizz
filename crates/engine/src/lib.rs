@@ -49,6 +49,7 @@ pub struct Outbox {
     pub step_events: Vec<StepEvent>,
     pub equity_points: Vec<EquityPoint>,
     pub breaches: Vec<RiskBreach>,
+    pub warnings: Vec<String>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -62,6 +63,7 @@ struct State {
     peak_equity: Decimal,
     session: Option<Session>,
     session_filled: BTreeMap<Symbol, u64>,
+    volume_unknown: BTreeSet<Symbol>,
     breached: Vec<RiskLimit>,
     chain: [u8; 32],
 }
@@ -329,19 +331,24 @@ impl Engine {
                 }
             };
             let Some(price) = price else { continue };
-            let cap = self.cost.participation_cap(
-                cycle
-                    .average_daily_volume
-                    .get(&order.symbol)
-                    .copied()
-                    .unwrap_or(0),
-            );
+            let average_daily_volume = cycle.average_daily_volume.get(&order.symbol).copied();
+            if average_daily_volume.is_none()
+                && self.state.volume_unknown.insert(order.symbol.clone())
+            {
+                self.outbox.warnings.push(format!(
+                    "{} has no average daily volume, so its fills are not capped by volume",
+                    order.symbol
+                ));
+            }
+            let cap = self.cost.participation_cap(average_daily_volume);
             let used = self
                 .state
                 .session_filled
                 .entry(order.symbol.clone())
                 .or_default();
-            let qty = order.remaining().min(cap.saturating_sub(*used));
+            let qty = order
+                .remaining()
+                .min(cap.map_or(u64::MAX, |cap| cap.saturating_sub(*used)));
             if qty == 0 {
                 continue;
             }
@@ -827,5 +834,26 @@ mod tests {
         assert_eq!(expired.status, OrderStatus::Expired);
         assert_eq!(expired.qty, 10);
         assert_eq!(expired.order_type, limit);
+    }
+
+    #[test]
+    fn an_order_without_an_average_daily_volume_fills_uncapped_and_warns_once() {
+        let (first, second) = (session(20), session(21));
+        let mut engine = Engine::new(&config("100000", "1"), first.open);
+        step(&mut engine, &first, &[bar(&first, "100", "99", "100")], &[]);
+        submit(
+            &mut engine,
+            &first,
+            vec![buy("AAA-1", 10), buy("AAA-2", 10)],
+        );
+        step(
+            &mut engine,
+            &second,
+            &[bar(&second, "100", "99", "101")],
+            &[],
+        );
+        let outbox = engine.drain();
+        assert_eq!(outbox.fills.len(), 2);
+        assert_eq!(outbox.warnings.len(), 1);
     }
 }

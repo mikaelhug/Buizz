@@ -140,7 +140,7 @@ The spine starts every run with 100,000 start cash and this cost model:
 |---|---|
 | Commission | 0.005 per share, at least 1.00 per fill |
 | Slippage | 5 bps against you on market fills and on limit orders already marketable at the open |
-| Volume cap | 5% of the average daily volume of the last 20 sessions, per symbol and session; the rest of the order stays working and expires with its session |
+| Volume cap | 5% of the average daily volume of the last 20 sessions, per symbol and session; the rest of the order stays working and expires with its session. A symbol with no average daily volume fills uncapped and the run gets one data warning event for it |
 | Borrow | 2% per year on short positions, charged at each session close |
 
 Shorting is allowed for instruments flagged shortable.

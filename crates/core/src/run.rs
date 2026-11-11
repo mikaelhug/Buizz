@@ -189,11 +189,13 @@ impl CostModel {
         round_cash((self.commission_per_share * Decimal::from(qty)).max(self.commission_min))
     }
 
-    pub fn participation_cap(&self, average_daily_volume: u64) -> u64 {
-        (Decimal::from(average_daily_volume) * self.adv_participation)
-            .floor()
-            .to_u64()
-            .unwrap_or(0)
+    pub fn participation_cap(&self, average_daily_volume: Option<u64>) -> Option<u64> {
+        average_daily_volume.map(|volume| {
+            (Decimal::from(volume) * self.adv_participation)
+                .floor()
+                .to_u64()
+                .unwrap_or(0)
+        })
     }
 
     pub fn borrow_fee(&self, short_qty: u64, price: Decimal) -> Decimal {

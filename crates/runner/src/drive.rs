@@ -618,6 +618,7 @@ impl Driver {
             step_events,
             equity_points,
             breaches,
+            warnings,
         } = self.engine.drain();
         let run_id = self.run.id;
         for fill in fills {
@@ -643,6 +644,9 @@ impl Driver {
         self.pending.dirty = true;
         if !self.paused {
             self.frame.events.extend(step_events);
+        }
+        for message in warnings {
+            self.note(RunEventKind::DataWarning { message });
         }
         let mut drawdown = None;
         for breach in breaches {
