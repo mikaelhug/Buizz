@@ -1,0 +1,9 @@
+description = "Faber GTAA: five equal sleeves, each held above its 10-month SMA at month end, else T-bills"
+command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
+timeframe = "1d"
+wake = "bar"
+universe = { symbols = ["SPY", "EFA", "IEF", "VNQ", "GSG", "BIL"] }
+params = { assets = ["SPY", "EFA", "IEF", "VNQ", "GSG"], cash = "BIL", sma_months = 10 }
+
+[risk]
+max_gross_exposure = 1.0
