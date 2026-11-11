@@ -8,8 +8,8 @@ Hand-computed against `fixtures/market/`. Every rule used here is code in `crate
 
 Rules applied (`core::order::target_weight_qty`, `CostModel`, `money`):
 
-- At each session close the bot sees that day's bar. Red (`close < open`) with no position: target 0.25. Green (`close > open`): target 0. Doji: nothing.
-- Target qty = `trunc(weight × equity / close)`; order = target − held. A zero delta is recorded as `rejected / zero_quantity`.
+- At each session close the bot sees that day's bar. Red (`close < open`) with no position: target 0.25. Green (`close > open`) with a position: target 0. Otherwise nothing.
+- Target qty = `trunc(weight × equity / close)`; order = target − held.
 - The order fills at the next session open: `round4(open × (1 ± 0.0005))`, half-even. Cash moves by `round2(qty × price)` plus commission `round2(max(1.00, 0.005 × qty))`.
 - Ex-date actions apply at the session open before fills; equity is marked at each close.
 
@@ -27,8 +27,6 @@ Rules applied (`core::order::target_weight_qty`, `CostModel`, `money`):
 | 12-04 | 101.50/102.00 g | 49.00/48.80 r | sell 251 AAA @ 101.4492 = 25,463.75 − 1.26; buy 511 BBB @ 49.0245 = 25,051.52 + 2.56 | 75,511.66 | BBB 511 × 48.80 | 100,448.46 |
 
 Sizing at the deciding close: BBB 11-20 `trunc(25,000.00 / 49.00) = 510`; AAA 11-21 `trunc(24,945.2250 / 199.00) = 125`; AAA 12-02 `trunc(24,991.4825 / 99.50) = 251`; BBB 12-03 `trunc(25,113.5625 / 49.10) = 511`. Half-even cases: 24,762.375 → 24,762.38; 1.255 → 1.26; 2.555 → 2.56; 48.47575 → 48.4758; 99.45025 → 99.4502; 101.44925 → 101.4492.
-
-Orders 1, 6, 7, 9 and 12 are zero-quantity rejections on green days without a position.
 
 ## Metric definitions
 

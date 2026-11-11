@@ -49,7 +49,7 @@
       "at": "2024-11-21T14:30:00Z",
       "kind": {
         "type": "fill",
-        "order_id": 2,
+        "order_id": 1,
         "symbol": "BBB",
         "qty": 510,
         "price": "49.2246",
@@ -62,7 +62,7 @@
       "at": "2024-11-22T14:30:00Z",
       "kind": {
         "type": "fill",
-        "order_id": 3,
+        "order_id": 2,
         "symbol": "AAA",
         "qty": 125,
         "price": "198.0990",
@@ -99,7 +99,7 @@
       "at": "2024-11-27T14:30:00Z",
       "kind": {
         "type": "fill",
-        "order_id": 4,
+        "order_id": 3,
         "symbol": "BBB",
         "qty": -510,
         "price": "48.4758",
@@ -112,7 +112,7 @@
       "at": "2024-11-29T14:30:00Z",
       "kind": {
         "type": "fill",
-        "order_id": 5,
+        "order_id": 4,
         "symbol": "AAA",
         "qty": -250,
         "price": "99.4502",
@@ -125,7 +125,7 @@
       "at": "2024-12-03T14:30:00Z",
       "kind": {
         "type": "fill",
-        "order_id": 8,
+        "order_id": 5,
         "symbol": "AAA",
         "qty": 251,
         "price": "99.0495",
@@ -138,7 +138,7 @@
       "at": "2024-12-04T14:30:00Z",
       "kind": {
         "type": "fill",
-        "order_id": 10,
+        "order_id": 6,
         "symbol": "AAA",
         "qty": -251,
         "price": "101.4492",
@@ -151,7 +151,7 @@
       "at": "2024-12-04T14:30:00Z",
       "kind": {
         "type": "fill",
-        "order_id": 11,
+        "order_id": 7,
         "symbol": "BBB",
         "qty": 511,
         "price": "49.0245",
@@ -163,22 +163,6 @@
   "orders": [
     {
       "id": 1,
-      "client_id": "AAA-2024-11-20",
-      "symbol": "AAA",
-      "side": "buy",
-      "qty": 0,
-      "filled_qty": 0,
-      "requested": {
-        "by": "target_weight",
-        "weight": "0"
-      },
-      "reason": "green day",
-      "decided_at": "2024-11-20T21:00:00Z",
-      "status": "rejected",
-      "reject_reason": "zero_quantity"
-    },
-    {
-      "id": 2,
       "client_id": "BBB-2024-11-20",
       "symbol": "BBB",
       "side": "buy",
@@ -195,7 +179,7 @@
       "filled_at": "2024-11-21T14:30:00Z"
     },
     {
-      "id": 3,
+      "id": 2,
       "client_id": "AAA-2024-11-21",
       "symbol": "AAA",
       "side": "buy",
@@ -212,7 +196,7 @@
       "filled_at": "2024-11-22T14:30:00Z"
     },
     {
-      "id": 4,
+      "id": 3,
       "client_id": "BBB-2024-11-26",
       "symbol": "BBB",
       "side": "sell",
@@ -229,7 +213,7 @@
       "filled_at": "2024-11-27T14:30:00Z"
     },
     {
-      "id": 5,
+      "id": 4,
       "client_id": "AAA-2024-11-27",
       "symbol": "AAA",
       "side": "sell",
@@ -246,39 +230,7 @@
       "filled_at": "2024-11-29T14:30:00Z"
     },
     {
-      "id": 6,
-      "client_id": "AAA-2024-11-29",
-      "symbol": "AAA",
-      "side": "buy",
-      "qty": 0,
-      "filled_qty": 0,
-      "requested": {
-        "by": "target_weight",
-        "weight": "0"
-      },
-      "reason": "green day",
-      "decided_at": "2024-11-29T18:00:00Z",
-      "status": "rejected",
-      "reject_reason": "zero_quantity"
-    },
-    {
-      "id": 7,
-      "client_id": "BBB-2024-11-29",
-      "symbol": "BBB",
-      "side": "buy",
-      "qty": 0,
-      "filled_qty": 0,
-      "requested": {
-        "by": "target_weight",
-        "weight": "0"
-      },
-      "reason": "green day",
-      "decided_at": "2024-11-29T18:00:00Z",
-      "status": "rejected",
-      "reject_reason": "zero_quantity"
-    },
-    {
-      "id": 8,
+      "id": 5,
       "client_id": "AAA-2024-12-02",
       "symbol": "AAA",
       "side": "buy",
@@ -295,23 +247,7 @@
       "filled_at": "2024-12-03T14:30:00Z"
     },
     {
-      "id": 9,
-      "client_id": "BBB-2024-12-02",
-      "symbol": "BBB",
-      "side": "buy",
-      "qty": 0,
-      "filled_qty": 0,
-      "requested": {
-        "by": "target_weight",
-        "weight": "0"
-      },
-      "reason": "green day",
-      "decided_at": "2024-12-02T21:00:00Z",
-      "status": "rejected",
-      "reject_reason": "zero_quantity"
-    },
-    {
-      "id": 10,
+      "id": 6,
       "client_id": "AAA-2024-12-03",
       "symbol": "AAA",
       "side": "sell",
@@ -328,7 +264,7 @@
       "filled_at": "2024-12-04T14:30:00Z"
     },
     {
-      "id": 11,
+      "id": 7,
       "client_id": "BBB-2024-12-03",
       "symbol": "BBB",
       "side": "buy",
@@ -343,22 +279,6 @@
       "status": "filled",
       "fill_price": "49.0245",
       "filled_at": "2024-12-04T14:30:00Z"
-    },
-    {
-      "id": 12,
-      "client_id": "AAA-2024-12-04",
-      "symbol": "AAA",
-      "side": "buy",
-      "qty": 0,
-      "filled_qty": 0,
-      "requested": {
-        "by": "target_weight",
-        "weight": "0"
-      },
-      "reason": "green day",
-      "decided_at": "2024-12-04T21:00:00Z",
-      "status": "rejected",
-      "reject_reason": "zero_quantity"
     }
   ],
   "equity": [

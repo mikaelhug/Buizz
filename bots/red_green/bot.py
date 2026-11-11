@@ -7,7 +7,7 @@ class RedGreen(Bot):
         for symbol, bar in ctx.bars.items():
             if bar.close < bar.open and ctx.position(symbol).qty == 0:
                 ctx.order_target_weight(symbol, weight, reason="red day")
-            elif bar.close > bar.open:
+            elif bar.close > bar.open and ctx.position(symbol).qty != 0:
                 ctx.order_target_weight(symbol, 0, reason="green day")
 
 

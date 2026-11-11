@@ -121,7 +121,7 @@ async fn red_green_backtest_matches_the_hand_computation_from_the_cli_the_api_an
         assert!(printed.contains(&line), "{line:?} in {printed:#?}");
     }
     for line in [
-        "orders: 12 (7 filled, 5 rejected)",
+        "orders: 7 (7 filled)",
         "  AAA      net +0 shares",
         "  BBB      net +511 shares",
     ] {

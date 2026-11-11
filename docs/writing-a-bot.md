@@ -37,7 +37,7 @@ class RedGreen(Bot):
         for symbol, bar in ctx.bars.items():
             if bar.close < bar.open and ctx.position(symbol).qty == 0:
                 ctx.order_target_weight(symbol, weight, reason="red day")
-            elif bar.close > bar.open:
+            elif bar.close > bar.open and ctx.position(symbol).qty != 0:
                 ctx.order_target_weight(symbol, 0, reason="green day")
 
 
@@ -45,7 +45,7 @@ if __name__ == "__main__":
     run(RedGreen)
 ```
 
-`run(RedGreen)` reads `BUIZZ_SPINE_URL` and `BUIZZ_RUN_TOKEN` from the environment, connects, and calls `on_step` once per step until the spine ends the run. After a red day the bot asks for a 25% position; after a green day it asks for zero. Both orders fill at the next day's open.
+`run(RedGreen)` reads `BUIZZ_SPINE_URL` and `BUIZZ_RUN_TOKEN` from the environment, connects, and calls `on_step` once per step until the spine ends the run. After a red day without a position the bot asks for a 25% position; after a green day with one it asks for zero. Both orders fill at the next day's open.
 
 ## `bot.toml`
 
