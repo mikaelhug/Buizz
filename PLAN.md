@@ -118,7 +118,6 @@ Out of v1: brokers and real money; options, crypto, FX; tick/quote simulation; e
 2. Confirm every worktree branch is merged into `main` and pruned.
 3. Code review each module of Buizz (one review per crate, the SDK and the web app); fix confirmed findings.
    Known issues to fold into the reviews:
-   - A repeated `client_id` is silently ignored, but `docs/protocol.md` says it is rejected and `RejectReason::DuplicateClientId` is never produced.
    - Bot logs go to `data/logs` relative to the working directory in the supervisor and the API, ignoring `BUIZZ_DATA_DIR`.
    - Runs get no default risk limits, and the UI and CLI cannot set any; a drawdown breach in a backtest reads as a pause with reason `risk_limit`.
    - `buizz backtest` has no holdout option, and its per-symbol net shares ignore splits; metrics that are absent may print as `None`.

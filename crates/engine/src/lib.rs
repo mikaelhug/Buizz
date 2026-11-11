@@ -162,9 +162,8 @@ impl Engine {
             });
         }
         for request in orders {
-            if !self.state.client_ids.insert(request.client_id.clone()) {
-                continue;
-            }
+            let duplicate = !self.state.client_ids.insert(request.client_id.clone());
+            let known = instrument(&request.symbol);
             self.state.orders_issued += 1;
             let mut order = Order {
                 id: OrderId(self.state.orders_issued),
@@ -183,8 +182,12 @@ impl Engine {
                 reject_reason: None,
                 updated_at: decided_at,
             };
-            let instrument = instrument(&order.symbol);
-            if let Err(reason) = self.size(&mut order, session, instrument) {
+            let sized = if duplicate {
+                Err(RejectReason::DuplicateClientId)
+            } else {
+                self.size(&mut order, session, known)
+            };
+            if let Err(reason) = sized {
                 order.status = OrderStatus::Rejected;
                 order.reject_reason = Some(reason);
             }
@@ -618,7 +621,9 @@ impl Engine {
         } else {
             self.state.working.insert(order.id, order.clone());
         }
-        self.changed_orders.insert(order.id, order);
+        if order.reject_reason != Some(RejectReason::DuplicateClientId) {
+            self.changed_orders.insert(order.id, order);
+        }
     }
 
     fn absorb(&mut self, tag: &[u8], record: &impl Serialize) {
@@ -952,5 +957,31 @@ mod tests {
                 Some(RejectReason::NotShortable)
             ]
         );
+    }
+
+    #[test]
+    fn a_repeated_client_id_is_rejected_without_touching_the_first_order() {
+        let first = session(20);
+        let mut engine = Engine::new(&config("100000", "1"), first.open);
+        step(
+            &mut engine,
+            &first,
+            &[bar(&first, "100", "99", "100")],
+            &[("AAA", 1_000_000)],
+        );
+        submit(&mut engine, &first, vec![buy("AAA-1", 10)]);
+        engine.accept(
+            first.close,
+            first.date.succ_opt().unwrap(),
+            vec![buy("AAA-1", 10)],
+            Vec::new(),
+            |_| None,
+        );
+        let rejected = &engine.drain().rejections[0];
+        assert_eq!(
+            rejected.reject_reason,
+            Some(RejectReason::DuplicateClientId)
+        );
+        assert_eq!(engine.holdings().working.len(), 1);
     }
 }

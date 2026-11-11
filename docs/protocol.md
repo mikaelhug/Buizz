@@ -45,7 +45,7 @@ spine -> end {reason, message?}
 
 ## Ack
 
-- `orders`: `{client_id, symbol, size, order_type, tif, reason}`. `size` is `{by: "qty", qty}` (signed: negative sells) or `{by: "target_weight", weight}` (sized against equity and the last close at `clock`). `order_type` is `{type: "market"}` or `{type: "limit", limit_price}`; the spine rounds `limit_price` to 4 decimals away from the market (down for a buy, up for a sell), so a limit never fills worse than the bot asked. `tif` is `day`. `client_id` must be unique per run; a repeat is rejected, which makes acks safe to replay after a crash.
+- `orders`: `{client_id, symbol, size, order_type, tif, reason}`. `size` is `{by: "qty", qty}` (signed: negative sells) or `{by: "target_weight", weight}` (sized against equity and the last close at `clock`). `order_type` is `{type: "market"}` or `{type: "limit", limit_price}`; the spine rounds `limit_price` to 4 decimals away from the market (down for a buy, up for a sell), so a limit never fills worse than the bot asked. `tif` is `day`. `client_id` must be unique per run; a repeat is rejected with `duplicate_client_id` and leaves the first order alone, which makes acks safe to replay after a crash.
 - `cancels`: client ids of working orders.
 - `state`: opaque bytes ≤ 64 KiB persisted with the step checkpoint and returned in `ready`; `null` keeps the previous state.
 - `logs`: `{level, message}` lines for the run log.

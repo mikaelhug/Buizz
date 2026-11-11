@@ -113,11 +113,11 @@ ctx.log(message, level="info")
 - Quantities are whole shares. Splits pay cash in lieu of fractions.
 - Without `limit_price` the order is a market order. A limit price is rounded to 4 decimals away from the market (down for a buy, up for a sell). All orders are day orders.
 - `reason` is required free text. It is stored with the order and shown in the order list: write the decision, not the action.
-- `client_id` is returned. Leave it out to get `<symbol>-<session date>` (daily) or `<symbol>-<YYYY-MM-DDTHH:MM>` (1m), with `-1`, `-2` for repeats in the same step. A client id is unique per run and a repeated one is ignored, which makes replaying an ack after a crash safe.
+- `client_id` is returned. Leave it out to get `<symbol>-<session date>` (daily) or `<symbol>-<YYYY-MM-DDTHH:MM>` (1m), with `-1`, `-2` for repeats in the same step. A client id is unique per run; a repeated one is rejected with `duplicate_client_id` (in the step events and run events; the run's order list keeps only the first) and leaves the first order alone, which makes replaying an ack after a crash safe.
 - `cancel` cancels a working order by client id.
 - `log` writes a line of the given level (`debug`, `info`, `warn`, `error`) into the run's event log; the bot's stdout and stderr go to the log file.
 
-Orders are rejected, with the reason on the order and in the run events, for: `unknown_symbol`, `zero_quantity`, `invalid_limit_price`, `no_price` (no close seen yet), `not_shortable`, `max_position_weight`, `max_gross_exposure` and `invalid_size` (a quantity or target weight too large to compute).
+Orders are rejected, with the reason on the order and in the run events, for: `unknown_symbol`, `duplicate_client_id`, `zero_quantity`, `invalid_limit_price`, `no_price` (no close seen yet), `not_shortable`, `max_position_weight`, `max_gross_exposure` and `invalid_size` (a quantity or target weight too large to compute).
 
 ### State
 
