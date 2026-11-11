@@ -1,0 +1,511 @@
+{
+  "bot": "red_green",
+  "config": {
+    "bot": "red_green",
+    "mode": "backtest",
+    "params": {
+      "weight": 0.25
+    },
+    "universe": {
+      "symbols": [
+        "AAA",
+        "BBB"
+      ]
+    },
+    "timeframe": "1d",
+    "wake": "bar",
+    "start": "2024-11-20",
+    "end": "2024-12-04",
+    "start_cash": "100000.00",
+    "cost": {
+      "commission_per_share": "0.005",
+      "commission_min": "1.00",
+      "slippage_bps": "5",
+      "adv_participation": "0.05",
+      "adv_sessions": 20,
+      "borrow_rate": "0.02"
+    },
+    "risk": {
+      "max_position_weight": "0.5",
+      "max_gross_exposure": "1.0",
+      "max_drawdown": null
+    },
+    "seed": 7,
+    "benchmark": "SPY",
+    "holdout": false
+  },
+  "steps": 10,
+  "ledger": [
+    {
+      "seq": 1,
+      "at": "2024-11-20T14:30:00Z",
+      "kind": {
+        "type": "deposit",
+        "amount": "100000.00"
+      }
+    },
+    {
+      "seq": 2,
+      "at": "2024-11-21T14:30:00Z",
+      "kind": {
+        "type": "fill",
+        "order_id": 2,
+        "symbol": "BBB",
+        "qty": 510,
+        "price": "49.2246",
+        "commission": "2.55",
+        "feed": "sip"
+      }
+    },
+    {
+      "seq": 3,
+      "at": "2024-11-22T14:30:00Z",
+      "kind": {
+        "type": "fill",
+        "order_id": 3,
+        "symbol": "AAA",
+        "qty": 125,
+        "price": "198.0990",
+        "commission": "1.00",
+        "feed": "sip"
+      }
+    },
+    {
+      "seq": 4,
+      "at": "2024-11-25T14:30:00Z",
+      "kind": {
+        "type": "dividend",
+        "symbol": "BBB",
+        "qty": 510,
+        "rate": "0.50",
+        "amount": "255.00"
+      }
+    },
+    {
+      "seq": 5,
+      "at": "2024-11-26T14:30:00Z",
+      "kind": {
+        "type": "split",
+        "symbol": "AAA",
+        "old_rate": "1",
+        "new_rate": "2",
+        "qty_before": 125,
+        "qty_after": 250,
+        "cash_in_lieu": "0"
+      }
+    },
+    {
+      "seq": 6,
+      "at": "2024-11-27T14:30:00Z",
+      "kind": {
+        "type": "fill",
+        "order_id": 4,
+        "symbol": "BBB",
+        "qty": -510,
+        "price": "48.4758",
+        "commission": "2.55",
+        "feed": "sip"
+      }
+    },
+    {
+      "seq": 7,
+      "at": "2024-11-29T14:30:00Z",
+      "kind": {
+        "type": "fill",
+        "order_id": 5,
+        "symbol": "AAA",
+        "qty": -250,
+        "price": "99.4502",
+        "commission": "1.25",
+        "feed": "sip"
+      }
+    },
+    {
+      "seq": 8,
+      "at": "2024-12-03T14:30:00Z",
+      "kind": {
+        "type": "fill",
+        "order_id": 8,
+        "symbol": "AAA",
+        "qty": 251,
+        "price": "99.0495",
+        "commission": "1.26",
+        "feed": "sip"
+      }
+    },
+    {
+      "seq": 9,
+      "at": "2024-12-04T14:30:00Z",
+      "kind": {
+        "type": "fill",
+        "order_id": 10,
+        "symbol": "AAA",
+        "qty": -251,
+        "price": "101.4492",
+        "commission": "1.26",
+        "feed": "sip"
+      }
+    },
+    {
+      "seq": 10,
+      "at": "2024-12-04T14:30:00Z",
+      "kind": {
+        "type": "fill",
+        "order_id": 11,
+        "symbol": "BBB",
+        "qty": 511,
+        "price": "49.0245",
+        "commission": "2.56",
+        "feed": "sip"
+      }
+    }
+  ],
+  "orders": [
+    {
+      "id": 1,
+      "client_id": "AAA-2024-11-20",
+      "symbol": "AAA",
+      "side": "buy",
+      "qty": 0,
+      "filled_qty": 0,
+      "requested": {
+        "by": "target_weight",
+        "weight": "0"
+      },
+      "reason": "green day",
+      "decided_at": "2024-11-20T21:00:00Z",
+      "status": "rejected",
+      "reject_reason": "zero_quantity"
+    },
+    {
+      "id": 2,
+      "client_id": "BBB-2024-11-20",
+      "symbol": "BBB",
+      "side": "buy",
+      "qty": 510,
+      "filled_qty": 510,
+      "requested": {
+        "by": "target_weight",
+        "weight": "0.25"
+      },
+      "reason": "red day",
+      "decided_at": "2024-11-20T21:00:00Z",
+      "status": "filled",
+      "fill_price": "49.2246",
+      "filled_at": "2024-11-21T14:30:00Z"
+    },
+    {
+      "id": 3,
+      "client_id": "AAA-2024-11-21",
+      "symbol": "AAA",
+      "side": "buy",
+      "qty": 125,
+      "filled_qty": 125,
+      "requested": {
+        "by": "target_weight",
+        "weight": "0.25"
+      },
+      "reason": "red day",
+      "decided_at": "2024-11-21T21:00:00Z",
+      "status": "filled",
+      "fill_price": "198.0990",
+      "filled_at": "2024-11-22T14:30:00Z"
+    },
+    {
+      "id": 4,
+      "client_id": "BBB-2024-11-26",
+      "symbol": "BBB",
+      "side": "sell",
+      "qty": 510,
+      "filled_qty": 510,
+      "requested": {
+        "by": "target_weight",
+        "weight": "0"
+      },
+      "reason": "green day",
+      "decided_at": "2024-11-26T21:00:00Z",
+      "status": "filled",
+      "fill_price": "48.4758",
+      "filled_at": "2024-11-27T14:30:00Z"
+    },
+    {
+      "id": 5,
+      "client_id": "AAA-2024-11-27",
+      "symbol": "AAA",
+      "side": "sell",
+      "qty": 250,
+      "filled_qty": 250,
+      "requested": {
+        "by": "target_weight",
+        "weight": "0"
+      },
+      "reason": "green day",
+      "decided_at": "2024-11-27T21:00:00Z",
+      "status": "filled",
+      "fill_price": "99.4502",
+      "filled_at": "2024-11-29T14:30:00Z"
+    },
+    {
+      "id": 6,
+      "client_id": "AAA-2024-11-29",
+      "symbol": "AAA",
+      "side": "buy",
+      "qty": 0,
+      "filled_qty": 0,
+      "requested": {
+        "by": "target_weight",
+        "weight": "0"
+      },
+      "reason": "green day",
+      "decided_at": "2024-11-29T18:00:00Z",
+      "status": "rejected",
+      "reject_reason": "zero_quantity"
+    },
+    {
+      "id": 7,
+      "client_id": "BBB-2024-11-29",
+      "symbol": "BBB",
+      "side": "buy",
+      "qty": 0,
+      "filled_qty": 0,
+      "requested": {
+        "by": "target_weight",
+        "weight": "0"
+      },
+      "reason": "green day",
+      "decided_at": "2024-11-29T18:00:00Z",
+      "status": "rejected",
+      "reject_reason": "zero_quantity"
+    },
+    {
+      "id": 8,
+      "client_id": "AAA-2024-12-02",
+      "symbol": "AAA",
+      "side": "buy",
+      "qty": 251,
+      "filled_qty": 251,
+      "requested": {
+        "by": "target_weight",
+        "weight": "0.25"
+      },
+      "reason": "red day",
+      "decided_at": "2024-12-02T21:00:00Z",
+      "status": "filled",
+      "fill_price": "99.0495",
+      "filled_at": "2024-12-03T14:30:00Z"
+    },
+    {
+      "id": 9,
+      "client_id": "BBB-2024-12-02",
+      "symbol": "BBB",
+      "side": "buy",
+      "qty": 0,
+      "filled_qty": 0,
+      "requested": {
+        "by": "target_weight",
+        "weight": "0"
+      },
+      "reason": "green day",
+      "decided_at": "2024-12-02T21:00:00Z",
+      "status": "rejected",
+      "reject_reason": "zero_quantity"
+    },
+    {
+      "id": 10,
+      "client_id": "AAA-2024-12-03",
+      "symbol": "AAA",
+      "side": "sell",
+      "qty": 251,
+      "filled_qty": 251,
+      "requested": {
+        "by": "target_weight",
+        "weight": "0"
+      },
+      "reason": "green day",
+      "decided_at": "2024-12-03T21:00:00Z",
+      "status": "filled",
+      "fill_price": "101.4492",
+      "filled_at": "2024-12-04T14:30:00Z"
+    },
+    {
+      "id": 11,
+      "client_id": "BBB-2024-12-03",
+      "symbol": "BBB",
+      "side": "buy",
+      "qty": 511,
+      "filled_qty": 511,
+      "requested": {
+        "by": "target_weight",
+        "weight": "0.25"
+      },
+      "reason": "red day",
+      "decided_at": "2024-12-03T21:00:00Z",
+      "status": "filled",
+      "fill_price": "49.0245",
+      "filled_at": "2024-12-04T14:30:00Z"
+    },
+    {
+      "id": 12,
+      "client_id": "AAA-2024-12-04",
+      "symbol": "AAA",
+      "side": "buy",
+      "qty": 0,
+      "filled_qty": 0,
+      "requested": {
+        "by": "target_weight",
+        "weight": "0"
+      },
+      "reason": "green day",
+      "decided_at": "2024-12-04T21:00:00Z",
+      "status": "rejected",
+      "reject_reason": "zero_quantity"
+    }
+  ],
+  "equity": [
+    {
+      "at": "2024-11-20T21:00:00Z",
+      "equity": "100000.00",
+      "cash": "100000.00",
+      "gross_exposure": "0"
+    },
+    {
+      "at": "2024-11-21T21:00:00Z",
+      "equity": "99780.90",
+      "cash": "74892.90",
+      "gross_exposure": "24888.00"
+    },
+    {
+      "at": "2024-11-22T21:00:00Z",
+      "equity": "99591.52",
+      "cash": "50129.52",
+      "gross_exposure": "49462.00"
+    },
+    {
+      "at": "2024-11-25T21:00:00Z",
+      "equity": "99415.52",
+      "cash": "50384.52",
+      "gross_exposure": "49031.00"
+    },
+    {
+      "at": "2024-11-26T21:00:00Z",
+      "equity": "99420.52",
+      "cash": "50384.52",
+      "gross_exposure": "49036.00"
+    },
+    {
+      "at": "2024-11-27T21:00:00Z",
+      "equity": "99854.63",
+      "cash": "75104.63",
+      "gross_exposure": "24750.00"
+    },
+    {
+      "at": "2024-11-29T18:00:00Z",
+      "equity": "99965.93",
+      "cash": "99965.93",
+      "gross_exposure": "0.00"
+    },
+    {
+      "at": "2024-12-02T21:00:00Z",
+      "equity": "99965.93",
+      "cash": "99965.93",
+      "gross_exposure": "0"
+    },
+    {
+      "at": "2024-12-03T21:00:00Z",
+      "equity": "100454.25",
+      "cash": "75103.25",
+      "gross_exposure": "25351.00"
+    },
+    {
+      "at": "2024-12-04T21:00:00Z",
+      "equity": "100448.46",
+      "cash": "75511.66",
+      "gross_exposure": "24936.80"
+    }
+  ],
+  "benchmark": [
+    {
+      "at": "2024-11-20T21:00:00Z",
+      "equity": "100000.00"
+    },
+    {
+      "at": "2024-11-21T21:00:00Z",
+      "equity": "100525.42"
+    },
+    {
+      "at": "2024-11-22T21:00:00Z",
+      "equity": "100932.20"
+    },
+    {
+      "at": "2024-11-25T21:00:00Z",
+      "equity": "101288.14"
+    },
+    {
+      "at": "2024-11-26T21:00:00Z",
+      "equity": "101762.71"
+    },
+    {
+      "at": "2024-11-27T21:00:00Z",
+      "equity": "101491.53"
+    },
+    {
+      "at": "2024-11-29T18:00:00Z",
+      "equity": "102118.64"
+    },
+    {
+      "at": "2024-12-02T21:00:00Z",
+      "equity": "102305.08"
+    },
+    {
+      "at": "2024-12-03T21:00:00Z",
+      "equity": "102355.93"
+    },
+    {
+      "at": "2024-12-04T21:00:00Z",
+      "equity": "103000.00"
+    }
+  ],
+  "final": {
+    "cash": "75511.66",
+    "equity": "100448.46",
+    "positions": [
+      {
+        "symbol": "BBB",
+        "qty": 511,
+        "last_price": "48.80"
+      }
+    ]
+  },
+  "round_trips": [
+    {
+      "symbol": "BBB",
+      "pnl": "-131.99"
+    },
+    {
+      "symbol": "AAA",
+      "pnl": "97.92"
+    },
+    {
+      "symbol": "AAA",
+      "pnl": "599.81"
+    }
+  ],
+  "metrics": {
+    "total_return": 0.0044846,
+    "cagr": 0.11936243465864638,
+    "volatility": 0.041032233673161916,
+    "sharpe": 1.9756720692905883,
+    "sortino": 4.121476549595437,
+    "max_drawdown": 0.0058448,
+    "calmar": 20.42198786248398,
+    "win_rate": 0.6666666666666666,
+    "profit_factor": 5.2862338055913325,
+    "exposure": 0.2480964546315431,
+    "turnover": 1.7502176349076641,
+    "alpha": 0.6382125171354139,
+    "beta": -0.6170627952481548,
+    "trades": 3,
+    "sessions": 10
+  },
+  "metrics_tolerance": 1e-09
+}

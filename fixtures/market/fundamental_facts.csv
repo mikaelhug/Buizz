@@ -1,0 +1,3 @@
+symbol,cik,taxonomy,concept,unit,metric,period_type,period_start,period_end,value,fiscal_year,fiscal_period,form,accession,filed,frame,available_at
+BBB,9999001,us-gaap,NetIncomeLoss,USD,net_income,FY,2023-01-01,2023-12-31,410000000,2023,FY,10-K,0009999001-24-000007,2024-02-15,CY2023,2024-02-16T14:30:00Z
+BBB,9999001,us-gaap,NetIncomeLoss,USD,net_income,Q,2024-07-01,2024-09-30,125000000,2024,Q3,10-Q,0009999001-24-000042,2024-11-27,CY2024Q3,2024-11-29T14:30:00Z

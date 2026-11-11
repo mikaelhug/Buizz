@@ -1,0 +1,4 @@
+symbol,name,exchange,asset_class,active,shortable,first_session,last_session
+AAA,Alpha Fixture Corp,NYSE,stock,true,true,2024-11-20,
+BBB,Beta Fixture Inc,NASDAQ,stock,true,true,2024-11-20,
+SPY,SPDR S&P 500 ETF Trust,ARCA,etf,true,true,2024-11-20,

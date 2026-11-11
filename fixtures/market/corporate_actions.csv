@@ -1,0 +1,3 @@
+symbol,ex_date,kind,old_rate,new_rate,rate
+BBB,2024-11-25,cash_dividend,,,0.50
+AAA,2024-11-26,split,1,2,
