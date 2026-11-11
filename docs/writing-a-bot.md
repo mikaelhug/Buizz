@@ -111,7 +111,7 @@ ctx.log(message, level="info")
 - `order` takes a signed share count: positive buys, negative sells.
 - `order_target_weight` targets a fraction of equity: the target is `trunc(weight * equity / last close)` shares and the order is the difference to the position plus the session's working orders. A negative weight shorts. A target that needs no change is recorded as rejected with `zero_quantity`.
 - Quantities are whole shares. Splits pay cash in lieu of fractions.
-- Without `limit_price` the order is a market order. All orders are day orders.
+- Without `limit_price` the order is a market order. A limit price is rounded to 4 decimals away from the market (down for a buy, up for a sell). All orders are day orders.
 - `reason` is required free text. It is stored with the order and shown in the order list: write the decision, not the action.
 - `client_id` is returned. Leave it out to get `<symbol>-<session date>` (daily) or `<symbol>-<YYYY-MM-DDTHH:MM>` (1m), with `-1`, `-2` for repeats in the same step. A client id is unique per run and a repeated one is ignored, which makes replaying an ack after a crash safe.
 - `cancel` cancels a working order by client id.

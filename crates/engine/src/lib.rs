@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use buizz_core::ledger::{LedgerEntry, LedgerKind, Portfolio, split_qty};
 use buizz_core::market::{Bar, CorporateAction, CorporateActionKind, Session, Symbol};
-use buizz_core::money::{round_cash, round_price};
+use buizz_core::money::{round_cash, round_price, round_price_with};
 use buizz_core::order::{
     Fill, Order, OrderId, OrderRequest, OrderSize, OrderStatus, OrderType, OrderUpdate,
     RejectReason, Side, target_weight_qty,
@@ -11,7 +11,7 @@ use buizz_core::protocol::{Holdings, StepEvent};
 use buizz_core::run::{CostModel, EquityPoint, RiskLimit, RiskLimits, RunConfig};
 use buizz_core::time::Timestamp;
 use chrono::NaiveDate;
-use rust_decimal::Decimal;
+use rust_decimal::{Decimal, RoundingStrategy};
 use serde::{Deserialize, Serialize};
 
 pub const ENGINE_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -508,6 +508,16 @@ impl Engine {
         if delta == 0 {
             return Err(RejectReason::ZeroQuantity);
         }
+        if let OrderType::Limit { limit_price } = &mut order.order_type {
+            let away_from_the_market = match order.side {
+                Side::Buy => RoundingStrategy::ToNegativeInfinity,
+                Side::Sell => RoundingStrategy::ToPositiveInfinity,
+            };
+            *limit_price = round_price_with(*limit_price, away_from_the_market);
+            if *limit_price <= Decimal::ZERO {
+                return Err(RejectReason::InvalidLimitPrice);
+            }
+        }
         let after = before + delta;
         if after.abs() <= before.abs() {
             return Ok(());
@@ -741,5 +751,33 @@ mod tests {
         );
         let fills = engine.drain().fills;
         assert_eq!(fills[0].price, "100.0500".parse::<Decimal>().unwrap());
+    }
+
+    #[test]
+    fn a_limit_price_is_rounded_away_from_the_market_before_it_fills() {
+        let (first, second) = (session(20), session(21));
+        let mut engine = Engine::new(&config("100000", "1"), first.open);
+        step(
+            &mut engine,
+            &first,
+            &[bar(&first, "100", "99", "100")],
+            &[("AAA", 1_000_000)],
+        );
+        let limit = OrderType::Limit {
+            limit_price: "99.123456".parse().unwrap(),
+        };
+        submit(
+            &mut engine,
+            &first,
+            vec![order("AAA-1", OrderSize::Qty { qty: 10 }, limit)],
+        );
+        step(
+            &mut engine,
+            &second,
+            &[bar(&second, "100", "99", "101")],
+            &[("AAA", 1_000_000)],
+        );
+        let fills = engine.drain().fills;
+        assert_eq!(fills[0].price.to_string(), "99.1234");
     }
 }

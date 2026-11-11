@@ -4,15 +4,19 @@ pub const PRICE_DECIMALS: u32 = 4;
 pub const CASH_DECIMALS: u32 = 2;
 
 pub fn round_price(value: Decimal) -> Decimal {
-    fixed(value, PRICE_DECIMALS)
+    round_price_with(value, RoundingStrategy::MidpointNearestEven)
+}
+
+pub fn round_price_with(value: Decimal, strategy: RoundingStrategy) -> Decimal {
+    fixed(value, PRICE_DECIMALS, strategy)
 }
 
 pub fn round_cash(value: Decimal) -> Decimal {
-    fixed(value, CASH_DECIMALS)
+    fixed(value, CASH_DECIMALS, RoundingStrategy::MidpointNearestEven)
 }
 
-fn fixed(value: Decimal, decimals: u32) -> Decimal {
-    let mut fixed = value.round_dp_with_strategy(decimals, RoundingStrategy::MidpointNearestEven);
+fn fixed(value: Decimal, decimals: u32, strategy: RoundingStrategy) -> Decimal {
+    let mut fixed = value.round_dp_with_strategy(decimals, strategy);
     fixed.rescale(decimals);
     fixed
 }
