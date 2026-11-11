@@ -113,6 +113,12 @@ fn migrate(connection: &mut Connection) -> Result<()> {
     } else {
         transaction.pragma_query_value(None, "user_version", |row| row.get(0))?
     };
+    if applied > latest {
+        return Err(StateError::NewerSchema {
+            found: applied,
+            known: latest,
+        });
+    }
     for migration in MIGRATIONS
         .iter()
         .skip(usize::try_from(applied).unwrap_or(0))

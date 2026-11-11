@@ -37,6 +37,8 @@ pub enum StateError {
     StaleStep { run_id: RunId, step_seq: u64 },
     #[error("bot {0} already has a live run")]
     LiveRunExists(String),
+    #[error("state store schema is version {found}, newer than the {known} this spine knows")]
+    NewerSchema { found: i64, known: i64 },
     #[error("state store has shut down")]
     Closed,
 }
