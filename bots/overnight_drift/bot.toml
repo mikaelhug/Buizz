@@ -1,0 +1,6 @@
+description = "Holds SPY from each official close to the next official open, flat during the session."
+command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
+timeframe = "1d"
+wake = "bar"
+universe = { symbols = ["SPY"] }
+params = { weight = 1.0 }
