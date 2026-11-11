@@ -27,5 +27,8 @@ tracing.workspace = true
 utoipa.workspace = true
 utoipa-axum.workspace = true
 
+[dev-dependencies]
+tower.workspace = true
+
 [lints]
 workspace = true

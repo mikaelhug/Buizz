@@ -3,6 +3,7 @@ mod bots;
 mod data;
 mod error;
 mod events;
+mod guard;
 mod routes;
 mod runs;
 mod time;
@@ -13,7 +14,7 @@ use std::sync::Arc;
 use axum::Router;
 use axum::extract::{FromRef, State, WebSocketUpgrade};
 use axum::http::{HeaderMap, StatusCode, header};
-use axum::middleware::from_fn_with_state;
+use axum::middleware::{from_fn, from_fn_with_state};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use buizz_core::protocol::BOT_PATH;
@@ -27,6 +28,7 @@ use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
 
 use crate::auth::{Auth, require_session};
+use crate::guard::reject_cross_site;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ApiConfig {
@@ -82,13 +84,14 @@ pub fn router(app: AppState) -> Router {
         .merge(public)
         .route(BOT_PATH, get(bot_socket))
         .with_state(api);
-    match web_dir {
+    let router = match web_dir {
         Some(dir) => {
             let index = dir.join("index.html");
             router.fallback_service(ServeDir::new(dir).fallback(ServeFile::new(index)))
         }
         None => router,
-    }
+    };
+    router.layer(from_fn(reject_cross_site))
 }
 
 async fn bot_socket(
