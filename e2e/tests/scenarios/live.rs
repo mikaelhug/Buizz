@@ -133,7 +133,7 @@ async fn live_pause_resume_and_stop_in_the_browser_while_an_unpaused_twin_matche
     .await;
     spine.ingested().await;
 
-    let seen = browser::drive("live", &spine).await;
+    let seen = browser::drive("live", &spine, &[]).await;
 
     let runs: Vec<RunSummary> = spine.get("/api/runs?bot=tape&mode=live").await;
     let tape = &runs[0];

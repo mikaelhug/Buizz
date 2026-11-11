@@ -4,6 +4,7 @@ use reqwest::StatusCode;
 use serde_json::{Value, json};
 use tokio::process::Command;
 
+use crate::browser;
 use crate::expect::{assert_same, scenario};
 use crate::fake::FakeProviders;
 use crate::spine::{Options, PASSWORD, Spine};
@@ -94,7 +95,7 @@ fn assert_ledger_fills(expected: &Value, orders: &Value) {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn red_green_backtest_matches_the_hand_computation_from_the_cli_and_the_api() {
+async fn red_green_backtest_matches_the_hand_computation_from_the_cli_the_api_and_the_ui() {
     let expected = scenario("red_green");
     let config: RunConfig = serde_json::from_value(expected["config"].clone()).expect("config");
     let fake = FakeProviders::serve(World::fixture_market().await).await;
@@ -169,11 +170,31 @@ async fn red_green_backtest_matches_the_hand_computation_from_the_cli_and_the_ap
     assert!(first.result_hash.is_some());
     assert_eq!(second.result_hash, first.result_hash);
     let from_cli = spine.finished(cli_run).await;
+    let cli_observed = observed(&spine, &from_cli).await;
     assert_same(
         &actual["equity"],
-        &observed(&spine, &from_cli).await["equity"],
+        &cli_observed["equity"],
         0.0,
         "the CLI run",
     );
+
+    let period = [
+        ("PERIOD_FROM", config.start.to_string()),
+        ("PERIOD_TO", config.end.expect("a backtest end").to_string()),
+    ];
+    let seen = browser::drive("backtest", &spine, &period).await;
+    let from_ui = spine
+        .finished(RunId(
+            seen["run"].as_i64().expect("the browser names its run"),
+        ))
+        .await;
+    assert_eq!(
+        (from_ui.config.start, from_ui.config.end),
+        (config.start, config.end)
+    );
+    let ui_observed = observed(&spine, &from_ui).await;
+    for key in ["equity", "benchmark"] {
+        assert_same(&cli_observed[key], &ui_observed[key], 0.0, "the UI run");
+    }
     spine.logout().await;
 }

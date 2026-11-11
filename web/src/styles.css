@@ -1062,6 +1062,26 @@ h2 {
   align-self: stretch;
 }
 
+.period-range {
+  display: flex;
+  gap: 10px;
+  align-self: stretch;
+}
+
+.period-range label {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.period-range .input {
+  width: 100%;
+  min-width: 0;
+}
+
 .toggle {
   display: inline-flex;
   align-items: center;

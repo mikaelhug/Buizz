@@ -86,7 +86,7 @@ Known parity gap, stated honestly: live minute bars are IEX (partial volume), ba
 ## UI
 
 - Bot grid: one card per bot with status, equity sparkline, Live/Pause; hover shows key stats.
-- Bot detail: equity vs SPY, metrics, orders with reasons, positions, logs, run history, "Backtest" with period presets.
+- Bot detail: equity vs SPY, metrics, orders with reasons, positions, logs, run history, "Backtest" with period presets or a custom range.
 - Leaderboard: bots compared on the same preset period and cost model only.
 - Data health: job runs, staleness, coverage, feed slots (e.g. 22/30).
 - Single admin login (password → HttpOnly session cookie).
