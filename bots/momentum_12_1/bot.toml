@@ -2,7 +2,7 @@ description = "Monthly equal-weight top decile by 12-month return, skipping the 
 command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
 timeframe = "1d"
 wake = "bar"
-universe = { top_dollar_volume = 500 }
+universe = { top_dollar_volume = 500, asset_class = "stock" }
 params = { lookback = 252, skip = 21, top_fraction = 0.1, gross = 0.95 }
 
 [risk]

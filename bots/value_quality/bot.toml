@@ -2,7 +2,7 @@ description = "Buffett-style: cheap on earnings yield, high return on equity, lo
 command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
 timeframe = "1d"
 wake = "bar"
-universe = { top_dollar_volume = 500 }
+universe = { top_dollar_volume = 500, asset_class = "stock" }
 params = { holdings = 20, gross = 0.95 }
 
 [risk]
