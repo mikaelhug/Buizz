@@ -134,9 +134,9 @@ impl Engine {
         let bars: BTreeMap<&Symbol, &Bar> =
             cycle.bars.iter().map(|bar| (&bar.symbol, bar)).collect();
         if self.state.session.map(|session| session.date) != Some(cycle.session.date) {
+            self.expire(cycle);
             self.apply_actions(cycle);
             self.delist(cycle);
-            self.expire(cycle);
             self.state.session = Some(*cycle.session);
             self.state.session_filled.clear();
         }
@@ -779,5 +779,53 @@ mod tests {
         );
         let fills = engine.drain().fills;
         assert_eq!(fills[0].price.to_string(), "99.1234");
+    }
+
+    #[test]
+    fn an_order_from_the_previous_session_expires_before_a_split_rescales_it() {
+        let (first, second, third) = (session(20), session(21), session(22));
+        let mut engine = Engine::new(&config("100000", "1"), first.open);
+        step(
+            &mut engine,
+            &first,
+            &[bar(&first, "100", "99", "100")],
+            &[("AAA", 1_000_000)],
+        );
+        let limit = OrderType::Limit {
+            limit_price: Decimal::from(50),
+        };
+        submit(
+            &mut engine,
+            &first,
+            vec![order("AAA-1", OrderSize::Qty { qty: 10 }, limit)],
+        );
+        step(
+            &mut engine,
+            &second,
+            &[bar(&second, "100", "99", "100")],
+            &[("AAA", 1_000_000)],
+        );
+        engine.drain();
+        let split = CorporateAction {
+            symbol: Symbol::new("AAA"),
+            ex_date: third.date,
+            kind: CorporateActionKind::Split {
+                old_rate: Decimal::ONE,
+                new_rate: Decimal::TWO,
+            },
+        };
+        engine.run_cycle(&Cycle {
+            session: &third,
+            start: third.open,
+            visible_at: third.close,
+            bars: &[bar(&third, "50", "49", "50")],
+            actions: &[split],
+            average_daily_volume: &BTreeMap::new(),
+            delisted: &[],
+        });
+        let expired = &engine.drain().orders[0];
+        assert_eq!(expired.status, OrderStatus::Expired);
+        assert_eq!(expired.qty, 10);
+        assert_eq!(expired.order_type, limit);
     }
 }
