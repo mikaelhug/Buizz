@@ -171,10 +171,30 @@ impl MarketStore {
         source: DataSource,
         sessions: Vec<Session>,
     ) -> Result<WriteSummary> {
+        self.write_sessions(source, None, sessions).await
+    }
+
+    pub async fn replace_sessions(
+        &self,
+        source: DataSource,
+        from: NaiveDate,
+        to: NaiveDate,
+        sessions: Vec<Session>,
+    ) -> Result<WriteSummary> {
+        self.write_sessions(source, Some((from, to)), sessions)
+            .await
+    }
+
+    async fn write_sessions(
+        &self,
+        source: DataSource,
+        replaced: Option<(NaiveDate, NaiveDate)>,
+        sessions: Vec<Session>,
+    ) -> Result<WriteSummary> {
         let shared = Arc::clone(&self.shared);
         self.writer
             .run(move |connection| {
-                let summary = write::sessions(connection, source, sessions)?;
+                let summary = write::sessions(connection, source, replaced, sessions)?;
                 shared.refresh_calendar(connection)?;
                 Ok(summary)
             })

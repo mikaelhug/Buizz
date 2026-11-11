@@ -41,20 +41,19 @@ impl Ingest {
             .iter()
             .copied()
             .collect();
-        let changed: Vec<Session> = sessions
-            .into_iter()
-            .filter(|session| !stored.contains(session))
-            .collect();
-        if changed.is_empty() {
+        let fetched: HashSet<Session> = sessions.iter().copied().collect();
+        let added = fetched.difference(&stored).count();
+        let removed = stored.difference(&fetched).count();
+        if added == 0 && removed == 0 {
             return Ok(Work::noop("calendar unchanged"));
         }
         let summary = self
             .market
-            .upsert_sessions(DataSource::Alpaca, changed)
+            .replace_sessions(DataSource::Alpaca, from, to, sessions)
             .await?;
         Ok(Work::ok(
             summary.rows,
-            format!("calendar: {} sessions", summary.rows),
+            format!("calendar: {added} sessions new or changed, {removed} removed"),
         ))
     }
 

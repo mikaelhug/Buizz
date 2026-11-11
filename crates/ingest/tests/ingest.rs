@@ -42,6 +42,7 @@ const ALPACA_LAST_BAR: &str = "2016-04-29";
 struct Fake {
     rate_limit_bars: AtomicBool,
     fail_bars: AtomicBool,
+    closed: Mutex<Option<NaiveDate>>,
     hits: Mutex<HashMap<&'static str, u32>>,
 }
 
@@ -80,12 +81,14 @@ fn json(body: String) -> Response {
     ([(header::CONTENT_TYPE, "application/json")], body).into_response()
 }
 
-async fn calendar(Query(params): Query<Params>) -> Response {
+async fn calendar(State(fake): State<Arc<Fake>>, Query(params): Query<Params>) -> Response {
+    let closed = *fake.closed.lock().unwrap();
     let days: Vec<String> = weekdays(
         date(&params["start"]),
         date(&params["end"]).min(date(CALENDAR_END)),
     )
     .into_iter()
+    .filter(|day| Some(*day) != closed)
     .map(|day| format!(r#"{{"date":"{day}","open":"09:30","close":"16:00"}}"#))
     .collect();
     json(format!("[{}]", days.join(",")))
@@ -373,9 +376,12 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
         .collect();
     assert_eq!(snapshots, vec!["state-2024-07-07.db".to_owned()]);
 
+    *fake.closed.lock().unwrap() = Some(date("2025-01-09"));
     fake.fail_bars.store(true, Ordering::SeqCst);
     let failed_at = first_at + TimeDelta::hours(49);
     let failed = ingest.tick(failed_at).await.unwrap();
+    assert!(failed.ran.contains(&("calendar", JobOutcome::Ok)));
+    assert_eq!(rows(&market).await.sessions, backfilled.sessions - 1);
     assert!(failed.ran.contains(&("bars_1d", JobOutcome::Failed)));
     fake.fail_bars.store(false, Ordering::SeqCst);
     let recovered = ingest

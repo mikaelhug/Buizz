@@ -142,6 +142,7 @@ pub(crate) fn instruments(
 pub(crate) fn sessions(
     connection: &mut Connection,
     source: DataSource,
+    replaced: Option<(NaiveDate, NaiveDate)>,
     sessions: Vec<Session>,
 ) -> Result<WriteSummary> {
     let unique: BTreeMap<NaiveDate, Session> = sessions
@@ -171,6 +172,12 @@ pub(crate) fn sessions(
                     ])
                 },
             )?;
+            if let Some((from, to)) = replaced {
+                transaction.execute(
+                    "DELETE FROM main.calendar WHERE date BETWEEN ? AND ?",
+                    params![from, to],
+                )?;
+            }
             replace_staged(transaction, "calendar")?;
             Ok(rows)
         },
