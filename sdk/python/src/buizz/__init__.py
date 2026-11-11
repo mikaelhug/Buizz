@@ -2,7 +2,13 @@ from buizz.bot import Bot
 from buizz.context import Bar, Context, FundamentalPoint, History, Portfolio, Session
 from buizz.errors import BuizzError, ProtocolError, SpineError, StateTooLarge
 from buizz.runtime import run
-from buizz.wire import CorporateAction, Fill, OrderUpdate, Position
+from buizz.wire import (
+    CorporateAction,
+    Fill,
+    Metric,
+    OrderUpdate,
+    Position,
+)
 
 __all__ = [
     "Bar",
@@ -13,6 +19,7 @@ __all__ = [
     "Fill",
     "FundamentalPoint",
     "History",
+    "Metric",
     "OrderUpdate",
     "Portfolio",
     "Position",

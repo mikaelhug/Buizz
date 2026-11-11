@@ -4,13 +4,16 @@ import threading
 from decimal import Decimal
 from http import HTTPStatus
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import msgspec
 import pytest
 from websockets.sync.server import ServerConnection, serve
 
 from buizz import Bar, Bot, Context, SpineError, run
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 FIXTURES = Path(__file__).resolve().parents[3] / "fixtures" / "protocol"
 TOKEN = "run-token"
@@ -38,7 +41,7 @@ class RedGreen(Bot):
         observed["history"] = ctx.history(["AAA"], "1d", 2, "split")["AAA"]
         observed["fundamentals"] = ctx.fundamentals(["BBB"], ["net_income", "shares_outstanding"])
         with pytest.raises(SpineError) as raised:
-            ctx.history(["AAA"], "1d", 0)
+            ctx.history(["ZZZ"], "1d", 1)
         observed["error"] = raised.value.code
         ctx.order_target_weight("AAA", ctx.params["weight"], reason="red day")
         ctx.order("BBB", -100, reason="take profit", limit_price=Decimal("49.60"), client_id="BBB-limit-1")
@@ -72,26 +75,33 @@ def play_spine(connection: ServerConnection, received: list[bytes]) -> None:
     connection.send(golden("end_backtest"))
 
 
-def test_bot_replies_match_the_golden_frames(monkeypatch: pytest.MonkeyPatch) -> None:
+def authorize(connection: ServerConnection, request: Any) -> Any:
+    if request.headers.get("Authorization") != f"Bearer {TOKEN}":
+        return connection.respond(HTTPStatus.UNAUTHORIZED, "bad token")
+    return None
+
+
+def play(
+    monkeypatch: pytest.MonkeyPatch, spine: Callable[[ServerConnection, list[bytes]], None], bot: type[Bot]
+) -> list[bytes]:
     received: list[bytes] = []
-
-    def authorize(connection: ServerConnection, request: Any) -> Any:
-        if request.headers.get("Authorization") != f"Bearer {TOKEN}":
-            return connection.respond(HTTPStatus.UNAUTHORIZED, "bad token")
-        return None
-
-    with serve(lambda c: play_spine(c, received), "127.0.0.1", 0, process_request=authorize) as server:
+    with serve(lambda c: spine(c, received), "127.0.0.1", 0, process_request=authorize) as server:
         threading.Thread(target=server.serve_forever, daemon=True).start()
         monkeypatch.setenv("BUIZZ_SPINE_URL", f"ws://127.0.0.1:{server.socket.getsockname()[1]}")
         monkeypatch.setenv("BUIZZ_RUN_TOKEN", TOKEN)
-        run(RedGreen)
+        run(bot)
         server.shutdown()
+    return received
+
+
+def test_bot_replies_match_the_golden_frames(monkeypatch: pytest.MonkeyPatch) -> None:
+    received = play(monkeypatch, play_spine, RedGreen)
 
     hello, query_history, query_fundamentals, failing_query, ack_first, ack_second = received
     assert hello == golden("hello")
     assert query_history == golden("query_history")
     assert query_fundamentals == golden("query_fundamentals")
-    assert msgspec.msgpack.decode(failing_query)["request"]["bars"] == 0
+    assert msgspec.msgpack.decode(failing_query)["request"]["symbols"] == ["ZZZ"]
     assert ack_first == golden("ack_backtest")
     assert ack_second == golden("ack_live")
 

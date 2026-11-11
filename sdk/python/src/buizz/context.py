@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import math
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from numbers import Integral, Real
+from typing import TYPE_CHECKING, Any, cast, get_args
 
 import msgspec
 import numpy as np
@@ -23,6 +25,7 @@ from buizz.wire import (
     LogLevel,
     LogLine,
     Market,
+    Metric,
     OrderRequest,
     Position,
     QtySize,
@@ -40,14 +43,78 @@ type QueryFn = Callable[[HistoryRequest | FundamentalsRequest], HistoryResult | 
 
 EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 INTRADAY_STAMP = "%Y-%m-%dT%H:%M"
+MAX_HISTORY_BARS = 10_000
+SHARE_LIMIT = 2**63
+DECIMAL_MAX = Decimal(2**96 - 1)
+DECIMAL_MIN = Decimal("1e-28")
+METRICS: frozenset[str] = frozenset(get_args(Metric.__value__))
+TIMEFRAMES: frozenset[str] = frozenset(get_args(Timeframe.__value__))
+ADJUSTMENTS: frozenset[str] = frozenset(get_args(Adjust.__value__))
+STATE_SCALARS = (str, bool)
+STATE_INT_RANGE = range(-(2**63), 2**64)
 
 
 def from_ns(ns: int) -> datetime:
     return EPOCH + timedelta(microseconds=ns // 1000)
 
 
-def to_decimal(value: Decimal | float) -> Decimal:
-    return value if isinstance(value, Decimal) else Decimal(str(value))
+def integer(name: str, value: object) -> int:
+    if isinstance(value, bool) or not isinstance(value, Integral):
+        raise TypeError(f"{name} must be an int, got {type(value).__name__} {value!r}")
+    return int(value)
+
+
+def wire_decimal(name: str, value: object) -> Decimal:
+    if isinstance(value, Decimal):
+        number = value
+    elif isinstance(value, bool) or not isinstance(value, Real):
+        raise TypeError(f"{name} must be a number, got {type(value).__name__} {value!r}")
+    elif isinstance(value, Integral):
+        number = Decimal(int(value))
+    else:
+        number = Decimal(str(float(value)))
+    if not number.is_finite():
+        raise ValueError(f"{name} must be finite, got {value}")
+    if number != 0 and not DECIMAL_MIN <= abs(number) <= DECIMAL_MAX:
+        raise ValueError(f"{name} {value} is outside the decimal range the spine accepts")
+    return number
+
+
+def whole_shares(qty: object) -> int:
+    shares = integer("qty", qty)
+    if not -SHARE_LIMIT < shares < SHARE_LIMIT:
+        raise ValueError(f"qty {shares} does not fit a signed 64-bit share count")
+    return shares
+
+
+def history_bars(bars: object) -> int:
+    count = integer("bars", bars)
+    if not 1 <= count <= MAX_HISTORY_BARS:
+        raise ValueError(f"bars must be between 1 and {MAX_HISTORY_BARS}, got {count}")
+    return count
+
+
+def check_state(value: object, path: str) -> None:
+    kind = type(value)
+    if kind is dict:
+        for key, item in cast("dict[object, object]", value).items():
+            if type(key) is not str:
+                raise TypeError(f"{path} has the {type(key).__name__} key {key!r}; ctx.state keys must be str")
+            check_state(item, f"{path}[{key!r}]")
+    elif kind is list:
+        for index, item in enumerate(cast("list[object]", value)):
+            check_state(item, f"{path}[{index}]")
+    elif kind is float:
+        if not math.isfinite(cast("float", value)):
+            raise ValueError(f"{path} is {value}; ctx.state floats must be finite")
+    elif kind is int:
+        if cast("int", value) not in STATE_INT_RANGE:
+            raise ValueError(f"{path} is {value}, too large for ctx.state")
+    elif value is not None and kind not in STATE_SCALARS:
+        raise TypeError(
+            f"{path} is a {kind.__name__}; ctx.state holds only dict (str keys), list, str, int, float, "
+            "bool and None, so that it reads back unchanged after a restart"
+        )
 
 
 class Bar(msgspec.Struct, frozen=True):
@@ -85,7 +152,7 @@ class History(msgspec.Struct, frozen=True):
 
 class FundamentalPoint(msgspec.Struct, frozen=True):
     symbol: str
-    metric: str
+    metric: Metric
     period_type: str
     period_start: date | None
     period_end: date
@@ -136,7 +203,7 @@ def split_history(buffer: BarBuffer, requested: list[str]) -> dict[str, History]
     for symbol in requested:
         i = present.get(symbol)
         lo, hi = (0, 0) if i is None else (int(ends[i] - counts[i]), int(ends[i]))
-        history[symbol] = History(symbol, **{name: column[lo:hi] for name, column in columns.items()})
+        history[symbol] = History(symbol, **{name: values[lo:hi] for name, values in columns.items()})
     return history
 
 
@@ -198,14 +265,21 @@ class Context:
         return self._positions.get(symbol) or Position(symbol, 0, Decimal(0))
 
     def history(
-        self, symbols: list[str], tf: Timeframe = "1d", bars: int = 1, adjust: Adjust = "raw"
+        self, symbols: list[str], tf: Timeframe = "1d", bars: int | np.integer[Any] = 1, adjust: Adjust = "raw"
     ) -> dict[str, History]:
-        result = self._query(HistoryRequest(symbols, tf, bars, adjust))
+        if tf not in TIMEFRAMES:
+            raise ValueError(f"tf must be one of {sorted(TIMEFRAMES)}, got {tf!r}")
+        if adjust not in ADJUSTMENTS:
+            raise ValueError(f"adjust must be one of {sorted(ADJUSTMENTS)}, got {adjust!r}")
+        result = self._query(HistoryRequest(symbols, tf, history_bars(bars), adjust))
         if not isinstance(result, HistoryResult):
             raise ProtocolError(f"history query answered with {type(result).__name__}")
         return split_history(result.bars, symbols)
 
-    def fundamentals(self, symbols: list[str], metrics: list[str]) -> list[FundamentalPoint]:
+    def fundamentals(self, symbols: list[str], metrics: list[Metric]) -> list[FundamentalPoint]:
+        unknown = [metric for metric in metrics if metric not in METRICS]
+        if unknown:
+            raise ValueError(f"unknown fundamental metrics {unknown}; the metrics are {sorted(METRICS)}")
         result = self._query(FundamentalsRequest(symbols, metrics))
         if not isinstance(result, FundamentalsResult):
             raise ProtocolError(f"fundamentals query answered with {type(result).__name__}")
@@ -227,13 +301,13 @@ class Context:
     def order(
         self,
         symbol: str,
-        qty: int,
+        qty: int | np.integer[Any],
         *,
         reason: str,
         limit_price: Decimal | float | None = None,
         client_id: str | None = None,
     ) -> str:
-        return self._submit(symbol, QtySize(qty), reason, limit_price, client_id)
+        return self._submit(symbol, QtySize(whole_shares(qty)), reason, limit_price, client_id)
 
     def order_target_weight(
         self,
@@ -244,7 +318,7 @@ class Context:
         limit_price: Decimal | float | None = None,
         client_id: str | None = None,
     ) -> str:
-        return self._submit(symbol, WeightSize(to_decimal(weight)), reason, limit_price, client_id)
+        return self._submit(symbol, WeightSize(wire_decimal("weight", weight)), reason, limit_price, client_id)
 
     def cancel(self, client_id: str) -> None:
         self._cancels.append(client_id)
@@ -275,6 +349,7 @@ class Context:
         return self._step
 
     def _changed_state(self) -> bytes | None:
+        check_state(self._state, "ctx.state")
         encoded = msgspec.json.encode(self._state)
         if encoded == (b"{}" if self._persisted is None else self._persisted):
             return None
@@ -292,7 +367,7 @@ class Context:
         client_id: str | None,
     ) -> str:
         client_id = client_id or self._next_client_id(symbol)
-        order_type = Market() if limit_price is None else Limit(to_decimal(limit_price))
+        order_type = Market() if limit_price is None else Limit(wire_decimal("limit_price", limit_price))
         self._orders.append(OrderRequest(client_id, symbol, size, order_type, "day", reason))
         return client_id
 

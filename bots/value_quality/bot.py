@@ -1,9 +1,9 @@
 import numpy as np
 import numpy.typing as npt
 
-from buizz import Bot, Context, FundamentalPoint, run
+from buizz import Bot, Context, FundamentalPoint, Metric, run
 
-METRICS = ["net_income", "equity", "long_term_debt", "shares_outstanding"]
+METRICS: list[Metric] = ["net_income", "equity", "long_term_debt", "shares_outstanding"]
 
 
 def latest_values(points: list[FundamentalPoint]) -> dict[tuple[str, str], float]:
