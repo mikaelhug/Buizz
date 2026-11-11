@@ -22,10 +22,15 @@ pub struct MetricsInput<'a> {
 }
 
 pub fn compute(input: &MetricsInput<'_>) -> Metrics {
-    let values: Vec<f64> = input
+    let closes: Vec<f64> = input
         .equity
         .iter()
         .map(|point| point.equity.to_f64().unwrap_or(f64::NAN))
+        .collect();
+    let values: Vec<f64> = (!closes.is_empty())
+        .then(|| input.start_cash.to_f64().unwrap_or(f64::NAN))
+        .into_iter()
+        .chain(closes.iter().copied())
         .collect();
     let returns = simple_returns(&values);
     let excess = returns
@@ -55,7 +60,7 @@ pub fn compute(input: &MetricsInput<'_>) -> Metrics {
         win_rate: win_rate(&trips),
         profit_factor: profit_factor(&trips),
         exposure: exposure(input.equity),
-        turnover: turnover(input.ledger, &values),
+        turnover: turnover(input.ledger, &closes),
         alpha,
         beta,
         trades: u32::try_from(trips.len()).unwrap_or(u32::MAX),
@@ -74,7 +79,6 @@ fn excess_returns(input: &MetricsInput<'_>, returns: &[f64]) -> Option<Vec<f64>>
     input
         .equity
         .iter()
-        .skip(1)
         .zip(returns)
         .map(|(point, ret)| daily_risk_free(input.risk_free, point).map(|rf| ret - rf))
         .collect()
@@ -246,6 +250,7 @@ fn alpha_beta(input: &MetricsInput<'_>, returns: &[f64]) -> Option<(f64, f64)> {
     if variance <= MIN_SPREAD * MIN_SPREAD {
         return None;
     }
+    let returns = returns.get(1..)?;
     let beta = sample_covariance(returns, &benchmark)? / variance;
     let alpha = (mean(returns) - beta * mean(&benchmark)) * TRADING_DAYS;
     Some((alpha, beta))
