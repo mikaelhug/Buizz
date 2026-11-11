@@ -50,6 +50,7 @@ pub(crate) struct Launch {
     pub control: watch::Sender<Control>,
     pub receiver: watch::Receiver<Control>,
     pub sockets: mpsc::Receiver<WebSocket>,
+    pub lease: Option<FeedLease>,
 }
 
 enum Exit {
@@ -357,6 +358,7 @@ impl Driver {
             control: control_tx,
             receiver: control,
             sockets,
+            lease,
         } = launch;
         let config = &run.config;
         let timeline = Timeline::open(inner.market.clone(), config).await?;
@@ -394,7 +396,7 @@ impl Driver {
             control,
             sockets,
             watermarks: inner.market.watermarks(),
-            lease: None,
+            lease,
             engine,
             timeline,
             committer: Committer::spawn(inner.state.clone(), last_step),

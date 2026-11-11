@@ -18,7 +18,7 @@ use buizz_core::run::{
 };
 use buizz_core::time::Timestamp;
 use buizz_engine::ENGINE_VERSION;
-use buizz_feed::{FeedError, FeedManager};
+use buizz_feed::{FeedError, FeedLease, FeedManager};
 use buizz_ingest::{Ingest, IngestError};
 use buizz_market::{MarketError, MarketStore};
 use buizz_state::{NewRun, RunFilter, StateError, StateStore};
@@ -205,7 +205,7 @@ impl Runner {
                     .await?;
                 run = self.summary(run.id).await?;
             }
-            self.spawn(run, spec);
+            self.spawn(run, spec, None);
         }
         Ok(())
     }
@@ -259,7 +259,7 @@ impl Runner {
         let run = self
             .create(config, &spec, RunStatus::Queued, warnings)
             .await?;
-        self.spawn(run.clone(), spec);
+        self.spawn(run.clone(), spec, None);
         Ok(run)
     }
 
@@ -300,10 +300,14 @@ impl Runner {
                 allow_holdout: false,
             },
         )?;
-        if config.timeframe == Timeframe::Minute {
-            let universe = universe_at(&self.inner.market, &config, today).await?;
-            self.inner.feed.admits(universe)?;
-        }
+        let streamed = match config.timeframe {
+            Timeframe::Minute => {
+                let universe = universe_at(&self.inner.market, &config, today).await?;
+                self.inner.feed.admits(universe.clone())?;
+                Some(universe)
+            }
+            Timeframe::Day => None,
+        };
         let run = match self
             .create(config, &spec, RunStatus::Starting, Vec::new())
             .await
@@ -313,7 +317,9 @@ impl Runner {
             }
             created => created?,
         };
-        self.spawn(run.clone(), spec);
+        let lease =
+            streamed.and_then(|universe| self.inner.feed.acquire(run.id, &run.bot, universe).ok());
+        self.spawn(run.clone(), spec, lease);
         Ok(run)
     }
 
@@ -543,7 +549,7 @@ impl Runner {
         Ok(())
     }
 
-    fn spawn(&self, run: RunSummary, spec: BotSpec) {
+    fn spawn(&self, run: RunSummary, spec: BotSpec, lease: Option<FeedLease>) {
         let (control, receiver) = watch::channel(Control {
             desired: run.desired,
             shutdown: false,
@@ -562,6 +568,7 @@ impl Runner {
             control: control.clone(),
             receiver,
             sockets: incoming,
+            lease,
         }));
         runs.insert(
             run_id,
