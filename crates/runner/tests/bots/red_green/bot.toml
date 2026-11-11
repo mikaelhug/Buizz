@@ -1,5 +1,0 @@
-description = "Buys a red day at a target weight and sells it on the next green day"
-command = ["uv", "run", "--frozen", "--quiet", "--project", "../../../../../sdk/python", "python", "bot.py"]
-timeframe = "1d"
-universe = { symbols = ["AAA", "BBB"] }
-params = { weight = 0.25 }
