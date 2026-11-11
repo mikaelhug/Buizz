@@ -7,6 +7,7 @@ use buizz_market::MarketStore;
 use buizz_metrics::MetricsInput;
 use buizz_state::StateStore;
 use chrono::{Days, NaiveDate};
+use rust_decimal::Decimal;
 
 use crate::RunnerError;
 
@@ -75,6 +76,36 @@ pub(crate) async fn metrics(
         equity: &equity,
         benchmark: &benchmark,
         ledger: &ledger,
+        risk_free: &risk_free,
+    }))
+}
+
+pub(crate) async fn benchmark_metrics(
+    market: &MarketStore,
+    run: &RunSummary,
+    benchmark: &[SparkPoint],
+) -> Result<Metrics, RunnerError> {
+    let held: Vec<EquityPoint> = benchmark
+        .iter()
+        .filter(|point| point.at.exchange_date() >= run.config.start)
+        .map(|point| EquityPoint {
+            at: point.at,
+            equity: point.equity,
+            cash: Decimal::ZERO,
+            gross_exposure: point.equity,
+        })
+        .collect();
+    let through = held
+        .last()
+        .map_or(run.config.start, |point| point.at.exchange_date());
+    let risk_free = market
+        .risk_free_rates(run.config.start - RISK_FREE_LOOKBACK, through)
+        .await?;
+    Ok(buizz_metrics::compute(&MetricsInput {
+        start_cash: run.config.start_cash,
+        equity: &held,
+        benchmark,
+        ledger: &[],
         risk_free: &risk_free,
     }))
 }

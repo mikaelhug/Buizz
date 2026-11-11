@@ -75,6 +75,12 @@ export function tone(value: Maybe<number>): "up" | "down" | undefined {
   return value > 0 ? "up" : "down";
 }
 
+export function paramsText(params: Record<string, unknown>): string {
+  return Object.entries(params)
+    .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
+    .join(" ");
+}
+
 export function label(value: string): string {
   return value.replaceAll("_", " ");
 }

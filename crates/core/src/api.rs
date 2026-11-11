@@ -6,7 +6,7 @@ use utoipa::{IntoParams, ToSchema};
 use crate::market::{Coverage, Symbol, Timeframe, Watermarks};
 use crate::ops::{DataWarning, JobOutcome};
 use crate::order::{Fill, Order, OrderUpdate};
-use crate::performance::Metrics;
+use crate::performance::{Metrics, RoundTrip};
 use crate::run::{
     BotManifest, CostModel, DesiredState, EquityPoint, Mode, Period, PeriodPreset, Reproducibility,
     RiskLimits, RunBadge, RunConfig, RunEvent, RunId, RunStatus,
@@ -22,6 +22,7 @@ pub enum BotStatus {
     Live,
     Paused,
     Backtesting,
+    Stopped,
     Error,
 }
 
@@ -82,6 +83,8 @@ pub struct EquitySeries {
     pub run_id: RunId,
     pub points: Vec<EquityPoint>,
     pub benchmark: Vec<SparkPoint>,
+    pub benchmark_metrics: Metrics,
+    pub interim_metrics: Option<Metrics>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -90,6 +93,14 @@ pub struct OrderView {
     pub order: Order,
     #[serde(default, with = "crate::money::price_option")]
     pub avg_fill_price: Option<Decimal>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct TradeView {
+    #[serde(flatten)]
+    pub trip: RoundTrip,
+    pub opening_reason: Option<String>,
+    pub closing_reason: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -139,8 +150,18 @@ pub struct StartBacktest {
 pub struct LeaderboardRow {
     pub bot: String,
     pub run_id: RunId,
+    #[schema(value_type = Object)]
+    pub params: Map<String, Value>,
     pub metrics: Metrics,
+    pub badges: Vec<RunBadge>,
+    pub trials: u32,
     pub finished_at: Timestamp,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct LeaderboardBenchmark {
+    pub symbol: Symbol,
+    pub metrics: Metrics,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -149,6 +170,7 @@ pub struct Leaderboard {
     pub period: Period,
     pub cost: CostModel,
     pub rows: Vec<LeaderboardRow>,
+    pub benchmarks: Vec<LeaderboardBenchmark>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]

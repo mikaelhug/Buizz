@@ -340,6 +340,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/runs/{id}/trades": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["run_trades"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/healthz": {
         parameters: {
             query?: never;
@@ -382,7 +398,7 @@ export interface components {
             risk?: components["schemas"]["RiskLimits"];
         };
         /** @enum {string} */
-        BotStatus: "idle" | "live" | "paused" | "backtesting" | "error";
+        BotStatus: "idle" | "live" | "paused" | "backtesting" | "stopped" | "error";
         BotSummary: {
             name: string;
             description: string;
@@ -485,6 +501,8 @@ export interface components {
             run_id: components["schemas"]["RunId"];
             points: components["schemas"]["EquityPoint"][];
             benchmark: components["schemas"]["SparkPoint"][];
+            benchmark_metrics: components["schemas"]["Metrics"];
+            interim_metrics?: components["schemas"]["Metrics"] | null;
         };
         EventsPage: {
             items: components["schemas"]["RunEvent"][];
@@ -535,11 +553,20 @@ export interface components {
             period: components["schemas"]["Period"];
             cost: components["schemas"]["CostModel"];
             rows: components["schemas"]["LeaderboardRow"][];
+            benchmarks: components["schemas"]["LeaderboardBenchmark"][];
+        };
+        LeaderboardBenchmark: {
+            symbol: components["schemas"]["Symbol"];
+            metrics: components["schemas"]["Metrics"];
         };
         LeaderboardRow: {
             bot: string;
             run_id: components["schemas"]["RunId"];
+            params: Record<string, never>;
             metrics: components["schemas"]["Metrics"];
+            badges: components["schemas"]["RunBadge"][];
+            /** Format: int32 */
+            trials: number;
             finished_at: components["schemas"]["Timestamp"];
         };
         /** @enum {string} */
@@ -691,6 +718,16 @@ export interface components {
             max_gross_exposure?: string | null;
             max_drawdown?: string | null;
         };
+        RoundTrip: {
+            symbol: components["schemas"]["Symbol"];
+            /** Format: int64 */
+            qty: number;
+            opened_at: components["schemas"]["Timestamp"];
+            closed_at: components["schemas"]["Timestamp"];
+            opened_by?: components["schemas"]["OrderId"] | null;
+            closed_by?: components["schemas"]["OrderId"] | null;
+            pnl: string;
+        };
         /** @enum {string} */
         RunBadge: "survivorship_biased" | "holdout" | "data_warnings" | "drawdown_stop" | "thin_index_history";
         RunConfig: {
@@ -840,6 +877,10 @@ export interface components {
         Timeframe: "1d" | "1m";
         /** Format: date-time */
         Timestamp: string;
+        TradeView: components["schemas"]["RoundTrip"] & {
+            opening_reason?: string | null;
+            closing_reason?: string | null;
+        };
         Trail: {
             amount: string;
             /** @enum {string} */
@@ -1457,6 +1498,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PositionView"][];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    run_trades: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["RunId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TradeView"][];
                 };
             };
             404: {

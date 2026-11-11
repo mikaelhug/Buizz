@@ -2,7 +2,7 @@ use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
 use buizz_core::api::{ApiError, BotDetail, BotStatus, BotSummary, RunSummary, StartBacktest};
-use buizz_core::run::{BotManifest, DesiredState, Mode, RunStatus};
+use buizz_core::run::{BotManifest, DesiredState, Mode, RunBadge, RunStatus};
 use buizz_state::RunFilter;
 use futures::future::{try_join, try_join_all};
 
@@ -23,14 +23,12 @@ fn bot_status(runs: &[RunSummary], live: Option<&RunSummary>) -> BotStatus {
         };
     }
     if runs.iter().any(|run| !run.status.is_finished()) {
-        BotStatus::Backtesting
-    } else if runs
-        .first()
-        .is_some_and(|run| run.status == RunStatus::Failed)
-    {
-        BotStatus::Error
-    } else {
-        BotStatus::Idle
+        return BotStatus::Backtesting;
+    }
+    match runs.first() {
+        Some(run) if run.badges.contains(&RunBadge::DrawdownStop) => BotStatus::Stopped,
+        Some(run) if run.status == RunStatus::Failed => BotStatus::Error,
+        _ => BotStatus::Idle,
     }
 }
 

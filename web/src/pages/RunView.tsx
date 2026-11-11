@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, must, mustSucceed, type Schemas } from "../api/client";
 import { useSpineEvents } from "../api/stream";
-import { ABSENT, fmt, label, tone } from "../lib/format";
+import { ABSENT, fmt, label, paramsText, tone } from "../lib/format";
 import { appendPoints } from "../lib/series";
 import { useFrameBatch } from "../lib/useFrameBatch";
 import { PAGE_SIZE, type Paged, usePaged } from "../lib/usePaged";
@@ -9,6 +9,8 @@ import { type Resource, useResource } from "../lib/useResource";
 import { EquityChart } from "../ui/EquityChart";
 import { Failure, LoadMore, Loading, StaleFailure } from "../ui/Feedback";
 import { MetricGrid } from "../ui/Metrics";
+import { MonthlyReturns } from "../ui/MonthlyReturns";
+import { Trades } from "./Trades";
 import { RunBadges, StatusPill } from "../ui/Status";
 
 type Run = Schemas["RunSummary"];
@@ -22,6 +24,7 @@ export function RunView({ runId }: { runId: number }) {
   const run = useResource(() => must(api.GET("/api/runs/{id}", path)), [runId]);
   const curve = useResource<Curve>(() => must(api.GET("/api/runs/{id}/equity", path)), [runId]);
   const positions = useResource(() => must(api.GET("/api/runs/{id}/positions", path)), [runId]);
+  const trades = useResource(() => must(api.GET("/api/runs/{id}/trades", path)), [runId]);
   const orders = usePaged(
     (after) => must(api.GET("/api/runs/{id}/orders", { params: { path: { id: runId }, query: { limit: PAGE_SIZE, ...(after === undefined ? {} : { after }) } } })),
     [runId],
@@ -59,9 +62,13 @@ export function RunView({ runId }: { runId: number }) {
         appendEquity({ at: event.at, equity: event.equity });
         break;
       case "order":
+        orders.reload();
+        positions.reload();
+        break;
       case "fill":
         orders.reload();
         positions.reload();
+        trades.reload();
         break;
       case "log":
         events.mutate((current) => {
@@ -98,12 +105,19 @@ export function RunView({ runId }: { runId: number }) {
         )}
       </section>
       <section className="panel">
-        <MetricGrid metrics={run.data.metrics} />
+        <MetricGrid
+          metrics={run.data.metrics ?? curve.data?.interim_metrics}
+          benchmark={curve.data && (run.data.finished_at || run.data.mode === "live") ? { symbol: run.data.config.benchmark, metrics: curve.data.benchmark_metrics } : undefined}
+        />
       </section>
+      {curve.data && (
+        <MonthlyReturns points={curve.data.points} benchmark={curve.data.benchmark} benchmarkSymbol={run.data.config.benchmark} startCash={run.data.config.start_cash} />
+      )}
       <div className="split split-wide">
         <Positions positions={positions} />
         <Events events={events} />
       </div>
+      <Trades trades={trades} />
       <Orders orders={orders} />
       <ProcessLog key={runId} runId={runId} failed={run.data.status === "failed"} />
     </>
@@ -153,9 +167,7 @@ function reproTitle(run: Run): string | undefined {
 }
 
 function RunHeader({ run }: { run: Run }) {
-  const params = Object.entries(run.config.params)
-    .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
-    .join(" ");
+  const params = paramsText(run.config.params);
   return (
     <section className="run-head">
       <h2 className="help" title={reproTitle(run)}>
@@ -163,7 +175,7 @@ function RunHeader({ run }: { run: Run }) {
       </h2>
       <span className="muted">{run.mode}</span>
       <StatusPill status={run.status} />
-      <RunBadges run={run} />
+      <RunBadges badges={run.badges} />
       {run.message && <span className="run-message">{run.message}</span>}
       <dl className="facts">
         <div>

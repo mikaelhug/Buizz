@@ -32,6 +32,15 @@ export const METRICS: Record<MetricKey, MetricSpec> = {
   sessions: { key: "sessions", label: "Sessions", render: fmt.integer },
 };
 
+export const FEW_TRADES = 30;
+
+const TRADING_DAYS = 252;
+
+export function sharpeError(metrics: Metrics): number | undefined {
+  const { sharpe, sessions } = metrics;
+  return sharpe === null || sharpe === undefined || sessions < 2 ? undefined : Math.sqrt((TRADING_DAYS + (sharpe * sharpe) / 2) / sessions);
+}
+
 export const HOVER_METRICS: MetricKey[] = ["total_return", "sharpe", "max_drawdown", "trades"];
 
 export function MetricValue({ metrics, metric }: { metrics: Metrics | null | undefined; metric: MetricKey }) {
@@ -40,19 +49,31 @@ export function MetricValue({ metrics, metric }: { metrics: Metrics | null | und
   return <span className={`num ${spec.tone?.(value) ?? ""}`}>{spec.render(value)}</span>;
 }
 
-export function MetricGrid({ metrics }: { metrics: Metrics | null | undefined }) {
+const BENCHMARKED: ReadonlySet<MetricKey> = new Set(["total_return", "cagr", "volatility", "sharpe", "sortino", "max_drawdown", "calmar"]);
+
+type Benchmark = { symbol: string; metrics: Metrics };
+
+export function MetricGrid({ metrics, benchmark }: { metrics: Metrics | null | undefined; benchmark: Benchmark | undefined }) {
   return (
     <dl className="metric-grid">
-      {Object.values(METRICS).map((spec) => (
-        <div key={spec.key} className="metric">
-          <dt className={spec.title ? "help" : undefined} title={spec.title}>
-            {spec.label}
-          </dt>
-          <dd>
-            <MetricValue metrics={metrics} metric={spec.key} />
-          </dd>
-        </div>
-      ))}
+      {Object.values(METRICS).map((spec) => {
+        const reference = benchmark && BENCHMARKED.has(spec.key) ? benchmark.metrics[spec.key] : undefined;
+        return (
+          <div key={spec.key} className="metric">
+            <dt className={spec.title ? "help" : undefined} title={spec.title}>
+              {spec.label}
+            </dt>
+            <dd>
+              <MetricValue metrics={metrics} metric={spec.key} />
+              {benchmark && reference !== undefined && reference !== null && (
+                <span className="metric-bench" title={`${benchmark.symbol} buy and hold over the same period`}>
+                  {benchmark.symbol} {spec.render(reference)}
+                </span>
+              )}
+            </dd>
+          </div>
+        );
+      })}
     </dl>
   );
 }

@@ -468,6 +468,7 @@ dependencies = [
  "buizz-feed",
  "buizz-ingest",
  "buizz-market",
+ "buizz-metrics",
  "buizz-runner",
  "buizz-sources",
  "buizz-state",

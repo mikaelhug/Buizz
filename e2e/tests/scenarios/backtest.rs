@@ -1,6 +1,7 @@
-use buizz_core::api::{EquitySeries, PositionView, RunSummary, SpineEvent};
+use buizz_core::api::{EquitySeries, PositionView, RunSummary, SpineEvent, TradeView};
 use buizz_core::run::{CostModel, RiskLimits, RunConfig, RunId};
 use reqwest::StatusCode;
+use rust_decimal::prelude::ToPrimitive;
 use serde_json::{Value, json};
 use tokio::process::Command;
 
@@ -99,6 +100,68 @@ fn assert_ledger_fills(expected: &Value, orders: &Value) {
         assert_same(&kind["price"], &order["fill_price"], 0.0, "ledger price");
         assert_same(&entry["at"], &order["filled_at"], 0.0, "ledger time");
     }
+}
+
+fn percent_change(change: f64) -> String {
+    if format!("{:.2}", change * 100.0) == "0.00" {
+        "0.00%".to_owned()
+    } else {
+        format!("{:+.2}%", change * 100.0)
+    }
+}
+
+async fn assert_run_view_analysis(spine: &Spine, run: &RunSummary, seen: &Value) {
+    let series: EquitySeries = spine.get(&format!("/api/runs/{}/equity", run.id)).await;
+    let start = run.config.start_cash.to_f64().expect("a start cash");
+    let mut month_ends: Vec<(String, f64)> = Vec::new();
+    for point in &series.points {
+        let month = point.at.exchange_date().format("%b").to_string();
+        let equity = point.equity.to_f64().expect("an equity");
+        match month_ends.last_mut() {
+            Some((last, end)) if *last == month => *end = equity,
+            _ => month_ends.push((month, equity)),
+        }
+    }
+    let mut base = start;
+    for (name, end) in month_ends {
+        assert_eq!(
+            seen["months"][&name],
+            json!(percent_change(end / base - 1.0)),
+            "{name} in {seen}"
+        );
+        base = end;
+    }
+    let benchmark_return = series
+        .benchmark_metrics
+        .total_return
+        .expect("a benchmark return");
+    assert_eq!(
+        seen["benchmarkReturn"],
+        json!(format!(
+            "{} {}",
+            run.config.benchmark,
+            percent_change(benchmark_return)
+        )),
+        "the benchmark beside the run's return"
+    );
+    let trades: Vec<TradeView> = spine.get(&format!("/api/runs/{}/trades", run.id)).await;
+    let metrics = run.metrics.as_ref().expect("metrics");
+    assert_eq!(
+        trades.len(),
+        metrics.trades as usize,
+        "a trade per round trip"
+    );
+    assert_eq!(
+        seen["trades"],
+        json!(trades.len()),
+        "the trades the page lists"
+    );
+    assert!(
+        trades
+            .iter()
+            .all(|trade| trade.opening_reason.is_some() && trade.closing_reason.is_some()),
+        "every red_green trade opens and closes on a reasoned order: {trades:#?}"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -228,5 +291,6 @@ async fn red_green_backtest_matches_the_hand_computation_from_the_cli_the_api_an
     for key in ["equity", "benchmark"] {
         assert_same(&cli_observed[key], &ui_observed[key], 0.0, "the UI run");
     }
+    assert_run_view_analysis(&spine, &from_ui, &seen).await;
     spine.logout().await;
 }

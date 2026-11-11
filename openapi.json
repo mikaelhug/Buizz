@@ -808,6 +808,47 @@
         }
       }
     },
+    "/api/runs/{id}/trades": {
+      "get": {
+        "tags": [
+          "runs"
+        ],
+        "operationId": "run_trades",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/RunId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TradeView"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/healthz": {
       "get": {
         "tags": [
@@ -912,6 +953,7 @@
           "live",
           "paused",
           "backtesting",
+          "stopped",
           "error"
         ]
       },
@@ -1305,7 +1347,8 @@
         "required": [
           "run_id",
           "points",
-          "benchmark"
+          "benchmark",
+          "benchmark_metrics"
         ],
         "properties": {
           "run_id": {
@@ -1322,6 +1365,19 @@
             "items": {
               "$ref": "#/components/schemas/SparkPoint"
             }
+          },
+          "benchmark_metrics": {
+            "$ref": "#/components/schemas/Metrics"
+          },
+          "interim_metrics": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Metrics"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         }
       },
@@ -1532,7 +1588,8 @@
           "preset",
           "period",
           "cost",
-          "rows"
+          "rows",
+          "benchmarks"
         ],
         "properties": {
           "preset": {
@@ -1549,6 +1606,27 @@
             "items": {
               "$ref": "#/components/schemas/LeaderboardRow"
             }
+          },
+          "benchmarks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LeaderboardBenchmark"
+            }
+          }
+        }
+      },
+      "LeaderboardBenchmark": {
+        "type": "object",
+        "required": [
+          "symbol",
+          "metrics"
+        ],
+        "properties": {
+          "symbol": {
+            "$ref": "#/components/schemas/Symbol"
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/Metrics"
           }
         }
       },
@@ -1557,7 +1635,10 @@
         "required": [
           "bot",
           "run_id",
+          "params",
           "metrics",
+          "badges",
+          "trials",
           "finished_at"
         ],
         "properties": {
@@ -1567,8 +1648,22 @@
           "run_id": {
             "$ref": "#/components/schemas/RunId"
           },
+          "params": {
+            "type": "object"
+          },
           "metrics": {
             "$ref": "#/components/schemas/Metrics"
+          },
+          "badges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunBadge"
+            }
+          },
+          "trials": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
           },
           "finished_at": {
             "$ref": "#/components/schemas/Timestamp"
@@ -2184,6 +2279,54 @@
           }
         },
         "additionalProperties": false
+      },
+      "RoundTrip": {
+        "type": "object",
+        "required": [
+          "symbol",
+          "qty",
+          "opened_at",
+          "closed_at",
+          "pnl"
+        ],
+        "properties": {
+          "symbol": {
+            "$ref": "#/components/schemas/Symbol"
+          },
+          "qty": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "opened_at": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "closed_at": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "opened_by": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OrderId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "closed_by": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OrderId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pnl": {
+            "type": "string"
+          }
+        }
       },
       "RunBadge": {
         "type": "string",
@@ -2852,6 +2995,30 @@
       "Timestamp": {
         "type": "string",
         "format": "date-time"
+      },
+      "TradeView": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RoundTrip"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "opening_reason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "closing_reason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        ]
       },
       "Trail": {
         "oneOf": [
