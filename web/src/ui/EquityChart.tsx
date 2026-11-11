@@ -13,21 +13,29 @@ import type { Schemas } from "../api/client";
 import { exchangeWallSeconds, fmt } from "../lib/format";
 import { useColorScheme } from "../lib/theme";
 
-type Point = { at: string; equity: string };
+type Point = Schemas["SparkPoint"];
+
+function toLinePoint(point: Point): LineData<UTCTimestamp> {
+  return { time: exchangeWallSeconds(point.at) as UTCTimestamp, value: Number(point.equity) };
+}
 
 function toLine(points: Point[]): LineData<UTCTimestamp>[] {
   const line: LineData<UTCTimestamp>[] = [];
   for (const point of points) {
-    const time = exchangeWallSeconds(point.at) as UTCTimestamp;
+    const next = toLinePoint(point);
     const previous = line.at(-1);
-    const value = Number(point.equity);
-    if (previous && previous.time === time) {
-      previous.value = value;
-    } else if (!previous || previous.time < time) {
-      line.push({ time, value });
+    if (previous && previous.time === next.time) {
+      previous.value = next.value;
+    } else if (!previous || previous.time < next.time) {
+      line.push(next);
     }
   }
   return line;
+}
+
+function extendsDrawn(points: Point[], drawn: Point[]): boolean {
+  const kept = drawn.length - 1;
+  return kept > 0 && points.length >= drawn.length && points[0] === drawn[0] && points[kept - 1] === drawn[kept - 1];
 }
 
 function cssVar(name: string): string {
@@ -37,7 +45,7 @@ function cssVar(name: string): string {
 type Props = {
   runId: number;
   points: Point[];
-  benchmark: Schemas["SparkPoint"][];
+  benchmark: Point[];
 };
 
 export function EquityChart({ runId, points, benchmark }: Props) {
@@ -45,6 +53,7 @@ export function EquityChart({ runId, points, benchmark }: Props) {
   const chart = useRef<IChartApi | null>(null);
   const equitySeries = useRef<ISeriesApi<"Line"> | null>(null);
   const benchmarkSeries = useRef<ISeriesApi<"Line"> | null>(null);
+  const drawn = useRef<{ points: Point[]; time: number }>({ points: [], time: 0 });
   const scheme = useColorScheme();
 
   useEffect(() => {
@@ -53,6 +62,7 @@ export function EquityChart({ runId, points, benchmark }: Props) {
     }
     const created = createChart(host.current, {
       autoSize: true,
+      layout: { attributionLogo: false },
       handleScale: { mouseWheel: false },
       handleScroll: { mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
       localization: { priceFormatter: (value: number) => fmt.money(value) },
@@ -66,6 +76,7 @@ export function EquityChart({ runId, points, benchmark }: Props) {
       lastValueVisible: false,
     });
     equitySeries.current = created.addSeries(LineSeries, { lineWidth: 2, priceLineVisible: false });
+    drawn.current = { points: [], time: 0 };
     chart.current = created;
     return () => {
       created.remove();
@@ -80,7 +91,6 @@ export function EquityChart({ runId, points, benchmark }: Props) {
         textColor: cssVar("--muted"),
         fontFamily: cssVar("--font"),
         fontSize: 11,
-        attributionLogo: false,
       },
       grid: { vertLines: { color: cssVar("--grid") }, horzLines: { color: cssVar("--grid") } },
       crosshair: { vertLine: { labelBackgroundColor: cssVar("--accent") }, horzLine: { labelBackgroundColor: cssVar("--accent") } },
@@ -94,7 +104,25 @@ export function EquityChart({ runId, points, benchmark }: Props) {
   }, [benchmark]);
 
   useEffect(() => {
-    equitySeries.current?.setData(toLine(points));
+    const series = equitySeries.current;
+    if (!series) {
+      return;
+    }
+    let time = drawn.current.time;
+    if (extendsDrawn(points, drawn.current.points)) {
+      for (const point of points.slice(drawn.current.points.length - 1)) {
+        const next = toLinePoint(point);
+        if (next.time >= time) {
+          series.update(next);
+          time = next.time;
+        }
+      }
+    } else {
+      const line = toLine(points);
+      series.setData(line);
+      time = line.at(-1)?.time ?? 0;
+    }
+    drawn.current = { points, time };
   }, [points]);
 
   useEffect(() => {

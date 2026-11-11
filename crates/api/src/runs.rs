@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::io::SeekFrom;
 
 use axum::Json;
-use axum::extract::{Path, Query, State};
+use axum::extract::State;
 use axum::http::header;
 use axum::response::IntoResponse;
 use buizz_core::api::{
@@ -20,6 +20,7 @@ use tokio::io::{AsyncReadExt, AsyncSeekExt};
 
 use crate::AppState;
 use crate::error::Failure;
+use crate::extract::{Path, Query};
 use crate::time::exchange_today;
 
 const DEFAULT_RUNS: u32 = 100;
@@ -57,6 +58,7 @@ pub(crate) async fn list_runs(
     let filter = RunFilter {
         bot: query.bot,
         mode: query.mode,
+        before: query.before,
         limit: Some(query.limit.unwrap_or(DEFAULT_RUNS).clamp(1, MAX_RUNS)),
         ..RunFilter::default()
     };
@@ -126,7 +128,12 @@ pub(crate) async fn run_orders(
     require_run(&app, id).await?;
     let limit = page_limit(&page);
     let orders = app.state.orders(id, page.after, limit).await?;
-    let prices = average_fill_prices(&app.state.fills(id).await?);
+    let prices = match (orders.first(), orders.last()) {
+        (Some(first), Some(last)) => {
+            average_fill_prices(&app.state.fills(id, first.id..=last.id).await?)
+        }
+        _ => HashMap::new(),
+    };
     let next_after = next_after(&orders, limit, |order| order.id.0);
     let items = orders
         .into_iter()
@@ -297,14 +304,10 @@ pub(crate) async fn leaderboard(
             None => groups.push((period, vec![row])),
         }
     }
-    let (period, mut rows) = groups
+    let (period, rows) = groups
         .into_iter()
         .max_by_key(|(period, rows)| (rows.len(), period.to))
         .unwrap_or_else(|| (query.preset.resolve(exchange_today()), Vec::new()));
-    rows.sort_by(|a, b| {
-        let sharpe = |row: &LeaderboardRow| row.metrics.sharpe.unwrap_or(f64::NEG_INFINITY);
-        sharpe(b).total_cmp(&sharpe(a))
-    });
     Ok(Json(Leaderboard {
         preset: query.preset,
         period,

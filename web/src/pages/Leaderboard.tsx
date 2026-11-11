@@ -4,7 +4,7 @@ import { useSpineEvents } from "../api/stream";
 import { fmt } from "../lib/format";
 import { href, PRESETS, type Preset } from "../lib/route";
 import { useResource } from "../lib/useResource";
-import { Failure, Loading } from "../ui/Feedback";
+import { Failure, Loading, StaleFailure } from "../ui/Feedback";
 import { type MetricKey, METRICS, MetricValue } from "../ui/Metrics";
 
 const COLUMNS: MetricKey[] = [
@@ -76,6 +76,7 @@ export function Leaderboard({ preset }: { preset: Preset }) {
           </span>
         )}
       </header>
+      <StaleFailure resource={board} />
       {!board.data ? (
         board.error ? <Failure message={board.error} onRetry={board.reload} /> : <Loading />
       ) : board.data.rows.length === 0 ? (

@@ -3,14 +3,15 @@ mod db;
 mod jobs;
 mod runs;
 
+use std::ops::RangeInclusive;
 use std::path::Path;
 use std::sync::Arc;
 
-use buizz_core::api::RunSummary;
+use buizz_core::api::{RunSummary, SparkPoint};
 use buizz_core::ledger::{LedgerEntry, Portfolio};
 use buizz_core::market::{DataSource, Dataset, Symbol};
 use buizz_core::ops::{JobOutcome, JobRun, SourceFetch};
-use buizz_core::order::{Fill, Order};
+use buizz_core::order::{Fill, Order, OrderId};
 use buizz_core::performance::Metrics;
 use buizz_core::run::{
     DesiredState, EquityPoint, Mode, RunBadge, RunConfig, RunEvent, RunId, RunStatus,
@@ -65,6 +66,7 @@ pub struct RunFilter {
     pub mode: Option<Mode>,
     pub statuses: Vec<RunStatus>,
     pub desired: Option<DesiredState>,
+    pub before: Option<RunId>,
     pub limit: Option<u32>,
 }
 
@@ -196,15 +198,21 @@ impl StateStore {
             .await
     }
 
-    pub async fn fills(&self, run_id: RunId) -> Result<Vec<Fill>> {
+    pub async fn fills(&self, run_id: RunId, orders: RangeInclusive<OrderId>) -> Result<Vec<Fill>> {
         self.db
-            .read(move |connection| runs::fills(connection, run_id))
+            .read(move |connection| runs::fills(connection, run_id, orders))
             .await
     }
 
     pub async fn equity(&self, run_id: RunId) -> Result<Vec<EquityPoint>> {
         self.db
             .read(move |connection| runs::equity(connection, run_id))
+            .await
+    }
+
+    pub async fn sparkline(&self, run_id: RunId, points: u32) -> Result<Vec<SparkPoint>> {
+        self.db
+            .read(move |connection| runs::sparkline(connection, run_id, points))
             .await
     }
 

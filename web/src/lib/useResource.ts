@@ -17,6 +17,7 @@ export function useResource<T>(load: () => Promise<T>, deps: DependencyList): Re
   const loadLatest = useEffectEvent(load);
 
   useEffect(() => {
+    setState((current) => (current.data === undefined && current.error === undefined ? current : {}));
     let live = true;
     let inFlight = false;
     let again = false;
@@ -51,7 +52,13 @@ export function useResource<T>(load: () => Promise<T>, deps: DependencyList): Re
   const reload = useCallback(() => fetchLatest.current(), []);
   const mutate = useCallback(
     (update: (current: T) => T) =>
-      setState((current) => (current.data === undefined ? current : { ...current, data: update(current.data) })),
+      setState((current) => {
+        if (current.data === undefined) {
+          return current;
+        }
+        const data = update(current.data);
+        return data === current.data ? current : { ...current, data };
+      }),
     [],
   );
 

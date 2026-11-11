@@ -30,4 +30,5 @@ pub(crate) fn public_routes() -> OpenApiRouter<Api> {
         .routes(routes!(auth::login))
         .routes(routes!(auth::logout))
         .routes(routes!(auth::session))
+        .routes(routes!(crate::healthz))
 }

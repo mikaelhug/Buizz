@@ -3,6 +3,8 @@ mod bots;
 mod data;
 mod error;
 mod events;
+mod extract;
+mod guard;
 mod routes;
 mod runs;
 mod time;
@@ -13,9 +15,9 @@ use std::sync::Arc;
 use axum::Router;
 use axum::extract::{FromRef, State, WebSocketUpgrade};
 use axum::http::{HeaderMap, StatusCode, header};
-use axum::middleware::from_fn_with_state;
+use axum::middleware::{from_fn, from_fn_with_state, map_response};
 use axum::response::{IntoResponse, Response};
-use axum::routing::get;
+use axum::routing::{any, get};
 use buizz_core::protocol::BOT_PATH;
 use buizz_feed::FeedManager;
 use buizz_ingest::Ingest;
@@ -27,6 +29,8 @@ use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
 
 use crate::auth::{Auth, require_session};
+use crate::error::Failure;
+use crate::guard::{loopback_only, reject_cross_site, security_headers};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ApiConfig {
@@ -80,15 +84,33 @@ pub fn router(app: AppState) -> Router {
     let router = protected
         .route_layer(from_fn_with_state(api.auth.clone(), require_session))
         .merge(public)
-        .route(BOT_PATH, get(bot_socket))
+        .route(
+            BOT_PATH,
+            get(bot_socket).route_layer(from_fn(loopback_only)),
+        )
+        .route("/api", any(unknown_api_route))
+        .route("/api/{*rest}", any(unknown_api_route))
         .with_state(api);
-    match web_dir {
+    let router = match web_dir {
         Some(dir) => {
             let index = dir.join("index.html");
             router.fallback_service(ServeDir::new(dir).fallback(ServeFile::new(index)))
         }
         None => router,
-    }
+    };
+    router
+        .layer(from_fn(reject_cross_site))
+        .layer(map_response(security_headers))
+}
+
+#[utoipa::path(get, path = "/healthz", tag = "health",
+    responses((status = 204, description = "the spine is serving requests")))]
+pub(crate) async fn healthz() -> StatusCode {
+    StatusCode::NO_CONTENT
+}
+
+async fn unknown_api_route() -> Failure {
+    Failure::new(StatusCode::NOT_FOUND, "no such API route")
 }
 
 async fn bot_socket(
@@ -116,7 +138,8 @@ async fn bot_socket(
         (name = "leaderboard"),
         (name = "data"),
         (name = "auth"),
-        (name = "events")
+        (name = "events"),
+        (name = "health")
     )
 )]
 struct ApiDoc;

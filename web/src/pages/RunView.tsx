@@ -1,18 +1,19 @@
-import { useState } from "react";
-import { api, must, type Schemas } from "../api/client";
+import { useEffect, useRef, useState } from "react";
+import { api, must, mustSucceed, type Schemas } from "../api/client";
 import { useSpineEvents } from "../api/stream";
 import { ABSENT, fmt, label, tone } from "../lib/format";
-import { appendPoint } from "../lib/series";
+import { appendPoints } from "../lib/series";
+import { useFrameBatch } from "../lib/useFrameBatch";
 import { PAGE_SIZE, type Paged, usePaged } from "../lib/usePaged";
 import { type Resource, useResource } from "../lib/useResource";
 import { EquityChart } from "../ui/EquityChart";
-import { Failure, Loading } from "../ui/Feedback";
+import { Failure, LoadMore, Loading, StaleFailure } from "../ui/Feedback";
 import { MetricGrid } from "../ui/Metrics";
 import { RunBadges, StatusPill } from "../ui/Status";
 
 type Run = Schemas["RunSummary"];
 type SparkPoint = Schemas["SparkPoint"];
-type Curve = { points: SparkPoint[]; benchmark: SparkPoint[] };
+type Curve = Omit<Schemas["EquitySeries"], "points"> & { points: SparkPoint[] };
 
 export function RunView({ runId }: { runId: number }) {
   const path = { params: { path: { id: runId } } };
@@ -28,6 +29,15 @@ export function RunView({ runId }: { runId: number }) {
     [runId],
   );
 
+  const appendEquity = useFrameBatch<SparkPoint>((points) => {
+    const last = points.at(-1);
+    if (!last) {
+      return;
+    }
+    curve.mutate((current) => ({ ...current, points: appendPoints(current.points, points) }));
+    run.mutate((current) => ({ ...current, equity: last.equity, clock: last.at }));
+  });
+
   useSpineEvents((event) => {
     if (!("run_id" in event) || event.run_id !== runId) {
       return;
@@ -37,12 +47,9 @@ export function RunView({ runId }: { runId: number }) {
         run.reload();
         curve.reload();
         break;
-      case "equity": {
-        const point = { at: event.at, equity: event.equity };
-        curve.mutate((current) => ({ ...current, points: appendPoint(current.points, point) }));
-        run.mutate((current) => ({ ...current, equity: event.equity, clock: event.at }));
+      case "equity":
+        appendEquity({ at: event.at, equity: event.equity });
         break;
-      }
       case "order":
       case "fill":
         orders.reload();
@@ -62,12 +69,14 @@ export function RunView({ runId }: { runId: number }) {
   }
   return (
     <>
+      <StaleFailure resource={run} />
       <RunHeader run={run.data} />
       <section className="panel chart-panel">
         <div className="legend">
           <span className="swatch swatch-equity">{run.data.bot}</span>
           <span className="swatch swatch-bench">{run.data.config.benchmark}</span>
         </div>
+        <StaleFailure resource={curve} />
         {curve.data ? (
           curve.data.points.length > 0 ? (
             <EquityChart runId={runId} points={curve.data.points} benchmark={curve.data.benchmark} />
@@ -88,6 +97,7 @@ export function RunView({ runId }: { runId: number }) {
         <Events events={events} />
       </div>
       <Orders orders={orders} />
+      <ProcessLog key={runId} runId={runId} failed={run.data.status === "failed"} />
     </>
   );
 }
@@ -193,6 +203,7 @@ function Positions({ positions }: { positions: Resource<Schemas["PositionView"][
   return (
     <section className="panel">
       <h2>Positions</h2>
+      <StaleFailure resource={positions} />
       {!positions.data ? (
         positions.error ? <Failure message={positions.error} onRetry={positions.reload} /> : <Loading />
       ) : positions.data.length === 0 ? (
@@ -233,7 +244,6 @@ function Positions({ positions }: { positions: Resource<Schemas["PositionView"][
   );
 }
 
-
 function requested(size: Schemas["OrderSize"]): string {
   return size.by === "qty" ? `${fmt.integer(size.qty)} sh` : `${fmt.percent(size.weight)} wt`;
 }
@@ -242,18 +252,11 @@ function orderType(type: Schemas["OrderType"]): string {
   return type.type === "market" ? "MKT" : `LMT ${fmt.price(type.limit_price)}`;
 }
 
-function LoadMore({ onClick }: { onClick: (() => void) | undefined }) {
-  return onClick ? (
-    <button type="button" className="btn btn-sm load-more" onClick={onClick}>
-      Load more
-    </button>
-  ) : null;
-}
-
 function Orders({ orders }: { orders: Paged<Schemas["OrderView"]> }) {
   return (
     <section className="panel">
       <h2>Orders</h2>
+      <StaleFailure resource={orders} />
       {!orders.data ? (
         orders.error ? <Failure message={orders.error} onRetry={orders.reload} /> : <Loading />
       ) : orders.data.items.length === 0 ? (
@@ -351,6 +354,7 @@ function Events({ events }: { events: Paged<Schemas["RunEvent"]> }) {
           ))}
         </div>
       </header>
+      <StaleFailure resource={events} />
       {!events.data ? (
         events.error ? <Failure message={events.error} onRetry={events.reload} /> : <Loading />
       ) : items.length === 0 ? (
@@ -376,5 +380,52 @@ function Events({ events }: { events: Paged<Schemas["RunEvent"]> }) {
       )}
       <LoadMore onClick={events.loadMore} />
     </section>
+  );
+}
+
+function ProcessLog({ runId, failed }: { runId: number; failed: boolean }) {
+  const [open, setOpen] = useState(failed);
+  return (
+    <details className="panel process-log" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
+      <summary>
+        <h2>Bot output</h2>
+      </summary>
+      {open && <LogTail runId={runId} />}
+    </details>
+  );
+}
+
+function LogTail({ runId }: { runId: number }) {
+  const log = useResource(async () => {
+    const pending = api.GET("/api/runs/{id}/logs", { params: { path: { id: runId } }, parseAs: "text" });
+    await mustSucceed(pending);
+    return (await pending).data ?? "";
+  }, [runId]);
+  const text = useRef<HTMLPreElement>(null);
+
+  useSpineEvents((event) => {
+    if (event.type === "run_status" && event.run_id === runId) {
+      log.reload();
+    }
+  });
+
+  useEffect(() => {
+    text.current?.scrollTo({ top: text.current.scrollHeight });
+  }, [log.data]);
+
+  if (log.data === undefined) {
+    return log.error ? <Failure message={log.error} onRetry={log.reload} /> : <Loading />;
+  }
+  return (
+    <>
+      <StaleFailure resource={log} />
+      {log.data === "" ? (
+        <p className="empty">No output</p>
+      ) : (
+        <pre ref={text} className="process-log-text">
+          {log.data}
+        </pre>
+      )}
+    </>
   );
 }

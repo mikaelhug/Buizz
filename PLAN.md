@@ -122,7 +122,6 @@ Out of v1: brokers and real money; options, crypto, FX; tick/quote simulation; e
    - Bot logs go to `data/logs` relative to the working directory in the supervisor and the API, ignoring `BUIZZ_DATA_DIR`.
    - Runs get no default risk limits, and the UI and CLI cannot set any; a drawdown breach in a backtest reads as a pause with reason `risk_limit`.
    - The ADV volume cap treats a missing average daily volume as zero, so the order never fills.
-   - The spine has no health route; cluster probes need a cheap unauthenticated `/healthz`.
    - Live runs can never have risk limits: `go_live` uses the spine defaults (none) and neither `bot.toml` nor the UI can set them, so the drawdown kill switch only works for API-started backtests. Needs a decision on where live risk limits are configured.
    - `result_hash` depends on decimal scale: `100000` and `100000.00` start cash give different hashes for identical runs.
    - The spine does not exit on SIGTERM while a browser holds the SSE stream open (graceful shutdown waits on it); Kubernetes pod shutdown would hang until SIGKILL.
