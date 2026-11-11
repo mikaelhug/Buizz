@@ -16,6 +16,8 @@ from buizz.wire import (
     Ack,
     Adjust,
     BarBuffer,
+    CalendarRequest,
+    CalendarResult,
     Event,
     FundamentalsRequest,
     FundamentalsResult,
@@ -24,14 +26,22 @@ from buizz.wire import (
     Limit,
     LogLevel,
     LogLine,
+    MacroRequest,
+    MacroResult,
+    MacroSeries,
     Market,
     Metric,
     OrderRequest,
     Position,
     QtySize,
     Ready,
+    Request,
+    Result,
+    SessionFrame,
     Step,
     Timeframe,
+    UniverseRequest,
+    UniverseResult,
     WeightSize,
     WorkingOrder,
 )
@@ -39,15 +49,17 @@ from buizz.wire import (
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
 
-type QueryFn = Callable[[HistoryRequest | FundamentalsRequest], HistoryResult | FundamentalsResult]
+type QueryFn = Callable[[Request], Result]
 
 EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 INTRADAY_STAMP = "%Y-%m-%dT%H:%M"
 MAX_HISTORY_BARS = 10_000
+MAX_UNIVERSE_SYMBOLS = 10_000
 SHARE_LIMIT = 2**63
 DECIMAL_MAX = Decimal(2**96 - 1)
 DECIMAL_MIN = Decimal("1e-28")
 METRICS: frozenset[str] = frozenset(get_args(Metric.__value__))
+MACRO_SERIES: frozenset[str] = frozenset(get_args(MacroSeries.__value__))
 TIMEFRAMES: frozenset[str] = frozenset(get_args(Timeframe.__value__))
 ADJUSTMENTS: frozenset[str] = frozenset(get_args(Adjust.__value__))
 STATE_SCALARS = (str, bool)
@@ -84,6 +96,12 @@ def wire_decimal(name: str, value: object) -> Decimal:
     if number != 0 and not DECIMAL_MIN <= abs(number) <= DECIMAL_MAX:
         raise ValueError(f"{name} {value} is outside the decimal range the spine accepts")
     return number
+
+
+def day(name: str, value: object) -> date:
+    if isinstance(value, datetime) or not isinstance(value, date):
+        raise TypeError(f"{name} must be a date, got {type(value).__name__} {value!r}")
+    return value
 
 
 def whole_shares(qty: object) -> int:
@@ -139,6 +157,10 @@ class Session(msgspec.Struct, frozen=True):
     close: datetime
 
 
+def session_of(frame: SessionFrame) -> Session:
+    return Session(frame.date, from_ns(frame.open), from_ns(frame.close))
+
+
 class Portfolio(msgspec.Struct, frozen=True):
     cash: Decimal
     equity: Decimal
@@ -165,6 +187,14 @@ class FundamentalPoint(msgspec.Struct, frozen=True):
     value: Decimal
     form: str
     filed: date
+    available_at: datetime
+
+
+class MacroPoint(msgspec.Struct, frozen=True):
+    series: MacroSeries
+    date: date
+    value: Decimal
+    published: date
     available_at: datetime
 
 
@@ -250,8 +280,7 @@ class Context:
 
     @property
     def session(self) -> Session:
-        session = self._current("ctx.session").session
-        return Session(session.date, from_ns(session.open), from_ns(session.close))
+        return session_of(self._current("ctx.session").session)
 
     @property
     def universe(self) -> list[str]:
@@ -312,6 +341,36 @@ class Context:
                 from_ns(f.available_at),
             )
             for f in result.points
+        ]
+
+    def calendar(self, start: date, end: date) -> list[Session]:
+        self._current("ctx.calendar")
+        result = self._query(CalendarRequest(day("start", start), day("end", end)))
+        if not isinstance(result, CalendarResult):
+            raise ProtocolError(f"calendar query answered with {type(result).__name__}")
+        return [session_of(frame) for frame in result.sessions]
+
+    def universe_at(self, on: date, top_dollar_volume: int | np.integer[Any]) -> list[str]:
+        self._current("ctx.universe_at")
+        count = integer("top_dollar_volume", top_dollar_volume)
+        if not 1 <= count <= MAX_UNIVERSE_SYMBOLS:
+            raise ValueError(f"top_dollar_volume must be between 1 and {MAX_UNIVERSE_SYMBOLS}, got {count}")
+        result = self._query(UniverseRequest(day("on", on), count))
+        if not isinstance(result, UniverseResult):
+            raise ProtocolError(f"universe query answered with {type(result).__name__}")
+        return result.symbols
+
+    def macro(self, series: list[MacroSeries], start: date, end: date) -> list[MacroPoint]:
+        self._current("ctx.macro")
+        unknown = [name for name in series if name not in MACRO_SERIES]
+        if unknown:
+            raise ValueError(f"unknown macro series {unknown}; the series are {sorted(MACRO_SERIES)}")
+        result = self._query(MacroRequest(series, day("start", start), day("end", end)))
+        if not isinstance(result, MacroResult):
+            raise ProtocolError(f"macro query answered with {type(result).__name__}")
+        return [
+            MacroPoint(point.series, point.date, point.value, point.published, from_ns(point.available_at))
+            for point in result.points
         ]
 
     def order(

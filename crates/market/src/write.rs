@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use buizz_core::market::{
-    Bar, CorporateAction, DataSource, Dataset, FundamentalFact, Instrument, RiskFreeRate, Session,
-    Symbol,
+    Bar, CorporateAction, DataSource, Dataset, FundamentalFact, Instrument, MacroObservation,
+    RiskFreeRate, Session, Symbol,
 };
 use buizz_core::time::Timestamp;
 use chrono::NaiveDate;
@@ -11,13 +11,14 @@ use duckdb::{Appender, Connection, Transaction, params};
 use crate::codec::{Dec, Ts, action_columns, feed_name, wire_name};
 use crate::{Result, WriteSummary};
 
-const STAGED: [&str; 6] = [
+const STAGED: [&str; 7] = [
     "instrument",
     "calendar",
     "bar_1d",
     "corporate_action",
     "fundamental_fact",
     "rate_daily",
+    "macro_observation",
 ];
 
 pub(crate) fn prepare(connection: &Connection) -> Result<()> {
@@ -448,6 +449,56 @@ pub(crate) fn risk_free_rates(
                 },
             )?;
             replace_staged(transaction, "rate_daily")?;
+            Ok(rows)
+        },
+    )
+}
+
+pub(crate) fn macro_observations(
+    connection: &mut Connection,
+    source: DataSource,
+    observations: Vec<MacroObservation>,
+) -> Result<WriteSummary> {
+    let unique: BTreeMap<(String, NaiveDate, NaiveDate), Option<Dec>> = observations
+        .into_iter()
+        .map(|observation| {
+            (
+                (
+                    wire_name(&observation.series),
+                    observation.date,
+                    observation.published,
+                ),
+                observation.value.map(Dec),
+            )
+        })
+        .collect();
+    let mut coverage = Coverage::new();
+    for (_, date, _) in unique.keys() {
+        cover(&mut coverage, None, *date);
+    }
+    let source_name = wire_name(&source);
+    write_batch(
+        connection,
+        source,
+        Dataset::Macro,
+        coverage,
+        |transaction, batch_id| {
+            let rows = stage(
+                transaction,
+                "macro_observation",
+                unique,
+                |appender, ((series, date, published), value)| {
+                    appender.append_row(params![
+                        series,
+                        date,
+                        published,
+                        value,
+                        source_name,
+                        batch_id
+                    ])
+                },
+            )?;
+            replace_staged(transaction, "macro_observation")?;
             Ok(rows)
         },
     )

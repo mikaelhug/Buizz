@@ -1,0 +1,23 @@
+{
+  "id": 6,
+  "result": {
+    "kind": "macro",
+    "points": [
+      {
+        "available_at": 1732199400000000000,
+        "date": "2024-11-20",
+        "published": "2024-11-20",
+        "series": "treasury_3m",
+        "value": "4.50"
+      },
+      {
+        "available_at": 1731594600000000000,
+        "date": "2024-10-01",
+        "published": "2024-11-13",
+        "series": "cpiaucns",
+        "value": "315.664"
+      }
+    ]
+  },
+  "type": "data"
+}

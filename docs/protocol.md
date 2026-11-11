@@ -42,6 +42,9 @@ spine -> end {reason, message?}
 
 - `history {symbols, timeframe, bars, adjust}`: the last `bars` (1..10000) bars per symbol visible at `clock`, as a bar buffer. `adjust` is `raw`, `split` or `all` (splits and dividends), using only corporate actions whose ex-date session has opened by `clock`.
 - `fundamentals {symbols, metrics}`: every fact visible at `clock` for those canonical metrics (the latest filing per period wins), as `points`.
+- `calendar {from, to}`: the exchange `sessions` (`date`, `open`, `close`) dated `from` to `to`, as the calendar was published at `clock`. Future sessions are allowed because the exchange publishes its holidays and early closes years ahead, but `to` may be at most 366 days after the clock's exchange date. A closure decided after that, which the stored calendar already omits (the national days of mourning on 2018-12-05 and 2025-01-09, the first Juneteenth closure on 2022-06-20), is answered as the regular 09:30–16:00 session it was scheduled as until the open of the first session after its announcement. Sessions hold no price data.
+- `universe {date, top_dollar_volume}`: the `symbols` a `top_dollar_volume` universe holds on `date`: the `top_dollar_volume` (1..10000) symbols with the highest dollar volume over the 20 sessions before `date`, minus those delisted before it, highest first. Answered once the last session before `date` has closed by `clock`; a later `date` is a `bad_query`.
+- `macro {series, from, to}`: the `points` (`series`, `date`, `value`, `published`, `available_at`) of those series with observation dates `from` to `to`, each the latest vintage published before the clock's session, ordered by series and date. `treasury_3m` is the Treasury's daily 3-month par yield (`rate_daily`), published the evening of its date. `tb3ms` (3-month T-bill, secondary market), `gs10` (10-year Treasury, constant maturity), `aaa` and `baa` (Moody's seasoned corporate yields) are FRED monthly averages in percent dated the first of their month; `cpiaucns` is FRED's CPI-U, not seasonally adjusted (1982–84 = 100). FRED values carry the ALFRED vintage they first appeared in as `published`, so a revised value only replaces the earlier one once its vintage is visible, and a value a vintage withdrew is gone from then on.
 
 ## Ack
 
@@ -52,7 +55,7 @@ spine -> end {reason, message?}
 
 ## Time rules
 
-- Visibility: a 1m bar at `start + 60 s`; a daily bar at the session close; a fundamental fact at the open of the first session after its `filed` date; a corporate action at the open of its ex-date session.
+- Visibility: a 1m bar at `start + 60 s`; a daily bar at the session close; a fundamental fact at the open of the first session after its `filed` date; a corporate action at the open of its ex-date session; a calendar change at the open of the first session after its announcement; a macro value at the open of the first session after its `published` date.
 - Each bar runs one cycle: order expiry, corporate actions, fills (at the bar's start), mark, risk limits, wake the bot, accept orders (at the bar's visible time). A bar's cycle finishes before the next bar's begins, so an order accepted on bar N fills no earlier than bar N+1's open.
 - A day order belongs to the session of the first bar starting at or after its decision and expires at that session's close.
 - `wake`: `bar` wakes on every bar; `every:30m` when `clock − session open` is a positive multiple of 30 minutes, up to the close; `at:15:55` when the exchange-local clock reads 15:55. Bars visible between wakes still arrive, coalesced, at the next step.

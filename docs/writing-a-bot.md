@@ -104,11 +104,55 @@ Outside `on_step` only `params`, `universe`, `state`, `portfolio` and `position`
 | `ctx.position(symbol)` | The `Position`, with `qty == 0` when flat |
 | `ctx.history(symbols, tf="1d", bars=1, adjust="raw")` | The last `bars` (1 to 10000) bars per symbol visible at the clock, as numpy arrays (`start` in ns, `open`, `high`, `low`, `close`, `volume`). Each call is a round trip to the spine |
 | `ctx.fundamentals(symbols, metrics)` | Every fundamental fact visible at the clock for the given metrics (`Metric` names, below) |
+| `ctx.universe_at(on, top_dollar_volume)` | The symbols a `top_dollar_volume` universe of that size held on the date `on`, see below |
+| `ctx.macro(series, start, end)` | The rate and macro observations dated `start` to `end` as known at the clock (`MacroPoint`: `series`, `date`, `value`, `published`, `available_at`), see below |
+| `ctx.calendar(start, end)` | The exchange sessions (`Session(date, open, close)`) dated `start` to `end`, as the calendar was published at the clock, see below |
 | `ctx.state` | A dict that survives restarts, see below |
 
 `tf`, `bars` and `adjust` are checked before the query is sent: a wrong value raises `ValueError` or `TypeError` in the step. `adjust` is `raw`, `split` or `all` (splits and dividends). Adjustment only uses corporate actions whose ex-date session has opened by the clock, so history never reflects a split that has not happened yet. Fills always use raw prices.
 
 Fundamentals are snake_case metrics, typed as `Metric` (an unknown name raises `ValueError`): `revenue`, `cost_of_revenue`, `gross_profit`, `research_development`, `sga_expense`, `operating_expenses`, `operating_income`, `interest_expense`, `pretax_income`, `income_tax`, `net_income`, `eps_diluted`, `total_assets`, `current_assets`, `cash_and_equivalents`, `inventory`, `receivables`, `ppe_net`, `goodwill`, `current_liabilities`, `long_term_debt`, `total_liabilities`, `equity`, `operating_cash_flow`, `depreciation_amortization`, `stock_based_comp`, `capex`, `investing_cash_flow`, `financing_cash_flow`, `dividends_paid`, `share_repurchases`, `acquisitions`, `shares_outstanding`. A `FundamentalPoint` carries `period_type` (`FY` or `Q`), `period_start`, `period_end`, `value`, `form`, `filed` and `available_at`; the latest filing per period wins. A fact becomes visible at the open of the first session after its `filed` date, never earlier. Share counts such as `shares_outstanding` are as reported, before any later split: `split_ratio(raw, split_adjusted, day)` takes a raw and a split-adjusted `ctx.history` of the same symbol and returns how many shares today one share on `day` has become (`None` when the history does not reach back to `day`). `bots/value_quality` is a complete example.
+
+**Calendar.** The exchange publishes its holidays and early closes years ahead, so `ctx.calendar` answers future sessions too, up to 366 days after the clock's date; a later `end` raises `SpineError` with code `bad_query`. A closure decided at short notice (the national days of mourning on 2018-12-05 and 2025-01-09, the first Juneteenth closure on 2022-06-20) stays the regular session it was scheduled as until the open of the first session after its announcement, so a backtest never knows about it earlier than the market did. A daily bot finds the last session of the month or week from the next session:
+
+```python
+from datetime import timedelta
+
+today = ctx.session.date
+following = ctx.calendar(today, today + timedelta(days=10))[1].date
+month_end = following.month != today.month
+week_end = following.isocalendar().week != today.isocalendar().week
+```
+
+**Past universes.** `ctx.universe_at(on, n)` applies the `top_dollar_volume = n` rule as of the date `on`: the `n` symbols with the highest dollar volume over the 20 sessions before it, without those delisted before it, highest first. It answers once the last session before `on` has closed, so any date up to the next session works and a later one raises `SpineError` with code `bad_query`. A model that trains on years of cross-sections asks for each formation date in its first step:
+
+```python
+from datetime import date
+
+months = [date(year, month, 1) for year in range(2017, 2024) for month in range(1, 13)]
+training = {month: ctx.universe_at(month, 1000) for month in months}
+```
+
+**Rates and macro series.** `ctx.macro(series, start, end)` returns the observations of `MacroSeries` dated `start` to `end`, each as the latest vintage published before the current session, so revisions arrive when they were published and never earlier. `available_at` is the open of the first session after `published`. Values are `Decimal` percent, except the CPI index.
+
+| Series | Meaning | Frequency |
+|---|---|---|
+| `treasury_3m` | US Treasury 3-month par yield, the rate the metrics use; published the evening of its date | daily |
+| `tb3ms` | 3-month T-bill, secondary market (FRED `TB3MS`), Welch–Goyal `tbl` | monthly average, dated the 1st |
+| `gs10` | 10-year Treasury, constant maturity (FRED `GS10`) | monthly average |
+| `aaa`, `baa` | Moody's seasoned Aaa and Baa corporate bond yields (FRED `AAA`, `BAA`), Graham's AAA rule and Welch–Goyal `dfy = baa − aaa` | monthly average |
+| `cpiaucns` | CPI-U, all items, not seasonally adjusted, 1982–84 = 100 (FRED `CPIAUCNS`) | monthly |
+
+The FRED series need `FRED_API_KEY` on the spine; without it they are empty. Graham's CPI-scaled size floor:
+
+```python
+from datetime import date
+
+year = ctx.session.date.year - 1
+cpi = ctx.macro(["cpiaucns"], date(year, 1, 1), date(year, 12, 1))
+if len(cpi) == 12:
+    floor = 100_000_000 * float(sum(point.value for point in cpi) / 12) / 41.8
+```
 
 `to_ns(moment)` turns a timezone-aware `datetime` into the nanoseconds of `History.start`, for example `history.start >= to_ns(ctx.session.open)`.
 

@@ -235,6 +235,7 @@ fn sources(url: &str) -> Sources {
         alpaca: Some(AlpacaClient::new(alpaca).unwrap()),
         tiingo: Some(TiingoClient::new(tiingo).unwrap()),
         edgar: Some(EdgarClient::new(edgar).unwrap()),
+        fred: None,
         treasury: TreasuryClient::new(TreasuryConfig {
             base_url: url.to_owned(),
         })
@@ -336,6 +337,7 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
             ("corporate_actions", JobOutcome::Ok),
             ("fundamentals", JobOutcome::Ok),
             ("rates", JobOutcome::Ok),
+            ("macro", JobOutcome::Noop),
             ("state_snapshot", JobOutcome::Ok),
             ("tiingo_history", JobOutcome::Failed),
         ]
@@ -411,6 +413,7 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
             ("corporate_actions", JobOutcome::Noop),
             ("fundamentals", JobOutcome::Noop),
             ("rates", JobOutcome::Noop),
+            ("macro", JobOutcome::Noop),
             ("state_snapshot", JobOutcome::Ok),
             ("tiingo_history", JobOutcome::Noop),
         ]

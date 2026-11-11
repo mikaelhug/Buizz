@@ -1,5 +1,15 @@
 from buizz.bot import Bot
-from buizz.context import Bar, Context, FundamentalPoint, History, Portfolio, Session, split_ratio, to_ns
+from buizz.context import (
+    Bar,
+    Context,
+    FundamentalPoint,
+    History,
+    MacroPoint,
+    Portfolio,
+    Session,
+    split_ratio,
+    to_ns,
+)
 from buizz.errors import BuizzError, ProtocolError, SpineError, StateTooLarge, UsageError
 from buizz.runtime import run
 from buizz.wire import (
@@ -8,6 +18,7 @@ from buizz.wire import (
     Event,
     Fill,
     Limit,
+    MacroSeries,
     Market,
     Metric,
     OrderUpdate,
@@ -27,6 +38,8 @@ __all__ = [
     "FundamentalPoint",
     "History",
     "Limit",
+    "MacroPoint",
+    "MacroSeries",
     "Market",
     "Metric",
     "OrderUpdate",

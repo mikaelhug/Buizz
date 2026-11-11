@@ -4,13 +4,13 @@ use std::sync::{Arc, PoisonError, RwLock};
 
 use buizz_core::market::{
     Adjustment, Bar, Calendar, CorporateAction, Coverage, DataSource, FundamentalFact,
-    FundamentalMetric, FundamentalPoint, Instrument, RiskFreeRate, Session, Symbol, Timeframe,
-    Watermarks,
+    FundamentalMetric, FundamentalPoint, Instrument, MacroObservation, MacroPoint, MacroSeries,
+    RiskFreeRate, Session, Symbol, Timeframe, Watermarks,
 };
 use buizz_core::ops::{CoverageGap, DataWarning};
 use buizz_core::protocol::BarRow;
 use buizz_core::time::Timestamp;
-use buizz_core::visibility::bar_visible_at;
+use buizz_core::visibility::{bar_visible_at, published_sessions, universe_visible_at};
 use chrono::{NaiveDate, TimeDelta};
 use duckdb::Connection;
 use tokio::sync::watch;
@@ -158,6 +158,8 @@ impl MarketStore {
         self.append_fundamental_facts(source, facts).await?;
         self.upsert_risk_free_rates(source, fixture::rows(dir, "rates.csv").await?)
             .await?;
+        self.upsert_macro_observations(source, fixture::rows(dir, "macro.csv").await?)
+            .await?;
         for (timeframe, through) in loaded {
             if let Some(through) = through {
                 self.advance_watermark(timeframe, through).await?;
@@ -260,6 +262,16 @@ impl MarketStore {
             .await
     }
 
+    pub async fn upsert_macro_observations(
+        &self,
+        source: DataSource,
+        observations: Vec<MacroObservation>,
+    ) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| write::macro_observations(connection, source, observations))
+            .await
+    }
+
     pub async fn advance_watermark(&self, timeframe: Timeframe, through: Timestamp) -> Result<()> {
         let shared = Arc::clone(&self.shared);
         self.writer
@@ -288,6 +300,19 @@ impl MarketStore {
         Ok(Calendar::new(
             self.shared.calendar().between(from, to).to_vec(),
         ))
+    }
+
+    pub fn published_sessions(
+        &self,
+        from: NaiveDate,
+        to: NaiveDate,
+        as_of: Timestamp,
+    ) -> Vec<Session> {
+        published_sessions(&self.shared.calendar(), from, to, as_of)
+    }
+
+    pub fn universe_visible_at(&self, date: NaiveDate) -> Timestamp {
+        universe_visible_at(date, &self.shared.calendar())
     }
 
     pub async fn instruments(&self) -> Result<Vec<Instrument>> {
@@ -377,6 +402,28 @@ impl MarketStore {
             .await
     }
 
+    pub async fn listed_top_dollar_volume(
+        &self,
+        count: u32,
+        date: NaiveDate,
+        sessions: u32,
+    ) -> Result<Vec<Symbol>> {
+        let calendar = self.shared.calendar();
+        self.readers
+            .run(move |connection| {
+                let delisted: BTreeSet<Symbol> = read::instruments(connection)?
+                    .into_iter()
+                    .filter(|instrument| instrument.last_session.is_some_and(|last| last < date))
+                    .map(|instrument| instrument.symbol)
+                    .collect();
+                let mut symbols =
+                    read::top_dollar_volume(connection, &calendar, count, date, sessions)?;
+                symbols.retain(|symbol| !delisted.contains(symbol));
+                Ok(symbols)
+            })
+            .await
+    }
+
     pub async fn risk_free_rates(
         &self,
         from: NaiveDate,
@@ -384,6 +431,27 @@ impl MarketStore {
     ) -> Result<Vec<RiskFreeRate>> {
         self.readers
             .run(move |connection| read::risk_free_rates(connection, from, to))
+            .await
+    }
+
+    pub async fn macro_observations(&self, series: MacroSeries) -> Result<Vec<MacroObservation>> {
+        self.readers
+            .run(move |connection| read::macro_observations(connection, series))
+            .await
+    }
+
+    pub async fn macro_points(
+        &self,
+        series: Vec<MacroSeries>,
+        from: NaiveDate,
+        to: NaiveDate,
+        as_of: Timestamp,
+    ) -> Result<Vec<MacroPoint>> {
+        let calendar = self.shared.calendar();
+        self.readers
+            .run(move |connection| {
+                read::macro_points(connection, &calendar, &series, from, to, as_of)
+            })
             .await
     }
 

@@ -1,0 +1,9 @@
+{
+  "id": 5,
+  "request": {
+    "date": "2024-11-22",
+    "kind": "universe",
+    "top_dollar_volume": 2
+  },
+  "type": "query"
+}

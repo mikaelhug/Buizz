@@ -2,6 +2,7 @@ mod actions;
 mod bars;
 mod facts;
 mod fetch;
+mod macros;
 mod minute;
 mod reference;
 mod schedule;
@@ -184,6 +185,7 @@ impl Ingest {
             schedule::CORPORATE_ACTIONS => self.corporate_actions(now).await,
             schedule::FUNDAMENTALS => self.fundamentals(now).await,
             schedule::RATES => self.rates(now).await,
+            schedule::MACRO => self.macro_series(now).await,
             schedule::STATE_SNAPSHOT => self.state_snapshot(now).await,
             schedule::TIINGO_HISTORY => self.tiingo_history(now).await,
             other => unreachable!("unscheduled job {other}"),
