@@ -15,6 +15,7 @@ from buizz.wire import (
     STATE_LIMIT,
     Ack,
     Adjust,
+    Auction,
     BarBuffer,
     Event,
     FundamentalsRequest,
@@ -25,13 +26,21 @@ from buizz.wire import (
     LogLevel,
     LogLine,
     Market,
+    MarketOnClose,
+    MarketOnOpen,
     Metric,
     OrderRequest,
+    OrderType,
     Position,
     QtySize,
     Ready,
     Step,
+    Stop,
     Timeframe,
+    TimeInForce,
+    TrailAmount,
+    TrailingStop,
+    TrailPercent,
     WeightSize,
     WorkingOrder,
 )
@@ -50,6 +59,8 @@ DECIMAL_MIN = Decimal("1e-28")
 METRICS: frozenset[str] = frozenset(get_args(Metric.__value__))
 TIMEFRAMES: frozenset[str] = frozenset(get_args(Timeframe.__value__))
 ADJUSTMENTS: frozenset[str] = frozenset(get_args(Adjust.__value__))
+TIMES_IN_FORCE: frozenset[str] = frozenset(get_args(TimeInForce.__value__))
+AUCTIONS: dict[str, OrderType] = {"open": MarketOnOpen(), "close": MarketOnClose()}
 STATE_SCALARS = (str, bool)
 STATE_INT_RANGE = range(-(2**63), 2**64)
 
@@ -84,6 +95,38 @@ def wire_decimal(name: str, value: object) -> Decimal:
     if number != 0 and not DECIMAL_MIN <= abs(number) <= DECIMAL_MAX:
         raise ValueError(f"{name} {value} is outside the decimal range the spine accepts")
     return number
+
+
+def order_type(
+    limit_price: Decimal | float | None,
+    stop_price: Decimal | float | None,
+    trail_amount: Decimal | float | None,
+    trail_percent: Decimal | float | None,
+    at: Auction | None,
+) -> OrderType:
+    given = {
+        "limit_price": limit_price,
+        "stop_price": stop_price,
+        "trail_amount": trail_amount,
+        "trail_percent": trail_percent,
+        "at": at,
+    }
+    chosen = [name for name, value in given.items() if value is not None]
+    if len(chosen) > 1:
+        raise ValueError(f"an order takes at most one of {', '.join(given)}, got {', '.join(chosen)}")
+    if limit_price is not None:
+        return Limit(wire_decimal("limit_price", limit_price))
+    if stop_price is not None:
+        return Stop(wire_decimal("stop_price", stop_price))
+    if trail_amount is not None:
+        return TrailingStop(TrailAmount(wire_decimal("trail_amount", trail_amount)))
+    if trail_percent is not None:
+        return TrailingStop(TrailPercent(wire_decimal("trail_percent", trail_percent)))
+    if at is None:
+        return Market()
+    if at not in AUCTIONS:
+        raise ValueError(f"at must be one of {sorted(AUCTIONS)}, got {at!r}")
+    return AUCTIONS[at]
 
 
 def whole_shares(qty: object) -> int:
@@ -321,9 +364,15 @@ class Context:
         *,
         reason: str,
         limit_price: Decimal | float | None = None,
+        stop_price: Decimal | float | None = None,
+        trail_amount: Decimal | float | None = None,
+        trail_percent: Decimal | float | None = None,
+        at: Auction | None = None,
+        tif: TimeInForce = "day",
         client_id: str | None = None,
     ) -> str:
-        return self._submit(symbol, QtySize(whole_shares(qty)), reason, limit_price, client_id)
+        kind = order_type(limit_price, stop_price, trail_amount, trail_percent, at)
+        return self._submit(symbol, QtySize(whole_shares(qty)), reason=reason, kind=kind, tif=tif, client_id=client_id)
 
     def order_target_weight(
         self,
@@ -332,9 +381,17 @@ class Context:
         *,
         reason: str,
         limit_price: Decimal | float | None = None,
+        stop_price: Decimal | float | None = None,
+        trail_amount: Decimal | float | None = None,
+        trail_percent: Decimal | float | None = None,
+        at: Auction | None = None,
+        tif: TimeInForce = "day",
         client_id: str | None = None,
     ) -> str:
-        return self._submit(symbol, WeightSize(wire_decimal("weight", weight)), reason, limit_price, client_id)
+        kind = order_type(limit_price, stop_price, trail_amount, trail_percent, at)
+        return self._submit(
+            symbol, WeightSize(wire_decimal("weight", weight)), reason=reason, kind=kind, tif=tif, client_id=client_id
+        )
 
     def rebalance(
         self,
@@ -342,6 +399,7 @@ class Context:
         *,
         exit_reason: str,
         reason: str | Mapping[str, str] | None = None,
+        at: Auction | None = None,
     ) -> None:
         self._current("ctx.rebalance")
         targets = {symbol: wire_decimal(f"weight of {symbol}", weight) for symbol, weight in weights.items()}
@@ -352,10 +410,10 @@ class Context:
             self.cancel(order.client_id)
         for symbol, weight in targets.items():
             if weight != 0 or self.position(symbol).qty != 0:
-                self.order_target_weight(symbol, weight, reason=reasons[symbol])
+                self.order_target_weight(symbol, weight, reason=reasons[symbol], at=at)
         for symbol, position in self._positions.items():
             if position.qty != 0 and symbol not in targets:
-                self.order_target_weight(symbol, 0, reason=exit_reason)
+                self.order_target_weight(symbol, 0, reason=exit_reason, at=at)
 
     def cancel(self, client_id: str) -> None:
         self._current("ctx.cancel")
@@ -406,14 +464,17 @@ class Context:
         self,
         symbol: str,
         size: QtySize | WeightSize,
+        *,
         reason: str,
-        limit_price: Decimal | float | None,
+        kind: OrderType,
+        tif: TimeInForce,
         client_id: str | None,
     ) -> str:
         self._current("placing an order")
+        if tif not in TIMES_IN_FORCE:
+            raise ValueError(f"tif must be one of {sorted(TIMES_IN_FORCE)}, got {tif!r}")
         client_id = client_id or self._next_client_id(symbol)
-        order_type = Market() if limit_price is None else Limit(wire_decimal("limit_price", limit_price))
-        self._orders.append(OrderRequest(client_id, symbol, size, order_type, "day", reason))
+        self._orders.append(OrderRequest(client_id, symbol, size, kind, tif, reason))
         return client_id
 
     def _next_client_id(self, symbol: str) -> str:

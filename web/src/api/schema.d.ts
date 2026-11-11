@@ -395,14 +395,22 @@ export interface components {
             holdout_runs: number;
             last_run_at?: components["schemas"]["Timestamp"] | null;
         };
+        CommissionTier: {
+            /** Format: int64 */
+            above: number;
+            per_share: string;
+        };
         CostModel: {
             commission_per_share: string;
             commission_min: string;
+            commission_tiers?: components["schemas"]["CommissionTier"][];
             slippage_bps: string;
+            slippage_per_share?: string;
             adv_participation: string;
             /** Format: int32 */
             adv_sessions: number;
             borrow_rate: string;
+            financing_spread?: string;
         };
         Coverage: {
             dataset: components["schemas"]["Dataset"];
@@ -601,6 +609,21 @@ export interface components {
             limit_price: string;
             /** @enum {string} */
             type: "limit";
+        } | {
+            stop_price: string;
+            /** @enum {string} */
+            type: "stop";
+        } | {
+            trail: components["schemas"]["Trail"];
+            stop_price?: string | null;
+            /** @enum {string} */
+            type: "trailing_stop";
+        } | {
+            /** @enum {string} */
+            type: "market_on_open";
+        } | {
+            /** @enum {string} */
+            type: "market_on_close";
         };
         OrderUpdate: {
             order_id: components["schemas"]["OrderId"];
@@ -640,7 +663,7 @@ export interface components {
             weight: string;
         };
         /** @enum {string} */
-        RejectReason: "unknown_symbol" | "duplicate_client_id" | "zero_quantity" | "invalid_limit_price" | "no_price" | "not_shortable" | "max_position_weight" | "max_gross_exposure" | "invalid_size" | "no_stream_slot";
+        RejectReason: "unknown_symbol" | "duplicate_client_id" | "zero_quantity" | "invalid_limit_price" | "no_price" | "not_shortable" | "max_position_weight" | "max_gross_exposure" | "invalid_size" | "no_stream_slot" | "invalid_stop_price" | "auction_closed" | "auction_unavailable";
         Reproducibility: {
             bot_hash: string;
             engine_version: string;
@@ -797,11 +820,20 @@ export interface components {
         /** @example AAPL */
         Symbol: string;
         /** @enum {string} */
-        TimeInForce: "day";
+        TimeInForce: "day" | "gtc";
         /** @enum {string} */
         Timeframe: "1d" | "1m";
         /** Format: date-time */
         Timestamp: string;
+        Trail: {
+            amount: string;
+            /** @enum {string} */
+            by: "amount";
+        } | {
+            percent: string;
+            /** @enum {string} */
+            by: "percent";
+        };
         UniverseSpec: {
             symbols: components["schemas"]["Symbol"][];
         } | {
@@ -812,6 +844,7 @@ export interface components {
          * @example bar
          * @example every:30m
          * @example at:15:55
+         * @example before_close:10m
          */
         Wake: string;
         Watermarks: {

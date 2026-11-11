@@ -194,14 +194,7 @@ fn insert_ledger(connection: &Connection, run_id: RunId, entries: &[LedgerEntry]
          VALUES (?, ?, ?, ?, ?, ?, ?)",
     )?;
     for entry in entries {
-        let symbol = match &entry.kind {
-            LedgerKind::Deposit { .. } => None,
-            LedgerKind::Fill { symbol, .. }
-            | LedgerKind::Dividend { symbol, .. }
-            | LedgerKind::Split { symbol, .. }
-            | LedgerKind::BorrowFee { symbol, .. }
-            | LedgerKind::Liquidation { symbol, .. } => Some(symbol.as_str()),
-        };
+        let symbol = entry.kind.symbol().map(|symbol| symbol.as_str());
         statement.execute(params![
             run_id.0,
             int(entry.seq)?,

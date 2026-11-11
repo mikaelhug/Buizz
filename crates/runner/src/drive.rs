@@ -16,8 +16,8 @@ use buizz_core::run::{
     RunStatus,
 };
 use buizz_core::time::Timestamp;
-use buizz_core::visibility::order_session;
-use buizz_engine::{Cycle, DrawdownStop, Engine, EngineError, Outbox};
+use buizz_core::visibility::{close_auction_session, open_auction_session, order_session};
+use buizz_engine::{Cycle, Decision, DrawdownStop, Engine, EngineError, Outbox};
 use buizz_feed::FeedLease;
 use buizz_ingest::IngestError;
 use buizz_market::MarketError;
@@ -217,7 +217,7 @@ async fn prepare(
     if run.mode == Mode::Live {
         return Ok(None);
     }
-    if run.config.timeframe == Timeframe::Minute {
+    if run.config.needs_minute_bars() {
         let config = &run.config;
         let end = config.end.unwrap_or(config.start);
         let symbols = gate_symbols(&inner.market, config).await?;
@@ -433,7 +433,7 @@ impl Driver {
     }
 
     fn streams(&self) -> bool {
-        self.live() && self.run.config.timeframe == Timeframe::Minute
+        self.live() && self.run.config.needs_minute_bars()
     }
 
     fn wanted(&self) -> BTreeSet<Symbol> {
@@ -585,10 +585,18 @@ impl Driver {
     }
 
     fn processable(&mut self, point: &Point) -> bool {
-        self.watermarks
-            .borrow_and_update()
-            .get(self.run.config.timeframe)
-            .is_some_and(|through| point.visible_at <= through)
+        let marks = *self.watermarks.borrow_and_update();
+        let timeframe = if point.pre_close {
+            Timeframe::Minute
+        } else {
+            self.run.config.timeframe
+        };
+        let visible = |timeframe, at| marks.get(timeframe).is_some_and(|through| at <= through);
+        let awaits_auction = self.run.config.timeframe == Timeframe::Minute
+            && point.closes_session()
+            && !self.engine.closing_auction(point.session.date).is_empty();
+        visible(timeframe, point.visible_at)
+            && (!awaits_auction || visible(Timeframe::Day, point.session.close))
     }
 
     async fn reconcile(&mut self) -> Flow<()> {
@@ -685,18 +693,42 @@ impl Driver {
             self.timeline.enter(&point.session, &held).await?;
             self.lease_stream().await?;
         }
-        let visible_through = self.live().then(|| self.visible_through()).flatten();
-        let bars = self.timeline.bars(point, visible_through).await?;
+        let bars = if point.pre_close {
+            self.timeline.session_so_far(point).await?
+        } else {
+            let visible_through = self.live().then(|| self.visible_through()).flatten();
+            self.timeline.bars(point, visible_through).await?
+        };
+        let auction = match self.run.config.timeframe {
+            Timeframe::Minute if point.closes_session() => {
+                let symbols = self.engine.closing_auction(point.session.date);
+                match symbols.is_empty() {
+                    true => Vec::new(),
+                    false => self.timeline.official(&point.session, symbols).await?,
+                }
+            }
+            _ => Vec::new(),
+        };
         let data = self.timeline.session();
-        self.engine.run_cycle(&Cycle {
+        let cycle = Cycle {
             session: &point.session,
             start: point.start,
             visible_at: point.visible_at,
             bars: &bars,
+            official: match self.run.config.timeframe {
+                Timeframe::Day => &bars,
+                Timeframe::Minute => &auction,
+            },
             actions: &data.actions,
             average_daily_volume: &data.average_daily_volume,
             delisted: &data.delisted,
-        });
+            risk_free_rate: data.risk_free_rate,
+        };
+        if point.pre_close {
+            self.engine.pre_close(&cycle);
+        } else {
+            self.engine.run_cycle(&cycle);
+        }
         self.after = point.visible_at;
         self.clock = Some(point.visible_at);
         self.session = Some(point.session);
@@ -1026,20 +1058,30 @@ impl Driver {
         }
         let unleased = self.lease_orders(&orders);
         let clock = self.after;
-        let session = order_session(self.run.config.timeframe, clock, self.timeline.calendar())
-            .or(self.session.as_ref())
-            .map(|session| session.date)
-            .unwrap_or_else(|| clock.exchange_date());
+        let calendar = self.timeline.calendar();
+        let Some(current) = self.session else {
+            return Ok(());
+        };
+        let next = |found: Option<&Session>| found.copied().unwrap_or(current);
+        let session = next(order_session(self.run.config.timeframe, clock, calendar));
+        let on_open = next(open_auction_session(clock, calendar));
+        let on_close = next(close_auction_session(clock, calendar));
+        let decision = Decision {
+            at: clock,
+            session: &session,
+            on_open: &on_open,
+            on_close: &on_close,
+        };
         let ordered = !orders.is_empty();
         let timeline = &self.timeline;
-        self.engine
-            .accept(clock, session, orders, cancels, |symbol| {
-                match timeline.instrument(symbol) {
-                    None => Err(RejectReason::UnknownSymbol),
-                    Some(_) if unleased.contains(symbol) => Err(RejectReason::NoStreamSlot),
-                    Some(instrument) => Ok(instrument),
-                }
-            });
+        self.engine.accept(&decision, orders, cancels, |symbol| {
+            match timeline.instrument(symbol) {
+                None => Err(RejectReason::UnknownSymbol),
+                Some(_) if unleased.contains(symbol) => Err(RejectReason::NoStreamSlot),
+                Some(instrument) => Ok(instrument),
+            }
+        });
+
         self.absorb();
         if ordered {
             let held = self.held();

@@ -54,9 +54,25 @@ pub enum LedgerKind {
         qty: i64,
         price: Decimal,
     },
+    Financing {
+        balance: Decimal,
+        rate: Decimal,
+        amount: Decimal,
+    },
 }
 
 impl LedgerKind {
+    pub fn symbol(&self) -> Option<&Symbol> {
+        match self {
+            Self::Deposit { .. } | Self::Financing { .. } => None,
+            Self::Fill { symbol, .. }
+            | Self::Dividend { symbol, .. }
+            | Self::Split { symbol, .. }
+            | Self::BorrowFee { symbol, .. }
+            | Self::Liquidation { symbol, .. } => Some(symbol),
+        }
+    }
+
     pub fn cash_delta(&self) -> Decimal {
         match self {
             Self::Deposit { amount } => *amount,
@@ -68,7 +84,7 @@ impl LedgerKind {
             } => -round_cash(Decimal::from(*qty) * *price) - *commission,
             Self::Dividend { amount, .. } => *amount,
             Self::Split { cash_in_lieu, .. } => *cash_in_lieu,
-            Self::BorrowFee { amount, .. } => -*amount,
+            Self::BorrowFee { amount, .. } | Self::Financing { amount, .. } => -*amount,
             Self::Liquidation { qty, price, .. } => -round_cash(Decimal::from(*qty) * *price),
         }
     }
@@ -133,7 +149,7 @@ impl Portfolio {
     pub fn apply(&mut self, kind: &LedgerKind) {
         self.cash += kind.cash_delta();
         match kind {
-            LedgerKind::Deposit { .. } => {}
+            LedgerKind::Deposit { .. } | LedgerKind::Financing { .. } => {}
             LedgerKind::Fill {
                 symbol,
                 qty,

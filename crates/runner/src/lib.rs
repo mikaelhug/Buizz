@@ -271,7 +271,7 @@ impl Runner {
             if run.desired != DesiredState::Paused {
                 return Err(RunnerError::AlreadyLive(bot.to_owned()));
             }
-            if run.config.timeframe == Timeframe::Minute {
+            if run.config.needs_minute_bars() {
                 let portfolio = self.inner.state.portfolio(run.id).await?;
                 let held = portfolio.open_positions().map(|(symbol, _)| symbol.clone());
                 let universe = universe_at(&self.inner.market, &run.config, today).await?;
@@ -301,13 +301,12 @@ impl Runner {
                 allow_holdout: false,
             },
         )?;
-        let streamed = match config.timeframe {
-            Timeframe::Minute => {
-                let universe = universe_at(&self.inner.market, &config, today).await?;
-                self.inner.feed.admits(universe.clone())?;
-                Some(universe)
-            }
-            Timeframe::Day => None,
+        let streamed = if config.needs_minute_bars() {
+            let universe = universe_at(&self.inner.market, &config, today).await?;
+            self.inner.feed.admits(universe.clone())?;
+            Some(universe)
+        } else {
+            None
         };
         let run = match self
             .create(config, &spec, RunStatus::Starting, Vec::new())
@@ -457,7 +456,7 @@ impl Runner {
             start,
             end,
             start_cash,
-            cost: request.cost.unwrap_or(defaults.cost),
+            cost: request.cost.unwrap_or_else(|| defaults.cost.clone()),
             risk: request.risk.unwrap_or(manifest.risk),
             seed,
             benchmark: manifest.benchmark.clone(),

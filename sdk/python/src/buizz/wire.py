@@ -13,6 +13,8 @@ type Timeframe = Literal["1d", "1m"]
 type Adjust = Literal["raw", "split", "all"]
 type LogLevel = Literal["debug", "info", "warn", "error"]
 type EndReason = Literal["completed", "paused", "stopped", "risk_limit", "failed", "disconnected"]
+type TimeInForce = Literal["day", "gtc"]
+type Auction = Literal["open", "close"]
 type Metric = Literal[
     "revenue",
     "cost_of_revenue",
@@ -64,6 +66,34 @@ class Limit(msgspec.Struct, frozen=True, tag_field="type", tag="limit"):
     limit_price: Decimal
 
 
+class Stop(msgspec.Struct, frozen=True, tag_field="type", tag="stop"):
+    stop_price: Decimal
+
+
+class TrailAmount(msgspec.Struct, frozen=True, tag_field="by", tag="amount"):
+    amount: Decimal
+
+
+class TrailPercent(msgspec.Struct, frozen=True, tag_field="by", tag="percent"):
+    percent: Decimal
+
+
+class TrailingStop(msgspec.Struct, frozen=True, tag_field="type", tag="trailing_stop"):
+    trail: TrailAmount | TrailPercent
+    stop_price: Decimal | None = None
+
+
+class MarketOnOpen(msgspec.Struct, frozen=True, tag_field="type", tag="market_on_open"):
+    pass
+
+
+class MarketOnClose(msgspec.Struct, frozen=True, tag_field="type", tag="market_on_close"):
+    pass
+
+
+type OrderType = Market | Limit | Stop | TrailingStop | MarketOnOpen | MarketOnClose
+
+
 class WorkingOrder(msgspec.Struct, frozen=True):
     order_id: int
     client_id: str
@@ -71,7 +101,7 @@ class WorkingOrder(msgspec.Struct, frozen=True):
     side: Literal["buy", "sell"]
     qty: int
     filled_qty: int
-    order_type: Market | Limit
+    order_type: OrderType
 
 
 class Holdings(msgspec.Struct, frozen=True):
@@ -224,8 +254,8 @@ class OrderRequest(msgspec.Struct, frozen=True):
     client_id: str
     symbol: str
     size: QtySize | WeightSize
-    order_type: Market | Limit
-    tif: Literal["day"]
+    order_type: OrderType
+    tif: TimeInForce
     reason: str
 
 

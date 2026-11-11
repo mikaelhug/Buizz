@@ -121,9 +121,11 @@ function universe(spec: Schemas["UniverseSpec"]): string {
 function costTitle(cost: Schemas["CostModel"], risk: Schemas["RiskLimits"]): string {
   return [
     `Commission ${cost.commission_per_share}/sh, min ${cost.commission_min}`,
-    `Slippage ${cost.slippage_bps} bps`,
+    ...(cost.commission_tiers ?? []).map((tier) => `  ${tier.per_share}/sh above ${fmt.integer(tier.above)} sh a month`),
+    `Slippage ${cost.slippage_bps} bps + ${cost.slippage_per_share ?? "0"}/sh`,
     `ADV cap ${fmt.percent(cost.adv_participation)} of ${cost.adv_sessions} sessions`,
     `Borrow ${fmt.percent(cost.borrow_rate)}`,
+    `Financing T-bill + ${fmt.percent(cost.financing_spread)} on negative cash`,
     `Max position ${fmt.percent(risk.max_position_weight)}`,
     `Max gross ${fmt.percent(risk.max_gross_exposure)}`,
     `Drawdown stop ${fmt.percent(risk.max_drawdown)}`,
@@ -257,7 +259,22 @@ function requested(size: Schemas["OrderSize"]): string {
 }
 
 function orderType(type: Schemas["OrderType"]): string {
-  return type.type === "market" ? "MKT" : `LMT ${fmt.price(type.limit_price)}`;
+  switch (type.type) {
+    case "market":
+      return "MKT";
+    case "limit":
+      return `LMT ${fmt.price(type.limit_price)}`;
+    case "stop":
+      return `STP ${fmt.price(type.stop_price)}`;
+    case "trailing_stop": {
+      const trail = type.trail.by === "amount" ? fmt.price(type.trail.amount) : fmt.percent(type.trail.percent);
+      return type.stop_price ? `TRAIL ${trail} @ ${fmt.price(type.stop_price)}` : `TRAIL ${trail}`;
+    }
+    case "market_on_open":
+      return "MOO";
+    case "market_on_close":
+      return "MOC";
+  }
 }
 
 function Orders({ orders }: { orders: Paged<Schemas["OrderView"]> }) {

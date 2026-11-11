@@ -1,7 +1,53 @@
 {
   "cancels": [],
   "logs": [],
-  "orders": [],
+  "orders": [
+    {
+      "client_id": "AAA-2024-12-02",
+      "order_type": {
+        "type": "market_on_close"
+      },
+      "reason": "trade the close",
+      "size": {
+        "by": "target_weight",
+        "weight": "0.5"
+      },
+      "symbol": "AAA",
+      "tif": "day"
+    },
+    {
+      "client_id": "AAA-trail",
+      "order_type": {
+        "stop_price": null,
+        "trail": {
+          "by": "percent",
+          "percent": "0.05"
+        },
+        "type": "trailing_stop"
+      },
+      "reason": "protect the gain",
+      "size": {
+        "by": "qty",
+        "qty": -10
+      },
+      "symbol": "AAA",
+      "tif": "gtc"
+    },
+    {
+      "client_id": "BBB-breakout",
+      "order_type": {
+        "stop_price": "50.25",
+        "type": "stop"
+      },
+      "reason": "breakout",
+      "size": {
+        "by": "qty",
+        "qty": 20
+      },
+      "symbol": "BBB",
+      "tif": "gtc"
+    }
+  ],
   "seq": 318,
   "state": null,
   "type": "ack"

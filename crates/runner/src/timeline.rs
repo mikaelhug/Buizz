@@ -1,11 +1,12 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use buizz_core::market::{Bar, Calendar, CorporateAction, Instrument, Session, Symbol, Timeframe};
-use buizz_core::run::{RunConfig, UniverseSpec};
+use buizz_core::run::{RunConfig, UniverseSpec, Wake};
 use buizz_core::time::Timestamp;
 use buizz_core::visibility::bar_visible_at;
 use buizz_market::{MarketError, MarketStore, TIMESTAMP_RESOLUTION};
 use chrono::{NaiveDate, TimeDelta};
+use rust_decimal::Decimal;
 use tokio::task::JoinHandle;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -13,6 +14,13 @@ pub(crate) struct Point {
     pub session: Session,
     pub start: Timestamp,
     pub visible_at: Timestamp,
+    pub pre_close: bool,
+}
+
+impl Point {
+    pub(crate) fn closes_session(&self) -> bool {
+        !self.pre_close && self.visible_at >= self.session.close
+    }
 }
 
 #[derive(Debug, Default)]
@@ -22,6 +30,7 @@ pub(crate) struct SessionData {
     pub actions: Vec<CorporateAction>,
     pub average_daily_volume: BTreeMap<Symbol, u64>,
     pub delisted: Vec<Symbol>,
+    pub risk_free_rate: Decimal,
 }
 
 struct Fetched {
@@ -29,7 +38,10 @@ struct Fetched {
     tracked: BTreeSet<Symbol>,
     actions: Vec<CorporateAction>,
     average_daily_volume: BTreeMap<Symbol, u64>,
+    risk_free_rate: Decimal,
 }
+
+const RATE_LOOKBACK_DAYS: i64 = 31;
 
 type Upcoming = (NaiveDate, JoinHandle<Result<Fetched, MarketError>>);
 
@@ -44,6 +56,7 @@ struct Loaded {
 pub(crate) struct Timeline {
     market: MarketStore,
     timeframe: Timeframe,
+    wake: Wake,
     universe: UniverseSpec,
     adv_sessions: u32,
     start: NaiveDate,
@@ -62,6 +75,7 @@ impl Timeline {
         let mut timeline = Self {
             market,
             timeframe: config.timeframe,
+            wake: config.wake,
             universe: config.universe.clone(),
             adv_sessions: config.cost.adv_sessions,
             start: config.start,
@@ -110,6 +124,17 @@ impl Timeline {
         if self.end.is_some_and(|end| session.date > end) {
             return None;
         }
+        if self.timeframe == Timeframe::Day
+            && let Some(at) = self.wake.before_close(&session)
+            && after < at
+        {
+            return Some(Point {
+                session,
+                start: session.open,
+                visible_at: at,
+                pre_close: true,
+            });
+        }
         let start = match self.timeframe {
             Timeframe::Day => session.open,
             Timeframe::Minute if after < session.open => session.open,
@@ -121,6 +146,7 @@ impl Timeline {
             session,
             start,
             visible_at: bar_visible_at(self.timeframe, start, &session),
+            pre_close: false,
         })
     }
 
@@ -161,6 +187,7 @@ impl Timeline {
                 .filter(|symbol| !listed(symbol))
                 .cloned()
                 .collect(),
+            risk_free_rate: fetched.risk_free_rate,
         };
         self.tracked = fetched.tracked;
         if let Some(next) = self.calendar.next_after(session.date)
@@ -202,11 +229,17 @@ impl Timeline {
             let average_daily_volume = market
                 .average_daily_volume(symbols, date, adv_sessions)
                 .await?;
+            let risk_free_rate = market
+                .risk_free_rates(date - TimeDelta::days(RATE_LOOKBACK_DAYS), date)
+                .await?
+                .last()
+                .map_or(Decimal::ZERO, |rate| rate.percent / Decimal::ONE_HUNDRED);
             Ok(Fetched {
                 universe,
                 tracked,
                 actions,
                 average_daily_volume,
+                risk_free_rate,
             })
         }
     }
@@ -227,6 +260,56 @@ impl Timeline {
         }
         self.tracked.extend(added);
         Ok(())
+    }
+
+    pub(crate) async fn session_so_far(&self, point: &Point) -> Result<Vec<Bar>, MarketError> {
+        let through = point.visible_at - TimeDelta::seconds(60) + TIMESTAMP_RESOLUTION;
+        let minutes = self
+            .market
+            .bars_between(
+                Timeframe::Minute,
+                self.tracked.iter().cloned().collect(),
+                point.session.open,
+                through,
+            )
+            .await?;
+        let mut so_far: BTreeMap<Symbol, Bar> = BTreeMap::new();
+        for minute in minutes {
+            match so_far.get_mut(&minute.symbol) {
+                None => {
+                    so_far.insert(
+                        minute.symbol.clone(),
+                        Bar {
+                            start: point.session.open,
+                            ..minute
+                        },
+                    );
+                }
+                Some(bar) => {
+                    bar.high = bar.high.max(minute.high);
+                    bar.low = bar.low.min(minute.low);
+                    bar.close = minute.close;
+                    bar.volume += minute.volume;
+                    bar.feed = minute.feed;
+                }
+            }
+        }
+        Ok(so_far.into_values().collect())
+    }
+
+    pub(crate) async fn official(
+        &self,
+        session: &Session,
+        symbols: Vec<Symbol>,
+    ) -> Result<Vec<Bar>, MarketError> {
+        self.market
+            .bars_between(
+                Timeframe::Day,
+                symbols,
+                session.open,
+                session.open + TIMESTAMP_RESOLUTION,
+            )
+            .await
     }
 
     pub(crate) async fn bars(

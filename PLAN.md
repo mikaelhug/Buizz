@@ -15,7 +15,7 @@ Waves 0–3 are merged: every crate, the SDK, the web UI, six example bots, the 
 - **Live is a backtest whose data has not arrived yet.** The engine only ever reads the market store. Ingest and the live feed write bars and bump a watermark; a live run is the same replay loop blocked at the watermark. This gives backtest/live parity by construction and makes restart recovery a cursor resume.
 - **Lookahead is structurally impossible.** Every bot query is answered as-of the run clock, server-side. Rules frozen in `crates/core`:
   - `visible_at`: 1m bar = bar start + 60s; daily bar = session close; fundamentals = next session open after the SEC `filed` date.
-  - Per-bar cycle in the engine: at bar start, order expiry → corporate actions → fills at open; at the bar's `visible_at`, mark → risk limits → wake bot → accept orders. Bar N's cycle completes before bar N+1's, so an order decided on bar N fills at bar N+1 open.
+  - Per-bar cycle in the engine: at bar start, order expiry → corporate actions → fills (opening auction, then at the open or on touch, then the closing auction); at the bar's `visible_at`, mark → risk limits → wake bot → accept orders. Bar N's cycle completes before bar N+1's, so an order decided on bar N fills at bar N+1 open.
   - Whole shares only (signed); splits pay cash in lieu. A target-weight order resolving to zero shares is recorded as rejected `zero_quantity`.
   - Fills use raw prices; splits and dividends hit positions on the ex-date. Bots may ask for back-adjusted history, computed only from actions known at the clock.
 - **Deterministic:** no wall clock in the engine, seeded, ordered maps, `result_hash` per run. Same inputs → same hash.
@@ -41,7 +41,7 @@ Versions: latest stable at Wave 0, pinned by committed lockfiles.
 - A supervisor in the spine spawns one child process per run (env: spine URL, run id, run token), captures logs, kills by process group, restarts live bots with backoff. Backtests queue behind a core-count semaphore and run in parallel.
 - **Live** = start or resume the bot's live paper run. **Pause** = cancel working orders, stop the bot process, keep marking equity; resume respawns it with its portfolio and saved state, never replaying the paused interval.
 - Protocol (`ws://spine/bot/v1`, bearer run token): `hello` → `ready`, then strict `step` → (`query`/`data`)* → `ack` alternation. `ack` carries orders, cancels, state (≤64KB) and logs. Identical in both modes; in live, bars arriving before an ack coalesce into the next step.
-- Orders v1: market and limit, day time-in-force, by `qty` or `target_weight`, each with a free-text `reason` (decision journal). Shorts allowed with a flat borrow rate.
+- Orders: market, limit, stop, trailing stop, market-on-open and market-on-close (official open and close prints), day or good-till-cancelled, by `qty` or `target_weight`, each with a free-text `reason` (decision journal). Shorts allowed with a flat borrow rate; negative cash is financed at the T-bill rate plus a spread. Daily bots may wake before the close (`before_close:10m`) to trade that close.
 
 ```python
 from buizz import Bot, Context, run
@@ -95,7 +95,7 @@ Known parity gap, stated honestly: live minute bars are IEX (partial volume), ba
 
 In v1:
 1. Benchmark (SPY buy & hold) and metrics per run: CAGR, volatility, Sharpe, Sortino, max drawdown, Calmar, win rate, profit factor, exposure, turnover, alpha/beta.
-2. Cost model: commission, slippage bps, ADV participation cap, borrow rate.
+2. Cost model: commission (with optional monthly volume tiers), slippage in bps and per share, ADV participation cap, borrow rate, financing spread over the T-bill rate.
 3. Risk limits per run: max position weight, max gross exposure, drawdown stop-loss (closes every position and ends the run).
 4. Overfitting guard: the last 12 months are a locked holdout; running on it is explicit and counted per bot.
 5. Bad-data gate: refuse runs with coverage gaps; flag >40% overnight moves with no corporate action.
@@ -104,7 +104,7 @@ In v1:
 8. Headless loop: `buizz backtest bots/x --from --to` prints metrics (the feedback loop for writing bots).
 9. Crash recovery: checkpoint with each step; live runs catch up after a restart.
 
-Out of v1: brokers and real money; options, crypto, FX; tick/quote simulation; extended hours; stop/bracket orders; margin model; walk-forward, sweeps, optimisers; index-membership history; non-Python SDKs; multi-user; notifications; live-vs-backtest shadow parity report (v1.1).
+Out of v1: brokers and real money; options, crypto, FX; tick/quote simulation; extended hours; bracket orders; margin calls; walk-forward, sweeps, optimisers; index-membership history; non-Python SDKs; multi-user; notifications; live-vs-backtest shadow parity report (v1.1).
 
 ## Working agreement for agent work
 
@@ -130,7 +130,7 @@ Out of v1: brokers and real money; options, crypto, FX; tick/quote simulation; e
    - G10 borrow: start recording Interactive Brokers' public short-availability file (borrow fee and shares available per symbol) daily now, so real point-in-time borrow history accumulates; the bots it blocks stay paused until that history covers what they need.
    - G14 fundamentals before 2009: Yahoo cannot fill it (about four years, unofficial, restated). Free option for later: parse the financial statements of pre-XBRL 10-K/10-Q filings on EDGAR (filed since 1993) for the few metrics the blocked bots need; until then gbm_ranker and graham's defensive variant wait.
    - G8 VIX intraday: no free source reproduces the paper; vol_premium_etf is deferred.
-   Gap PRs run as four parallel groups, each additive to the protocol and SDK: orders and costs (G6 auction orders and the pre-close wake, G9 stops, G4 margin, G18 per-share costs); bot queries (G1 calendar, G12 past universes, G15 rates and FRED series); instrument and fundamentals data (G2 asset-class filter, G3 SIC, G17 exchange, G16 new metrics, G7 earnings-release dates, G11 Wikipedia S&P 500 membership, the daily IB borrow recorder); bot environment (G5 dependencies, G13 shared bot code). Bots start as soon as their gaps land, five at a time, each followed by a critical review against its brief. Real-data backtests need Alpaca, Tiingo and SEC credentials in the local environment.
+   Gap PRs run as four parallel groups, each additive to the protocol and SDK: orders and costs (landed: G6 auction orders and the pre-close wake, G9 stops and trailing stops, G4 leverage with financing, G18 per-share costs); bot queries (G1 calendar, G12 past universes, G15 rates and FRED series); instrument and fundamentals data (G2 asset-class filter, G3 SIC, G17 exchange, G16 new metrics, G7 earnings-release dates, G11 Wikipedia S&P 500 membership, the daily IB borrow recorder); bot environment (G5 dependencies, G13 shared bot code). Bots start as soon as their gaps land, five at a time, each followed by a critical review against its brief. Real-data backtests need Alpaca, Tiingo and SEC credentials in the local environment.
 
 ## Deployment (after Wave 3, separate repo, with your go-ahead)
 

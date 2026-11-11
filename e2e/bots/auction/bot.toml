@@ -1,0 +1,6 @@
+description = "Buys AAA on the close ten minutes ahead, sells it on the next open and places a breakout stop on BBB"
+command = ["uv", "run", "--frozen", "--quiet", "--project", "../../../sdk/python", "python", "bot.py"]
+timeframe = "1d"
+wake = "before_close:10m"
+universe = { symbols = ["AAA", "BBB"] }
+params = { breakout = 49.50 }

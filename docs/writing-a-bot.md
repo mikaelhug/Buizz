@@ -66,9 +66,10 @@ The spine starts `command` with `BUIZZ_SPINE_URL`, `BUIZZ_RUN_ID` and `BUIZZ_RUN
 
 **Wake.** Every bar reaches the bot, but it is only stepped when its wake condition holds; bars that became visible between wakes arrive together at the next step (`ctx.bars` keeps the last bar per symbol).
 
-- `bar`: every bar. The only option for `1d` bots.
-- `every:30m` or `every:2h`: when the time since the session open is a positive multiple of the interval, up to the close.
-- `at:15:55`: when the exchange-local (New York) time is 15:55.
+- `bar`: every bar.
+- `every:30m` or `every:2h`: when the time since the session open is a positive multiple of the interval, up to the close. `1m` bots only.
+- `at:15:55`: when the exchange-local (New York) time is 15:55. `1m` bots only.
+- `before_close:10m`: that many minutes before each session's close, so 15:50 on a normal day and 12:50 on a half day. A `1d` bot then wakes only there, ten minutes into the last part of the session, instead of at the close: see [Deciding before the close](#deciding-before-the-close).
 
 **Params.** The values in `bot.toml` are defaults. A backtest request, or `buizz backtest --param weight=0.5`, overrides single keys; the merged object is stored with the run.
 
@@ -92,7 +93,7 @@ Outside `on_step` only `params`, `universe`, `state`, `portfolio` and `position`
 | `ctx.universe` | Current symbols |
 | `ctx.bars` | `dict[symbol, Bar]` (`open`, `high`, `low`, `close`, `volume` floats): the latest bar of each symbol that became visible since the previous step |
 | `ctx.events` | `list[Event]`: the `Fill`, `OrderUpdate` and `CorporateAction` events since the previous step |
-| `ctx.portfolio` | `cash`, `equity`, `positions` (`qty`, `avg_cost`) and `working` orders (`WorkingOrder`: `client_id`, `symbol`, `side`, `qty`, `filled_qty` and `order_type`, a `Market()` or `Limit(limit_price)`) as of the start of the step. Orders you place in this step are not reflected |
+| `ctx.portfolio` | `cash`, `equity`, `positions` (`qty`, `avg_cost`) and `working` orders (`WorkingOrder`: `client_id`, `symbol`, `side`, `qty`, `filled_qty` and `order_type`: `Market()`, `Limit(limit_price)`, `Stop(stop_price)`, `TrailingStop(trail, stop_price)` with the stop as it trails now, `MarketOnOpen()` or `MarketOnClose()`) as of the start of the step. Orders you place in this step are not reflected |
 | `ctx.position(symbol)` | The `Position`, with `qty == 0` when flat |
 | `ctx.history(symbols, tf="1d", bars=1, adjust="raw")` | The last `bars` (1 to 10000) bars per symbol visible at the clock, as numpy arrays (`start` in ns, `open`, `high`, `low`, `close`, `volume`). Each call is a round trip to the spine |
 | `ctx.fundamentals(symbols, metrics)` | Every fundamental fact visible at the clock for the given metrics (`Metric` names, below) |
@@ -107,24 +108,45 @@ Fundamentals are snake_case metrics, typed as `Metric` (an unknown name raises `
 ### Acting
 
 ```python
-ctx.order(symbol, qty, *, reason, limit_price=None, client_id=None) -> str
-ctx.order_target_weight(symbol, weight, *, reason, limit_price=None, client_id=None) -> str
-ctx.rebalance(weights, *, exit_reason, reason=None)
+ctx.order(symbol, qty, *, reason, limit_price=None, stop_price=None, trail_amount=None,
+          trail_percent=None, at=None, tif="day", client_id=None) -> str
+ctx.order_target_weight(symbol, weight, *, reason, limit_price=None, stop_price=None,
+                        trail_amount=None, trail_percent=None, at=None, tif="day", client_id=None) -> str
+ctx.rebalance(weights, *, exit_reason, reason=None, at=None)
 ctx.cancel(client_id)
 ctx.log(message, level="info")
 ```
 
 - `order` takes a signed share count as an `int` (numpy integers too): positive buys, negative sells. A float raises `TypeError`; round it yourself.
-- `order_target_weight` targets a fraction of equity: the target is `trunc(weight * equity / last close)` shares and the order is the difference to the position plus the session's working orders. A negative weight shorts. A target that needs no change is recorded as rejected with `zero_quantity`. Weights and limit prices must be finite numbers; NaN or infinity raises `ValueError`.
-- `rebalance` makes the book these weights: it cancels every working order, targets each weight and sends every other held symbol to zero with `exit_reason`. `reason` is one string, or a mapping with a reason per symbol of `weights`. A zero weight for a symbol you do not hold places nothing, so `ctx.rebalance({}, exit_reason="flat before the close")` flattens the book.
-- Quantities are whole shares. Splits pay cash in lieu of fractions.
-- Without `limit_price` the order is a market order. A limit price is rounded to 4 decimals away from the market (down for a buy, up for a sell). All orders are day orders.
+- `order_target_weight` targets a fraction of equity: the target is `trunc(weight * equity / last close)` shares and the order is the difference to the position plus the working orders that execute by this order's session, except stops (a stop may never trigger). A negative weight shorts. A target that needs no change is recorded as rejected with `zero_quantity`. Weights and prices must be finite numbers; NaN or infinity raises `ValueError`.
+- `rebalance` makes the book these weights: it cancels every working order, targets each weight and sends every other held symbol to zero with `exit_reason`. `reason` is one string, or a mapping with a reason per symbol of `weights`. A zero weight for a symbol you do not hold places nothing, so `ctx.rebalance({}, exit_reason="flat before the close")` flattens the book. `at="close"` or `at="open"` sends every order to that auction.
+- Quantities are whole shares. Splits pay cash in lieu of fractions and rescale working orders' prices.
+- The order type is set by at most one of these keywords; more than one raises `ValueError`:
+
+| Keyword | Order | Fills |
+|---|---|---|
+| none | market | at the next bar's open |
+| `limit_price` | limit, rounded to 4 decimals away from the market (down for a buy, up for a sell) | at the open if it is at or better than the limit, else at the limit when the bar touches it |
+| `stop_price` | stop: a sell stop below the market or a buy stop above it | when a bar trades through the stop: at the open if it gaps through, else at the stop, both moved against you by the slippage |
+| `trail_amount` or `trail_percent` | trailing stop, `trail_percent` as a fraction (`0.05` for 5%) | like a stop, whose stop starts that far from the last close at the decision and follows the best price since: after each bar a sell stop rises to the bar's high minus the trail, a buy stop falls to its low plus the trail, never back |
+| `at="open"` | market-on-open | at the official open of the next session |
+| `at="close"` | market-on-close | at the official close of the session; rejected with `auction_closed` after the exchange cutoff, 10 minutes before the close |
+
+- `tif` is `"day"` (expires at the close of its session) or `"gtc"` (works until it fills or you cancel it).
 - `reason` is required free text. It is stored with the order and shown in the order list: write the decision, not the action.
 - `client_id` is returned. Leave it out to get `<symbol>-<session date>` (daily) or `<symbol>-<YYYY-MM-DDTHH:MM>` (1m), with `-1`, `-2` for repeats in the same step. A client id is unique per run; a repeated one is rejected with `duplicate_client_id` (in the step events and run events; the run's order list keeps only the first) and leaves the first order alone, which makes replaying an ack after a crash safe.
 - `cancel` cancels a working order by client id.
 - `log` writes a line of the given level (`debug`, `info`, `warn`, `error`) into the run's event log; the bot's stdout and stderr go to the log file.
 
-Orders are rejected, with the reason on the order and in the run events, for: `unknown_symbol`, `duplicate_client_id`, `zero_quantity`, `invalid_limit_price`, `no_price` (no close seen yet), `not_shortable`, `max_position_weight`, `max_gross_exposure`, `invalid_size` (a quantity or target weight too large to compute) and, for live `1m` runs, `no_stream_slot` (the symbol is outside the universe and holdings and the 30-symbol stream has no free slot for it).
+Orders are rejected, with the reason on the order and in the run events, for: `unknown_symbol`, `duplicate_client_id`, `zero_quantity`, `invalid_limit_price`, `invalid_stop_price` (a stop at or below zero, or a trail that is not positive or a percentage of 1 or more), `no_price` (no close seen yet), `not_shortable`, `max_position_weight`, `max_gross_exposure`, `invalid_size` (a quantity or target weight too large to compute), `auction_closed` (a market-on-close after the cutoff), `auction_unavailable` (a market-on-open in a `1m` run, see below) and, for live runs that stream minute bars, `no_stream_slot` (the symbol is outside the universe and holdings and the 30-symbol stream has no free slot for it).
+
+```python
+ctx.order("SPY", 100, at="close", reason="RSI2 below 10 in an uptrend")
+ctx.order_target_weight("SPY", 0, at="open", reason="flat for the session")
+ctx.order("GLD", -40, stop_price=181.2, tif="gtc", reason="2N stop")
+ctx.order("QQQ", 25, stop_price=505.0, reason="55-day breakout")
+ctx.order("TLT", -60, trail_percent=0.05, tif="gtc", reason="trail 5% below the high")
+```
 
 ### State
 
@@ -134,27 +156,79 @@ Orders are rejected, with the reason on the order and in the run events, for: `u
 
 - A bar is visible when it is complete: a 1m bar one minute after its start, a daily bar at the session close, a fundamental fact at the next session open after `filed`, a corporate action at the open of its ex-date session.
 - The bot is stepped when a bar is visible. An order decided on bar N fills no earlier than bar N+1's open; there is no way to trade on the bar you are looking at.
-- A market order fills at the open of the next bar, moved against you by the slippage. A limit buy fills at the open moved against you by the slippage, but never above the limit, if the open is at or below the limit; otherwise at the limit if the bar's low touches it. A limit sell mirrors that. Otherwise it stays working until its session closes and then expires.
-- A day order belongs to the session of the first bar that starts at or after the decision, so an order placed at a daily close fills in the next session, and so does one placed after the last minute of a session.
+- A market order fills at the open of the next bar, moved against you by the slippage. A limit buy fills at the open moved against you by the slippage, but never above the limit, if the open is at or below the limit; otherwise at the limit if the bar's low touches it. A limit sell mirrors that. A stop is matched the same way against the high (buy) or low (sell). A day order that has not filled expires when its session closes; a `gtc` order keeps working.
+- An order belongs to the session of the first bar that starts at or after the decision, so an order placed at a daily close fills in the next session, and so does one placed after the last minute of a session. A market-on-open order belongs to the next session that has not opened yet, a market-on-close order to the first session that has not closed yet.
+- The auctions fill at the official open and close, the session's daily bar, never at a minute bar's price: a market-on-close in a `1m` run fills at the daily close, not at the last minute's close. Auction fills pay the slippage and commission of a market order and share its volume cap. A market-on-open needs the official open before the session's minute bars can be matched, which a live `1m` run only learns after the close, so `1m` runs reject it with `auction_unavailable`; a daily bot that decides before the close can use it. A live `1m` run with a market-on-close working takes its closing step once the official daily bar has arrived.
+- Like the exchange, a market-on-close can't be cancelled after the cutoff: the cancel is ignored and the order fills.
 - Splits and cash dividends hit the position at the ex-date open.
 - A delisted symbol's position is liquidated at its last close and its orders are cancelled.
 
+### Deciding before the close
+
+Papers that trade "at the close" compute their signal on the close they trade. A `1d` bot gets the same decision point with `wake = "before_close:10m"`: it is stepped ten minutes before every close, and its `market-on-close` orders join that session's closing auction.
+
+- `ctx.clock` is the decision time, 15:50 or 12:50 on a half day. `ctx.bars` holds the session so far for each symbol: the open of the first minute, the high and low of the minutes visible at the clock, the last of their closes as `close`, and their volume. The daily bar of the session is not visible yet, so `ctx.history(tf="1d")` ends at the previous session.
+- The session is matched against its daily bar after the close, as in any daily run, so the step's portfolio reflects the session's corporate actions, priced at the last minute, but not its fills yet: market, limit and stop orders that fill during the session, and market-on-open orders, appear at the next step. A cancel for one of them takes effect at the close, after the session was matched, so you can't use the minutes you saw to undo a fill that already happened.
+- Market, limit and stop orders placed at the step belong to the next session; a market-on-open fills at the next official open.
+- The minute bars of the universe and holdings must be in the store: a backtest backfills them for its period like a `1m` backtest, and a live run leases stream slots for them like a `1m` run.
+
+```toml
+timeframe = "1d"
+wake = "before_close:10m"
+```
+
+```python
+class Rsi2(Bot):
+    def on_step(self, ctx: Context) -> None:
+        closes = ctx.history(["SPY"], "1d", 200, adjust="all")["SPY"].close
+        today = ctx.bars["SPY"].close
+        if rsi2(closes, today) < 10 and ctx.position("SPY").qty == 0:
+            ctx.order_target_weight("SPY", 1.0, at="close", reason="RSI2 below 10")
+        elif today > closes[-4:].mean() and ctx.position("SPY").qty != 0:
+            ctx.order_target_weight("SPY", 0, at="close", reason="close above SMA5")
+```
+
+To hold from one close to the next open, buy on the close and sell the next open in the same step; sizing the sell counts the buy, because it executes first:
+
+```python
+ctx.order_target_weight("SPY", 1.0, at="close", reason="hold overnight")
+ctx.order_target_weight("SPY", 0, at="open", reason="flat for the session")
+```
+
+
 ## Costs
 
-The spine starts every run with 100,000 start cash and this cost model:
+The spine starts every run with 100,000 start cash and this cost model, which the `cost` field of a backtest request replaces for that run (the fields marked optional may be left out):
 
-| Cost | Default |
-|---|---|
-| Commission | 0.005 per share, at least 1.00 per fill |
-| Slippage | 5 bps against you on market fills and on limit orders already marketable at the open |
-| Volume cap | 5% of the average daily volume of the last 20 sessions, per symbol and session; the rest of the order stays working and expires with its session. A symbol with no average daily volume fills uncapped and the run gets one data warning event for it |
-| Borrow | 2% per year on short positions, charged at each session close |
+| Field | Default | Meaning |
+|---|---|---|
+| `commission_per_share`, `commission_min` | `0.005`, `1.00` | Commission per share, at least the minimum per fill |
+| `commission_tiers` (optional) | none | Volume tiers, e.g. `[{"above": 300000, "per_share": "0.002"}]`: a fill pays the rate of the highest tier whose `above` the run's shares traded so far this calendar month have reached, like IBKR's tiered pricing |
+| `slippage_bps` | `5` | Basis points against you on market, stop and auction fills and on limit orders already marketable at the open |
+| `slippage_per_share` (optional) | `0` | A further amount per share against you on the same fills, e.g. `0.001` |
+| `adv_participation`, `adv_sessions` | `0.05`, `20` | Volume cap: that fraction of the average daily volume of the last sessions, per symbol and session; the rest of the order stays working. A symbol with no average daily volume fills uncapped and the run gets one data warning event for it |
+| `borrow_rate` | `0.02` | Per year on short positions, charged at each session close |
+| `financing_spread` (optional) | `0.015` | Added to the T-bill rate of the session (the US Treasury series, as of that date) for the financing of negative cash |
 
 Shorting is allowed for instruments flagged shortable.
 
+**Leverage.** Buying for more than the cash makes the cash negative, and selling short adds the proceeds to it. Each session close charges a `financing` ledger entry of negative cash × (T-bill rate + `financing_spread`) / 252, the same way borrow is charged on shorts, so a book that is flat before the close pays neither. Gross exposure is limited only by `max_gross_exposure` (below); set it to the book the strategy means, for example `4.0` for two dollars long and two short per dollar of equity. There are no margin calls: the drawdown stop is the only forced exit.
+
+```toml
+[risk]
+max_gross_exposure = 4.0
+```
+
+```python
+for symbol in cheap:
+    ctx.order_target_weight(symbol, 2.0 / len(cheap), reason="long leg, 2x")
+for symbol in rich:
+    ctx.order_target_weight(symbol, -2.0 / len(rich), reason="short leg, 2x")
+```
+
 ## Risk limits
 
-A bot declares its limits in a `[risk]` section of `bot.toml`, each a positive fraction and each optional:
+A bot declares its limits in a `[risk]` section of `bot.toml`, each a positive fraction of equity (`max_gross_exposure` above 1 allows leverage) and each optional:
 
 ```toml
 [risk]
@@ -163,7 +237,8 @@ max_gross_exposure = 1.0
 max_drawdown = 0.2
 ```
 
-They apply to every live run and are the default for backtests; the `risk` field of a backtest request replaces them for that run. A run keeps the limits it started with: a live run captures them when it goes live, so after changing them stop the live run and go live again. An order that would grow a position past `max_position_weight`, or the book past `max_gross_exposure`, is rejected; while equity is at or below zero every order that grows a position breaks a limit that is set. Without limits nothing is rejected for exposure. `max_drawdown` is a stop-loss, the same in backtests and live runs: when equity falls by that fraction from its peak, the run records a risk breach, the bot gets `end` with reason `risk_limit` and no further orders are taken, working orders are cancelled and every position is closed with a market order at the next open through the normal fills (slippage, commission and volume cap; what the cap leaves open is closed at the following opens). Once flat the run ends as `failed` with the message "stopped by drawdown limit"; a backtest ends there instead of running to its end date, and going live again starts a fresh run with a fresh peak. Its metrics, equity and ledger include the closing fills. To test a strategy without the stop, remove `max_drawdown`. Without a `[risk]` section a run has no limits.
+They apply to every live run and are the default for backtests; the `risk` field of a backtest request replaces them for that run.
+ A run keeps the limits it started with: a live run captures them when it goes live, so after changing them stop the live run and go live again. An order that would grow a position past `max_position_weight`, or the book past `max_gross_exposure`, is rejected; while equity is at or below zero every order that grows a position breaks a limit that is set. Without limits nothing is rejected for exposure. `max_drawdown` is a stop-loss, the same in backtests and live runs: when equity falls by that fraction from its peak, the run records a risk breach, the bot gets `end` with reason `risk_limit` and no further orders are taken, working orders are cancelled and every position is closed with a market order at the next open through the normal fills (slippage, commission and volume cap; what the cap leaves open is closed at the following opens). Once flat the run ends as `failed` with the message "stopped by drawdown limit"; a backtest ends there instead of running to its end date, and going live again starts a fresh run with a fresh peak. Its metrics, equity and ledger include the closing fills. To test a strategy without the stop, remove `max_drawdown`. Without a `[risk]` section a run has no limits.
 
 ## Holdout and honest data
 

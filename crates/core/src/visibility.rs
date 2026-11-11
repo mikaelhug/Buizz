@@ -29,3 +29,13 @@ pub fn order_session(
     let index = sessions.partition_point(|session| session.last_bar_start(timeframe) < decided_at);
     sessions.get(index)
 }
+
+pub fn open_auction_session(decided_at: Timestamp, calendar: &Calendar) -> Option<&Session> {
+    let sessions = calendar.sessions();
+    sessions.get(sessions.partition_point(|session| session.open <= decided_at))
+}
+
+pub fn close_auction_session(decided_at: Timestamp, calendar: &Calendar) -> Option<&Session> {
+    let sessions = calendar.sessions();
+    sessions.get(sessions.partition_point(|session| session.close <= decided_at))
+}

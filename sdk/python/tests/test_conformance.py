@@ -34,6 +34,11 @@ class RedGreen(Bot):
             observed["live_bars"] = ctx.bars
             observed["live_events"] = ctx.events
             observed["live_position"] = ctx.position("AAA")
+            ctx.order_target_weight("AAA", 0.5, at="close", reason="trade the close")
+            ctx.order(
+                "AAA", -10, trail_percent=Decimal("0.05"), tif="gtc", reason="protect the gain", client_id="AAA-trail"
+            )
+            ctx.order("BBB", 20, stop_price=Decimal("50.25"), tif="gtc", reason="breakout", client_id="BBB-breakout")
             return
         observed["bars"] = ctx.bars
         observed["clock"] = ctx.clock

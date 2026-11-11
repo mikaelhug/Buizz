@@ -1,1 +1,1 @@
-†¤type£ack£seqÍ>¦orders§cancels¥stateÀ¤logs
+†¤type£ack£seqÍ>¦orders“†©client_id®AAA-2024-12-02¦symbol£AAA¤size‚¢by­target_weight¦weight£0.5ªorder_type¤type¯market_on_close£tif£day¦reason¯trade the close†©client_id©AAA-trail¦symbol£AAA¤size‚¢by£qty£qtyöªorder_typeƒ¤type­trailing_stop¥trail‚¢by§percent§percent¤0.05ªstop_priceÀ£tif£gtc¦reason°protect the gain†©client_id¬BBB-breakout¦symbol£BBB¤size‚¢by£qty£qtyªorder_type‚¤type¤stopªstop_price¥50.25£tif£gtc¦reason¨breakout§cancels¥stateÀ¤logs

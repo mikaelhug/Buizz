@@ -6,10 +6,10 @@ use serde_json::{Value, json};
 use crate::expect::scenario;
 use crate::fake::FakeProviders;
 use crate::spine::{Options, Spine};
-use crate::world::{World, stamp};
+use crate::world::{World, decimal, stamp};
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_half_hourly_minute_bot_fills_limits_on_touch_and_expires_day_orders_at_the_half_day_close()
+async fn a_half_hourly_minute_bot_fills_limits_on_touch_expires_day_orders_at_the_half_day_close_and_sells_the_official_close()
  {
     let expected = scenario("lookahead")["minute"].clone();
     let world = World::fixture_market().await;
@@ -47,7 +47,7 @@ async fn a_half_hourly_minute_bot_fills_limits_on_touch_and_expires_day_orders_a
     assert_eq!(json!(clocks), expected["every_30m_clocks"]);
 
     let orders = spine.orders(run.id).await;
-    assert_eq!(orders.len(), 2);
+    assert_eq!(orders.len(), 3);
     let touched = &orders[0].order;
     let OrderType::Limit { limit_price } = touched.order_type else {
         panic!("the first order is a limit: {touched:?}");
@@ -81,5 +81,17 @@ async fn a_half_hourly_minute_bot_fills_limits_on_touch_and_expires_day_orders_a
     assert_eq!(
         untouched.updated_at, expires_at,
         "expired at the 13:00 close"
+    );
+
+    let on_close = &orders[2];
+    assert_eq!(on_close.order.order_type, OrderType::MarketOnClose);
+    assert_eq!(on_close.order.qty, 10);
+    assert_eq!(on_close.order.status, OrderStatus::Filled);
+    assert_eq!(on_close.order.updated_at, stamp("2024-12-02T21:00:00Z"));
+    assert_eq!(
+        on_close.avg_fill_price,
+        Some(decimal("99.4502")),
+        "the official close of 99.50 less 5 bps, not the last minute's {}",
+        tape.last().expect("a tape").close
     );
 }

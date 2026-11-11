@@ -194,7 +194,7 @@ fn round_trips(ledger: &[LedgerEntry]) -> Vec<Decimal> {
     let mut open: HashMap<&Symbol, OpenTrip> = HashMap::new();
     let mut closed = Vec::new();
     for entry in ledger {
-        let Some(symbol) = entry_symbol(&entry.kind) else {
+        let Some(symbol) = entry.kind.symbol() else {
             continue;
         };
         let trip = open.entry(symbol).or_default();
@@ -221,17 +221,6 @@ fn round_trips(ledger: &[LedgerEntry]) -> Vec<Decimal> {
         }
     }
     closed
-}
-
-fn entry_symbol(kind: &LedgerKind) -> Option<&Symbol> {
-    match kind {
-        LedgerKind::Deposit { .. } => None,
-        LedgerKind::Fill { symbol, .. }
-        | LedgerKind::Dividend { symbol, .. }
-        | LedgerKind::Split { symbol, .. }
-        | LedgerKind::BorrowFee { symbol, .. }
-        | LedgerKind::Liquidation { symbol, .. } => Some(symbol),
-    }
 }
 
 fn win_rate(trips: &[Decimal]) -> Option<f64> {

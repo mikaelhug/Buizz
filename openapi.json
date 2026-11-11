@@ -990,6 +990,23 @@
           }
         }
       },
+      "CommissionTier": {
+        "type": "object",
+        "required": [
+          "above",
+          "per_share"
+        ],
+        "properties": {
+          "above": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "per_share": {
+            "type": "string"
+          }
+        }
+      },
       "CostModel": {
         "type": "object",
         "required": [
@@ -1007,7 +1024,16 @@
           "commission_min": {
             "type": "string"
           },
+          "commission_tiers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommissionTier"
+            }
+          },
           "slippage_bps": {
+            "type": "string"
+          },
+          "slippage_per_share": {
             "type": "string"
           },
           "adv_participation": {
@@ -1019,6 +1045,9 @@
             "minimum": 0
           },
           "borrow_rate": {
+            "type": "string"
+          },
+          "financing_spread": {
             "type": "string"
           }
         }
@@ -1836,6 +1865,76 @@
                 ]
               }
             }
+          },
+          {
+            "type": "object",
+            "required": [
+              "stop_price",
+              "type"
+            ],
+            "properties": {
+              "stop_price": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "stop"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "trail",
+              "type"
+            ],
+            "properties": {
+              "trail": {
+                "$ref": "#/components/schemas/Trail"
+              },
+              "stop_price": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "trailing_stop"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "market_on_open"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "market_on_close"
+                ]
+              }
+            }
           }
         ]
       },
@@ -2001,7 +2100,10 @@
           "max_position_weight",
           "max_gross_exposure",
           "invalid_size",
-          "no_stream_slot"
+          "no_stream_slot",
+          "invalid_stop_price",
+          "auction_closed",
+          "auction_unavailable"
         ]
       },
       "Reproducibility": {
@@ -2712,7 +2814,8 @@
       "TimeInForce": {
         "type": "string",
         "enum": [
-          "day"
+          "day",
+          "gtc"
         ]
       },
       "Timeframe": {
@@ -2725,6 +2828,46 @@
       "Timestamp": {
         "type": "string",
         "format": "date-time"
+      },
+      "Trail": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "amount",
+              "by"
+            ],
+            "properties": {
+              "amount": {
+                "type": "string"
+              },
+              "by": {
+                "type": "string",
+                "enum": [
+                  "amount"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "percent",
+              "by"
+            ],
+            "properties": {
+              "percent": {
+                "type": "string"
+              },
+              "by": {
+                "type": "string",
+                "enum": [
+                  "percent"
+                ]
+              }
+            }
+          }
+        ]
       },
       "UniverseSpec": {
         "oneOf": [
@@ -2762,9 +2905,10 @@
         "examples": [
           "bar",
           "every:30m",
-          "at:15:55"
+          "at:15:55",
+          "before_close:10m"
         ],
-        "pattern": "^(bar|every:[0-9]+[mh]|at:[0-2][0-9]:[0-5][0-9])$"
+        "pattern": "^(bar|every:[0-9]+[mh]|at:[0-2][0-9]:[0-5][0-9]|before_close:[0-9]+m)$"
       },
       "Watermarks": {
         "type": "object",
