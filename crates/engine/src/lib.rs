@@ -207,10 +207,6 @@ impl Engine {
         Holdings::new(&self.state.portfolio, self.state.working.values())
     }
 
-    pub fn peak_equity(&self) -> Decimal {
-        self.state.peak_equity
-    }
-
     pub fn result_hash(&self) -> String {
         blake3::Hash::from_bytes(self.state.chain)
             .to_hex()
