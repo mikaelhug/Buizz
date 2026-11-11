@@ -144,6 +144,13 @@ Wave 1 is merged. Handoff notes for Wave 2 (the code is the reference):
 - Wave 2 merges runner → feed → ingest → API → web → bots. A wave starts only from a green main.
 - The orchestrating session spawns the agents, merges, and prunes `PLAN.md`.
 
+## After Wave 3
+
+1. Walk the whole website end to end in a browser and fix what is broken or unclear.
+2. Confirm every worktree branch is merged into `main` and pruned.
+3. Code review each module of Buizz (one review per crate, the SDK and the web app); fix confirmed findings.
+4. Implement the bot backlog in `bots/BRIEFS.md`, one Opus 5.5 agent per bot, each followed by a critical review of that implementation against its brief. Contract gaps (G1–G13) land as their own PRs before the bots they block.
+
 ## Deployment (after Wave 3, separate repo, with your go-ahead)
 
 Follows `~/akrell/akrell-apps` conventions (pattern: `apps/base/bande-logs/`, guide: `~/Private/Kubit/docs/apps-repository.md`, workflow: `~/Private/mappr/.github/workflows/release.yaml`):
