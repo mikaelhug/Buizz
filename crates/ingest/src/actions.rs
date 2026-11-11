@@ -27,7 +27,7 @@ impl Ingest {
             return Ok(Work::unconfigured("Alpaca"));
         };
         if let Some(work) = self
-            .backoff_work(now, DataSource::Alpaca, Dataset::CorporateActions)
+            .backoff_work(now, DataSource::Alpaca)
             .await?
         {
             return Ok(work);

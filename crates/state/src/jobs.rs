@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use buizz_core::market::{DataSource, Dataset, Symbol};
 use buizz_core::ops::{FetchStatus, JobOutcome, JobRun, SourceFetch};
 use buizz_core::time::Timestamp;
@@ -98,11 +100,36 @@ pub fn last_job_success(connection: &Connection, job: &str) -> Result<Option<Job
 }
 
 fn retry_after(fetch: &SourceFetch) -> Option<Timestamp> {
-    fetch.retry_after.or_else(|| match fetch.status {
-        FetchStatus::RateLimited | FetchStatus::Failed => Some(fetch.at + TRANSIENT_BACKOFF),
-        FetchStatus::Rejected => Some(fetch.at + PERMANENT_BACKOFF),
-        FetchStatus::Ok | FetchStatus::Empty => None,
-    })
+    fetch
+        .retry_after
+        .or_else(|| match (fetch.status, &fetch.symbol) {
+            (FetchStatus::RateLimited, _) | (FetchStatus::Failed, Some(_)) => {
+                Some(fetch.at + TRANSIENT_BACKOFF)
+            }
+            (FetchStatus::Rejected, Some(_)) => Some(fetch.at + PERMANENT_BACKOFF),
+            _ => None,
+        })
+}
+
+pub fn rate_limited_until(connection: &Connection, source: DataSource) -> Result<Option<Timestamp>> {
+    let until: Option<i64> = connection.query_row(
+        "SELECT MAX(retry_after) FROM source_fetch WHERE source = ? AND status = 'rate_limited'",
+        [enum_text(&source)?],
+        |row| row.get(0),
+    )?;
+    Ok(until.map(Timestamp::from_nanos))
+}
+
+pub fn failure_streaks(connection: &Connection) -> Result<BTreeMap<String, u32>> {
+    let mut statement = connection.prepare_cached(
+        "SELECT job, COUNT(*) FROM job_run failed WHERE outcome = 'failed' AND id > \
+         COALESCE((SELECT MAX(id) FROM job_run other WHERE other.job = failed.job \
+         AND other.outcome <> 'failed'), 0) GROUP BY job",
+    )?;
+    let streaks = statement
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+        .collect::<rusqlite::Result<_>>()?;
+    Ok(streaks)
 }
 
 pub fn record_fetch(connection: &Connection, fetch: &SourceFetch) -> Result<()> {

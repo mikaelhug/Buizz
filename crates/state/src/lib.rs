@@ -3,6 +3,7 @@ mod db;
 mod jobs;
 mod runs;
 
+use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -263,6 +264,16 @@ impl StateStore {
         let job = job.to_owned();
         self.db
             .read(move |connection| jobs::last_job_success(connection, &job))
+            .await
+    }
+
+    pub async fn failure_streaks(&self) -> Result<BTreeMap<String, u32>> {
+        self.db.read(jobs::failure_streaks).await
+    }
+
+    pub async fn rate_limited_until(&self, source: DataSource) -> Result<Option<Timestamp>> {
+        self.db
+            .read(move |connection| jobs::rate_limited_until(connection, source))
             .await
     }
 

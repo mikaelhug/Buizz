@@ -25,7 +25,7 @@ impl Ingest {
             .ok_or(IngestError::Unconfigured("Alpaca"))?;
         let now = Timestamp::now();
         if let Some(until) = self
-            .backoff_until(now, DataSource::Alpaca, Dataset::Bars1m, None)
+            .rate_limited_until(now, DataSource::Alpaca)
             .await?
         {
             return Err(SourceError::RateLimited {

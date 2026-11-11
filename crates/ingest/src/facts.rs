@@ -17,7 +17,7 @@ impl Ingest {
             return Ok(Work::unconfigured("SEC EDGAR"));
         };
         if let Some(work) = self
-            .backoff_work(now, DataSource::Edgar, Dataset::Fundamentals)
+            .backoff_work(now, DataSource::Edgar)
             .await?
         {
             return Ok(work);

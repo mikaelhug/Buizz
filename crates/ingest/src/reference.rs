@@ -23,7 +23,7 @@ impl Ingest {
             Some((from, to)),
         );
         if let Some(work) = self
-            .backoff_work(now, DataSource::Alpaca, Dataset::Calendar)
+            .backoff_work(now, DataSource::Alpaca)
             .await?
         {
             return Ok(work);
@@ -64,7 +64,7 @@ impl Ingest {
         };
         let key = FetchKey::new(DataSource::Alpaca, Dataset::Instruments, None, None);
         if let Some(work) = self
-            .backoff_work(now, DataSource::Alpaca, Dataset::Instruments)
+            .backoff_work(now, DataSource::Alpaca)
             .await?
         {
             return Ok(work);
@@ -100,7 +100,7 @@ impl Ingest {
 
     pub(crate) async fn rates(&self, now: Timestamp) -> Result<Work, IngestError> {
         if let Some(work) = self
-            .backoff_work(now, DataSource::Treasury, Dataset::Rates)
+            .backoff_work(now, DataSource::Treasury)
             .await?
         {
             return Ok(work);

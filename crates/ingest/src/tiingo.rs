@@ -20,7 +20,7 @@ impl Ingest {
             return Ok(Work::unconfigured("Tiingo"));
         };
         if let Some(work) = self
-            .backoff_work(now, DataSource::Tiingo, Dataset::Bars1d)
+            .backoff_work(now, DataSource::Tiingo)
             .await?
         {
             return Ok(work);

@@ -41,6 +41,7 @@ const ALPACA_LAST_BAR: &str = "2016-04-29";
 #[derive(Default)]
 struct Fake {
     rate_limit_bars: AtomicBool,
+    fail_bars: AtomicBool,
     hits: Mutex<HashMap<&'static str, u32>>,
 }
 
@@ -98,6 +99,9 @@ async fn bars(State(fake): State<Arc<Fake>>, Query(params): Query<Params>) -> Re
             [(header::RETRY_AFTER, "7200")],
         )
             .into_response();
+    }
+    if fake.fail_bars.load(Ordering::SeqCst) {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
     let from = date(&params["start"]).max(date(ALPACA_FIRST_BAR));
     let to = date(&params["end"]).min(date(ALPACA_LAST_BAR));
@@ -368,6 +372,17 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
         .map(|entry| entry.unwrap().file_name().into_string().unwrap())
         .collect();
     assert_eq!(snapshots, vec!["state-2024-07-07.db".to_owned()]);
+
+    fake.fail_bars.store(true, Ordering::SeqCst);
+    let failed_at = first_at + TimeDelta::hours(49);
+    let failed = ingest.tick(failed_at).await.unwrap();
+    assert!(failed.ran.contains(&("bars_1d", JobOutcome::Failed)));
+    fake.fail_bars.store(false, Ordering::SeqCst);
+    let recovered = ingest
+        .tick(failed_at + TimeDelta::minutes(6))
+        .await
+        .unwrap();
+    assert_eq!(recovered.ran, vec![("bars_1d", JobOutcome::Noop)]);
 
     fake.rate_limit_bars.store(true, Ordering::SeqCst);
     let limited_at = first_at + TimeDelta::hours(55);
