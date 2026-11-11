@@ -123,6 +123,8 @@ Out of v1: brokers and real money; options, crypto, FX; tick/quote simulation; e
    - No time seam: the runner, feed, ingest, API and supervisor call the wall clock directly, so the live e2e scenarios must sleep between 23:28 and 00:11 ET. Add one `now()` in `buizz_core::time` with a test offset.
    - The spine cannot report its bound address when `BUIZZ_BIND` uses port 0; e2e works around it with relaunch-on-collision.
    - The bot WebSocket's loopback-only guard refuses bots when `BUIZZ_BIND` names a specific non-loopback address (bots then connect from that address); accept the spine's own bound IP too.
+   - The e2e fake does not serve SEC `company_tickers_mf.json`, so fund classification is untested and the instruments job reports a 404 in e2e.
+   - `StepCommit` cannot carry undelivered step events, so a live crash between wakes holds back the checkpoint; add the field so the clock and equity never lag.
    Decided: the drawdown limit is a true stop-loss in both modes. On a breach the engine closes every position at the next open with normal costs, and the run ends as failed with the message "stopped by drawdown limit" (backtest and live alike; going live again starts a fresh run). To test a strategy without the stop, remove `max_drawdown` from its `[risk]`. Implemented after the core/engine and runner fix agents merge.
 4. Implement the bot backlog in `bots/BRIEFS.md`, one Opus 5.5 agent per bot, each followed by a critical review of that implementation against its brief. Contract gaps (G1–G13) land as their own PRs before the bots they block.
 
