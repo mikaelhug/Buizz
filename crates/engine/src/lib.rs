@@ -325,7 +325,7 @@ impl Engine {
             let price = match order.order_type {
                 OrderType::Market => Some(self.cost.market_fill_price(order.side, bar.open)),
                 OrderType::Limit { limit_price } => {
-                    CostModel::limit_fill_price(order.side, limit_price, bar)
+                    self.cost.limit_fill_price(order.side, limit_price, bar)
                 }
             };
             let Some(price) = price else { continue };
@@ -713,5 +713,33 @@ mod tests {
             engine.result_hash()
         };
         assert_eq!(hash("100000", "1"), hash("100000.00", "1.00"));
+    }
+
+    #[test]
+    fn a_limit_order_marketable_at_the_open_pays_the_slippage() {
+        let (first, second) = (session(20), session(21));
+        let mut engine = Engine::new(&config("100000", "1"), first.open);
+        step(
+            &mut engine,
+            &first,
+            &[bar(&first, "100", "99", "100")],
+            &[("AAA", 1_000_000)],
+        );
+        let limit = OrderType::Limit {
+            limit_price: Decimal::from(105),
+        };
+        submit(
+            &mut engine,
+            &first,
+            vec![order("AAA-1", OrderSize::Qty { qty: 10 }, limit)],
+        );
+        step(
+            &mut engine,
+            &second,
+            &[bar(&second, "100", "99", "101")],
+            &[("AAA", 1_000_000)],
+        );
+        let fills = engine.drain().fills;
+        assert_eq!(fills[0].price, "100.0500".parse::<Decimal>().unwrap());
     }
 }

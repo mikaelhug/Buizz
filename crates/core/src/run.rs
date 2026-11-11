@@ -171,11 +171,12 @@ impl CostModel {
         round_price(open * factor)
     }
 
-    pub fn limit_fill_price(side: Side, limit: Decimal, bar: &Bar) -> Option<Decimal> {
+    pub fn limit_fill_price(&self, side: Side, limit: Decimal, bar: &Bar) -> Option<Decimal> {
+        let at_open = self.market_fill_price(side, bar.open);
         match side {
-            Side::Buy if bar.open <= limit => Some(bar.open),
+            Side::Buy if bar.open <= limit => Some(at_open.min(limit)),
             Side::Buy if bar.low <= limit => Some(limit),
-            Side::Sell if bar.open >= limit => Some(bar.open),
+            Side::Sell if bar.open >= limit => Some(at_open.max(limit)),
             Side::Sell if bar.high >= limit => Some(limit),
             _ => None,
         }

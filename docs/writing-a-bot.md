@@ -127,7 +127,7 @@ Orders are rejected, with the reason on the order and in the run events, for: `u
 
 - A bar is visible when it is complete: a 1m bar one minute after its start, a daily bar at the session close, a fundamental fact at the next session open after `filed`, a corporate action at the open of its ex-date session.
 - The bot is stepped when a bar is visible. An order decided on bar N fills no earlier than bar N+1's open; there is no way to trade on the bar you are looking at.
-- A market order fills at the open of the next bar, moved against you by the slippage. A limit buy fills at the open if the open is at or below the limit, otherwise at the limit if the bar's low touches it; a limit sell mirrors that. Otherwise it stays working until its session closes and then expires.
+- A market order fills at the open of the next bar, moved against you by the slippage. A limit buy fills at the open moved against you by the slippage, but never above the limit, if the open is at or below the limit; otherwise at the limit if the bar's low touches it. A limit sell mirrors that. Otherwise it stays working until its session closes and then expires.
 - A day order belongs to the session of the first bar that starts at or after the decision, so an order placed at a daily close fills in the next session, and so does one placed after the last minute of a session.
 - Splits and cash dividends hit the position at the ex-date open.
 - A delisted symbol's position is liquidated at its last close and its orders are cancelled.
@@ -139,7 +139,7 @@ The spine starts every run with 100,000 start cash and this cost model:
 | Cost | Default |
 |---|---|
 | Commission | 0.005 per share, at least 1.00 per fill |
-| Slippage | 5 bps against you on market fills |
+| Slippage | 5 bps against you on market fills and on limit orders already marketable at the open |
 | Volume cap | 5% of the average daily volume of the last 20 sessions, per symbol and session; the rest of the order stays working and expires with its session |
 | Borrow | 2% per year on short positions, charged at each session close |
 
