@@ -276,6 +276,19 @@ async fn leases_share_stream_slots_and_live_bars_land_with_gaps_backfilled() {
     .await;
     let slots = feed.slots().borrow().clone();
     assert_eq!((slots.used, slots.connected, slots.error), (3, true, None));
+    let now = Timestamp::from_datetime(Utc::now()).unwrap();
+    let session_open = whole_days_around_now()
+        .into_iter()
+        .find(|session| session.open <= now && now < session.close)
+        .unwrap()
+        .open;
+    eventually(|| async {
+        closes_at(&market, session_open)
+            .await
+            .contains(&("DDD".to_owned(), "99".to_owned()))
+            .then_some(())
+    })
+    .await;
 
     let watermarks = market.watermarks();
     let minute = eventually(|| async { watermarks.borrow().minute }).await;
