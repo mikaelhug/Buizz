@@ -1,0 +1,6 @@
+description = "Connors RSI(2) pullback: index ETFs above their 200-day SMA bought when RSI(2) is below 5, sold on a close above the 5-day SMA, both in the closing auction"
+command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
+timeframe = "1d"
+wake = "before_close:10m"
+universe = { symbols = ["SPY", "QQQ", "IWM", "DIA"] }
+params = { rsi_period = 2, entry_rsi = 5, trend_sma = 200, exit_sma = 5, max_positions = 4 }
