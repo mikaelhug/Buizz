@@ -81,6 +81,7 @@ ASSET_CLASSES: frozenset[str] = frozenset(get_args(AssetClass.__value__))
 INDEXES: frozenset[str] = frozenset(get_args(StockIndex.__value__))
 ADJUSTMENTS: frozenset[str] = frozenset(get_args(Adjust.__value__))
 TIMES_IN_FORCE: frozenset[str] = frozenset(get_args(TimeInForce.__value__))
+LOG_LEVELS: frozenset[str] = frozenset(get_args(LogLevel.__value__))
 AUCTIONS: dict[str, OrderType] = {"open": MarketOnOpen(), "close": MarketOnClose()}
 STATE_SCALARS = (str, bool)
 STATE_INT_RANGE = range(-(2**63), 2**64)
@@ -100,6 +101,22 @@ def integer(name: str, value: object) -> int:
     if isinstance(value, bool) or not isinstance(value, Integral):
         raise TypeError(f"{name} must be an int, got {type(value).__name__} {value!r}")
     return int(value)
+
+
+def text(name: str, value: object) -> str:
+    if not isinstance(value, str):
+        raise TypeError(f"{name} must be a str, got {type(value).__name__} {value!r}")
+    return value
+
+
+def texts(name: str, values: object) -> list[str]:
+    given: object = values
+    if isinstance(given, list | tuple):
+        items = list(cast("list[object]", given))
+        if all(isinstance(item, str) for item in items):
+            return cast("list[str]", items)
+    hint = f"; write [{values!r}]" if isinstance(values, str) else ""
+    raise TypeError(f"{name} must be a list of str, got {type(values).__name__} {values!r}{hint}")
 
 
 def wire_decimal(name: str, value: object) -> Decimal:
@@ -378,17 +395,19 @@ class Context:
             raise ValueError(f"tf must be one of {sorted(TIMEFRAMES)}, got {tf!r}")
         if adjust not in ADJUSTMENTS:
             raise ValueError(f"adjust must be one of {sorted(ADJUSTMENTS)}, got {adjust!r}")
-        result = self._query(HistoryRequest(symbols, tf, history_bars(bars), adjust))
+        requested = texts("symbols", symbols)
+        result = self._query(HistoryRequest(requested, tf, history_bars(bars), adjust))
         if not isinstance(result, HistoryResult):
             raise ProtocolError(f"history query answered with {type(result).__name__}")
-        return split_history(result.bars, symbols)
+        return split_history(result.bars, requested)
 
     def fundamentals(self, symbols: list[str], metrics: list[Metric]) -> list[FundamentalPoint]:
         self._current("ctx.fundamentals")
-        unknown = [metric for metric in metrics if metric not in METRICS]
+        requested = texts("symbols", symbols)
+        unknown = [metric for metric in texts("metrics", metrics) if metric not in METRICS]
         if unknown:
             raise ValueError(f"unknown fundamental metrics {unknown}; the metrics are {sorted(METRICS)}")
-        result = self._query(FundamentalsRequest(symbols, metrics))
+        result = self._query(FundamentalsRequest(requested, list(metrics)))
         if not isinstance(result, FundamentalsResult):
             raise ProtocolError(f"fundamentals query answered with {type(result).__name__}")
         return [
@@ -408,14 +427,14 @@ class Context:
 
     def instruments(self, symbols: list[str]) -> dict[str, InstrumentProfile]:
         self._current("ctx.instruments")
-        result = self._query(InstrumentsRequest(symbols))
+        result = self._query(InstrumentsRequest(texts("symbols", symbols)))
         if not isinstance(result, InstrumentsResult):
             raise ProtocolError(f"instruments query answered with {type(result).__name__}")
         return {profile.symbol: profile for profile in result.instruments}
 
     def earnings(self, symbols: list[str]) -> list[EarningsRelease]:
         self._current("ctx.earnings")
-        result = self._query(EarningsRequest(symbols))
+        result = self._query(EarningsRequest(texts("symbols", symbols)))
         if not isinstance(result, EarningsResult):
             raise ProtocolError(f"earnings query answered with {type(result).__name__}")
         return [
@@ -462,10 +481,10 @@ class Context:
 
     def macro(self, series: list[MacroSeries], start: date, end: date) -> list[MacroPoint]:
         self._current("ctx.macro")
-        unknown = [name for name in series if name not in MACRO_SERIES]
+        unknown = [name for name in texts("series", series) if name not in MACRO_SERIES]
         if unknown:
             raise ValueError(f"unknown macro series {unknown}; the series are {sorted(MACRO_SERIES)}")
-        result = self._query(MacroRequest(series, day("start", start), day("end", end)))
+        result = self._query(MacroRequest(list(series), day("start", start), day("end", end)))
         if not isinstance(result, MacroResult):
             raise ProtocolError(f"macro query answered with {type(result).__name__}")
         return [
@@ -538,11 +557,13 @@ class Context:
 
     def cancel(self, client_id: str) -> None:
         self._current("ctx.cancel")
-        self._cancels.append(client_id)
+        self._cancels.append(text("client_id", client_id))
 
     def log(self, message: str, level: LogLevel = "info") -> None:
         self._current("ctx.log")
-        self._logs.append(LogLine(level, message))
+        if level not in LOG_LEVELS:
+            raise ValueError(f"level must be one of {sorted(LOG_LEVELS)}, got {level!r}")
+        self._logs.append(LogLine(level, text("message", message)))
 
     def begin(self, step: Step) -> None:
         self._step = step
@@ -594,6 +615,10 @@ class Context:
         self._current("placing an order")
         if tif not in TIMES_IN_FORCE:
             raise ValueError(f"tif must be one of {sorted(TIMES_IN_FORCE)}, got {tif!r}")
+        text("symbol", symbol)
+        text("reason", reason)
+        if client_id is not None:
+            text("client_id", client_id)
         client_id = client_id or self._next_client_id(symbol)
         self._orders.append(OrderRequest(client_id, symbol, size, kind, tif, reason))
         return client_id
