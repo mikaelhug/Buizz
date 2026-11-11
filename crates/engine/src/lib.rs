@@ -34,14 +34,14 @@ pub struct Cycle<'a> {
     pub delisted: &'a [Symbol],
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RiskBreach {
     pub limit: RiskLimit,
     pub value: Decimal,
     pub threshold: Decimal,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Outbox {
     pub ledger: Vec<LedgerEntry>,
     pub orders: Vec<Order>,
@@ -64,8 +64,6 @@ struct State {
     session_filled: BTreeMap<Symbol, u64>,
     breached: Vec<RiskLimit>,
     chain: [u8; 32],
-    changed_orders: BTreeMap<OrderId, Order>,
-    outbox: Outbox,
 }
 
 #[derive(Serialize)]
@@ -88,6 +86,8 @@ pub struct Engine {
     cost: CostModel,
     risk: RiskLimits,
     state: State,
+    outbox: Outbox,
+    changed_orders: BTreeMap<OrderId, Order>,
 }
 
 impl Engine {
@@ -99,6 +99,8 @@ impl Engine {
                 peak_equity: config.start_cash,
                 ..State::default()
             },
+            outbox: Outbox::default(),
+            changed_orders: BTreeMap::new(),
         };
         engine.post(
             start,
@@ -119,6 +121,8 @@ impl Engine {
             cost: config.cost,
             risk: config.risk,
             state,
+            outbox: Outbox::default(),
+            changed_orders: BTreeMap::new(),
         })
     }
 
@@ -192,8 +196,8 @@ impl Engine {
     }
 
     pub fn drain(&mut self) -> Outbox {
-        let mut outbox = std::mem::take(&mut self.state.outbox);
-        outbox.orders = std::mem::take(&mut self.state.changed_orders)
+        let mut outbox = std::mem::take(&mut self.outbox);
+        outbox.orders = std::mem::take(&mut self.changed_orders)
             .into_values()
             .collect();
         outbox
@@ -215,8 +219,7 @@ impl Engine {
 
     fn apply_actions(&mut self, cycle: &Cycle<'_>) {
         for action in cycle.actions {
-            self.state
-                .outbox
+            self.outbox
                 .step_events
                 .push(StepEvent::CorporateAction(action.clone()));
             let held = self.state.portfolio.qty(&action.symbol);
@@ -300,12 +303,11 @@ impl Engine {
     }
 
     fn expire(&mut self, cycle: &Cycle<'_>) {
-        if let Some(previous) = self.state.session {
-            self.close_where(previous.close, OrderStatus::Expired, |order| {
-                order.session == Some(previous.date)
-            });
-        }
-        self.close_where(cycle.start, OrderStatus::Expired, |order| {
+        let at = self
+            .state
+            .session
+            .map_or(cycle.start, |previous| previous.close);
+        self.close_where(at, OrderStatus::Expired, |order| {
             order
                 .session
                 .is_none_or(|session| session < cycle.session.date)
@@ -369,11 +371,8 @@ impl Engine {
                     feed: fill.feed,
                 },
             );
-            self.state
-                .outbox
-                .step_events
-                .push(StepEvent::Fill(fill.clone()));
-            self.state.outbox.fills.push(fill);
+            self.outbox.step_events.push(StepEvent::Fill(fill.clone()));
+            self.outbox.fills.push(fill);
             order.filled_qty += qty;
             if order.remaining() == 0 {
                 order.status = OrderStatus::Filled;
@@ -415,7 +414,7 @@ impl Engine {
         let equity = portfolio.equity();
         self.state.peak_equity = self.state.peak_equity.max(equity);
         if session_closed {
-            self.state.outbox.equity_points.push(EquityPoint {
+            self.outbox.equity_points.push(EquityPoint {
                 at: cycle.visible_at,
                 equity,
                 cash: portfolio.cash,
@@ -470,7 +469,7 @@ impl Engine {
                 self.state.breached.retain(|breach| *breach != limit);
             } else if !known {
                 self.state.breached.push(limit);
-                self.state.outbox.breaches.push(RiskBreach {
+                self.outbox.breaches.push(RiskBreach {
                     limit,
                     value,
                     threshold,
@@ -564,13 +563,12 @@ impl Engine {
             kind,
         };
         self.absorb(b"ledger", &entry);
-        self.state.outbox.ledger.push(entry);
+        self.outbox.ledger.push(entry);
     }
 
     fn record(&mut self, order: Order) {
         self.absorb(b"order", &order);
-        self.state
-            .outbox
+        self.outbox
             .step_events
             .push(StepEvent::Order(OrderUpdate::from(&order)));
         if order.status.is_terminal() {
@@ -578,7 +576,7 @@ impl Engine {
         } else {
             self.state.working.insert(order.id, order.clone());
         }
-        self.state.changed_orders.insert(order.id, order);
+        self.changed_orders.insert(order.id, order);
     }
 
     fn absorb(&mut self, tag: &[u8], record: &impl Serialize) {
