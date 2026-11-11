@@ -8,6 +8,7 @@ async function dataHealth(page: Page): Promise<{ warnings: string[] }> {
   await pill(jobs.locator("tr", { hasText: "tiingo_history" }), "failed").waitFor();
   const warnings = panel(page, "Warnings").locator("li");
   await warnings.filter({ hasText: "overlap rejected" }).filter({ hasText: "AAPL" }).waitFor();
+  await panel(page, "Backfill").locator("li", { hasText: "Bars1d" }).first().waitFor();
   await panel(page, "Coverage").locator("tr", { hasText: "AAPL" }).first().waitFor();
   return { warnings: await warnings.allTextContents() };
 }

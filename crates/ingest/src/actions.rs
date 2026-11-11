@@ -58,7 +58,7 @@ impl Ingest {
                     .is_some_and(|(_, _, backfilling)| *backfilling),
             );
         for (index, (from, scope, backfilling)) in requests.into_iter().enumerate() {
-            if index == budget {
+            if index == budget || self.stopping() {
                 batch.more_remains("symbols");
                 break;
             }

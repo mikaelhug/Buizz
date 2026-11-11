@@ -56,11 +56,12 @@ The spine (`cargo run -p buizz-spine`) reads these environment variables. Empty 
 | `BUIZZ_FIXTURE_DIR` | unset | Load the CSV fixture data set in this folder into the market store at start and advance the data watermarks to it |
 | `BUIZZ_SECURE_COOKIES` | `true` | Mark the session cookie `Secure`; set `false` for plain HTTP |
 | `BUIZZ_INGEST` | `true` | Run the scheduled data jobs; `false` for fixture-only work |
+| `BUIZZ_INGEST_SYMBOLS` | unset | A comma-separated list that limits prices, corporate actions, fundamentals, filings and Tiingo history to these symbols, for a quick real-data spine on a laptop; calendar, instruments, membership, rates, macro and borrow stay complete |
 | `ALPACA_KEY_ID`, `ALPACA_SECRET_KEY` | unset | Alpaca market data credentials; both are needed to enable Alpaca, the live feed and minute-bar backtests |
 | `ALPACA_DATA_URL` | `https://data.alpaca.markets` | Alpaca data endpoint |
 | `ALPACA_TRADING_URL` | `https://paper-api.alpaca.markets` | Alpaca endpoint for the calendar and assets |
 | `ALPACA_STREAM_URL` | `wss://stream.data.alpaca.markets/v2/iex` | Alpaca real-time stream |
-| `TIINGO_API_KEY` | unset | Enables Tiingo history before 2016 |
+| `TIINGO_API_KEY` | unset | Enables Tiingo daily history from 2000 to Alpaca's 2016 start |
 | `TIINGO_URL` | `https://api.tiingo.com` | Tiingo endpoint |
 | `SEC_USER_AGENT` | unset | Enables SEC EDGAR fundamentals, SIC codes and earnings releases, and Wikipedia's S&P 500 membership; the SEC requires a contact in the User-Agent, for example `name email@example.com`, and the same contact goes into the Wikipedia User-Agent |
 | `SEC_DATA_URL`, `SEC_WWW_URL` | `https://data.sec.gov`, `https://www.sec.gov` | EDGAR endpoints |
@@ -69,6 +70,8 @@ The spine (`cargo run -p buizz-spine`) reads these environment variables. Empty 
 | `IBKR_FTP_ADDRESS` | `ftp2.interactivebrokers.com:21` | Interactive Brokers' public short stock FTP server, read daily by the `borrow` job |
 | `FRED_API_KEY` | unset | Enables the FRED macro series for bots (`ctx.macro`); a free key from fred.stlouisfed.org. Without it the `macro` job reports that FRED is not configured |
 | `FRED_URL` | `https://api.stlouisfed.org` | FRED endpoint |
+| `BUIZZ_DUCKDB_MEMORY` | `1GB` | Memory the market store may use for queries and writes before it spills to `market.duckdb.tmp/` in the data directory |
+| `BUIZZ_DUCKDB_THREADS` | `2` | Threads the market store uses |
 | `RUST_LOG` | `info` | Log filter |
 
 `just dev` sets `BUIZZ_ADMIN_PASSWORD=buizz-dev-admin`, `BUIZZ_SECURE_COOKIES=false`, `BUIZZ_INGEST=false`, `BUIZZ_BIND=127.0.0.1:8080` and `BUIZZ_FIXTURE_DIR=fixtures/market`.

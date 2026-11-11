@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use buizz_core::market::{Company, DataSource, Dataset, EarningsRelease, Symbol};
 use buizz_core::time::Timestamp;
-use buizz_sources::edgar::EdgarClient;
+use buizz_sources::edgar::{EARNINGS_FORMS, EdgarClient};
 use buizz_sources::http::SourceError;
 
 use crate::facts::NO_CIK;
@@ -17,15 +17,17 @@ impl Ingest {
         if let Some(work) = self.backoff_work(now, DataSource::Edgar).await? {
             return Ok(work);
         }
-        let (due, more) = self.companies_due(now, Dataset::Companies).await?;
-        if due.is_empty() {
-            return Ok(Work::noop("no company needs a refresh"));
-        }
         let map_key = FetchKey::new(DataSource::Edgar, Dataset::Companies, None, None);
         let tickers = match edgar.ticker_map().await {
             Ok(tickers) => tickers,
             Err(error) => return self.source_failure(now, &map_key, &error).await,
         };
+        let (due, more) = self
+            .companies_due(now, Dataset::Companies, &tickers, &EARNINGS_FORMS)
+            .await?;
+        if due.is_empty() {
+            return Ok(Work::noop("no company has a new filing"));
+        }
         let stored = self.market.companies().await?;
         let backfilled: BTreeSet<Symbol> = stored
             .iter()
@@ -33,7 +35,12 @@ impl Ingest {
             .collect();
         let mut batch = Batch::default();
         let mut without_cik = 0;
+        let mut more = more;
         for symbol in due {
+            if self.stopping() {
+                more = true;
+                break;
+            }
             let key = FetchKey::new(DataSource::Edgar, Dataset::Companies, Some(&symbol), None);
             let Some(cik) = tickers.get(&symbol).copied() else {
                 self.record_rejection(now, &key, NO_CIK).await?;

@@ -108,6 +108,10 @@ pub enum Feed {
 }
 
 pub const SIP_DELAY: Duration = Duration::from_secs(15 * 60);
+pub const ALPACA_HISTORY_START: NaiveDate =
+    NaiveDate::from_ymd_opt(2016, 1, 1).expect("valid date");
+pub const HISTORY_START: NaiveDate = NaiveDate::from_ymd_opt(2000, 1, 1).expect("valid date");
+pub const HISTORY_FLOORS: [NaiveDate; 2] = [HISTORY_START, ALPACA_HISTORY_START];
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct Bar {
@@ -387,6 +391,14 @@ pub struct InstrumentProfile {
     pub sic_description: Option<String>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SecFiling {
+    pub cik: u32,
+    pub accession: String,
+    pub form: String,
+    pub filed: NaiveDate,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct EarningsRelease {
     pub symbol: Symbol,
@@ -529,6 +541,7 @@ pub enum Dataset {
     Rates,
     Companies,
     EarningsReleases,
+    SecFilings,
     IndexMembership,
     Borrow,
     Macro,

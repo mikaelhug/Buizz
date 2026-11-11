@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use utoipa::{IntoParams, ToSchema};
 
-use crate::market::{Coverage, Symbol, Timeframe, Watermarks};
+use crate::market::{Coverage, DataSource, Dataset, Symbol, Timeframe, Watermarks};
 use crate::ops::{DataWarning, JobOutcome};
 use crate::order::{Fill, Order, OrderUpdate};
 use crate::performance::Metrics;
@@ -151,9 +151,18 @@ pub struct Leaderboard {
     pub rows: Vec<LeaderboardRow>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct BackfillProgress {
+    pub dataset: Dataset,
+    pub source: DataSource,
+    pub done: u32,
+    pub total: u32,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct DataHealth {
     pub watermarks: Watermarks,
+    pub backfill: Vec<BackfillProgress>,
     pub coverage: Vec<Coverage>,
     pub warnings: Vec<DataWarning>,
     pub stale_jobs: u32,

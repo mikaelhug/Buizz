@@ -3,7 +3,7 @@ mod db;
 mod jobs;
 mod runs;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ops::RangeInclusive;
 use std::path::Path;
 use std::sync::Arc;
@@ -313,6 +313,16 @@ impl StateStore {
             .read(move |connection| {
                 jobs::recent_fetches(connection, source, dataset, symbol.as_ref(), limit)
             })
+            .await
+    }
+
+    pub async fn settled_symbols(
+        &self,
+        source: DataSource,
+        dataset: Dataset,
+    ) -> Result<BTreeSet<Symbol>> {
+        self.db
+            .read(move |connection| jobs::settled_symbols(connection, source, dataset))
             .await
     }
 

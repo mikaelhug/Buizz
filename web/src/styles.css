@@ -1225,3 +1225,18 @@ h2 {
     height: 220px;
   }
 }
+
+.backfill {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.backfill li {
+  display: grid;
+  grid-template-columns: minmax(0, 14em) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}

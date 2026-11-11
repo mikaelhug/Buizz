@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use buizz_core::market::{
     Bar, BorrowAvailability, Company, CorporateAction, CorporateActionKind, DataSource, Dataset,
     EarningsRelease, FundamentalFact, IndexHistory, Instrument, MacroObservation, RiskFreeRate,
-    Session, Symbol,
+    SecFiling, Session, Symbol,
 };
 use buizz_core::time::Timestamp;
 use chrono::NaiveDate;
@@ -663,6 +663,37 @@ pub(crate) fn earnings_releases(
                 },
             )?;
             replace_staged(transaction, "earnings_release", batch_id)
+        },
+    )
+}
+
+pub(crate) fn sec_filings(
+    connection: &mut Connection,
+    source: DataSource,
+    filings: Vec<SecFiling>,
+    day: NaiveDate,
+) -> Result<WriteSummary> {
+    let mut coverage = Coverage::new();
+    cover(&mut coverage, None, day);
+    write_batch(
+        connection,
+        source,
+        Dataset::SecFilings,
+        coverage,
+        |transaction, batch_id| {
+            let mut statement = transaction
+                .prepare_cached("INSERT OR IGNORE INTO main.sec_filing VALUES (?, ?, ?, ?, ?)")?;
+            let mut rows = 0;
+            for filing in &filings {
+                rows += statement.execute(params![
+                    filing.cik,
+                    filing.accession,
+                    filing.form,
+                    filing.filed,
+                    batch_id
+                ])? as u64;
+            }
+            Ok(rows)
         },
     )
 }

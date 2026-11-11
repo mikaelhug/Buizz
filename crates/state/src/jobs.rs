@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use buizz_core::market::{DataSource, Dataset, Symbol};
 use buizz_core::ops::{FetchStatus, JobOutcome, JobRun, SourceFetch};
@@ -198,6 +198,23 @@ pub fn recent_fetches(
         )?
         .collect::<rusqlite::Result<_>>()?;
     Ok(fetches)
+}
+
+pub fn settled_symbols(
+    connection: &Connection,
+    source: DataSource,
+    dataset: Dataset,
+) -> Result<BTreeSet<Symbol>> {
+    let mut statement = connection.prepare_cached(
+        "SELECT DISTINCT symbol FROM source_fetch WHERE source = ? AND dataset = ? \
+         AND symbol IS NOT NULL AND status IN ('ok', 'empty', 'rejected')",
+    )?;
+    let symbols = statement
+        .query_map(params![enum_text(&source)?, enum_text(&dataset)?], |row| {
+            Ok(Symbol::new(&row.get::<_, String>(0)?))
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    Ok(symbols)
 }
 
 pub fn latest_rejections(

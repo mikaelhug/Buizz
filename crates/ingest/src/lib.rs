@@ -9,16 +9,20 @@ mod macros;
 mod minute;
 mod reference;
 mod schedule;
+mod sec_index;
 mod snapshot;
 mod tiingo;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-use buizz_core::api::{JobView, SpineEvent};
-use buizz_core::market::{Coverage, DataSource, Dataset, Instrument, StockIndex, Symbol};
+use buizz_core::api::{BackfillProgress, JobView, SpineEvent};
+use buizz_core::market::{
+    AssetClass, Coverage, DataSource, Dataset, Instrument, StockIndex, Symbol,
+};
 use buizz_core::ops::JobOutcome;
 use buizz_core::time::Timestamp;
 use buizz_market::{MarketError, MarketStore};
@@ -69,6 +73,7 @@ pub struct IngestConfig {
     pub snapshot_keep: usize,
     pub history_start: NaiveDate,
     pub enabled: bool,
+    pub only: Option<BTreeSet<Symbol>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -90,6 +95,7 @@ pub struct Ingest {
     sources: Sources,
     events: broadcast::Sender<SpineEvent>,
     gate: Arc<Mutex<()>>,
+    stopping: Arc<AtomicBool>,
 }
 
 impl Ingest {
@@ -106,6 +112,7 @@ impl Ingest {
             sources,
             events: broadcast::Sender::new(EVENT_CAPACITY),
             gate: Arc::new(Mutex::new(())),
+            stopping: Arc::default(),
         }
     }
 
@@ -117,6 +124,9 @@ impl Ingest {
         let failures = self.state.failure_streaks().await?;
         let mut report = TickReport::default();
         for spec in JOBS {
+            if self.stopping() {
+                break;
+            }
             let previous = latest.iter().find(|run| run.job == spec.name);
             let streak = failures.get(spec.name).copied().unwrap_or(0);
             if due_at(&spec, previous, streak).is_some_and(|due| due > now) {
@@ -174,6 +184,20 @@ impl Ingest {
         self.config.enabled
     }
 
+    pub async fn stop(&self, grace: Duration) {
+        self.stopping.store(true, Ordering::SeqCst);
+        if tokio::time::timeout(grace, self.gate.lock()).await.is_err() {
+            tracing::warn!(
+                ?grace,
+                "an ingest job was still running at shutdown; it resumes on the next start"
+            );
+        }
+    }
+
+    pub(crate) fn stopping(&self) -> bool {
+        self.stopping.load(Ordering::SeqCst)
+    }
+
     pub fn spawn(&self) -> Option<JoinHandle<()>> {
         if !self.config.enabled {
             return None;
@@ -200,6 +224,7 @@ impl Ingest {
             schedule::INSTRUMENTS => self.instruments(now).await,
             schedule::BARS_1D => self.daily_bars(now).await,
             schedule::CORPORATE_ACTIONS => self.corporate_actions(now).await,
+            schedule::SEC_INDEX => self.sec_index(now).await,
             schedule::FUNDAMENTALS => self.fundamentals(now).await,
             schedule::FILINGS => self.filings(now).await,
             schedule::INDEX_MEMBERSHIP => self.index_membership(now).await,
@@ -207,17 +232,103 @@ impl Ingest {
             schedule::BORROW => self.borrow(now).await,
             schedule::MACRO => self.macro_series(now).await,
             schedule::STATE_SNAPSHOT => self.state_snapshot(now).await,
+            schedule::MARKET_SNAPSHOT => self.market_snapshot(now).await,
             schedule::TIINGO_HISTORY => self.tiingo_history(now).await,
             other => unreachable!("unscheduled job {other}"),
         }
     }
 
-    async fn active_instruments(&self) -> Result<Vec<Instrument>, IngestError> {
-        let instruments = self.market.instruments().await?;
-        Ok(instruments
+    pub async fn backfill_progress(&self) -> Result<Vec<BackfillProgress>, IngestError> {
+        let priced = self.priced_symbols().await?;
+        let coverage = self.market.coverage().await?;
+        let covered = |dataset: Dataset, source: DataSource| -> BTreeMap<&Symbol, &Coverage> {
+            coverage
+                .iter()
+                .filter(|row| row.dataset == dataset && row.source == source)
+                .filter_map(|row| Some((row.symbol.as_ref()?, row)))
+                .collect()
+        };
+        let count = |symbols: &mut dyn Iterator<Item = bool>| {
+            let (mut done, mut total) = (0_u32, 0_u32);
+            for settled in symbols {
+                total += 1;
+                done += u32::from(settled);
+            }
+            (done, total)
+        };
+        let mut progress = Vec::new();
+        let mut push = |dataset, source, (done, total): (u32, u32)| {
+            progress.push(BackfillProgress {
+                dataset,
+                source,
+                done,
+                total,
+            });
+        };
+        let bars = covered(Dataset::Bars1d, DataSource::Alpaca);
+        let checked = self
+            .state
+            .settled_symbols(DataSource::Alpaca, Dataset::Bars1d)
+            .await?;
+        push(
+            Dataset::Bars1d,
+            DataSource::Alpaca,
+            count(
+                &mut priced
+                    .iter()
+                    .map(|p| bars.contains_key(&p.symbol) || checked.contains(&p.symbol)),
+            ),
+        );
+        let actions = covered(Dataset::CorporateActions, DataSource::Alpaca);
+        let history_start = self.config.history_start;
+        push(
+            Dataset::CorporateActions,
+            DataSource::Alpaca,
+            count(&mut priced.iter().map(|p| {
+                actions
+                    .get(&p.symbol)
+                    .is_some_and(|row| row.first <= history_start)
+            })),
+        );
+        let stocks: BTreeSet<Symbol> = self
+            .market
+            .instruments()
+            .await?
             .into_iter()
-            .filter(|instrument| instrument.active)
-            .collect())
+            .filter(|instrument| instrument.active && instrument.asset_class == AssetClass::Stock)
+            .map(|instrument| instrument.symbol)
+            .collect();
+        for dataset in [Dataset::Fundamentals, Dataset::Companies] {
+            let read = self
+                .state
+                .settled_symbols(DataSource::Edgar, dataset)
+                .await?;
+            push(
+                dataset,
+                DataSource::Edgar,
+                count(&mut stocks.iter().map(|symbol| read.contains(symbol))),
+            );
+        }
+        if let Some(floor) = bars.values().map(|row| row.first).min() {
+            let extended = self
+                .state
+                .settled_symbols(DataSource::Tiingo, Dataset::Bars1d)
+                .await?;
+            let calendar = self.market.calendar(history_start, floor).await?;
+            let candidates = priced.iter().filter(|p| {
+                bars.get(&p.symbol).is_some_and(|row| row.first == floor)
+                    && calendar
+                        .sessions()
+                        .first()
+                        .is_some_and(|first| first.date < floor)
+            });
+            push(
+                Dataset::Bars1d,
+                DataSource::Tiingo,
+                count(&mut candidates.map(|p| extended.contains(&p.symbol))),
+            );
+        }
+        Ok(progress)
     }
 
     async fn priced_symbols(&self) -> Result<Vec<Priced>, IngestError> {
@@ -240,7 +351,16 @@ impl Ingest {
             .filter(|instrument| instrument.exchange != OTC)
             .map(|instrument| (instrument.symbol.clone(), instrument))
             .collect();
-        let symbols: BTreeSet<&Symbol> = instruments.keys().chain(members.keys()).collect();
+        let symbols: BTreeSet<&Symbol> = instruments
+            .keys()
+            .chain(members.keys())
+            .filter(|symbol| {
+                self.config
+                    .only
+                    .as_ref()
+                    .is_none_or(|only| only.contains(*symbol))
+            })
+            .collect();
         let mut priced: Vec<Priced> = symbols
             .into_iter()
             .map(|symbol| {

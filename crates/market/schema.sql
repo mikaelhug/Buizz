@@ -169,3 +169,12 @@ CREATE TABLE company_revision AS SELECT *, CAST(NULL AS BIGINT) AS superseded_by
 CREATE TABLE earnings_release_revision AS SELECT *, CAST(NULL AS BIGINT) AS superseded_by FROM earnings_release LIMIT 0;
 CREATE TABLE index_member_revision AS SELECT *, CAST(NULL AS BIGINT) AS superseded_by FROM index_member LIMIT 0;
 CREATE TABLE index_history_revision AS SELECT *, CAST(NULL AS BIGINT) AS superseded_by FROM index_history LIMIT 0;
+
+CREATE TABLE sec_filing (
+    cik UINTEGER NOT NULL,
+    accession VARCHAR NOT NULL,
+    form VARCHAR NOT NULL,
+    filed DATE NOT NULL,
+    batch_id BIGINT NOT NULL,
+    PRIMARY KEY (cik, accession)
+);

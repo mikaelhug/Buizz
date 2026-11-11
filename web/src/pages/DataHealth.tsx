@@ -7,6 +7,8 @@ import { type Resource, useResource } from "../lib/useResource";
 import { Failure, Loading, StaleFailure } from "../ui/Feedback";
 import { StatusPill } from "../ui/Status";
 
+const COVERAGE_ROWS_SHOWN = 200;
+
 export function DataHealth() {
   const health = useResource(() => must(api.GET("/api/data/health")), []);
   const jobs = useResource(() => must(api.GET("/api/data/jobs")), []);
@@ -66,6 +68,7 @@ export function DataHealth() {
         <FeedPanel feed={feed} />
         <WarningsPanel health={health} />
       </div>
+      <BackfillPanel health={health} />
       <JobsPanel jobs={jobs} />
       <CoveragePanel health={health} />
     </div>
@@ -152,6 +155,40 @@ function WarningsPanel({ health }: { health: Resource<Schemas["DataHealth"]> }) 
   );
 }
 
+function BackfillPanel({ health }: { health: Resource<Schemas["DataHealth"]> }) {
+  const rows = health.data?.backfill ?? [];
+  return (
+    <section className="panel">
+      <h2 className="help" title="Symbols each first backfill has reached, out of those it covers">
+        Backfill
+      </h2>
+      {!health.data ? (
+        health.error ? <Failure message={health.error} onRetry={health.reload} /> : <Loading />
+      ) : rows.length === 0 ? (
+        <p className="empty">Nothing to backfill</p>
+      ) : (
+        <ul className="backfill">
+          {rows.map((row) => {
+            const fill = row.total > 0 ? row.done / row.total : 1;
+            const name = `${label(row.dataset)} (${label(row.source)})`;
+            return (
+              <li key={`${row.dataset}-${row.source}`}>
+                <span>{name}</span>
+                <div className="meter" role="meter" aria-valuemin={0} aria-valuemax={row.total} aria-valuenow={row.done} aria-label={name}>
+                  <span style={{ width: `${fill * 100}%` }} />
+                </div>
+                <span className="num">
+                  {fmt.integer(row.done)}/{fmt.integer(row.total)}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 function JobsPanel({ jobs }: { jobs: Resource<Schemas["JobView"][]> }) {
   return (
     <section className="panel">
@@ -205,9 +242,10 @@ function JobsPanel({ jobs }: { jobs: Resource<Schemas["JobView"][]> }) {
 function CoveragePanel({ health }: { health: Resource<Schemas["DataHealth"]> }) {
   const [query, setQuery] = useState("");
   const needle = useDeferredValue(query.trim().toUpperCase());
-  const rows = (health.data?.coverage ?? []).filter(
+  const matching = (health.data?.coverage ?? []).filter(
     (row) => !needle || (row.symbol ?? "").toUpperCase().includes(needle) || row.dataset.toUpperCase().includes(needle),
   );
+  const rows = matching.slice(0, COVERAGE_ROWS_SHOWN);
   return (
     <section className="panel">
       <header className="panel-head">
@@ -251,6 +289,11 @@ function CoveragePanel({ health }: { health: Resource<Schemas["DataHealth"]> }) 
               ))}
             </tbody>
           </table>
+          {matching.length > rows.length && (
+            <p className="muted">
+              Showing {fmt.integer(rows.length)} of {fmt.integer(matching.length)}; filter by symbol or dataset to find the rest
+            </p>
+          )}
         </div>
       )}
     </section>

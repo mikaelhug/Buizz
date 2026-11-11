@@ -85,7 +85,7 @@ impl Ingest {
                 let mut received: BTreeMap<Symbol, usize> = BTreeMap::new();
                 let mut token = None;
                 loop {
-                    if requests == REQUESTS_PER_RUN {
+                    if requests == REQUESTS_PER_RUN || self.stopping() {
                         batch.more_remains("symbols");
                         current &= from != revised_from;
                         break 'groups;

@@ -50,12 +50,14 @@ async fn an_empty_spine_backfills_backs_off_rejects_a_bad_tiingo_tail_and_restar
             ("index_membership", ok),
             ("bars_1d", ok),
             ("corporate_actions", Some(JobOutcome::Backoff)),
+            ("sec_index", Some(JobOutcome::Noop)),
             ("fundamentals", ok),
             ("filings", ok),
             ("rates", ok),
             ("borrow", ok),
             ("macro", ok),
             ("state_snapshot", ok),
+            ("market_snapshot", ok),
             ("tiingo_history", Some(JobOutcome::Failed)),
         ]),
         "{jobs:#?}"
@@ -100,11 +102,11 @@ async fn an_empty_spine_backfills_backs_off_rejects_a_bad_tiingo_tail_and_restar
         BTreeMap::from([
             (
                 "AAPL".to_owned(),
-                ("2024-06-04".to_owned(), "2024-07-05".to_owned())
+                ("2024-06-03".to_owned(), "2024-07-05".to_owned())
             ),
             (
                 "SPY".to_owned(),
-                ("2024-06-03".to_owned(), "2024-07-05".to_owned())
+                ("2024-06-04".to_owned(), "2024-07-05".to_owned())
             ),
         ])
     );

@@ -88,8 +88,10 @@ pub(crate) async fn data_health(State(app): State<AppState>) -> Result<Json<Data
         .iter()
         .filter(|job| job.stale)
         .count();
+    let backfill = app.ingest.backfill_progress().await?;
     Ok(Json(DataHealth {
         watermarks,
+        backfill,
         coverage,
         warnings,
         stale_jobs: u32::try_from(stale_jobs).unwrap_or(u32::MAX),

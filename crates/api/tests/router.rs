@@ -66,6 +66,7 @@ async fn spine() -> Spine {
             snapshot_dir: data.path().join("backups"),
             snapshot_keep: 1,
             history_start: HISTORY_START,
+            only: None,
             enabled: false,
         },
         market.clone(),

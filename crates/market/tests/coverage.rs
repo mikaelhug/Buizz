@@ -100,3 +100,41 @@ async fn gaps_skip_days_before_listing_and_count_only_settled_sip_minutes() {
         ]
     );
 }
+
+#[tokio::test]
+async fn history_that_starts_where_the_store_starts_is_a_gap_before_it_not_a_listing() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = MarketStore::open(&dir.path().join(FILE_NAME), 1)
+        .await
+        .unwrap();
+    let noon = NaiveTime::from_hms_opt(12, 0, 0).unwrap();
+    let days: Vec<NaiveDate> = ["2015-12-30", "2015-12-31", "2016-01-04", "2016-01-05"]
+        .iter()
+        .map(|day| day.parse().unwrap())
+        .collect();
+    let sessions: Vec<Session> = days
+        .iter()
+        .map(|day| session(*day, Timestamp::at_exchange_time(*day, noon).unwrap()))
+        .collect();
+    store
+        .upsert_sessions(DataSource::Fixture, sessions.clone())
+        .await
+        .unwrap();
+    let old = Symbol::new("OLD");
+    let ipo = Symbol::new("IPO");
+    let daily = sessions[2..]
+        .iter()
+        .map(|session| bar(&old, session.open, Feed::Sip))
+        .chain([bar(&ipo, sessions[3].open, Feed::Sip)])
+        .collect();
+    store
+        .upsert_bars(DataSource::Fixture, Timeframe::Day, daily)
+        .await
+        .unwrap();
+
+    let gaps = store
+        .coverage_gaps(vec![old.clone(), ipo], Timeframe::Day, days[0], days[3])
+        .await
+        .unwrap();
+    assert_eq!(gaps, vec![gap(&old, Timeframe::Day, days[0], days[1])]);
+}

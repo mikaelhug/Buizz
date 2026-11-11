@@ -3,9 +3,9 @@ use buizz_core::time::Timestamp;
 use chrono::NaiveDate;
 use serde::Deserialize;
 
+use super::EARNINGS_FORMS;
 use crate::http::SourceError;
 
-const EARNINGS_FORMS: [&str; 2] = ["8-K", "8-K/A"];
 const RESULTS_OF_OPERATIONS: &str = "2.02";
 
 #[derive(Clone, Debug, PartialEq, Eq)]

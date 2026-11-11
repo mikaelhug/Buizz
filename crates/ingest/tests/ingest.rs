@@ -135,7 +135,11 @@ async fn bars(State(fake): State<Arc<Fake>>, Query(params): Query<Params>) -> Re
         rows.join(",")
     };
     let aapl = requested("AAPL", date(ALPACA_FIRST_BAR), date(ALPACA_LAST_BAR));
-    let spy = requested("SPY", date(HISTORY_START), date(CALENDAR_END));
+    let spy = requested(
+        "SPY",
+        date(ALPACA_FIRST_BAR) + TimeDelta::days(1),
+        date(CALENDAR_END),
+    );
     json(format!(
         r#"{{"bars":{{"AAPL":[{aapl}],"SPY":[{spy}]}},"next_page_token":null}}"#
     ))
@@ -268,6 +272,7 @@ async fn rows(market: &MarketStore) -> Rows {
         .await
         .unwrap()
         .into_iter()
+        .filter(|row| row.dataset != Dataset::SecFilings)
         .map(|row| {
             format!(
                 "{:?} {:?} {:?} {} {}",
@@ -326,6 +331,7 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
             snapshot_keep: 1,
             history_start: date(HISTORY_START),
             enabled: true,
+            only: None,
         },
         market.clone(),
         state.clone(),
@@ -343,12 +349,14 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
             ("index_membership", JobOutcome::Noop),
             ("bars_1d", JobOutcome::Ok),
             ("corporate_actions", JobOutcome::Ok),
+            ("sec_index", JobOutcome::Noop),
             ("fundamentals", JobOutcome::Ok),
             ("filings", JobOutcome::Ok),
             ("rates", JobOutcome::Ok),
             ("borrow", JobOutcome::Noop),
             ("macro", JobOutcome::Noop),
             ("state_snapshot", JobOutcome::Ok),
+            ("market_snapshot", JobOutcome::Ok),
             ("tiingo_history", JobOutcome::Failed),
         ]
     );
@@ -422,23 +430,30 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
             ("index_membership", JobOutcome::Noop),
             ("bars_1d", JobOutcome::Noop),
             ("corporate_actions", JobOutcome::Noop),
+            ("sec_index", JobOutcome::Noop),
             ("fundamentals", JobOutcome::Noop),
             ("filings", JobOutcome::Noop),
             ("rates", JobOutcome::Noop),
             ("borrow", JobOutcome::Noop),
             ("macro", JobOutcome::Noop),
             ("state_snapshot", JobOutcome::Ok),
+            ("market_snapshot", JobOutcome::Ok),
             ("tiingo_history", JobOutcome::Noop),
         ]
     );
     assert_eq!(rows(&market).await, backfilled);
     assert_eq!(fake.last_bars.lock().unwrap()["symbols"], "SPY");
     assert_eq!(fake.hits("tiingo"), 1);
-    let snapshots: Vec<_> = std::fs::read_dir(directory.path().join("snapshots"))
+    let mut snapshots: Vec<_> = std::fs::read_dir(directory.path().join("snapshots"))
         .unwrap()
         .map(|entry| entry.unwrap().file_name().into_string().unwrap())
         .collect();
-    assert_eq!(snapshots, vec!["state-2024-07-07.db".to_owned()]);
+    snapshots.sort();
+    assert_eq!(snapshots, ["market-2024-07-07", "state-2024-07-07.db"]);
+    let borrow = directory
+        .path()
+        .join("snapshots/market-2024-07-07/borrow_availability.parquet");
+    assert!(borrow.exists());
 
     *fake.closed.lock().unwrap() = Some(date("2025-01-09"));
     fake.fail_bars.store(true, Ordering::SeqCst);

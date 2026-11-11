@@ -25,7 +25,7 @@ pub const RATE_LIMIT: RateLimit = RateLimit {
     per: Duration::from_secs(60),
     cooldown: Duration::from_secs(60),
 };
-pub const HISTORY_START: NaiveDate = NaiveDate::from_ymd_opt(2016, 1, 1).expect("valid date");
+pub use buizz_core::market::ALPACA_HISTORY_START as HISTORY_START;
 pub const MAX_PAGE_LIMIT: u32 = 10_000;
 pub const ACTIONS_PAGE_LIMIT: u32 = 1_000;
 pub const ACTIONS_SYMBOLS_PER_REQUEST: usize = 100;
