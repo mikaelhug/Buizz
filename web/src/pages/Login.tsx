@@ -51,3 +51,20 @@ export function Login({ onLoggedIn }: { onLoggedIn: () => void }) {
     </main>
   );
 }
+
+export function Unreachable({ reason, onRetry }: { reason: string; onRetry: () => void }) {
+  return (
+    <main className="login">
+      <div className="login-card" role="alert">
+        <h1 className="brand">Buizz</h1>
+        <p className="unreachable" title={reason}>
+          <span className="stream-dot stream-down" />
+          Server unreachable
+        </p>
+        <button type="button" className="btn" onClick={onRetry}>
+          Retry
+        </button>
+      </div>
+    </main>
+  );
+}
