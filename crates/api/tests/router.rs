@@ -8,7 +8,6 @@ use axum::extract::ConnectInfo;
 use axum::http::{HeaderMap, HeaderName, Request, StatusCode, header};
 use buizz_api::{ApiConfig, AppState};
 use buizz_core::protocol::BOT_PATH;
-use buizz_core::run::CostModel;
 use buizz_feed::{FeedConfig, FeedManager};
 use buizz_ingest::{Ingest, IngestConfig};
 use buizz_market::MarketStore;
@@ -83,7 +82,6 @@ async fn spine() -> Spine {
         RunnerConfig {
             bots_dir: data.path().join("bots"),
             start_cash: Decimal::from(100_000),
-            cost: CostModel::default(),
         },
         RunnerDeps {
             market: market.clone(),

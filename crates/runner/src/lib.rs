@@ -14,8 +14,8 @@ use buizz_core::market::{Dataset, Instrument, StockIndex, Symbol, Timeframe};
 use buizz_core::money::CASH_DECIMALS;
 use buizz_core::ops::{CoverageGap, DataWarning};
 use buizz_core::run::{
-    CostModel, DesiredState, Mode, PeriodPreset, RunBadge, RunConfig, RunEvent, RunEventKind,
-    RunId, RunStatus, UNIVERSE_SESSIONS, UniverseSpec,
+    DesiredState, Mode, PeriodPreset, RunBadge, RunConfig, RunEvent, RunEventKind, RunId,
+    RunStatus, UNIVERSE_SESSIONS, UniverseSpec,
 };
 use buizz_core::time::Timestamp;
 use buizz_engine::ENGINE_VERSION;
@@ -73,7 +73,6 @@ pub enum RunnerError {
 pub struct RunnerConfig {
     pub bots_dir: PathBuf,
     pub start_cash: Decimal,
-    pub cost: CostModel,
 }
 
 pub struct RunnerDeps {
@@ -446,7 +445,7 @@ impl Runner {
             Some(seed) => seed,
             None => rand::random_range(0..SEED_LIMIT),
         };
-        let cost = request.cost.unwrap_or_else(|| defaults.cost.clone());
+        let cost = request.cost.unwrap_or_default();
         if let Some(problem) = cost.invalid() {
             return Err(RunnerError::InvalidRequest(problem.to_owned()));
         }
