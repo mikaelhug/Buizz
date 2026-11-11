@@ -134,6 +134,11 @@ Out of v1: brokers and real money; options, crypto, FX; tick/quote simulation; e
 
 ## Deployment (after Wave 3, separate repo, with your go-ahead)
 
+Order before deploying, so the data spine never has to be wiped and rebuilt:
+1. Merge the four gap groups.
+2. Review the data spine for durability: versioned schema migrations for both stores (no change may ever require deleting data), point-in-time completeness of every stored dataset, idempotent and resumable backfills, backup and restore of `state.db`, and a short real-data smoke test against the live providers with a handful of symbols.
+3. Fix what the review finds, then deploy. Secrets are encrypted with SOPS using the age key on this laptop; provider keys are read from a local file outside the repo and never printed.
+
 The cluster's spine is the data spine: it runs ingest (including the borrow recorder) and builds the real market history. Once it is reachable on the local network, local development and the bot backlog's 10-year backtests run against it (`BUIZZ_URL`) instead of ingesting on the laptop.
 
 Follows `~/akrell/akrell-apps` conventions (pattern: `apps/base/bande-logs/`, guide: `~/Private/Kubit/docs/apps-repository.md`, workflow: `~/Private/mappr/.github/workflows/release.yaml`):
