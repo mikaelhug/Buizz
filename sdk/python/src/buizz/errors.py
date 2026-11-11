@@ -16,6 +16,10 @@ class ProtocolError(BuizzError):
     pass
 
 
+class UsageError(BuizzError):
+    pass
+
+
 class StateTooLarge(BuizzError):
     def __init__(self, size: int, limit: int) -> None:
         super().__init__(f"bot state is {size} bytes encoded, the limit is {limit}; keep ctx.state small")

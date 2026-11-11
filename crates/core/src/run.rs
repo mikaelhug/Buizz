@@ -171,11 +171,12 @@ impl CostModel {
         round_price(open * factor)
     }
 
-    pub fn limit_fill_price(side: Side, limit: Decimal, bar: &Bar) -> Option<Decimal> {
+    pub fn limit_fill_price(&self, side: Side, limit: Decimal, bar: &Bar) -> Option<Decimal> {
+        let at_open = self.market_fill_price(side, bar.open);
         match side {
-            Side::Buy if bar.open <= limit => Some(bar.open),
+            Side::Buy if bar.open <= limit => Some(at_open.min(limit)),
             Side::Buy if bar.low <= limit => Some(limit),
-            Side::Sell if bar.open >= limit => Some(bar.open),
+            Side::Sell if bar.open >= limit => Some(at_open.max(limit)),
             Side::Sell if bar.high >= limit => Some(limit),
             _ => None,
         }
@@ -188,11 +189,13 @@ impl CostModel {
         round_cash((self.commission_per_share * Decimal::from(qty)).max(self.commission_min))
     }
 
-    pub fn participation_cap(&self, average_daily_volume: u64) -> u64 {
-        (Decimal::from(average_daily_volume) * self.adv_participation)
-            .floor()
-            .to_u64()
-            .unwrap_or(0)
+    pub fn participation_cap(&self, average_daily_volume: Option<u64>) -> Option<u64> {
+        average_daily_volume.map(|volume| {
+            (Decimal::from(volume) * self.adv_participation)
+                .floor()
+                .to_u64()
+                .unwrap_or(0)
+        })
     }
 
     pub fn borrow_fee(&self, short_qty: u64, price: Decimal) -> Decimal {
@@ -218,16 +221,18 @@ impl RiskLimits {
         position_exposure_after: Decimal,
         gross_exposure_after: Decimal,
     ) -> Result<(), RejectReason> {
-        if equity <= Decimal::ZERO {
-            return Err(RejectReason::MaxGrossExposure);
-        }
-        if let Some(limit) = self.max_position_weight
-            && position_exposure_after.abs() / equity > limit
+        let exceeds = |exposure: Decimal, limit: Decimal| {
+            equity <= Decimal::ZERO || exposure / equity > limit
+        };
+        if self
+            .max_position_weight
+            .is_some_and(|limit| exceeds(position_exposure_after.abs(), limit))
         {
             return Err(RejectReason::MaxPositionWeight);
         }
-        if let Some(limit) = self.max_gross_exposure
-            && gross_exposure_after / equity > limit
+        if self
+            .max_gross_exposure
+            .is_some_and(|limit| exceeds(gross_exposure_after, limit))
         {
             return Err(RejectReason::MaxGrossExposure);
         }
@@ -492,5 +497,20 @@ impl BotManifest {
             )),
             _ => Ok(manifest),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn without_limits_no_order_is_rejected_for_exposure_even_at_negative_equity() {
+        let exposure = Decimal::from(1000);
+        let equity = Decimal::from(-5);
+        assert_eq!(
+            RiskLimits::default().check_order(equity, exposure, exposure),
+            Ok(())
+        );
     }
 }

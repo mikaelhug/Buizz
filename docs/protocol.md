@@ -5,7 +5,7 @@ The types are `buizz_core::protocol`; golden frames for every message are in `fi
 ## Transport
 
 - The supervisor starts the bot with `BUIZZ_SPINE_URL` (the spine's `BUIZZ_BIND` address, loopback when it binds all interfaces, e.g. `ws://127.0.0.1:8080`), `BUIZZ_RUN_ID` and `BUIZZ_RUN_TOKEN`.
-- The bot opens a WebSocket to `$BUIZZ_SPINE_URL/bot/v1` with `Authorization: Bearer $BUIZZ_RUN_TOKEN`. A bad token is refused at the upgrade with 401.
+- The bot opens a WebSocket to `$BUIZZ_SPINE_URL/bot/v1` with `Authorization: Bearer $BUIZZ_RUN_TOKEN`. A bad token is refused at the upgrade with 401, and a connection from anywhere but the spine's own host (loopback) with 403.
 - Every frame is one binary WebSocket message holding one MessagePack map with a `type` key. Structs are maps with named fields; unknown fields must be ignored.
 - Encoding: timestamps are `int64` nanoseconds since the Unix epoch, UTC. Dates are `"YYYY-MM-DD"` strings. Money, prices, quantities as weights and rates are decimal strings (`"49.2246"`); share quantities are integers. Enums are snake_case strings.
 
@@ -45,7 +45,7 @@ spine -> end {reason, message?}
 
 ## Ack
 
-- `orders`: `{client_id, symbol, size, order_type, tif, reason}`. `size` is `{by: "qty", qty}` (signed: negative sells) or `{by: "target_weight", weight}` (sized against equity and the last close at `clock`). `order_type` is `{type: "market"}` or `{type: "limit", limit_price}`. `tif` is `day`. `client_id` must be unique per run; a repeat is rejected, which makes acks safe to replay after a crash.
+- `orders`: `{client_id, symbol, size, order_type, tif, reason}`. `size` is `{by: "qty", qty}` (signed: negative sells) or `{by: "target_weight", weight}` (sized against equity and the last close at `clock`). `order_type` is `{type: "market"}` or `{type: "limit", limit_price}`; the spine rounds `limit_price` to 4 decimals away from the market (down for a buy, up for a sell), so a limit never fills worse than the bot asked. `tif` is `day`. `client_id` must be unique per run; a repeat is rejected with `duplicate_client_id` and leaves the first order alone, which makes acks safe to replay after a crash.
 - `cancels`: client ids of working orders.
 - `state`: opaque bytes ≤ 64 KiB persisted with the step checkpoint and returned in `ready`; `null` keeps the previous state.
 - `logs`: `{level, message}` lines for the run log.
@@ -53,7 +53,7 @@ spine -> end {reason, message?}
 ## Time rules
 
 - Visibility: a 1m bar at `start + 60 s`; a daily bar at the session close; a fundamental fact at the open of the first session after its `filed` date; a corporate action at the open of its ex-date session.
-- Each bar runs one cycle: corporate actions, order expiry, fills (at the bar's start), mark, risk limits, wake the bot, accept orders (at the bar's visible time). A bar's cycle finishes before the next bar's begins, so an order accepted on bar N fills no earlier than bar N+1's open.
+- Each bar runs one cycle: order expiry, corporate actions, fills (at the bar's start), mark, risk limits, wake the bot, accept orders (at the bar's visible time). A bar's cycle finishes before the next bar's begins, so an order accepted on bar N fills no earlier than bar N+1's open.
 - A day order belongs to the session of the first bar starting at or after its decision and expires at that session's close.
 - `wake`: `bar` wakes on every bar; `every:30m` when `clock − session open` is a positive multiple of 30 minutes, up to the close; `at:15:55` when the exchange-local clock reads 15:55. Bars visible between wakes still arrive, coalesced, at the next step.
 

@@ -7,7 +7,7 @@ use tokio::process::Command;
 use crate::browser;
 use crate::expect::{assert_same, scenario};
 use crate::fake::FakeProviders;
-use crate::spine::{Options, PASSWORD, Spine};
+use crate::spine::{Options, Spine};
 use crate::world::{World, repository};
 
 async fn cli_backtest(spine: &Spine, config: &RunConfig) -> (RunId, Vec<String>) {
@@ -19,7 +19,7 @@ async fn cli_backtest(spine: &Spine, config: &RunConfig) -> (RunId, Vec<String>)
         .arg("--to")
         .arg(config.end.expect("a backtest end").to_string())
         .env("BUIZZ_URL", &spine.base)
-        .env("BUIZZ_ADMIN_PASSWORD", PASSWORD)
+        .env("BUIZZ_ADMIN_PASSWORD", &spine.password)
         .output()
         .await
         .expect("the buizz CLI runs");
@@ -42,6 +42,7 @@ async fn cli_backtest(spine: &Spine, config: &RunConfig) -> (RunId, Vec<String>)
 fn printed_metric(name: &str, value: &Value) -> String {
     match value.as_f64() {
         Some(number) if value.is_f64() => format!("{name:<16} {number:.4}"),
+        _ if value.is_null() => format!("{name:<16} -"),
         _ => format!("{name:<16} {value}"),
     }
 }

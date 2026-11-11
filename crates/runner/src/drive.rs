@@ -6,7 +6,7 @@ use axum::extract::ws::WebSocket;
 use buizz_core::api::{RunSummary, SpineEvent};
 use buizz_core::ledger::LedgerEntry;
 use buizz_core::market::{Bar, Session, Symbol, Timeframe, Watermarks};
-use buizz_core::order::{Order, OrderRequest, OrderSize, OrderUpdate, RejectReason};
+use buizz_core::order::{Order, OrderRequest, OrderUpdate, RejectReason};
 use buizz_core::protocol::{
     Ack, BarBuffer, BarBufferError, EndReason, ErrorCode, Holdings, MAX_STATE_BYTES, Ready, Step,
     StepEvent,
@@ -16,7 +16,7 @@ use buizz_core::run::{
 };
 use buizz_core::time::Timestamp;
 use buizz_core::visibility::order_session;
-use buizz_engine::{Cycle, ENGINE_VERSION, Engine, EngineError, Outbox};
+use buizz_engine::{Cycle, Engine, EngineError, Outbox};
 use buizz_feed::FeedLease;
 use buizz_ingest::IngestError;
 use buizz_market::MarketError;
@@ -363,12 +363,6 @@ impl Driver {
         let config = &run.config;
         let timeline = Timeline::open(inner.market.clone(), config).await?;
         let checkpoint = inner.state.checkpoint(run.id).await?;
-        if checkpoint.is_some()
-            && run.mode == Mode::Backtest
-            && let Some(message) = engine_changed(&run)
-        {
-            return Err(Exit::Failed(message));
-        }
         let (engine, after, clock, last_step, bot_state) = match checkpoint {
             Some(checkpoint) => (
                 Engine::restore(config, &checkpoint.engine_checkpoint)?,
@@ -491,9 +485,6 @@ impl Driver {
     }
 
     async fn outdated(&mut self) -> Flow<Option<String>> {
-        if let Some(message) = engine_changed(&self.run) {
-            return Ok(Some(message));
-        }
         let Some(recorded) = self.run.reproducibility.as_ref() else {
             return Ok(None);
         };
@@ -731,6 +722,8 @@ impl Driver {
             step_events,
             equity_points,
             breaches,
+            warnings,
+            rejections,
         } = self.engine.drain();
         let run_id = self.run.id;
         for fill in fills {
@@ -756,6 +749,18 @@ impl Driver {
         self.pending.dirty = true;
         if !self.paused {
             self.frame.events.extend(step_events);
+        }
+        for order in rejections {
+            if let Some(reason) = order.reject_reason {
+                self.note(RunEventKind::OrderRejected {
+                    client_id: order.client_id,
+                    symbol: order.symbol,
+                    reason,
+                });
+            }
+        }
+        for message in warnings {
+            self.note(RunEventKind::DataWarning { message });
         }
         let mut drawdown = None;
         for breach in breaches {
@@ -989,34 +994,21 @@ impl Driver {
             });
         }
         let unleased = self.lease_orders(&orders);
-        let (accepted, rejected): (Vec<OrderRequest>, Vec<(OrderRequest, RejectReason)>) =
-            orders.into_iter().fold(
-                (Vec::new(), Vec::new()),
-                |(mut accepted, mut rejected), order| {
-                    let unleased = unleased
-                        .contains(&order.symbol)
-                        .then_some(RejectReason::NoStreamSlot);
-                    match self.screen(&order).or(unleased) {
-                        Some(reason) => rejected.push((order, reason)),
-                        None => accepted.push(order),
-                    }
-                    (accepted, rejected)
-                },
-            );
-        for (order, reason) in rejected {
-            self.note(RunEventKind::OrderRejected {
-                client_id: order.client_id,
-                symbol: order.symbol,
-                reason,
-            });
-        }
         let clock = self.after;
         let session = order_session(self.run.config.timeframe, clock, self.timeline.calendar())
             .or(self.session.as_ref())
             .map(|session| session.date)
             .unwrap_or_else(|| clock.exchange_date());
-        let ordered = !accepted.is_empty();
-        self.engine.accept(clock, session, accepted, cancels);
+        let ordered = !orders.is_empty();
+        let timeline = &self.timeline;
+        self.engine
+            .accept(clock, session, orders, cancels, |symbol| {
+                match timeline.instrument(symbol) {
+                    None => Err(RejectReason::UnknownSymbol),
+                    Some(_) if unleased.contains(symbol) => Err(RejectReason::NoStreamSlot),
+                    Some(instrument) => Ok(instrument),
+                }
+            });
         self.absorb();
         if ordered {
             let held = self.held();
@@ -1024,32 +1016,6 @@ impl Driver {
         }
         self.lease_stream().await?;
         self.commit(false).await
-    }
-
-    fn screen(&self, order: &OrderRequest) -> Option<RejectReason> {
-        let Some(instrument) = self.timeline.instrument(&order.symbol) else {
-            return Some(RejectReason::UnknownSymbol);
-        };
-        if instrument.shortable {
-            return None;
-        }
-        let holdings = self.engine.holdings();
-        let working: i64 = holdings
-            .working
-            .iter()
-            .filter(|working| working.symbol == order.symbol)
-            .map(|working| {
-                working
-                    .side
-                    .signed(working.qty.saturating_sub(working.filled_qty))
-            })
-            .sum();
-        let held = self.engine.portfolio().qty(&order.symbol) + working;
-        let short = match order.size {
-            OrderSize::Qty { qty } => held + qty < 0,
-            OrderSize::TargetWeight { weight } => weight.is_sign_negative() && !weight.is_zero(),
-        };
-        short.then_some(RejectReason::NotShortable)
     }
 
     async fn checkpoint(&mut self) -> Flow<()> {
@@ -1242,15 +1208,6 @@ impl Driver {
         let result_hash = (status == Some(RunStatus::Completed)).then(|| self.engine.result_hash());
         (message, result_hash)
     }
-}
-
-fn engine_changed(run: &RunSummary) -> Option<String> {
-    let recorded = &run.reproducibility.as_ref()?.engine_version;
-    (recorded != ENGINE_VERSION).then(|| {
-        format!(
-            "the engine changed from {recorded} to {ENGINE_VERSION} since this run started; stop the run and start a new one"
-        )
-    })
 }
 
 async fn next_process_event(process: &mut Option<Process>) -> Option<ProcessEvent> {

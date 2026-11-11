@@ -80,6 +80,8 @@ cargo run --release -p buizz-spine
 
 Bot logs go to `logs/<run_id>.log` under `BUIZZ_DATA_DIR`.
 
+Failed logins are rate-limited per client address. Behind a reverse proxy the spine takes the client from the last `X-Forwarded-For` entry when the direct peer is a private or loopback address, so the deployment must preserve client IPs: the proxy must set `X-Forwarded-For`, and in Kubernetes the proxy's Service needs `externalTrafficPolicy: Local` so the proxy sees the real source address.
+
 ## Docs
 
 - [Writing a bot](docs/writing-a-bot.md): folder layout, `bot.toml`, the SDK, fills, costs, risk and holdout rules, the headless loop

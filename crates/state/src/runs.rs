@@ -1,6 +1,8 @@
-use buizz_core::api::RunSummary;
+use std::ops::RangeInclusive;
+
+use buizz_core::api::{RunSummary, SparkPoint};
 use buizz_core::ledger::{LedgerEntry, LedgerKind, Portfolio};
-use buizz_core::order::{Fill, Order};
+use buizz_core::order::{Fill, Order, OrderId};
 use buizz_core::run::{
     DesiredState, EquityPoint, Reproducibility, RunEvent, RunEventKind, RunId, RunStatus,
 };
@@ -109,6 +111,10 @@ pub fn list(connection: &Connection, filter: &RunFilter) -> Result<Vec<RunSummar
     if let Some(desired) = filter.desired {
         conditions.push("desired = ?".to_owned());
         values.push(enum_text(&desired)?.into());
+    }
+    if let Some(before) = filter.before {
+        conditions.push("id < ?".to_owned());
+        values.push(before.0.into());
     }
     if !filter.statuses.is_empty() {
         let marks = vec!["?"; filter.statuses.len()].join(", ");
@@ -353,15 +359,23 @@ pub fn orders(
     Ok(orders)
 }
 
-pub fn fills(connection: &Connection, run_id: RunId) -> Result<Vec<Fill>> {
+pub fn fills(
+    connection: &Connection,
+    run_id: RunId,
+    orders: RangeInclusive<OrderId>,
+) -> Result<Vec<Fill>> {
     let mut statement = connection.prepare_cached(
         "SELECT ledger_entry.at, ledger_entry.body, run_order.client_id FROM ledger_entry \
          JOIN run_order ON run_order.run_id = ledger_entry.run_id \
          AND run_order.order_id = json_extract(ledger_entry.body, '$.order_id') \
-         WHERE ledger_entry.run_id = ? AND ledger_entry.kind = 'fill' ORDER BY ledger_entry.seq",
+         WHERE ledger_entry.run_id = ? AND ledger_entry.kind = 'fill' \
+         AND json_extract(ledger_entry.body, '$.order_id') BETWEEN ? AND ? \
+         ORDER BY ledger_entry.seq",
     )?;
+    let first = int(orders.start().0)?;
+    let last = int(orders.end().0)?;
     let fills = statement
-        .query_map([run_id.0], |row| {
+        .query_map(params![run_id.0, first, last], |row| {
             let at = read_timestamp(row, 0)?;
             let kind: LedgerKind = read_json(row, 1)?;
             let client_id: String = row.get(2)?;
@@ -407,6 +421,25 @@ pub fn equity(connection: &Connection, run_id: RunId) -> Result<Vec<EquityPoint>
                 equity: read_decimal(row, 1)?,
                 cash: read_decimal(row, 2)?,
                 gross_exposure: read_decimal(row, 3)?,
+            })
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    Ok(points)
+}
+
+pub fn sparkline(connection: &Connection, run_id: RunId, points: u32) -> Result<Vec<SparkPoint>> {
+    let mut statement = connection.prepare_cached(
+        "SELECT at, equity FROM (SELECT at, equity, \
+         ROW_NUMBER() OVER (ORDER BY at) - 1 AS position, COUNT(*) OVER () AS total \
+         FROM equity_point WHERE run_id = ?1) \
+         WHERE position % MAX((total + ?2 - 1) / ?2, 1) = 0 OR position = total - 1 \
+         ORDER BY at",
+    )?;
+    let points = statement
+        .query_map(params![run_id.0, points.max(1)], |row| {
+            Ok(SparkPoint {
+                at: read_timestamp(row, 0)?,
+                equity: read_decimal(row, 1)?,
             })
         })?
         .collect::<rusqlite::Result<_>>()?;

@@ -15,7 +15,7 @@ Waves 0–3 are merged: every crate, the SDK, the web UI, six example bots, the 
 - **Live is a backtest whose data has not arrived yet.** The engine only ever reads the market store. Ingest and the live feed write bars and bump a watermark; a live run is the same replay loop blocked at the watermark. This gives backtest/live parity by construction and makes restart recovery a cursor resume.
 - **Lookahead is structurally impossible.** Every bot query is answered as-of the run clock, server-side. Rules frozen in `crates/core`:
   - `visible_at`: 1m bar = bar start + 60s; daily bar = session close; fundamentals = next session open after the SEC `filed` date.
-  - Per-bar cycle (`core::visibility::CyclePhase`): at bar start, corporate actions → order expiry → fills at open; at the bar's `visible_at`, mark → risk limits → wake bot → accept orders. Bar N's cycle completes before bar N+1's, so an order decided on bar N fills at bar N+1 open.
+  - Per-bar cycle in the engine: at bar start, order expiry → corporate actions → fills at open; at the bar's `visible_at`, mark → risk limits → wake bot → accept orders. Bar N's cycle completes before bar N+1's, so an order decided on bar N fills at bar N+1 open.
   - Whole shares only (signed); splits pay cash in lieu. A target-weight order resolving to zero shares is recorded as rejected `zero_quantity`.
   - Fills use raw prices; splits and dividends hit positions on the ex-date. Bots may ask for back-adjusted history, computed only from actions known at the clock.
 - **Deterministic:** no wall clock in the engine, seeded, ordered maps, `result_hash` per run. Same inputs → same hash.
@@ -118,13 +118,11 @@ Out of v1: brokers and real money; options, crypto, FX; tick/quote simulation; e
 2. Confirm every worktree branch is merged into `main` and pruned.
 3. Code review each module of Buizz (one review per crate, the SDK and the web app); fix confirmed findings.
    Known issues to fold into the reviews:
-   - A repeated `client_id` is silently ignored, but `docs/protocol.md` says it is rejected and `RejectReason::DuplicateClientId` is never produced.
    - The UI and CLI cannot override a bot's risk limits for one backtest; a drawdown breach in a backtest reads as a pause with reason `risk_limit`.
-   - `buizz backtest` has no holdout option, and its per-symbol net shares ignore splits; metrics that are absent may print as `None`.
-   - The ADV volume cap treats a missing average daily volume as zero, so the order never fills.
-   - The spine has no health route; cluster probes need a cheap unauthenticated `/healthz`.
-   - `result_hash` depends on decimal scale: `100000` and `100000.00` start cash give different hashes for identical runs.
    - A live run's SPY benchmark only extends on reload or status change.
+   - No time seam: the runner, feed, ingest, API and supervisor call the wall clock directly, so the live e2e scenarios must sleep between 23:28 and 00:11 ET. Add one `now()` in `buizz_core::time` with a test offset.
+   - The spine cannot report its bound address when `BUIZZ_BIND` uses port 0; e2e works around it with relaunch-on-collision.
+   Decided: the drawdown limit is a true stop-loss in both modes. On a breach the engine closes every position at the next open with normal costs, and the run ends as failed with the message "stopped by drawdown limit" (backtest and live alike; going live again starts a fresh run). To test a strategy without the stop, remove `max_drawdown` from its `[risk]`. Implemented after the core/engine and runner fix agents merge.
 4. Implement the bot backlog in `bots/BRIEFS.md`, one Opus 5.5 agent per bot, each followed by a critical review of that implementation against its brief. Contract gaps (G1–G13) land as their own PRs before the bots they block.
 
 ## Deployment (after Wave 3, separate repo, with your go-ahead)

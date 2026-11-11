@@ -152,7 +152,7 @@ async fn steps_survive_reopen_and_failed_commit_leaves_nothing() {
         store.checkpoint(run_id).await.unwrap(),
         store.equity(run_id).await.unwrap(),
         store.events(run_id, None, 100).await.unwrap(),
-        store.fills(run_id).await.unwrap(),
+        store.fills(run_id, OrderId(1)..=OrderId(2)).await.unwrap(),
     );
     assert_eq!(before.0.len(), 2);
     assert_eq!(before.2.len(), 2);
@@ -171,7 +171,10 @@ async fn steps_survive_reopen_and_failed_commit_leaves_nothing() {
         reopened.checkpoint(run_id).await.unwrap(),
         reopened.equity(run_id).await.unwrap(),
         reopened.events(run_id, None, 100).await.unwrap(),
-        reopened.fills(run_id).await.unwrap(),
+        reopened
+            .fills(run_id, OrderId(1)..=OrderId(2))
+            .await
+            .unwrap(),
     );
     assert_eq!(before, after);
     let summary = reopened.run(run_id).await.unwrap().unwrap();

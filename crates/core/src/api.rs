@@ -257,6 +257,7 @@ impl SpineEvent {
 pub struct RunsQuery {
     pub bot: Option<String>,
     pub mode: Option<Mode>,
+    pub before: Option<RunId>,
     pub limit: Option<u32>,
 }
 

@@ -4,7 +4,7 @@ import { useSpineEvents } from "../api/stream";
 import { ABSENT, fmt, label } from "../lib/format";
 import { href } from "../lib/route";
 import { type Resource, useResource } from "../lib/useResource";
-import { Failure, Loading } from "../ui/Feedback";
+import { Failure, Loading, StaleFailure } from "../ui/Feedback";
 import { StatusPill } from "../ui/Status";
 
 export function DataHealth() {
@@ -61,6 +61,7 @@ export function DataHealth() {
           </dl>
         )}
       </header>
+      <StaleFailure resource={health} />
       <div className="split">
         <FeedPanel feed={feed} />
         <WarningsPanel health={health} />
@@ -88,6 +89,7 @@ function FeedPanel({ feed }: { feed: Resource<Schemas["FeedSlots"]> }) {
           {used}/{cap}
         </span>
       </header>
+      <StaleFailure resource={feed} />
       <div className={`meter ${fill >= 0.9 ? "meter-hot" : ""}`} role="meter" aria-valuemin={0} aria-valuemax={cap} aria-valuenow={used} aria-label="Stream slots">
         <span style={{ width: `${Math.min(fill, 1) * 100}%` }} />
       </div>
@@ -154,6 +156,7 @@ function JobsPanel({ jobs }: { jobs: Resource<Schemas["JobView"][]> }) {
   return (
     <section className="panel">
       <h2>Jobs</h2>
+      <StaleFailure resource={jobs} />
       {!jobs.data ? (
         jobs.error ? <Failure message={jobs.error} onRetry={jobs.reload} /> : <Loading />
       ) : jobs.data.length === 0 ? (

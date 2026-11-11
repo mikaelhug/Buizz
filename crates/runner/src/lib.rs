@@ -11,6 +11,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use axum::extract::ws::WebSocket;
 use buizz_core::api::{RunSummary, SparkPoint, SpineEvent, StartBacktest};
 use buizz_core::market::{Instrument, Symbol, Timeframe};
+use buizz_core::money::CASH_DECIMALS;
 use buizz_core::ops::{CoverageGap, DataWarning};
 use buizz_core::run::{
     CostModel, DesiredState, Mode, PeriodPreset, RunBadge, RunConfig, RunEvent, RunEventKind,
@@ -432,9 +433,9 @@ impl Runner {
         let mut params = manifest.params.clone();
         params.extend(request.params.unwrap_or_default());
         let start_cash = request.start_cash.unwrap_or(defaults.start_cash);
-        if start_cash <= Decimal::ZERO {
+        if start_cash <= Decimal::ZERO || start_cash.normalize().scale() > CASH_DECIMALS {
             return Err(RunnerError::InvalidRequest(
-                "start cash must be positive".to_owned(),
+                "start cash must be positive with at most 2 decimals".to_owned(),
             ));
         }
         let seed = match request.seed {
@@ -493,7 +494,7 @@ impl Runner {
                 status,
                 desired: DesiredState::Running,
                 bot_hash: spec.content_hash.clone(),
-                engine_version: ENGINE_VERSION.to_owned(),
+                engine_version: ENGINE_VERSION.to_string(),
                 badges,
                 created_at,
             })

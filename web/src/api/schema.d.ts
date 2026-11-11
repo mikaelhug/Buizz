@@ -340,6 +340,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/healthz": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["healthz"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -624,7 +640,7 @@ export interface components {
             weight: string;
         };
         /** @enum {string} */
-        RejectReason: "unknown_symbol" | "duplicate_client_id" | "zero_quantity" | "invalid_limit_price" | "no_price" | "not_shortable" | "max_position_weight" | "max_gross_exposure" | "run_paused" | "no_stream_slot";
+        RejectReason: "unknown_symbol" | "duplicate_client_id" | "zero_quantity" | "invalid_limit_price" | "no_price" | "not_shortable" | "max_position_weight" | "max_gross_exposure" | "invalid_size" | "no_stream_slot";
         Reproducibility: {
             bot_hash: string;
             engine_version: string;
@@ -1128,7 +1144,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description server-sent events; the event name is the `type` field. Log events carry the id `<run>:<seq>`; reconnecting with `Last-Event-ID` replays that run's missed log events from the state store */
+            /** @description server-sent events; the event name is the `type` field */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1165,6 +1181,7 @@ export interface operations {
             query?: {
                 bot?: string;
                 mode?: components["schemas"]["Mode"];
+                before?: components["schemas"]["RunId"];
                 limit?: number;
             };
             header?: never;
@@ -1398,6 +1415,24 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ApiError"];
                 };
+            };
+        };
+    };
+    healthz: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description the spine is serving requests */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

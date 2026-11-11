@@ -1,27 +1,29 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use buizz_core::ledger::{LedgerEntry, LedgerKind, Portfolio, split_qty};
-use buizz_core::market::{Bar, CorporateAction, CorporateActionKind, Session, Symbol};
-use buizz_core::money::{round_cash, round_price};
+use buizz_core::market::{Bar, CorporateAction, CorporateActionKind, Instrument, Session, Symbol};
+use buizz_core::money::{round_cash, round_price, round_price_with};
 use buizz_core::order::{
     Fill, Order, OrderId, OrderRequest, OrderSize, OrderStatus, OrderType, OrderUpdate,
     RejectReason, Side, target_weight_qty,
 };
 use buizz_core::protocol::{Holdings, StepEvent};
-use buizz_core::run::{CostModel, EquityPoint, RiskLimit, RiskLimits, RunConfig};
+use buizz_core::run::{CostModel, EquityPoint, Mode, RiskLimit, RiskLimits, RunConfig};
 use buizz_core::time::Timestamp;
 use chrono::NaiveDate;
-use rust_decimal::Decimal;
+use rust_decimal::{Decimal, RoundingStrategy};
 use serde::{Deserialize, Serialize};
 
-pub const ENGINE_VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const ENGINE_VERSION: u32 = 2;
 
 #[derive(Debug, thiserror::Error)]
 pub enum EngineError {
     #[error("engine checkpoint is unreadable: {0}")]
     Checkpoint(#[from] rmp_serde::decode::Error),
-    #[error("engine checkpoint was written by engine {0}")]
-    Version(String),
+    #[error(
+        "engine checkpoint was written by engine {0}, this backtest cannot resume on engine {ENGINE_VERSION}"
+    )]
+    Version(u32),
 }
 
 pub struct Cycle<'a> {
@@ -34,14 +36,14 @@ pub struct Cycle<'a> {
     pub delisted: &'a [Symbol],
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RiskBreach {
     pub limit: RiskLimit,
     pub value: Decimal,
     pub threshold: Decimal,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Outbox {
     pub ledger: Vec<LedgerEntry>,
     pub orders: Vec<Order>,
@@ -49,9 +51,12 @@ pub struct Outbox {
     pub step_events: Vec<StepEvent>,
     pub equity_points: Vec<EquityPoint>,
     pub breaches: Vec<RiskBreach>,
+    pub warnings: Vec<String>,
+    pub rejections: Vec<Order>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
 struct State {
     portfolio: Portfolio,
     last_close: BTreeMap<Symbol, Decimal>,
@@ -62,21 +67,27 @@ struct State {
     peak_equity: Decimal,
     session: Option<Session>,
     session_filled: BTreeMap<Symbol, u64>,
+    volume_unknown: BTreeSet<Symbol>,
     breached: Vec<RiskLimit>,
     chain: [u8; 32],
-    changed_orders: BTreeMap<OrderId, Order>,
-    outbox: Outbox,
 }
 
 #[derive(Serialize)]
 struct CheckpointOut<'a> {
-    version: &'a str,
+    version: u32,
     state: &'a State,
 }
 
 #[derive(Deserialize)]
+#[serde(untagged)]
+enum WrittenBy {
+    Engine(u32),
+    Workspace(serde::de::IgnoredAny),
+}
+
+#[derive(Deserialize)]
 struct CheckpointHeader {
-    version: String,
+    version: WrittenBy,
 }
 
 #[derive(Deserialize)]
@@ -88,37 +99,45 @@ pub struct Engine {
     cost: CostModel,
     risk: RiskLimits,
     state: State,
+    outbox: Outbox,
+    changed_orders: BTreeMap<OrderId, Order>,
 }
 
 impl Engine {
     pub fn new(config: &RunConfig, start: Timestamp) -> Self {
+        let start_cash = round_cash(config.start_cash);
         let mut engine = Self {
             cost: config.cost,
             risk: config.risk,
             state: State {
-                peak_equity: config.start_cash,
+                peak_equity: start_cash,
                 ..State::default()
             },
+            outbox: Outbox::default(),
+            changed_orders: BTreeMap::new(),
         };
-        engine.post(
-            start,
-            LedgerKind::Deposit {
-                amount: config.start_cash,
-            },
-        );
+        engine.post(start, LedgerKind::Deposit { amount: start_cash });
         engine
     }
 
     pub fn restore(config: &RunConfig, checkpoint: &[u8]) -> Result<Self, EngineError> {
         let header: CheckpointHeader = rmp_serde::from_slice(checkpoint)?;
-        if header.version != ENGINE_VERSION {
-            return Err(EngineError::Version(header.version));
+        let written = match header.version {
+            WrittenBy::Engine(version) => version,
+            WrittenBy::Workspace(_) => 1,
+        };
+        let resumable =
+            written == ENGINE_VERSION || (written < ENGINE_VERSION && config.mode == Mode::Live);
+        if !resumable {
+            return Err(EngineError::Version(written));
         }
         let CheckpointIn { state } = rmp_serde::from_slice(checkpoint)?;
         Ok(Self {
             cost: config.cost,
             risk: config.risk,
             state,
+            outbox: Outbox::default(),
+            changed_orders: BTreeMap::new(),
         })
     }
 
@@ -134,9 +153,9 @@ impl Engine {
         let bars: BTreeMap<&Symbol, &Bar> =
             cycle.bars.iter().map(|bar| (&bar.symbol, bar)).collect();
         if self.state.session.map(|session| session.date) != Some(cycle.session.date) {
+            self.expire(cycle);
             self.apply_actions(cycle);
             self.delist(cycle);
-            self.expire(cycle);
             self.state.session = Some(*cycle.session);
             self.state.session_filled.clear();
         }
@@ -145,12 +164,13 @@ impl Engine {
         self.check_limits();
     }
 
-    pub fn accept(
+    pub fn accept<'a>(
         &mut self,
         decided_at: Timestamp,
         session: NaiveDate,
         orders: Vec<OrderRequest>,
         cancels: Vec<String>,
+        instrument: impl Fn(&Symbol) -> Result<&'a Instrument, RejectReason>,
     ) {
         for client_id in &cancels {
             self.close_where(decided_at, OrderStatus::Cancelled, |order| {
@@ -158,9 +178,8 @@ impl Engine {
             });
         }
         for request in orders {
-            if !self.state.client_ids.insert(request.client_id.clone()) {
-                continue;
-            }
+            let duplicate = !self.state.client_ids.insert(request.client_id.clone());
+            let known = instrument(&request.symbol);
             self.state.orders_issued += 1;
             let mut order = Order {
                 id: OrderId(self.state.orders_issued),
@@ -179,7 +198,12 @@ impl Engine {
                 reject_reason: None,
                 updated_at: decided_at,
             };
-            if let Err(reason) = self.size(&mut order, session) {
+            let sized = if duplicate {
+                Err(RejectReason::DuplicateClientId)
+            } else {
+                self.size(&mut order, session, known)
+            };
+            if let Err(reason) = sized {
                 order.status = OrderStatus::Rejected;
                 order.reject_reason = Some(reason);
             }
@@ -192,8 +216,8 @@ impl Engine {
     }
 
     pub fn drain(&mut self) -> Outbox {
-        let mut outbox = std::mem::take(&mut self.state.outbox);
-        outbox.orders = std::mem::take(&mut self.state.changed_orders)
+        let mut outbox = std::mem::take(&mut self.outbox);
+        outbox.orders = std::mem::take(&mut self.changed_orders)
             .into_values()
             .collect();
         outbox
@@ -207,10 +231,6 @@ impl Engine {
         Holdings::new(&self.state.portfolio, self.state.working.values())
     }
 
-    pub fn peak_equity(&self) -> Decimal {
-        self.state.peak_equity
-    }
-
     pub fn result_hash(&self) -> String {
         blake3::Hash::from_bytes(self.state.chain)
             .to_hex()
@@ -219,8 +239,16 @@ impl Engine {
 
     fn apply_actions(&mut self, cycle: &Cycle<'_>) {
         for action in cycle.actions {
-            self.state
-                .outbox
+            if let CorporateActionKind::Split { old_rate, new_rate } = action.kind
+                && (old_rate <= Decimal::ZERO || new_rate <= Decimal::ZERO)
+            {
+                self.outbox.warnings.push(format!(
+                    "the {} split on {} has a rate of {old_rate} for {new_rate} and was not applied",
+                    action.symbol, action.ex_date
+                ));
+                continue;
+            }
+            self.outbox
                 .step_events
                 .push(StepEvent::CorporateAction(action.clone()));
             let held = self.state.portfolio.qty(&action.symbol);
@@ -292,7 +320,7 @@ impl Engine {
                 let kind = LedgerKind::Liquidation {
                     symbol: symbol.clone(),
                     qty: -position.qty,
-                    price: position.last_price,
+                    price: round_price(position.last_price),
                 };
                 self.post(cycle.start, kind);
             }
@@ -304,12 +332,11 @@ impl Engine {
     }
 
     fn expire(&mut self, cycle: &Cycle<'_>) {
-        if let Some(previous) = self.state.session {
-            self.close_where(previous.close, OrderStatus::Expired, |order| {
-                order.session == Some(previous.date)
-            });
-        }
-        self.close_where(cycle.start, OrderStatus::Expired, |order| {
+        let at = self
+            .state
+            .session
+            .map_or(cycle.start, |previous| previous.close);
+        self.close_where(at, OrderStatus::Expired, |order| {
             order
                 .session
                 .is_none_or(|session| session < cycle.session.date)
@@ -331,23 +358,28 @@ impl Engine {
             let price = match order.order_type {
                 OrderType::Market => Some(self.cost.market_fill_price(order.side, bar.open)),
                 OrderType::Limit { limit_price } => {
-                    CostModel::limit_fill_price(order.side, limit_price, bar)
+                    self.cost.limit_fill_price(order.side, limit_price, bar)
                 }
             };
             let Some(price) = price else { continue };
-            let cap = self.cost.participation_cap(
-                cycle
-                    .average_daily_volume
-                    .get(&order.symbol)
-                    .copied()
-                    .unwrap_or(0),
-            );
+            let average_daily_volume = cycle.average_daily_volume.get(&order.symbol).copied();
+            if average_daily_volume.is_none()
+                && self.state.volume_unknown.insert(order.symbol.clone())
+            {
+                self.outbox.warnings.push(format!(
+                    "{} has no average daily volume, so its fills are not capped by volume",
+                    order.symbol
+                ));
+            }
+            let cap = self.cost.participation_cap(average_daily_volume);
             let used = self
                 .state
                 .session_filled
                 .entry(order.symbol.clone())
                 .or_default();
-            let qty = order.remaining().min(cap.saturating_sub(*used));
+            let qty = order
+                .remaining()
+                .min(cap.map_or(u64::MAX, |cap| cap.saturating_sub(*used)));
             if qty == 0 {
                 continue;
             }
@@ -373,11 +405,8 @@ impl Engine {
                     feed: fill.feed,
                 },
             );
-            self.state
-                .outbox
-                .step_events
-                .push(StepEvent::Fill(fill.clone()));
-            self.state.outbox.fills.push(fill);
+            self.outbox.step_events.push(StepEvent::Fill(fill.clone()));
+            self.outbox.fills.push(fill);
             order.filled_qty += qty;
             if order.remaining() == 0 {
                 order.status = OrderStatus::Filled;
@@ -419,7 +448,7 @@ impl Engine {
         let equity = portfolio.equity();
         self.state.peak_equity = self.state.peak_equity.max(equity);
         if session_closed {
-            self.state.outbox.equity_points.push(EquityPoint {
+            self.outbox.equity_points.push(EquityPoint {
                 at: cycle.visible_at,
                 equity,
                 cash: portfolio.cash,
@@ -474,7 +503,7 @@ impl Engine {
                 self.state.breached.retain(|breach| *breach != limit);
             } else if !known {
                 self.state.breached.push(limit);
-                self.state.outbox.breaches.push(RiskBreach {
+                self.outbox.breaches.push(RiskBreach {
                     limit,
                     value,
                     threshold,
@@ -483,16 +512,24 @@ impl Engine {
         }
     }
 
-    fn size(&self, order: &mut Order, session: NaiveDate) -> Result<(), RejectReason> {
+    fn size(
+        &self,
+        order: &mut Order,
+        session: NaiveDate,
+        instrument: Result<&Instrument, RejectReason>,
+    ) -> Result<(), RejectReason> {
+        let instrument = instrument?;
         if let OrderType::Limit { limit_price } = order.order_type
             && limit_price <= Decimal::ZERO
         {
             return Err(RejectReason::InvalidLimitPrice);
         }
-        let price = *self
+        let price = self
             .state
             .last_close
             .get(&order.symbol)
+            .copied()
+            .filter(|price| *price > Decimal::ZERO)
             .ok_or(RejectReason::NoPrice)?;
         let portfolio = &self.state.portfolio;
         let equity = portfolio.equity();
@@ -502,22 +539,38 @@ impl Engine {
             .collect();
         for working in self.state.working.values() {
             if working.session == Some(session) {
-                *projected.entry(&working.symbol).or_default() += working.signed_remaining();
+                let held = projected.entry(&working.symbol).or_default();
+                *held = held
+                    .checked_add(working.signed_remaining())
+                    .ok_or(RejectReason::InvalidSize)?;
             }
         }
         let before = projected.get(&order.symbol).copied().unwrap_or(0);
         let delta = match order.requested {
-            OrderSize::Qty { qty } => qty,
-            OrderSize::TargetWeight { weight } => {
-                target_weight_qty(weight, equity, price).ok_or(RejectReason::NoPrice)? - before
-            }
-        };
+            OrderSize::Qty { qty } => Some(qty),
+            OrderSize::TargetWeight { weight } => target_weight_qty(weight, equity, price)
+                .and_then(|target| target.checked_sub(before)),
+        }
+        .ok_or(RejectReason::InvalidSize)?;
         order.side = Side::of_qty(delta);
         order.qty = delta.unsigned_abs();
         if delta == 0 {
             return Err(RejectReason::ZeroQuantity);
         }
-        let after = before + delta;
+        if let OrderType::Limit { limit_price } = &mut order.order_type {
+            let away_from_the_market = match order.side {
+                Side::Buy => RoundingStrategy::ToNegativeInfinity,
+                Side::Sell => RoundingStrategy::ToPositiveInfinity,
+            };
+            *limit_price = round_price_with(*limit_price, away_from_the_market);
+            if *limit_price <= Decimal::ZERO {
+                return Err(RejectReason::InvalidLimitPrice);
+            }
+        }
+        let after = before.checked_add(delta).ok_or(RejectReason::InvalidSize)?;
+        if delta < 0 && after < 0 && !instrument.shortable {
+            return Err(RejectReason::NotShortable);
+        }
         if after.abs() <= before.abs() {
             return Ok(());
         }
@@ -568,21 +621,25 @@ impl Engine {
             kind,
         };
         self.absorb(b"ledger", &entry);
-        self.state.outbox.ledger.push(entry);
+        self.outbox.ledger.push(entry);
     }
 
     fn record(&mut self, order: Order) {
         self.absorb(b"order", &order);
-        self.state
-            .outbox
+        self.outbox
             .step_events
             .push(StepEvent::Order(OrderUpdate::from(&order)));
+        if order.status == OrderStatus::Rejected {
+            self.outbox.rejections.push(order.clone());
+        }
         if order.status.is_terminal() {
             self.state.working.remove(&order.id);
         } else {
             self.state.working.insert(order.id, order.clone());
         }
-        self.state.changed_orders.insert(order.id, order);
+        if order.reject_reason != Some(RejectReason::DuplicateClientId) {
+            self.changed_orders.insert(order.id, order);
+        }
     }
 
     fn absorb(&mut self, tag: &[u8], record: &impl Serialize) {
@@ -592,5 +649,386 @@ impl Engine {
         hasher.update(tag);
         hasher.update(&bytes);
         self.state.chain = *hasher.finalize().as_bytes();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use buizz_core::market::Timeframe;
+    use buizz_core::market::{AssetClass, Feed};
+    use buizz_core::order::TimeInForce;
+    use buizz_core::run::{UniverseSpec, Wake};
+    use chrono::NaiveTime;
+
+    use super::*;
+
+    fn config(start_cash: &str, commission_min: &str) -> RunConfig {
+        RunConfig {
+            bot: "test".to_owned(),
+            mode: Mode::Backtest,
+            params: serde_json::Map::new(),
+            universe: UniverseSpec::Symbols {
+                symbols: vec![Symbol::new("AAA")],
+            },
+            timeframe: Timeframe::Day,
+            wake: Wake::Bar,
+            start: day(1),
+            end: None,
+            start_cash: start_cash.parse().unwrap(),
+            cost: CostModel {
+                commission_min: commission_min.parse().unwrap(),
+                ..CostModel::default()
+            },
+            risk: RiskLimits::default(),
+            seed: 1,
+            benchmark: Symbol::new("SPY"),
+            holdout: false,
+        }
+    }
+
+    fn day(day: u32) -> NaiveDate {
+        NaiveDate::from_ymd_opt(2024, 11, day).unwrap()
+    }
+
+    fn session(date: u32) -> Session {
+        let at = |hour, minute| {
+            Timestamp::at_exchange_time(
+                day(date),
+                NaiveTime::from_hms_opt(hour, minute, 0).unwrap(),
+            )
+            .unwrap()
+        };
+        Session {
+            date: day(date),
+            open: at(9, 30),
+            close: at(16, 0),
+        }
+    }
+
+    fn bar(session: &Session, open: &str, low: &str, close: &str) -> Bar {
+        Bar {
+            symbol: Symbol::new("AAA"),
+            start: session.open,
+            open: open.parse().unwrap(),
+            high: open.parse::<Decimal>().unwrap().max(close.parse().unwrap()),
+            low: low.parse().unwrap(),
+            close: close.parse().unwrap(),
+            volume: 1_000_000,
+            feed: Feed::Sip,
+        }
+    }
+
+    fn step(engine: &mut Engine, session: &Session, bars: &[Bar], volume: &[(&str, u64)]) {
+        let average_daily_volume = volume
+            .iter()
+            .map(|(symbol, volume)| (Symbol::new(symbol), *volume))
+            .collect();
+        engine.run_cycle(&Cycle {
+            session,
+            start: session.open,
+            visible_at: session.close,
+            bars,
+            actions: &[],
+            average_daily_volume: &average_daily_volume,
+            delisted: &[],
+        });
+    }
+
+    fn order(client_id: &str, size: OrderSize, order_type: OrderType) -> OrderRequest {
+        OrderRequest {
+            client_id: client_id.to_owned(),
+            symbol: Symbol::new("AAA"),
+            size,
+            order_type,
+            tif: TimeInForce::Day,
+            reason: "test".to_owned(),
+        }
+    }
+
+    fn buy(client_id: &str, qty: i64) -> OrderRequest {
+        order(client_id, OrderSize::Qty { qty }, OrderType::Market)
+    }
+
+    fn submit(engine: &mut Engine, session: &Session, orders: Vec<OrderRequest>) -> Vec<Order> {
+        let instrument = Instrument {
+            symbol: Symbol::new("AAA"),
+            name: "AAA".to_owned(),
+            exchange: "NYSE".to_owned(),
+            asset_class: AssetClass::Stock,
+            active: true,
+            shortable: false,
+            first_session: None,
+            last_session: None,
+        };
+        let known = |symbol: &Symbol| {
+            (*symbol == instrument.symbol)
+                .then_some(&instrument)
+                .ok_or(RejectReason::UnknownSymbol)
+        };
+        engine.accept(
+            session.close,
+            session.date.succ_opt().unwrap(),
+            orders,
+            Vec::new(),
+            known,
+        );
+        engine.drain().orders
+    }
+
+    #[test]
+    fn identical_runs_hash_the_same_whatever_the_decimal_scale() {
+        let hash = |start_cash, commission_min| {
+            let (first, second) = (session(20), session(21));
+            let mut engine = Engine::new(&config(start_cash, commission_min), first.open);
+            step(
+                &mut engine,
+                &first,
+                &[bar(&first, "100", "99", "100")],
+                &[("AAA", 1_000_000)],
+            );
+            submit(&mut engine, &first, vec![buy("AAA-1", 100)]);
+            step(
+                &mut engine,
+                &second,
+                &[bar(&second, "101", "100", "102")],
+                &[("AAA", 1_000_000)],
+            );
+            engine.result_hash()
+        };
+        assert_eq!(hash("100000", "1"), hash("100000.00", "1.00"));
+    }
+
+    #[test]
+    fn a_limit_order_marketable_at_the_open_pays_the_slippage() {
+        let (first, second) = (session(20), session(21));
+        let mut engine = Engine::new(&config("100000", "1"), first.open);
+        step(
+            &mut engine,
+            &first,
+            &[bar(&first, "100", "99", "100")],
+            &[("AAA", 1_000_000)],
+        );
+        let limit = OrderType::Limit {
+            limit_price: Decimal::from(105),
+        };
+        submit(
+            &mut engine,
+            &first,
+            vec![order("AAA-1", OrderSize::Qty { qty: 10 }, limit)],
+        );
+        step(
+            &mut engine,
+            &second,
+            &[bar(&second, "100", "99", "101")],
+            &[("AAA", 1_000_000)],
+        );
+        let fills = engine.drain().fills;
+        assert_eq!(fills[0].price, "100.0500".parse::<Decimal>().unwrap());
+    }
+
+    #[test]
+    fn a_limit_price_is_rounded_away_from_the_market_before_it_fills() {
+        let (first, second) = (session(20), session(21));
+        let mut engine = Engine::new(&config("100000", "1"), first.open);
+        step(
+            &mut engine,
+            &first,
+            &[bar(&first, "100", "99", "100")],
+            &[("AAA", 1_000_000)],
+        );
+        let limit = OrderType::Limit {
+            limit_price: "99.123456".parse().unwrap(),
+        };
+        submit(
+            &mut engine,
+            &first,
+            vec![order("AAA-1", OrderSize::Qty { qty: 10 }, limit)],
+        );
+        step(
+            &mut engine,
+            &second,
+            &[bar(&second, "100", "99", "101")],
+            &[("AAA", 1_000_000)],
+        );
+        let fills = engine.drain().fills;
+        assert_eq!(fills[0].price.to_string(), "99.1234");
+    }
+
+    #[test]
+    fn an_order_from_the_previous_session_expires_before_a_split_rescales_it() {
+        let (first, second, third) = (session(20), session(21), session(22));
+        let mut engine = Engine::new(&config("100000", "1"), first.open);
+        step(
+            &mut engine,
+            &first,
+            &[bar(&first, "100", "99", "100")],
+            &[("AAA", 1_000_000)],
+        );
+        let limit = OrderType::Limit {
+            limit_price: Decimal::from(50),
+        };
+        submit(
+            &mut engine,
+            &first,
+            vec![order("AAA-1", OrderSize::Qty { qty: 10 }, limit)],
+        );
+        step(
+            &mut engine,
+            &second,
+            &[bar(&second, "100", "99", "100")],
+            &[("AAA", 1_000_000)],
+        );
+        engine.drain();
+        let split = CorporateAction {
+            symbol: Symbol::new("AAA"),
+            ex_date: third.date,
+            kind: CorporateActionKind::Split {
+                old_rate: Decimal::ONE,
+                new_rate: Decimal::TWO,
+            },
+        };
+        engine.run_cycle(&Cycle {
+            session: &third,
+            start: third.open,
+            visible_at: third.close,
+            bars: &[bar(&third, "50", "49", "50")],
+            actions: &[split],
+            average_daily_volume: &BTreeMap::new(),
+            delisted: &[],
+        });
+        let expired = &engine.drain().orders[0];
+        assert_eq!(expired.status, OrderStatus::Expired);
+        assert_eq!(expired.qty, 10);
+        assert_eq!(expired.order_type, limit);
+    }
+
+    #[test]
+    fn an_order_without_an_average_daily_volume_fills_uncapped_and_warns_once() {
+        let (first, second) = (session(20), session(21));
+        let mut engine = Engine::new(&config("100000", "1"), first.open);
+        step(&mut engine, &first, &[bar(&first, "100", "99", "100")], &[]);
+        submit(
+            &mut engine,
+            &first,
+            vec![buy("AAA-1", 10), buy("AAA-2", 10)],
+        );
+        step(
+            &mut engine,
+            &second,
+            &[bar(&second, "100", "99", "101")],
+            &[],
+        );
+        let outbox = engine.drain();
+        assert_eq!(outbox.fills.len(), 2);
+        assert_eq!(outbox.warnings.len(), 1);
+    }
+
+    #[test]
+    fn sizes_that_overflow_are_rejected_instead_of_panicking() {
+        let first = session(20);
+        let mut engine = Engine::new(&config("100000", "1"), first.open);
+        step(
+            &mut engine,
+            &first,
+            &[bar(&first, "100", "99", "100")],
+            &[("AAA", 1_000_000)],
+        );
+        let huge = OrderSize::TargetWeight {
+            weight: Decimal::MAX,
+        };
+        let orders = submit(
+            &mut engine,
+            &first,
+            vec![
+                order("AAA-1", huge, OrderType::Market),
+                buy("AAA-2", i64::MAX),
+                buy("AAA-3", i64::MAX),
+            ],
+        );
+        let reasons: Vec<_> = orders.iter().map(|order| order.reject_reason).collect();
+        assert_eq!(
+            reasons,
+            [
+                Some(RejectReason::InvalidSize),
+                None,
+                Some(RejectReason::InvalidSize)
+            ]
+        );
+    }
+
+    #[test]
+    fn unknown_and_unshortable_orders_are_rejected_as_orders() {
+        let first = session(20);
+        let mut engine = Engine::new(&config("100000", "1"), first.open);
+        step(
+            &mut engine,
+            &first,
+            &[bar(&first, "100", "99", "100")],
+            &[("AAA", 1_000_000)],
+        );
+        let mut unknown = buy("ZZZ-1", 10);
+        unknown.symbol = Symbol::new("ZZZ");
+        let orders = submit(&mut engine, &first, vec![unknown, buy("AAA-1", -10)]);
+        let reasons: Vec<_> = orders.iter().map(|order| order.reject_reason).collect();
+        assert_eq!(
+            reasons,
+            [
+                Some(RejectReason::UnknownSymbol),
+                Some(RejectReason::NotShortable)
+            ]
+        );
+    }
+
+    #[test]
+    fn a_repeated_client_id_is_rejected_without_touching_the_first_order() {
+        let first = session(20);
+        let mut engine = Engine::new(&config("100000", "1"), first.open);
+        step(
+            &mut engine,
+            &first,
+            &[bar(&first, "100", "99", "100")],
+            &[("AAA", 1_000_000)],
+        );
+        submit(&mut engine, &first, vec![buy("AAA-1", 10)]);
+        engine.accept(
+            first.close,
+            first.date.succ_opt().unwrap(),
+            vec![buy("AAA-1", 10)],
+            Vec::new(),
+            |_| Err(RejectReason::UnknownSymbol),
+        );
+        let rejected = &engine.drain().rejections[0];
+        assert_eq!(
+            rejected.reject_reason,
+            Some(RejectReason::DuplicateClientId)
+        );
+        assert_eq!(engine.holdings().working.len(), 1);
+    }
+
+    #[test]
+    fn a_live_run_resumes_from_an_older_engine_checkpoint_and_a_backtest_refuses() {
+        #[derive(Serialize)]
+        struct Legacy<'a> {
+            version: &'a str,
+            state: &'a State,
+        }
+        let first = session(20);
+        let backtest = config("100000", "1");
+        let live = RunConfig {
+            mode: Mode::Live,
+            ..backtest.clone()
+        };
+        let engine = Engine::new(&live, first.open);
+        let checkpoint = rmp_serde::to_vec_named(&Legacy {
+            version: "0.1.0",
+            state: &engine.state,
+        })
+        .unwrap();
+        let resumed = Engine::restore(&live, &checkpoint).unwrap();
+        assert_eq!(resumed.result_hash(), engine.result_hash());
+        assert!(matches!(
+            Engine::restore(&backtest, &checkpoint),
+            Err(EngineError::Version(1))
+        ));
     }
 }

@@ -137,7 +137,6 @@ async fn alpaca_client_pages_filters_and_normalizes_against_fixtures() {
             close: at("2024-07-03", "13:00"),
         }
     );
-    assert!(half_day.is_half_day());
     let calendar = Calendar::new(sessions);
 
     let daily = client

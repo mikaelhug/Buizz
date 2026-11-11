@@ -15,10 +15,10 @@ use tokio::time::{Instant, sleep, timeout};
 use crate::fake::FakeProviders;
 use crate::world::repository;
 
-pub const PASSWORD: &str = "e2e-password";
 const DEADLINE: Duration = Duration::from_secs(90);
 const POLL: Duration = Duration::from_millis(100);
 const EVENTS_PAGE: u32 = 1000;
+const LAUNCH_ATTEMPTS: usize = 5;
 
 pub async fn eventually<T, F: Future<Output = Option<T>>>(
     what: &str,
@@ -41,6 +41,7 @@ pub struct Options {
 
 pub struct Spine {
     pub base: String,
+    pub password: String,
     pub fake: FakeProviders,
     options: Options,
     port: u16,
@@ -90,9 +91,17 @@ impl Spine {
         for name in options.bots {
             std::os::unix::fs::symlink(bot_dir(name), bots.join(name)).expect("bot link");
         }
+        let password = format!(
+            "e2e-{}",
+            dir.path()
+                .file_name()
+                .expect("a named directory")
+                .to_string_lossy()
+        );
         let mut spine = Self {
             base: String::new(),
-            port: free_port(),
+            password,
+            port: 0,
             fake,
             options,
             dir,
@@ -100,12 +109,29 @@ impl Spine {
             client: Client::new(),
             cookie: String::new(),
         };
-        spine.base = format!("http://127.0.0.1:{}", spine.port);
         spine.launch().await;
         spine
     }
 
     async fn launch(&mut self) {
+        for _ in 0..LAUNCH_ATTEMPTS {
+            if self.port == 0 {
+                self.port = free_port();
+                self.base = format!("http://127.0.0.1:{}", self.port);
+            }
+            if self.try_launch().await {
+                return;
+            }
+            self.kill().await;
+            self.port = 0;
+        }
+        panic!(
+            "the spine did not start on a free port in {LAUNCH_ATTEMPTS} attempts\n{}",
+            self.log()
+        );
+    }
+
+    async fn try_launch(&mut self) -> bool {
         let log = std::fs::OpenOptions::new()
             .create(true)
             .append(true)
@@ -123,7 +149,7 @@ impl Spine {
             )
             .env("RUST_LOG", "info")
             .env("BUIZZ_BIND", format!("127.0.0.1:{}", self.port))
-            .env("BUIZZ_ADMIN_PASSWORD", PASSWORD)
+            .env("BUIZZ_ADMIN_PASSWORD", &self.password)
             .env("BUIZZ_SECURE_COOKIES", "false")
             .env("BUIZZ_WEB_DIR", repository().join("web/dist"))
             .env("ALPACA_KEY_ID", "e2e-key")
@@ -143,14 +169,30 @@ impl Spine {
                 .env("TIINGO_API_KEY", "e2e-tiingo")
                 .env("TIINGO_URL", url);
         }
-        self.child = Some(command.spawn().expect("the spine starts"));
+        let mut child = command.spawn().expect("the spine starts");
         let session = format!("{}/api/auth/session", self.base);
-        eventually("the spine to listen", || async {
-            self.client.get(&session).send().await.ok()
+        let listening = eventually("the spine to listen", || {
+            let exited = child.try_wait().expect("the spine is waitable").is_some();
+            let probe = self.client.get(&session).send();
+            async move {
+                if exited {
+                    return Some(false);
+                }
+                probe
+                    .await
+                    .ok()
+                    .map(|response| response.status() == StatusCode::OK)
+            }
         })
         .await;
-        let login = self.login(PASSWORD).await;
-        assert_eq!(login.status(), StatusCode::NO_CONTENT);
+        self.child = Some(child);
+        if !listening {
+            return false;
+        }
+        let login = self.login(&self.password).await;
+        if login.status() != StatusCode::NO_CONTENT {
+            return false;
+        }
         let cookie = login
             .headers()
             .get(header::SET_COOKIE)
@@ -163,6 +205,7 @@ impl Spine {
             .next()
             .expect("the cookie has a value")
             .to_owned();
+        true
     }
 
     pub async fn login(&self, password: &str) -> reqwest::Response {

@@ -1,12 +1,6 @@
-from datetime import datetime
-
 from buizz import Bot, Context, run
 
 RESTING = "rest-"
-
-
-def iso(moment: datetime) -> str:
-    return moment.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 class Tape(Bot):
@@ -14,7 +8,9 @@ class Tape(Bot):
         steps = int(ctx.state.get("steps", 0)) + 1
         ctx.state["steps"] = steps
         bars = dict(sorted(ctx.bars.items()))
-        ctx.log(f"step {steps} saw " + " ".join(f"{symbol}@{iso(bar.start)}" for symbol, bar in bars.items()))
+        ctx.log(
+            f"step {steps} saw " + " ".join(f"{symbol}@{bar.start:%Y-%m-%dT%H:%M:%SZ}" for symbol, bar in bars.items())
+        )
         for symbol, bar in bars.items():
             held = ctx.position(symbol).qty
             if bar.close < bar.open and held == 0:
@@ -28,7 +24,7 @@ class Tape(Bot):
                 1,
                 limit_price=round(bar.close / 2, 2),
                 reason="resting bid far below the market",
-                client_id=f"{RESTING}{iso(ctx.clock)}",
+                client_id=f"{RESTING}{ctx.clock:%Y-%m-%dT%H:%M:%SZ}",
             )
 
 

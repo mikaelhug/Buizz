@@ -1,15 +1,9 @@
-from datetime import datetime
-
 from buizz import Bot, Context, run
-
-
-def iso(moment: datetime) -> str:
-    return moment.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 class Intraday(Bot):
     def on_step(self, ctx: Context) -> None:
-        clock = iso(ctx.clock)
+        clock = f"{ctx.clock:%Y-%m-%dT%H:%M:%SZ}"
         ctx.log(f"step at {clock}")
         bar = ctx.bars["AAA"]
         if clock == ctx.params["touch_at"]:

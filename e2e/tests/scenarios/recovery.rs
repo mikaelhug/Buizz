@@ -2,7 +2,7 @@ use buizz_core::api::RunSummary;
 use buizz_core::run::{RunId, RunStatus};
 use buizz_core::time::Timestamp;
 use chrono::TimeDelta;
-use nix::sys::signal::{Signal, kill};
+use nix::sys::signal::{Signal, killpg};
 use nix::unistd::Pid;
 use serde_json::json;
 
@@ -56,7 +56,7 @@ async fn a_live_run_survives_kill_9_of_its_bot_and_of_the_spine() {
     caught_up(&spine, run.id, fake.released()).await;
 
     let first = bot_started(&spine, run.id, 1).await[0];
-    kill(Pid::from_raw(first), Signal::SIGKILL).expect("the bot is killed");
+    killpg(Pid::from_raw(first), Signal::SIGKILL).expect("the bot's process group is killed");
     let (_, through) = fake.release(RELEASE_MINUTES);
     bot_started(&spine, run.id, 2).await;
     assert!(!alive(first));
