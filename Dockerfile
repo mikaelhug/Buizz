@@ -5,9 +5,13 @@ ARG CARGO_BUILD_JOBS=4
 ENV CARGO_BUILD_JOBS=$CARGO_BUILD_JOBS
 WORKDIR /src
 
-FROM chef AS planner
+FROM chef AS workspace
 COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
 COPY crates crates
+COPY e2e/Cargo.toml e2e/Cargo.toml
+COPY e2e/tests e2e/tests
+
+FROM workspace AS planner
 RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS rust-build
@@ -15,8 +19,7 @@ COPY --from=planner /src/recipe.json recipe.json
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/src/target,id=buizz-target \
     cargo chef cook --release --locked --recipe-path recipe.json -p buizz-spine
-COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
-COPY crates crates
+COPY --from=workspace /src ./
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/src/target,id=buizz-target \
     cargo build --release --locked -p buizz-spine \
