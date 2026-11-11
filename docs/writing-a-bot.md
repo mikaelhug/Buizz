@@ -79,7 +79,7 @@ The spine starts `command` with `BUIZZ_SPINE_URL`, `BUIZZ_RUN_ID` and `BUIZZ_RUN
 - `bar`: every bar.
 - `every:30m` or `every:2h`: when the time since the session open is a positive multiple of the interval, up to the close. `1m` bots only.
 - `at:15:55`: when the exchange-local (New York) time is 15:55. `1m` bots only.
-- `before_close:10m`: that many minutes before each session's close, so 15:50 on a normal day and 12:50 on a half day. A `1d` bot then wakes only there, ten minutes into the last part of the session, instead of at the close: see [Deciding before the close](#deciding-before-the-close).
+- `before_close:10m`: that many minutes before each session's close, so 15:50 on a normal day and 12:50 on a half day; it must be under 210 minutes, the length of a half day. A `1d` bot then wakes only there, ten minutes into the last part of the session, instead of at the close: see [Deciding before the close](#deciding-before-the-close).
 
 **Params.** The values in `bot.toml` are defaults. A backtest request, or `buizz backtest --param weight=0.5`, overrides single keys; the merged object is stored with the run.
 

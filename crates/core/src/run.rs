@@ -310,6 +310,8 @@ pub const MOC_CUTOFF_MINUTES: i64 = 10;
 
 pub const RATE_LOOKBACK_DAYS: i64 = 31;
 
+pub const HALF_DAY_MINUTES: u32 = 210;
+
 pub const UNIVERSE_SESSIONS: u32 = 20;
 
 pub const DRAWDOWN_STOP: &str = "stopped by drawdown limit";
@@ -607,6 +609,13 @@ impl BotManifest {
         if !manifest.risk.are_positive() {
             return Err(ManifestError::Invalid("risk limits must be positive"));
         }
+        if let Wake::BeforeClose { minutes } = manifest.wake
+            && minutes >= HALF_DAY_MINUTES
+        {
+            return Err(ManifestError::Invalid(
+                "before_close must be under 210 minutes, the length of a half-day session",
+            ));
+        }
 
         match &manifest.universe {
             UniverseSpec::Symbols { symbols } if symbols.is_empty() => {
@@ -626,6 +635,17 @@ impl BotManifest {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_pre_close_wake_that_would_skip_half_days_is_refused() {
+        let manifest = |wake: &str| {
+            BotManifest::from_toml(&format!(
+                "command = [\"true\"]\ntimeframe = \"1d\"\nwake = \"{wake}\"\nuniverse = {{ symbols = [\"SPY\"] }}\n"
+            ))
+        };
+        assert!(manifest("before_close:209m").is_ok());
+        assert!(manifest("before_close:210m").is_err());
+    }
 
     #[test]
     fn without_limits_no_order_is_rejected_for_exposure_even_at_negative_equity() {
