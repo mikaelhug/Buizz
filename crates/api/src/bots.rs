@@ -1,5 +1,5 @@
 use axum::Json;
-use axum::extract::{Path, State};
+use axum::extract::State;
 use axum::http::StatusCode;
 use buizz_core::api::{
     ApiError, BotDetail, BotStatus, BotSummary, RunSummary, SparkPoint, StartBacktest,
@@ -9,6 +9,7 @@ use buizz_state::RunFilter;
 
 use crate::AppState;
 use crate::error::Failure;
+use crate::extract::{JsonBody, Path};
 use crate::time::exchange_today;
 
 const RECENT_RUNS: u32 = 50;
@@ -136,7 +137,7 @@ pub(crate) async fn bot_detail(
 pub(crate) async fn start_backtest(
     State(app): State<AppState>,
     Path(name): Path<String>,
-    Json(request): Json<StartBacktest>,
+    JsonBody(request): JsonBody<StartBacktest>,
 ) -> Result<(StatusCode, Json<RunSummary>), Failure> {
     let run = app
         .runner

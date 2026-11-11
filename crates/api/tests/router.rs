@@ -157,3 +157,48 @@ async fn unknown_api_paths_are_json_not_found_while_app_paths_serve_the_ui() {
     assert_eq!(page.status, StatusCode::OK);
     assert!(page.body.starts_with("<!doctype html>"));
 }
+
+async fn session_cookie(spine: &Spine) -> String {
+    let login = Request::post("/api/auth/login")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(r#"{"password":"correct horse battery"}"#))
+        .expect("request");
+    let response = spine
+        .router
+        .clone()
+        .oneshot(login)
+        .await
+        .expect("infallible router");
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+    response
+        .headers()
+        .get(header::SET_COOKIE)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.split(';').next())
+        .expect("session cookie")
+        .to_owned()
+}
+
+#[tokio::test]
+async fn malformed_inputs_answer_with_an_api_error() {
+    let spine = spine().await;
+    let cookie = session_cookie(&spine).await;
+    let bad_path = Request::get("/api/runs/abc")
+        .header(header::COOKIE, &cookie)
+        .body(Body::empty())
+        .expect("request");
+    let bad_query = Request::get("/api/runs?limit=many")
+        .header(header::COOKIE, &cookie)
+        .body(Body::empty())
+        .expect("request");
+    let bad_body = Request::post("/api/auth/login")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from("{"))
+        .expect("request");
+    for request in [bad_path, bad_query, bad_body] {
+        let reply = send(&spine, request).await;
+        assert_eq!(reply.status, StatusCode::BAD_REQUEST, "{}", reply.body);
+        assert_eq!(reply.content_type.as_deref(), Some("application/json"));
+        assert!(reply.body.starts_with("{\"error\":"), "{}", reply.body);
+    }
+}

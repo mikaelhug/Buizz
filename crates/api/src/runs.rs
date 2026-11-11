@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::io::SeekFrom;
 
 use axum::Json;
-use axum::extract::{Path, Query, State};
+use axum::extract::State;
 use axum::http::header;
 use axum::response::IntoResponse;
 use buizz_core::api::{
@@ -20,6 +20,7 @@ use tokio::io::{AsyncReadExt, AsyncSeekExt};
 
 use crate::AppState;
 use crate::error::Failure;
+use crate::extract::{Path, Query};
 use crate::time::exchange_today;
 
 const DEFAULT_RUNS: u32 = 100;

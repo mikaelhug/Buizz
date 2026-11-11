@@ -16,6 +16,7 @@ use tokio::time::Instant;
 
 use crate::ApiConfig;
 use crate::error::Failure;
+use crate::extract::JsonBody;
 
 const SESSION_TTL: Duration = Duration::from_secs(7 * 24 * 60 * 60);
 const FAILURE_WINDOW: Duration = Duration::from_secs(60);
@@ -224,7 +225,7 @@ pub(crate) async fn login(
     peer: Option<Extension<ConnectInfo<SocketAddr>>>,
     headers: HeaderMap,
     jar: CookieJar,
-    Json(request): Json<LoginRequest>,
+    JsonBody(request): JsonBody<LoginRequest>,
 ) -> Response {
     let peer = peer.map(|Extension(ConnectInfo(address))| address.ip());
     match auth.login(client_address(peer, &headers), &request.password) {
