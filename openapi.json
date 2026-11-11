@@ -45,6 +45,25 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "too many failed attempts",
+            "headers": {
+              "retry-after": {
+                "schema": {
+                  "type": "integer",
+                  "format": "int64",
+                  "minimum": 0
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         }
       }
@@ -371,7 +390,7 @@
         "operationId": "events",
         "responses": {
           "200": {
-            "description": "server-sent events; the event name is the `type` field",
+            "description": "server-sent events; the event name is the `type` field. Log events carry the id `<run>:<seq>`; reconnecting with `Last-Event-ID` replays that run's missed log events from the state store",
             "content": {
               "text/event-stream": {
                 "schema": {
@@ -627,6 +646,45 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/EventsPage"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/{id}/logs": {
+      "get": {
+        "tags": [
+          "runs"
+        ],
+        "operationId": "run_logs",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/RunId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "the tail of the bot process log",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }

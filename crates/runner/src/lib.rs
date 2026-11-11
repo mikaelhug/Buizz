@@ -31,6 +31,7 @@ use tokio::task::JoinHandle;
 use crate::drive::Control;
 
 const EVENT_BUFFER: usize = 4096;
+const SEED_LIMIT: u64 = 1 << 53;
 const SOCKET_QUEUE: usize = 4;
 const ACTIVE: [RunStatus; 4] = [
     RunStatus::Queued,
@@ -437,6 +438,15 @@ impl Runner {
                 "start cash must be positive".to_owned(),
             ));
         }
+        let seed = match request.seed {
+            Some(seed) if seed >= SEED_LIMIT => {
+                return Err(RunnerError::InvalidRequest(format!(
+                    "the seed must be below {SEED_LIMIT}"
+                )));
+            }
+            Some(seed) => seed,
+            None => rand::random_range(0..SEED_LIMIT),
+        };
         Ok(RunConfig {
             bot: spec.name.clone(),
             mode,
@@ -449,7 +459,7 @@ impl Runner {
             start_cash,
             cost: request.cost.unwrap_or(defaults.cost),
             risk: request.risk.unwrap_or(defaults.risk),
-            seed: request.seed.unwrap_or_else(rand::random),
+            seed,
             benchmark: manifest.benchmark.clone(),
             holdout,
         })
@@ -480,10 +490,11 @@ impl Runner {
             badges.push(RunBadge::DataWarnings);
         }
         let created_at = now();
+        let data_watermark = inner.market.watermarks().borrow().get(config.timeframe);
         let run_id = inner
             .state
             .create_run(NewRun {
-                data_watermark: inner.market.watermarks().borrow().get(config.timeframe),
+                data_watermark,
                 config,
                 status,
                 desired: DesiredState::Running,

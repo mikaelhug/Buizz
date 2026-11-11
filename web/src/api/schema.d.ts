@@ -292,6 +292,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/runs/{id}/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["run_logs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/runs/{id}/orders": {
         parameters: {
             query?: never;
@@ -822,6 +838,16 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
+            /** @description too many failed attempts */
+            429: {
+                headers: {
+                    "retry-after"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
         };
     };
     logout: {
@@ -1100,7 +1126,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description server-sent events; the event name is the `type` field */
+            /** @description server-sent events; the event name is the `type` field. Log events carry the id `<run>:<seq>`; reconnecting with `Last-Event-ID` replays that run's missed log events from the state store */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1270,6 +1296,36 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventsPage"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    run_logs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["RunId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description the tail of the bot process log */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
                 };
             };
             404: {
