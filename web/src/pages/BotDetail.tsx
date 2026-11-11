@@ -141,7 +141,7 @@ function RunHistory({ runs, selected, name, onCancelled }: { runs: Run[]; select
                   <td className="r">
                     <MetricValue metrics={run.metrics} metric="max_drawdown" />
                   </td>
-                  <td className="nowrap muted">{fmt.dateTime(run.created_at)}</td>
+                  <td className="nowrap muted">{fmt.local(run.created_at)}</td>
                   <td className="badges">
                     <RunBadges badges={run.badges} />
                     {run.mode === "backtest" && (run.status === "queued" || run.status === "starting" || run.status === "running") && (

@@ -117,7 +117,7 @@ function reproTitle(run: Run): string | undefined {
     `Bot ${repro.bot_hash}`,
     `Engine ${repro.engine_version}`,
     `Seed ${repro.seed}`,
-    `Data to ${fmt.dateTime(repro.data_watermark)}`,
+    `Data to ${fmt.market(repro.data_watermark)}`,
     `Result ${run.result_hash ?? ABSENT}`,
   ].join("\n");
 }
@@ -144,7 +144,7 @@ function RunHeader({ run }: { run: Run }) {
         </div>
         <div>
           <dt>Clock</dt>
-          <dd>{fmt.dateTime(run.clock)}</dd>
+          <dd>{fmt.market(run.clock)}</dd>
         </div>
         <div>
           <dt>Start cash</dt>
@@ -266,7 +266,7 @@ function Orders({ orders }: { orders: Paged<Schemas["OrderView"]> }) {
               {orders.data.items.map((order) => (
                 <tr key={order.id} className={order.qty === 0 ? "quiet" : undefined}>
                   <td className="nowrap muted" title={order.client_id}>
-                    {fmt.dateTime(order.decided_at)}
+                    {fmt.market(order.decided_at)}
                   </td>
                   <td className="sym">{order.symbol}</td>
                   {order.qty === 0 ? (
@@ -347,9 +347,15 @@ function Events({ events }: { events: Paged<Schemas["RunEvent"]> }) {
         <ol className="event-log">
           {items.map((event) => (
             <li key={event.seq} className={`event event-${event.kind.type === "log" ? event.kind.level : event.kind.type}`}>
-              <time className="muted" title={`Wall ${fmt.dateTime(event.at)}`}>
-                {fmt.dateTime(event.clock ?? event.at)}
-              </time>
+              {event.clock ? (
+                <time className="muted" dateTime={event.clock} title={`Local ${fmt.local(event.at)}`}>
+                  {fmt.market(event.clock)}
+                </time>
+              ) : (
+                <time className="muted wall" dateTime={event.at} title="Local time">
+                  {fmt.local(event.at)}
+                </time>
+              )}
               <span className="event-kind">{event.kind.type === "log" ? event.kind.level : label(event.kind.type)}</span>
               <span className="event-text">{describe(event.kind)}</span>
             </li>

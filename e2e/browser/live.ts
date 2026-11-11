@@ -17,8 +17,17 @@ async function release(minutes: number): Promise<Released> {
   return (await response.json()) as Released;
 }
 
+const exchangeTime = new Intl.DateTimeFormat("sv-SE", {
+  timeZone: "America/New_York",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
 function shown(at: Date): string {
-  return at.toISOString().slice(0, 16).replace("T", " ");
+  return `${exchangeTime.format(at)} ET`;
 }
 
 function minutes({ from, through }: Released): string[] {

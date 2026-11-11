@@ -65,7 +65,7 @@ function BotCard({ bot, onChanged }: { bot: Bot; onChanged: () => void }) {
         <Sparkline points={bot.sparkline} />
       </div>
       <footer className="bot-card-foot">
-        <span className="muted">{bot.last_run_at ? fmt.dateTime(bot.last_run_at) : "Never run"}</span>
+        <span className="muted">{bot.last_run_at ? fmt.local(bot.last_run_at) : "Never run"}</span>
         <BotActions bot={bot} onChanged={onChanged} />
       </footer>
       {bot.stats && (

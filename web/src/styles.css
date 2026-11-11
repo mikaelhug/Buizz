@@ -901,8 +901,13 @@ h2 {
 }
 
 .event time {
+  min-width: 19ch;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+}
+
+.event time.wall {
+  font-style: italic;
 }
 
 .event-kind {

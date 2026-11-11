@@ -37,13 +37,13 @@ export function DataHealth() {
               <dt className="help" title="Latest daily bar visible to runs">
                 Daily
               </dt>
-              <dd>{fmt.dateTime(health.data.watermarks.day)}</dd>
+              <dd>{fmt.market(health.data.watermarks.day)}</dd>
             </div>
             <div>
               <dt className="help" title="Latest minute bar visible to runs">
                 Minute
               </dt>
-              <dd>{fmt.dateTime(health.data.watermarks.minute)}</dd>
+              <dd>{fmt.market(health.data.watermarks.minute)}</dd>
             </div>
             {health.data.ingest_enabled ? (
               <div>
@@ -180,10 +180,10 @@ function JobsPanel({ jobs }: { jobs: Resource<Schemas["JobView"][]> }) {
                   <td>{job.every}</td>
                   <td>{job.last_outcome ? <StatusPill status={job.last_outcome} /> : ABSENT}</td>
                   <td className="reason">{job.last_message ?? ""}</td>
-                  <td className="nowrap muted" title={`Started ${fmt.dateTime(job.last_started)}`}>
-                    {fmt.dateTime(job.last_finished)}
+                  <td className="nowrap muted" title={`Started ${fmt.local(job.last_started)}`}>
+                    {fmt.local(job.last_finished)}
                   </td>
-                  <td className="nowrap muted">{fmt.dateTime(job.next_due)}</td>
+                  <td className="nowrap muted">{fmt.local(job.next_due)}</td>
                 </tr>
               ))}
             </tbody>
@@ -238,7 +238,7 @@ function CoveragePanel({ health }: { health: Resource<Schemas["DataHealth"]> }) 
                   <td>{label(row.source)}</td>
                   <td className="nowrap">{row.first}</td>
                   <td className="nowrap">{row.last}</td>
-                  <td className="nowrap muted">{fmt.dateTime(row.updated_at)}</td>
+                  <td className="nowrap muted">{fmt.local(row.updated_at)}</td>
                 </tr>
               ))}
             </tbody>

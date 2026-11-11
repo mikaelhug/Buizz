@@ -113,7 +113,7 @@ export function Leaderboard({ preset }: { preset: Preset }) {
                       <MetricValue metrics={row.metrics} metric={key} />
                     </td>
                   ))}
-                  <td className="nowrap muted">{fmt.dateTime(row.finished_at)}</td>
+                  <td className="nowrap muted">{fmt.local(row.finished_at)}</td>
                 </tr>
               ))}
             </tbody>
