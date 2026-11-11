@@ -16,8 +16,10 @@ use buizz_sources::alpaca::{self, AlpacaClient};
 use buizz_sources::alpaca_stream::SYMBOL_CAP;
 use buizz_sources::edgar::EdgarClient;
 use buizz_sources::fred::FredClient;
+use buizz_sources::ibkr::IbkrClient;
 use buizz_sources::tiingo::TiingoClient;
 use buizz_sources::treasury::TreasuryClient;
+use buizz_sources::wikipedia::WikipediaClient;
 use buizz_state::StateStore;
 use buizz_supervisor::{Supervisor, SupervisorConfig};
 use rust_decimal::Decimal;
@@ -66,6 +68,12 @@ async fn main() -> Result<()> {
         edgar: config.edgar.clone().map(EdgarClient::new).transpose()?,
         fred: config.fred.clone().map(FredClient::new).transpose()?,
         treasury: TreasuryClient::new(config.treasury.clone())?,
+        wikipedia: config
+            .wikipedia
+            .clone()
+            .map(WikipediaClient::new)
+            .transpose()?,
+        ibkr: Some(IbkrClient::new(config.ibkr.clone())),
     };
     let feed = FeedManager::new(
         FeedConfig {

@@ -15,14 +15,20 @@ from buizz.wire import (
     STATE_LIMIT,
     Ack,
     Adjust,
+    AssetClass,
     BarBuffer,
     CalendarRequest,
     CalendarResult,
+    EarningsRequest,
+    EarningsResult,
     Event,
     FundamentalsRequest,
     FundamentalsResult,
     HistoryRequest,
     HistoryResult,
+    InstrumentProfile,
+    InstrumentsRequest,
+    InstrumentsResult,
     Limit,
     LogLevel,
     LogLine,
@@ -39,6 +45,7 @@ from buizz.wire import (
     Result,
     SessionFrame,
     Step,
+    StockIndex,
     Timeframe,
     UniverseRequest,
     UniverseResult,
@@ -61,6 +68,8 @@ DECIMAL_MIN = Decimal("1e-28")
 METRICS: frozenset[str] = frozenset(get_args(Metric.__value__))
 MACRO_SERIES: frozenset[str] = frozenset(get_args(MacroSeries.__value__))
 TIMEFRAMES: frozenset[str] = frozenset(get_args(Timeframe.__value__))
+ASSET_CLASSES: frozenset[str] = frozenset(get_args(AssetClass.__value__))
+INDEXES: frozenset[str] = frozenset(get_args(StockIndex.__value__))
 ADJUSTMENTS: frozenset[str] = frozenset(get_args(Adjust.__value__))
 STATE_SCALARS = (str, bool)
 STATE_INT_RANGE = range(-(2**63), 2**64)
@@ -188,6 +197,16 @@ class FundamentalPoint(msgspec.Struct, frozen=True):
     form: str
     filed: date
     available_at: datetime
+
+
+class EarningsRelease(msgspec.Struct, frozen=True):
+    symbol: str
+    cik: int
+    accession: str
+    form: str
+    filed: date
+    report_date: date | None
+    accepted_at: datetime
 
 
 class MacroPoint(msgspec.Struct, frozen=True):
@@ -343,6 +362,23 @@ class Context:
             for f in result.points
         ]
 
+    def instruments(self, symbols: list[str]) -> dict[str, InstrumentProfile]:
+        self._current("ctx.instruments")
+        result = self._query(InstrumentsRequest(symbols))
+        if not isinstance(result, InstrumentsResult):
+            raise ProtocolError(f"instruments query answered with {type(result).__name__}")
+        return {profile.symbol: profile for profile in result.instruments}
+
+    def earnings(self, symbols: list[str]) -> list[EarningsRelease]:
+        self._current("ctx.earnings")
+        result = self._query(EarningsRequest(symbols))
+        if not isinstance(result, EarningsResult):
+            raise ProtocolError(f"earnings query answered with {type(result).__name__}")
+        return [
+            EarningsRelease(r.symbol, r.cik, r.accession, r.form, r.filed, r.report_date, from_ns(r.accepted_at))
+            for r in result.releases
+        ]
+
     def calendar(self, start: date, end: date) -> list[Session]:
         self._current("ctx.calendar")
         result = self._query(CalendarRequest(day("start", start), day("end", end)))
@@ -350,12 +386,32 @@ class Context:
             raise ProtocolError(f"calendar query answered with {type(result).__name__}")
         return [session_of(frame) for frame in result.sessions]
 
-    def universe_at(self, on: date, top_dollar_volume: int | np.integer[Any]) -> list[str]:
+    def universe_at(
+        self,
+        on: date,
+        top_dollar_volume: int | np.integer[Any] | None = None,
+        *,
+        asset_class: AssetClass | None = None,
+        index: StockIndex | None = None,
+    ) -> list[str]:
         self._current("ctx.universe_at")
-        count = integer("top_dollar_volume", top_dollar_volume)
-        if not 1 <= count <= MAX_UNIVERSE_SYMBOLS:
-            raise ValueError(f"top_dollar_volume must be between 1 and {MAX_UNIVERSE_SYMBOLS}, got {count}")
-        result = self._query(UniverseRequest(day("on", on), count))
+        if (top_dollar_volume is None) == (index is None):
+            raise ValueError("universe_at takes either top_dollar_volume or index")
+        spec: dict[str, str | int]
+        if index is not None:
+            if index not in INDEXES or asset_class is not None:
+                raise ValueError(f"index must be one of {sorted(INDEXES)} without asset_class, got {index!r}")
+            spec = {"index": index}
+        else:
+            count = integer("top_dollar_volume", top_dollar_volume)
+            if not 1 <= count <= MAX_UNIVERSE_SYMBOLS:
+                raise ValueError(f"top_dollar_volume must be between 1 and {MAX_UNIVERSE_SYMBOLS}, got {count}")
+            spec = {"top_dollar_volume": count}
+            if asset_class is not None:
+                if asset_class not in ASSET_CLASSES:
+                    raise ValueError(f"asset_class must be one of {sorted(ASSET_CLASSES)}, got {asset_class!r}")
+                spec["asset_class"] = asset_class
+        result = self._query(UniverseRequest(day("on", on), spec))
         if not isinstance(result, UniverseResult):
             raise ProtocolError(f"universe query answered with {type(result).__name__}")
         return result.symbols

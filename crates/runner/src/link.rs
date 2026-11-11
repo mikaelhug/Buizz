@@ -5,6 +5,7 @@ use buizz_core::protocol::{
     self, Ack, BarBuffer, BotMessage, Data, DataResult, End, EndReason, ErrorCode, Hello,
     PROTOCOL_VERSION, ProtocolError, Query, QueryRequest, Ready, SpineMessage, Step,
 };
+use buizz_core::run::UniverseSpec;
 use buizz_core::time::Timestamp;
 use buizz_core::visibility::calendar_known_through;
 use buizz_market::{HistoryRequest, MarketStore};
@@ -192,24 +193,43 @@ async fn answer(
             let sessions = market.published_sessions(from, to, clock);
             Ok(DataResult::Calendar { sessions })
         }
-        QueryRequest::Universe {
-            date,
-            top_dollar_volume,
-        } => {
-            if !(1..=MAX_UNIVERSE_SYMBOLS).contains(&top_dollar_volume) {
-                return Err(format!(
-                    "top_dollar_volume must be between 1 and {MAX_UNIVERSE_SYMBOLS}"
-                ));
+        QueryRequest::Universe { date, universe } => {
+            match &universe {
+                UniverseSpec::Symbols { .. } => {
+                    return Err("a past universe is a top_dollar_volume or an index".to_owned());
+                }
+                UniverseSpec::TopDollarVolume {
+                    top_dollar_volume, ..
+                } if !(1..=MAX_UNIVERSE_SYMBOLS).contains(top_dollar_volume) => {
+                    return Err(format!(
+                        "top_dollar_volume must be between 1 and {MAX_UNIVERSE_SYMBOLS}"
+                    ));
+                }
+                _ => {}
             }
             let known = market.universe_visible_at(date);
             if known > clock {
                 return Err(format!("the universe of {date} is known from {known}"));
             }
             let symbols = market
-                .listed_top_dollar_volume(top_dollar_volume, date, adv_sessions)
+                .universe(&universe, date, adv_sessions)
                 .await
                 .map_err(|error| error.to_string())?;
             Ok(DataResult::Universe { symbols })
+        }
+        QueryRequest::Instruments { symbols } => {
+            let instruments = market
+                .instrument_profiles(symbols)
+                .await
+                .map_err(|error| error.to_string())?;
+            Ok(DataResult::Instruments { instruments })
+        }
+        QueryRequest::Earnings { symbols } => {
+            let releases = market
+                .earnings_releases(symbols, clock)
+                .await
+                .map_err(|error| error.to_string())?;
+            Ok(DataResult::Earnings { releases })
         }
         QueryRequest::Macro { series, from, to } => {
             if from > to {

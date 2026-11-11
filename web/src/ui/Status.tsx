@@ -12,6 +12,10 @@ const BADGES: Record<Schemas["RunBadge"], { text: string; title: string }> = {
   },
   holdout: { text: "Holdout", title: "Ran on the locked last 12 months" },
   data_warnings: { text: "Data warnings", title: "The run saw data warnings; see its events" },
+  thin_index_history: {
+    text: "Thin index history",
+    title: "The run starts before the index change log is complete enough to rebuild membership reliably",
+  },
 };
 
 const DRAWDOWN_STOP = "stopped by drawdown limit";

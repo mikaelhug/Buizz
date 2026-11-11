@@ -8,5 +8,6 @@ mod limits;
 mod live;
 mod lookahead;
 mod recovery;
+mod reference;
 mod spine;
 mod world;

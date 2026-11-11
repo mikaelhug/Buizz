@@ -1,14 +1,16 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
 
-use buizz_core::market::{Calendar, FundamentalFact, Symbol};
+use buizz_core::market::{Calendar, EarningsRelease, FundamentalFact, Symbol};
 use serde::Deserialize;
 
 use crate::http::{HttpClient, RateLimit, SourceError};
 
 mod concepts;
+mod filings;
 mod normalize;
 
+pub use filings::{FilingsPage, Submissions, normalize_filings_page, normalize_submissions};
 pub use normalize::normalize_company_facts;
 
 pub const DATA_URL: &str = "https://data.sec.gov";
@@ -114,6 +116,21 @@ impl EdgarClient {
         let url = format!("{}/api/xbrl/companyfacts/CIK{cik:010}.json", self.data_url);
         let body = self.fetch(url).await?;
         normalize_company_facts(symbol, &body, calendar)
+    }
+
+    pub async fn submissions(&self, symbol: &Symbol, cik: u32) -> Result<Submissions, SourceError> {
+        let url = format!("{}/submissions/CIK{cik:010}.json", self.data_url);
+        normalize_submissions(symbol, &self.fetch(url).await?)
+    }
+
+    pub async fn filings_page(
+        &self,
+        symbol: &Symbol,
+        cik: u32,
+        page: &FilingsPage,
+    ) -> Result<Vec<EarningsRelease>, SourceError> {
+        let url = format!("{}/submissions/{}", self.data_url, page.name);
+        normalize_filings_page(symbol, cik, &self.fetch(url).await?)
     }
 
     async fn fetch(&self, url: String) -> Result<Vec<u8>, SourceError> {

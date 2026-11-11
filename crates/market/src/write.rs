@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use buizz_core::market::{
-    Bar, CorporateAction, DataSource, Dataset, FundamentalFact, Instrument, MacroObservation,
-    RiskFreeRate, Session, Symbol,
+    Bar, BorrowAvailability, Company, CorporateAction, DataSource, Dataset, EarningsRelease,
+    FundamentalFact, IndexHistory, Instrument, MacroObservation, RiskFreeRate, Session, Symbol,
 };
 use buizz_core::time::Timestamp;
 use chrono::NaiveDate;
@@ -11,7 +11,7 @@ use duckdb::{Appender, Connection, Transaction, params};
 use crate::codec::{Dec, Ts, action_columns, feed_name, wire_name};
 use crate::{Result, WriteSummary};
 
-const STAGED: [&str; 7] = [
+const STAGED: [&str; 9] = [
     "instrument",
     "calendar",
     "bar_1d",
@@ -19,6 +19,8 @@ const STAGED: [&str; 7] = [
     "fundamental_fact",
     "rate_daily",
     "macro_observation",
+    "company",
+    "earnings_release",
 ];
 
 pub(crate) fn prepare(connection: &Connection) -> Result<()> {
@@ -500,6 +502,169 @@ pub(crate) fn macro_observations(
             )?;
             replace_staged(transaction, "macro_observation")?;
             Ok(rows)
+        },
+    )
+}
+
+pub(crate) fn companies(
+    connection: &mut Connection,
+    source: DataSource,
+    companies: Vec<Company>,
+) -> Result<WriteSummary> {
+    let unique: BTreeMap<Symbol, Company> = companies
+        .into_iter()
+        .map(|company| (company.symbol.clone(), company))
+        .collect();
+    write_batch(
+        connection,
+        source,
+        Dataset::Companies,
+        Coverage::new(),
+        |transaction, batch_id| {
+            let rows = stage(
+                transaction,
+                "company",
+                unique.values(),
+                |appender, company| {
+                    appender.append_row(params![
+                        company.symbol.as_str(),
+                        company.cik,
+                        company.sic,
+                        company.sic_description,
+                        batch_id,
+                    ])
+                },
+            )?;
+            replace_staged(transaction, "company")?;
+            Ok(rows)
+        },
+    )
+}
+
+pub(crate) fn earnings_releases(
+    connection: &mut Connection,
+    source: DataSource,
+    releases: Vec<EarningsRelease>,
+) -> Result<WriteSummary> {
+    let unique: BTreeMap<(Symbol, String), EarningsRelease> = releases
+        .into_iter()
+        .map(|release| ((release.symbol.clone(), release.accession.clone()), release))
+        .collect();
+    let mut coverage = Coverage::new();
+    for release in unique.values() {
+        cover(&mut coverage, Some(&release.symbol), release.filed);
+    }
+    write_batch(
+        connection,
+        source,
+        Dataset::EarningsReleases,
+        coverage,
+        |transaction, batch_id| {
+            let rows = stage(
+                transaction,
+                "earnings_release",
+                unique.values(),
+                |appender, release| {
+                    appender.append_row(params![
+                        release.symbol.as_str(),
+                        release.cik,
+                        release.accession,
+                        release.form,
+                        release.filed,
+                        release.report_date,
+                        Ts(release.accepted_at),
+                        batch_id,
+                    ])
+                },
+            )?;
+            replace_staged(transaction, "earnings_release")?;
+            Ok(rows)
+        },
+    )
+}
+
+pub(crate) fn index_history(
+    connection: &mut Connection,
+    source: DataSource,
+    history: IndexHistory,
+    today: NaiveDate,
+) -> Result<WriteSummary> {
+    let index = wire_name(&history.index);
+    let mut coverage = Coverage::new();
+    let first = history
+        .members
+        .iter()
+        .flat_map(|member| [member.start, member.end])
+        .flatten()
+        .min();
+    if let Some(first) = first {
+        cover(&mut coverage, None, first);
+        cover(&mut coverage, None, today);
+    }
+    write_batch(
+        connection,
+        source,
+        Dataset::IndexMembership,
+        coverage,
+        |transaction, batch_id| {
+            transaction.execute(
+                "DELETE FROM main.index_member WHERE index_name = ?",
+                params![index],
+            )?;
+            transaction.execute(
+                "INSERT OR REPLACE INTO main.index_history VALUES (?, ?, ?, ?)",
+                params![index, history.changes, history.reliable_from, batch_id],
+            )?;
+            let mut appender = transaction.appender("index_member")?;
+            for member in &history.members {
+                appender.append_row(params![
+                    index,
+                    member.symbol.as_str(),
+                    member.start,
+                    member.end,
+                    batch_id,
+                ])?;
+            }
+            appender.flush()?;
+            Ok(history.members.len() as u64)
+        },
+    )
+}
+
+pub(crate) fn borrow_availability(
+    connection: &mut Connection,
+    source: DataSource,
+    records: Vec<BorrowAvailability>,
+) -> Result<WriteSummary> {
+    let unique: BTreeMap<(Symbol, Timestamp), BorrowAvailability> = records
+        .into_iter()
+        .map(|record| ((record.symbol.clone(), record.at), record))
+        .collect();
+    let mut coverage = Coverage::new();
+    for (_, at) in unique.keys() {
+        cover(&mut coverage, None, at.exchange_date());
+    }
+    write_batch(
+        connection,
+        source,
+        Dataset::Borrow,
+        coverage,
+        |transaction, batch_id| {
+            let mut appender = transaction.appender("borrow_availability")?;
+            for record in unique.values() {
+                appender.append_row(params![
+                    record.symbol.as_str(),
+                    Ts(record.at),
+                    record.con_id,
+                    record.rebate_rate.map(Dec),
+                    record.fee_rate.map(Dec),
+                    record.available,
+                    record.available_or_more,
+                    batch_id,
+                ])?;
+            }
+            appender.flush()?;
+            Ok(unique.len() as u64)
         },
     )
 }

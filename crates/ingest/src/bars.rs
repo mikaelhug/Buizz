@@ -39,9 +39,9 @@ impl Ingest {
         let target = sessions[target_index];
         let revised_from = sessions[target_index.saturating_sub(REVISED_SESSIONS - 1)].date;
         let dormant_before = sessions[target_index.saturating_sub(MAX_LAG_SESSIONS)].date;
-        let symbols = self.active_symbols().await?;
+        let symbols = self.priced_symbols().await?;
         if symbols.is_empty() {
-            return Ok(Work::noop("no active instruments"));
+            return Ok(Work::noop("no instruments to price"));
         }
         let covered = self
             .symbol_coverage(Dataset::Bars1d, DataSource::Alpaca)

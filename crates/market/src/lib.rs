@@ -3,12 +3,14 @@ use std::path::Path;
 use std::sync::{Arc, PoisonError, RwLock};
 
 use buizz_core::market::{
-    Adjustment, Bar, Calendar, CorporateAction, Coverage, DataSource, FundamentalFact,
-    FundamentalMetric, FundamentalPoint, Instrument, MacroObservation, MacroPoint, MacroSeries,
-    RiskFreeRate, Session, Symbol, Timeframe, Watermarks,
+    Adjustment, Bar, BorrowAvailability, Calendar, Company, CorporateAction, Coverage, DataSource,
+    EarningsRelease, FundamentalFact, FundamentalMetric, FundamentalPoint, IndexHistory,
+    Instrument, InstrumentProfile, MacroObservation, MacroPoint, MacroSeries, RiskFreeRate,
+    Session, StockIndex, Symbol, Timeframe, Watermarks,
 };
 use buizz_core::ops::{CoverageGap, DataWarning};
 use buizz_core::protocol::BarRow;
+use buizz_core::run::UniverseSpec;
 use buizz_core::time::Timestamp;
 use buizz_core::visibility::{bar_visible_at, published_sessions, universe_visible_at};
 use chrono::{NaiveDate, TimeDelta};
@@ -272,6 +274,47 @@ impl MarketStore {
             .await
     }
 
+    pub async fn upsert_companies(
+        &self,
+        source: DataSource,
+        companies: Vec<Company>,
+    ) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| write::companies(connection, source, companies))
+            .await
+    }
+
+    pub async fn upsert_earnings_releases(
+        &self,
+        source: DataSource,
+        releases: Vec<EarningsRelease>,
+    ) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| write::earnings_releases(connection, source, releases))
+            .await
+    }
+
+    pub async fn replace_index_history(
+        &self,
+        source: DataSource,
+        history: IndexHistory,
+        today: NaiveDate,
+    ) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| write::index_history(connection, source, history, today))
+            .await
+    }
+
+    pub async fn append_borrow_availability(
+        &self,
+        source: DataSource,
+        records: Vec<BorrowAvailability>,
+    ) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| write::borrow_availability(connection, source, records))
+            .await
+    }
+
     pub async fn advance_watermark(&self, timeframe: Timeframe, through: Timestamp) -> Result<()> {
         let shared = Arc::clone(&self.shared);
         self.writer
@@ -388,39 +431,78 @@ impl MarketStore {
             .await
     }
 
-    pub async fn top_dollar_volume(
+    pub async fn universe(
         &self,
-        count: u32,
-        before: NaiveDate,
-        sessions: u32,
-    ) -> Result<Vec<Symbol>> {
-        let calendar = self.shared.calendar();
-        self.readers
-            .run(move |connection| {
-                read::top_dollar_volume(connection, &calendar, count, before, sessions)
-            })
-            .await
-    }
-
-    pub async fn listed_top_dollar_volume(
-        &self,
-        count: u32,
+        spec: &UniverseSpec,
         date: NaiveDate,
         sessions: u32,
     ) -> Result<Vec<Symbol>> {
+        let spec = spec.clone();
         let calendar = self.shared.calendar();
         self.readers
             .run(move |connection| {
+                let mut symbols = match spec {
+                    UniverseSpec::Symbols { symbols } => return Ok(symbols),
+                    UniverseSpec::TopDollarVolume {
+                        top_dollar_volume,
+                        asset_class,
+                    } => read::top_dollar_volume(
+                        connection,
+                        &calendar,
+                        top_dollar_volume,
+                        asset_class,
+                        date,
+                        sessions,
+                    )?,
+                    UniverseSpec::Index { index } => {
+                        read::index_universe(connection, &calendar, index, date, sessions)?
+                    }
+                };
                 let delisted: BTreeSet<Symbol> = read::instruments(connection)?
                     .into_iter()
                     .filter(|instrument| instrument.last_session.is_some_and(|last| last < date))
                     .map(|instrument| instrument.symbol)
                     .collect();
-                let mut symbols =
-                    read::top_dollar_volume(connection, &calendar, count, date, sessions)?;
                 symbols.retain(|symbol| !delisted.contains(symbol));
                 Ok(symbols)
             })
+            .await
+    }
+
+    pub async fn index_history(&self, index: StockIndex) -> Result<Option<IndexHistory>> {
+        self.readers
+            .run(move |connection| read::index_history(connection, index))
+            .await
+    }
+
+    pub async fn companies(&self) -> Result<Vec<Company>> {
+        self.readers
+            .run(|connection| read::companies(connection))
+            .await
+    }
+
+    pub async fn instrument_profiles(
+        &self,
+        symbols: Vec<Symbol>,
+    ) -> Result<Vec<InstrumentProfile>> {
+        self.readers
+            .run(move |connection| read::instrument_profiles(connection, &symbols))
+            .await
+    }
+
+    pub async fn earnings_releases(
+        &self,
+        symbols: Vec<Symbol>,
+        as_of: Timestamp,
+    ) -> Result<Vec<EarningsRelease>> {
+        self.readers
+            .run(move |connection| read::earnings_releases(connection, &symbols, as_of))
+            .await
+    }
+
+    pub async fn latest_borrow(&self) -> Result<Option<Timestamp>> {
+        self.readers
+            .run(|connection| read::latest_borrow(connection))
             .await
     }
 

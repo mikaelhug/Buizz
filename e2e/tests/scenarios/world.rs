@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
@@ -9,6 +10,7 @@ use buizz_core::time::Timestamp;
 use buizz_market::MarketStore;
 use buizz_sources::fred::{WireObservation, normalize};
 use buizz_sources::treasury::parse_par_yield_csv;
+use buizz_sources::wikipedia::{SP500_CHANGES, SP500_CONSTITUENTS};
 use chrono::{Datelike, NaiveDate, NaiveTime, TimeDelta, Weekday};
 use rust_decimal::Decimal;
 use serde_json::{Map, Value, json};
@@ -45,6 +47,34 @@ pub struct Company {
     pub cik: u32,
     pub ticker: Symbol,
     pub facts: Value,
+    pub submissions: Value,
+}
+
+pub struct Filing<'a> {
+    pub accession: &'a str,
+    pub form: &'a str,
+    pub items: &'a str,
+    pub accepted: Timestamp,
+}
+
+pub fn submissions(cik: u32, sic: &str, filings: &[Filing<'_>]) -> Value {
+    let column = |value: fn(&Filing<'_>) -> Value| filings.iter().map(value).collect::<Vec<_>>();
+    json!({
+        "cik": format!("{cik:010}"),
+        "sic": sic,
+        "sicDescription": if sic.is_empty() { "" } else { "Fixture industry" },
+        "filings": {
+            "recent": {
+                "accessionNumber": column(|filing| json!(filing.accession)),
+                "filingDate": column(|filing| json!(filing.accepted.exchange_date())),
+                "reportDate": column(|filing| json!(filing.accepted.exchange_date())),
+                "acceptanceDateTime": column(|filing| json!(filing.accepted.to_string())),
+                "form": column(|filing| json!(filing.form)),
+                "items": column(|filing| json!(filing.items)),
+            },
+            "files": [],
+        },
+    })
 }
 
 #[derive(Clone, Default)]
@@ -58,6 +88,8 @@ pub struct World {
     pub rates: Vec<RiskFreeRate>,
     pub macro_vintages: Vec<MacroObservation>,
     pub tiingo: Vec<Bar>,
+    pub wikipedia: BTreeMap<String, String>,
+    pub borrow: Option<Vec<u8>>,
     pub released: Option<Timestamp>,
     pub streamed_from: Option<Timestamp>,
 }
@@ -244,7 +276,21 @@ impl World {
                 ticker: Symbol::new(apple["ticker"].as_str().expect("ticker")),
                 facts: serde_json::from_str(&read("edgar/companyfacts_sample.json"))
                     .expect("recorded company facts"),
+                submissions: serde_json::from_str(&read("edgar/submissions_sample.json"))
+                    .expect("recorded submissions"),
             }],
+            wikipedia: [
+                (SP500_CONSTITUENTS, "wikipedia/sp500_constituents.json"),
+                (SP500_CHANGES, "wikipedia/sp500_changes.json"),
+            ]
+            .into_iter()
+            .map(|(title, file)| {
+                let page: Value = serde_json::from_str(&read(file)).expect("recorded page");
+                let wikitext = page["parse"]["wikitext"].as_str().expect("wikitext");
+                (title.to_owned(), wikitext.to_owned())
+            })
+            .collect(),
+            borrow: Some(read("ibkr/usa.txt").into_bytes()),
             rates: parse_par_yield_csv(&read("treasury/par_yield_2025.csv"))
                 .expect("recorded yields"),
             macro_vintages: {
@@ -367,6 +413,7 @@ fn companies(facts: &[FundamentalFact]) -> Vec<Company> {
                     cik: fact.cik,
                     ticker: fact.symbol.clone(),
                     facts: json!({"cik": fact.cik, "entityName": fact.symbol, "facts": {}}),
+                    submissions: submissions(fact.cik, "", &[]),
                 });
                 companies.len() - 1
             }

@@ -13,7 +13,7 @@ use buizz_core::protocol::{
     Holdings, LogLine, PROTOCOL_VERSION, PositionSnapshot, ProtocolError, Query, QueryRequest,
     Ready, SpineMessage, Step, StepEvent, WorkingOrder, encode,
 };
-use buizz_core::run::{LogLevel, Mode, RunId, Wake};
+use buizz_core::run::{LogLevel, Mode, RunId, UniverseSpec, Wake};
 use buizz_core::time::Timestamp;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
@@ -387,7 +387,10 @@ fn main() {
             id: 5,
             request: QueryRequest::Universe {
                 date: date("2024-11-22"),
-                top_dollar_volume: 2,
+                universe: UniverseSpec::TopDollarVolume {
+                    top_dollar_volume: 2,
+                    asset_class: None,
+                },
             },
         }),
     );

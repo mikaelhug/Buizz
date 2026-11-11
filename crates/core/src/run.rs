@@ -10,7 +10,7 @@ use utoipa::openapi::schema::{ObjectBuilder, Type};
 use utoipa::openapi::{RefOr, Schema};
 use utoipa::{PartialSchema, ToSchema};
 
-use crate::market::{Bar, Session, Symbol, Timeframe};
+use crate::market::{AssetClass, Bar, Session, StockIndex, Symbol, Timeframe};
 use crate::money::{round_cash, round_price};
 use crate::order::{RejectReason, Side};
 use crate::time::Timestamp;
@@ -35,10 +35,19 @@ pub enum Mode {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
-#[serde(untagged)]
+#[serde(untagged, deny_unknown_fields)]
 pub enum UniverseSpec {
-    Symbols { symbols: Vec<Symbol> },
-    TopDollarVolume { top_dollar_volume: u32 },
+    Symbols {
+        symbols: Vec<Symbol>,
+    },
+    TopDollarVolume {
+        top_dollar_volume: u32,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        asset_class: Option<AssetClass>,
+    },
+    Index {
+        index: StockIndex,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -432,6 +441,7 @@ pub enum RunBadge {
     SurvivorshipBiased,
     Holdout,
     DataWarnings,
+    ThinIndexHistory,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -494,6 +504,7 @@ impl BotManifest {
             }
             UniverseSpec::TopDollarVolume {
                 top_dollar_volume: 0,
+                ..
             } => Err(ManifestError::Invalid(
                 "universe.top_dollar_volume must be positive",
             )),

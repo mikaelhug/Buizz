@@ -7,11 +7,11 @@ use serde_json::{Map, Value};
 
 use crate::ledger::Portfolio;
 use crate::market::{
-    Adjustment, CorporateAction, FundamentalMetric, FundamentalPoint, MacroPoint, MacroSeries,
-    Session, Symbol, Timeframe,
+    Adjustment, CorporateAction, EarningsRelease, FundamentalMetric, FundamentalPoint,
+    InstrumentProfile, MacroPoint, MacroSeries, Session, Symbol, Timeframe,
 };
 use crate::order::{Fill, Order, OrderId, OrderRequest, OrderType, OrderUpdate, Side};
-use crate::run::{LogLevel, Mode, RunId, Wake};
+use crate::run::{LogLevel, Mode, RunId, UniverseSpec, Wake};
 use crate::time::Timestamp;
 
 pub const PROTOCOL_VERSION: u32 = 1;
@@ -103,13 +103,19 @@ pub enum QueryRequest {
         symbols: Vec<Symbol>,
         metrics: Vec<FundamentalMetric>,
     },
+    Instruments {
+        symbols: Vec<Symbol>,
+    },
+    Earnings {
+        symbols: Vec<Symbol>,
+    },
     Calendar {
         from: NaiveDate,
         to: NaiveDate,
     },
     Universe {
         date: NaiveDate,
-        top_dollar_volume: u32,
+        universe: UniverseSpec,
     },
     Macro {
         series: Vec<MacroSeries>,
@@ -129,6 +135,8 @@ pub struct Data {
 pub enum DataResult {
     History { bars: BarBuffer },
     Fundamentals { points: Vec<FundamentalPoint> },
+    Instruments { instruments: Vec<InstrumentProfile> },
+    Earnings { releases: Vec<EarningsRelease> },
     Calendar { sessions: Vec<Session> },
     Universe { symbols: Vec<Symbol> },
     Macro { points: Vec<MacroPoint> },
