@@ -93,7 +93,6 @@ pub enum RejectReason {
     NotShortable,
     MaxPositionWeight,
     MaxGrossExposure,
-    RunPaused,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
