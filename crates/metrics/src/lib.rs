@@ -198,15 +198,16 @@ fn round_trips(ledger: &[LedgerEntry]) -> Vec<Decimal> {
             LedgerKind::Split { qty_after, .. } => trip.qty = *qty_after,
             _ => {}
         }
+        let closes_trip = trip.qty == 0
+            && matches!(
+                entry.kind,
+                LedgerKind::Fill { .. } | LedgerKind::Liquidation { .. }
+            );
+        if closes_trip {
+            closed.push(trip.pnl);
+        }
         if trip.qty == 0 {
-            if let Some(trip) = open.remove(symbol) {
-                if matches!(
-                    entry.kind,
-                    LedgerKind::Fill { .. } | LedgerKind::Liquidation { .. }
-                ) {
-                    closed.push(trip.pnl);
-                }
-            }
+            open.remove(symbol);
         }
     }
     closed
