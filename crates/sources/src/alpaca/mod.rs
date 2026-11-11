@@ -21,8 +21,9 @@ use wire::{ActionsPage, BarsPage, Paged, WireAsset, WireCalendarDay};
 pub const DATA_URL: &str = "https://data.alpaca.markets";
 pub const TRADING_URL: &str = "https://paper-api.alpaca.markets";
 pub const RATE_LIMIT: RateLimit = RateLimit {
-    requests: 200,
+    requests: 140,
     per: Duration::from_secs(60),
+    cooldown: Duration::from_secs(60),
 };
 pub const HISTORY_START: NaiveDate = NaiveDate::from_ymd_opt(2016, 1, 1).expect("valid date");
 pub const MAX_PAGE_LIMIT: u32 = 10_000;

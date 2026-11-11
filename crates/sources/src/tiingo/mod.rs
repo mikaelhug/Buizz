@@ -13,11 +13,12 @@ use crate::http::{HttpClient, REDACTED, RateLimit, SourceError, decimal};
 
 pub const BASE_URL: &str = "https://api.tiingo.com";
 pub const RATE_LIMIT: RateLimit = RateLimit {
-    requests: 50,
+    requests: 35,
     per: Duration::from_secs(60 * 60),
+    cooldown: Duration::from_secs(60 * 60),
 };
-pub const REQUESTS_PER_DAY: u32 = 1_000;
-pub const SYMBOLS_PER_MONTH: u32 = 500;
+pub const REQUESTS_PER_DAY: u32 = 700;
+pub const SYMBOLS_PER_MONTH: u32 = 350;
 pub const KEY_ENV: &str = "TIINGO_API_KEY";
 pub const URL_ENV: &str = "TIINGO_URL";
 pub const MIN_OVERLAP: usize = 20;

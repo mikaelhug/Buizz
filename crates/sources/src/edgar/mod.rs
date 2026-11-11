@@ -16,8 +16,9 @@ pub use normalize::normalize_company_facts;
 pub const DATA_URL: &str = "https://data.sec.gov";
 pub const WWW_URL: &str = "https://www.sec.gov";
 pub const RATE_LIMIT: RateLimit = RateLimit {
-    requests: 10,
+    requests: 5,
     per: Duration::from_secs(1),
+    cooldown: Duration::from_secs(10 * 60),
 };
 pub const ACCEPTED_FORMS: [&str; 8] = [
     "10-K", "10-K/A", "10-Q", "10-Q/A", "20-F", "20-F/A", "40-F", "40-F/A",

@@ -39,7 +39,7 @@ async fn bars(
 ) -> Response {
     record(&seen, "bars", &headers, &params);
     if params["symbols"] == "LIMITED" {
-        return (StatusCode::TOO_MANY_REQUESTS, [(header::RETRY_AFTER, "7")]).into_response();
+        return (StatusCode::TOO_MANY_REQUESTS, [(header::RETRY_AFTER, "120")]).into_response();
     }
     match (params["timeframe"].as_str(), params.get("page_token")) {
         ("1Day", None) => json(include_str!("../fixtures/alpaca/bars_1d_page1.json")),
@@ -224,7 +224,7 @@ async fn alpaca_client_pages_filters_and_normalizes_against_fixtures() {
         .await;
     assert!(matches!(
         limited,
-        Err(SourceError::RateLimited { retry_after: Some(wait) }) if wait == Duration::from_secs(7)
+        Err(SourceError::RateLimited { retry_after: Some(wait) }) if wait == Duration::from_secs(120)
     ));
 
     let instruments = client.assets().await.unwrap();

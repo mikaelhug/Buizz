@@ -15,6 +15,7 @@ pub const BASE_URL: &str = "https://en.wikipedia.org";
 pub const RATE_LIMIT: RateLimit = RateLimit {
     requests: 1,
     per: Duration::from_secs(1),
+    cooldown: Duration::from_secs(60),
 };
 pub const SP500_CONSTITUENTS: &str = "List of S&P 500 companies";
 pub const SP500_CHANGES: &str = "Historical components of the S&P 500";

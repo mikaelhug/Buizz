@@ -10,8 +10,9 @@ use crate::http::{HttpClient, REDACTED, RateLimit, SourceError};
 
 pub const BASE_URL: &str = "https://api.stlouisfed.org";
 pub const RATE_LIMIT: RateLimit = RateLimit {
-    requests: 120,
+    requests: 80,
     per: Duration::from_secs(60),
+    cooldown: Duration::from_secs(60),
 };
 pub const KEY_ENV: &str = "FRED_API_KEY";
 pub const URL_ENV: &str = "FRED_URL";
