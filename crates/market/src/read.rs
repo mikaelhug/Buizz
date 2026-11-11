@@ -2,13 +2,13 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use buizz_core::market::{
     Adjustment, AdjustmentFactor, Bar, Calendar, CorporateAction, CorporateActionKind, Coverage,
-    DataSource, Dataset, Feed, FundamentalMetric, FundamentalPoint, Instrument, PeriodType,
+    DataSource, Dataset, Feed, FundamentalMetric, FundamentalPoint, Instrument,
     RiskFreeRate, SIP_DELAY, Session, Symbol, Timeframe,
 };
 use buizz_core::ops::{CoverageGap, DataWarning, UNEXPLAINED_MOVE_THRESHOLD};
 use buizz_core::protocol::BarRow;
 use buizz_core::time::Timestamp;
-use buizz_core::visibility::{bar_visible_at, corporate_action_visible_at, fundamental_visible_at};
+use buizz_core::visibility::{bar_visible_at, corporate_action_visible_at};
 use chrono::NaiveDate;
 use duckdb::{Connection, ToSql, params, params_from_iter};
 use rust_decimal::Decimal;
@@ -389,17 +389,8 @@ pub(crate) fn corporate_actions(
         .collect())
 }
 
-type PeriodKey = (
-    Symbol,
-    FundamentalMetric,
-    NaiveDate,
-    PeriodType,
-    Option<NaiveDate>,
-);
-
 pub(crate) fn fundamentals(
     connection: &Connection,
-    calendar: &Calendar,
     symbols: &[Symbol],
     metrics: &[FundamentalMetric],
     as_of: Timestamp,
@@ -415,9 +406,11 @@ pub(crate) fn fundamentals(
         return Ok(Vec::new());
     }
     let sql = format!(
-        "SELECT symbol, metric, period_type, period_start, period_end, value, form, accession, \
-         filed FROM fundamental_fact WHERE symbol IN ({}) AND metric IN ({}) \
-         AND period_type IS NOT NULL AND filed < ?",
+        "SELECT symbol, metric, period_type, period_start, period_end, value, form, filed, \
+         available_at FROM fundamental_fact WHERE symbol IN ({}) AND metric IN ({}) \
+         AND period_type IS NOT NULL AND available_at <= ? \
+         QUALIFY row_number() OVER (PARTITION BY symbol, metric, period_end, period_type, \
+         period_start ORDER BY available_at DESC, filed DESC, accession DESC) = 1",
         placeholders(symbols.len()),
         placeholders(metrics.len())
     );
@@ -427,51 +420,33 @@ pub(crate) fn fundamentals(
             .into_iter()
             .map(|metric| Box::new(metric) as Box<dyn ToSql>),
     );
-    params.push(Box::new(as_of.exchange_date()));
+    params.push(Box::new(Ts(as_of)));
     let mut statement = connection.prepare_cached(&sql)?;
-    let facts = statement
+    let mut points = statement
         .query_map(params_from_iter(params.iter()), |row| {
-            Ok((
-                FundamentalPoint {
-                    symbol: row.get::<_, Sym>(0)?.0,
-                    metric: row.get::<_, Wire<_>>(1)?.0,
-                    period_type: row.get::<_, Wire<_>>(2)?.0,
-                    period_start: row.get(3)?,
-                    period_end: row.get(4)?,
-                    value: row.get::<_, Dec>(5)?.0,
-                    form: row.get(6)?,
-                    filed: row.get(8)?,
-                    available_at: Timestamp::MAX,
-                },
-                row.get::<_, String>(7)?,
-            ))
+            Ok(FundamentalPoint {
+                symbol: row.get::<_, Sym>(0)?.0,
+                metric: row.get::<_, Wire<_>>(1)?.0,
+                period_type: row.get::<_, Wire<_>>(2)?.0,
+                period_start: row.get(3)?,
+                period_end: row.get(4)?,
+                value: row.get::<_, Dec>(5)?.0,
+                form: row.get(6)?,
+                filed: row.get(7)?,
+                available_at: row.get::<_, Ts>(8)?.0,
+            })
         })?
         .collect::<duckdb::Result<Vec<_>>>()?;
-    let mut latest: BTreeMap<PeriodKey, (FundamentalPoint, String)> = BTreeMap::new();
-    for (mut point, accession) in facts {
-        let Some(visible_at) = fundamental_visible_at(point.filed, calendar) else {
-            continue;
-        };
-        if visible_at > as_of {
-            continue;
-        }
-        point.available_at = visible_at;
-        let key = (
-            point.symbol.clone(),
-            point.metric,
-            point.period_end,
-            point.period_type,
-            point.period_start,
-        );
-        let newer = latest.get(&key).is_none_or(|(current, current_accession)| {
-            (point.available_at, point.filed, &accession)
-                > (current.available_at, current.filed, current_accession)
-        });
-        if newer {
-            latest.insert(key, (point, accession));
-        }
-    }
-    Ok(latest.into_values().map(|(point, _)| point).collect())
+    points.sort_by(|a, b| {
+        (&a.symbol, a.metric, a.period_end, a.period_type, a.period_start).cmp(&(
+            &b.symbol,
+            b.metric,
+            b.period_end,
+            b.period_type,
+            b.period_start,
+        ))
+    });
+    Ok(points)
 }
 
 fn sessions_before(calendar: &Calendar, before: NaiveDate, count: u32) -> &[Session] {

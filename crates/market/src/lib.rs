@@ -333,11 +333,8 @@ impl MarketStore {
         metrics: Vec<FundamentalMetric>,
         as_of: Timestamp,
     ) -> Result<Vec<FundamentalPoint>> {
-        let calendar = self.shared.calendar();
         self.readers
-            .run(move |connection| {
-                read::fundamentals(connection, &calendar, &symbols, &metrics, as_of)
-            })
+            .run(move |connection| read::fundamentals(connection, &symbols, &metrics, as_of))
             .await
     }
 
