@@ -16,13 +16,13 @@ use buizz_core::run::{
 };
 use buizz_core::time::Timestamp;
 use buizz_core::visibility::order_session;
-use buizz_engine::{Cycle, Engine, EngineError, Outbox};
+use buizz_engine::{Cycle, ENGINE_VERSION, Engine, EngineError, Outbox};
 use buizz_feed::FeedLease;
 use buizz_ingest::IngestError;
 use buizz_market::MarketError;
 use buizz_state::{RunOutcome, StateError, StepCommit};
 use buizz_supervisor::{
-    BotProcess, BotSpec, LiveProcess, OutputStream, ProcessEvent, SupervisorError,
+    BotProcess, BotSpec, LiveProcess, OutputStream, ProcessEvent, SupervisorError, bot_hash,
 };
 use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
@@ -361,6 +361,12 @@ impl Driver {
         let config = &run.config;
         let timeline = Timeline::open(inner.market.clone(), config).await?;
         let checkpoint = inner.state.checkpoint(run.id).await?;
+        if checkpoint.is_some()
+            && run.mode == Mode::Backtest
+            && let Some(message) = engine_changed(&run)
+        {
+            return Err(Exit::Failed(message));
+        }
         let (engine, after, clock, last_step, bot_state) = match checkpoint {
             Some(checkpoint) => (
                 Engine::restore(config, &checkpoint.engine_checkpoint)?,
@@ -482,6 +488,25 @@ impl Driver {
         uncovered
     }
 
+    async fn outdated(&mut self) -> Flow<Option<String>> {
+        if let Some(message) = engine_changed(&self.run) {
+            return Ok(Some(message));
+        }
+        let Some(recorded) = self.run.reproducibility.as_ref() else {
+            return Ok(None);
+        };
+        let dir = self.spec.dir.clone();
+        let current = tokio::task::spawn_blocking(move || bot_hash(&dir))
+            .await
+            .expect("hashing a bot does not panic")?;
+        Ok((current != recorded.bot_hash).then(|| {
+            format!(
+                "the code of bot {} changed since this run started; stop the run and start a new one",
+                self.run.bot
+            )
+        }))
+    }
+
     async fn enter_next_session(&mut self) -> Flow<()> {
         if self.timeline.session().date.is_none()
             && let Some(point) = self.timeline.next_point(self.after)
@@ -577,6 +602,12 @@ impl Driver {
     }
 
     async fn launch(&mut self) -> Flow<()> {
+        if let Some(message) = self.outdated().await? {
+            return match self.run.mode {
+                Mode::Backtest => Err(Exit::Failed(message)),
+                Mode::Live => self.pause(EndReason::Failed, Some(message)).await,
+            };
+        }
         self.enter_next_session().await?;
         self.lease_stream().await?;
         if self.paused {
@@ -1194,6 +1225,15 @@ impl Driver {
         let result_hash = (status == Some(RunStatus::Completed)).then(|| self.engine.result_hash());
         (message, result_hash)
     }
+}
+
+fn engine_changed(run: &RunSummary) -> Option<String> {
+    let recorded = &run.reproducibility.as_ref()?.engine_version;
+    (recorded != ENGINE_VERSION).then(|| {
+        format!(
+            "the engine changed from {recorded} to {ENGINE_VERSION} since this run started; stop the run and start a new one"
+        )
+    })
 }
 
 async fn next_process_event(process: &mut Option<Process>) -> Option<ProcessEvent> {

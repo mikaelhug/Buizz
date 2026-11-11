@@ -10,7 +10,7 @@ bots/red_green/
   bot.py
 ```
 
-The spine rescans `bots/` on every request, so a new or edited bot shows up without a restart. A folder is a bot when it holds a `bot.toml`; folders starting with `.` are ignored. Each run records a content hash of the folder.
+The spine rescans `bots/` on every request, so a new or edited bot shows up without a restart. A folder is a bot when it holds a `bot.toml`; folders starting with `.` are ignored. Each run records a content hash of the folder and the engine version, and never continues under different ones: when a backtest is (re)started after a restart, or a live run is started or resumed, with edited bot code or a new engine, the backtest fails and the live run pauses with the reason. Stop it and start a new run.
 
 ## Walkthrough: `red_green`
 
