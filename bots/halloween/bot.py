@@ -28,6 +28,14 @@ class Halloween(Bot):
             occasion = f"Halloween entry at the close of {following}"
         else:
             occasion = f"sell in May at the close of {following}"
+        if hold not in ctx.bars:
+            if ctx.position(other).qty != 0:
+                ctx.order_target_weight(other, 0, at="close", reason=f"{occasion}: out of {other} for {season}")
+            if ctx.state.get("unpriced") != hold:
+                ctx.log(f"no {hold} bar yet: in cash instead of {hold} for {season}", level="warn")
+                ctx.state["unpriced"] = hold
+            return
+        ctx.state.pop("unpriced", None)
         ctx.rebalance(
             {other: 0, hold: 1},
             reason={other: f"{occasion}: out of {other} for {season}", hold: f"{occasion}: {hold} for {season}"},
