@@ -6,7 +6,7 @@ Buizz is a platform for testing trading strategies of any kind (technical, value
 
 Decisions already made with you: US stocks & ETFs; daily + 1-minute bars + real-time stream; paper trading only (no broker); develop on the Mac, deploy to the `akrell` Kubernetes cluster.
 
-**First step after approval:** save this file as `PLAN.md` in the repo and commit it. Finished slices are deleted from it (CLAUDE.md directive 6).
+Finished slices are deleted from this file (CLAUDE.md directive 6). Wave 0 (contracts) is merged: `crates/core` is complete, every other crate is a compiling stub with frozen signatures, and `docs/protocol.md`, `fixtures/` and both `schema.sql` files are the contracts.
 
 ## Core design: one engine, one event path
 
@@ -15,7 +15,8 @@ Decisions already made with you: US stocks & ETFs; daily + 1-minute bars + real-
 - **Live is a backtest whose data has not arrived yet.** The engine only ever reads the market store. Ingest and the live feed write bars and bump a watermark; a live run is the same replay loop blocked at the watermark. This gives backtest/live parity by construction and makes restart recovery a cursor resume.
 - **Lookahead is structurally impossible.** Every bot query is answered as-of the run clock, server-side. Rules frozen in `crates/core`:
   - `visible_at`: 1m bar = bar start + 60s; daily bar = session close; fundamentals = next session open after the SEC `filed` date.
-  - Per-timestamp order: corporate actions → order expiry → fills at open → mark → risk limits → wake bot → accept orders. An order decided on bar N fills no earlier than bar N+1 open.
+  - Per-bar cycle (`core::visibility::CyclePhase`): at bar start, corporate actions → order expiry → fills at open; at the bar's `visible_at`, mark → risk limits → wake bot → accept orders. Bar N's cycle completes before bar N+1's, so an order decided on bar N fills at bar N+1 open.
+  - Whole shares only (signed); splits pay cash in lieu. A target-weight order resolving to zero shares is recorded as rejected `zero_quantity`.
   - Fills use raw prices; splits and dividends hit positions on the ex-date. Bots may ask for back-adjusted history, computed only from actions known at the clock.
 - **Deterministic:** no wall clock in the engine, seeded, ordered maps, `result_hash` per run. Same inputs → same hash.
 - **Money:** `rust_decimal` in the ledger, strings on the wire, UTC everywhere. Bars reach bots as f64 columnar buffers; floats never enter the ledger.
@@ -68,7 +69,7 @@ Also on `Context`: `history(symbols, tf, bars, adjust)`, `fundamentals(symbols, 
 | SEC EDGAR | Point-in-time fundamentals | Raw XBRL facts plus canonical metrics |
 | US Treasury | Risk-free rate for Sharpe | |
 
-Vendor limits are from documentation and memory; Wave 0 verifies them before the contracts freeze. EODHD is dropped (its free tier adds nothing here).
+Verified limits: Alpaca Basic 200 calls/min, history since 2016 minus the latest 15 minutes, 30 IEX stream symbols, minute bars include extended hours (filter to the session); Tiingo free 50 req/h, 1000/day, 500 symbols/month; EDGAR 10 req/s with a contact User-Agent. EODHD is dropped (its free tier adds nothing here).
 
 Reuse from HUG (port the logic, cite the file in the slice brief):
 - Scheduler semantics — `../HUG/backend/worker/scheduler.py` (due-from-last-attempt, noop retry), `../HUG/backend/db/jobs.py` (job runs, staleness scan)
@@ -78,7 +79,7 @@ Reuse from HUG (port the logic, cite the file in the slice brief):
 - EDGAR companyfacts parsing, FY/Q classification, share-scale fix, concept map — `../HUG/backend/adapters/edgar/{client,adapter,concept_map}.py`
 - UI primitives and rules — `../HUG/frontend/src/components/ui/{Dialog,Toaster}.tsx`, `../HUG/CLAUDE.md:66-83`
 
-Tables. DuckDB: `instrument`, `calendar`, `bar_1d`, `bar_1m`, `corporate_action`, `fundamental_fact`, `rate_daily`, `coverage`, `ingest_batch`. SQLite: `run`, `run_order`, `ledger_entry`, `equity_point`, `run_event`, `job_run`, `source_fetch`. No `bot` table (scan `bots/`), no `position` table (fold the ledger).
+Tables. DuckDB: `instrument`, `calendar`, `bar_1d`, `bar_1m`, `corporate_action`, `fundamental_fact`, `rate_daily`, `coverage`, `ingest_batch`. SQLite: `run`, `run_order`, `ledger_entry`, `equity_point`, `run_event`, `job_run`, `source_fetch`. No `bot` table (scan `bots/`), no `position` table (fold the ledger). `bar_1m` and `fundamental_fact` have no primary key (DuckDB index memory): writers replace bars per symbol-session and dedupe facts on their identity fields. `equity_point` is written at session close only; intraday marks go out over SSE.
 
 Known parity gap, stated honestly: live minute bars are IEX (partial volume), backtests use SIP history. Live fills are tagged `feed=iex`; the volume cap is ADV-based so it is identical in both modes. Daily live runs use the official daily bar and no stream slots.
 
@@ -109,15 +110,7 @@ Out of v1: brokers and real money; options, crypto, FX; tick/quote simulation; e
 
 Each slice owns its paths exclusively. Agents run in git worktrees at medium effort.
 
-**Wave 0 — contracts (1 agent, sequential, Opus 5.5).** Freezes everything parallel work depends on:
-- Cargo workspace, all dependencies in `[workspace.dependencies]`, committed `Cargo.lock`, `web/package-lock.json`, `sdk/python/uv.lock`.
-- `crates/core`: domain types, `visible_at` and event-order rules, protocol messages, API DTOs.
-- Every crate's public signatures as stubs; `crates/spine/src/main.rs` fully wired; all `mod` declarations in `crates/sources/src/lib.rs`.
-- Both SQL schemas; `docs/protocol.md` + golden frames in `fixtures/protocol/`.
-- Stub HTTP handlers serving `fixtures/api/*.json`; committed `openapi.json` and `web/src/api/schema.d.ts`.
-- `fixtures/market/` (3 symbols, 10 daily + 2 minute sessions, one split, one dividend, one half day, one filing) and hand-computed `fixtures/scenarios/*.expected.json`.
-- `justfile`, CI (`--locked`, generated-file drift check, zero-comment lint).
-- Gate: a throwaway spike proves ≥20k no-op lockstep steps/s for 50 symbols Rust↔Python, then is deleted.
+Contract notes for slice owners: stub parameters are `_`-prefixed and stub structs empty, so rename and add fields freely inside your crate. The SDK must use the websockets sans-I/O `ClientProtocol` over a blocking socket (the only transport that met the 20k steps/s gate, ~24k measured). TypeScript stays on 5.9 while openapi-typescript requires it.
 
 **Wave 1 — parallel (10 agents)**
 
