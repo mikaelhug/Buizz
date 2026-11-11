@@ -156,6 +156,7 @@ Wave 1 is merged. Handoff notes for Wave 2 (the code is the reference):
    - `buizz backtest` has no holdout option, and its per-symbol net shares ignore splits; metrics that are absent may print as `None`.
    - The data-health page does not show the feed's `error` text.
    - The ADV volume cap treats a missing average daily volume as zero, so the order never fills.
+   - The spine has no health route; cluster probes need a cheap unauthenticated `/healthz`.
 4. Implement the bot backlog in `bots/BRIEFS.md`, one Opus 5.5 agent per bot, each followed by a critical review of that implementation against its brief. Contract gaps (G1–G13) land as their own PRs before the bots they block.
 
 ## Deployment (after Wave 3, separate repo, with your go-ahead)
