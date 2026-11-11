@@ -1,0 +1,62 @@
+{
+  "watermarks": {
+    "day": "2024-12-04T21:00:00Z",
+    "minute": "2024-12-04T21:00:00Z"
+  },
+  "coverage": [
+    {
+      "dataset": "bars1d",
+      "symbol": "AAA",
+      "source": "alpaca",
+      "first": "2016-01-04",
+      "last": "2024-12-04",
+      "updated_at": "2024-12-04T22:05:00Z"
+    },
+    {
+      "dataset": "bars1d",
+      "symbol": "AAA",
+      "source": "tiingo",
+      "first": "1998-01-02",
+      "last": "2016-12-30",
+      "updated_at": "2024-12-01T03:00:00Z"
+    },
+    {
+      "dataset": "fundamentals",
+      "symbol": "BBB",
+      "source": "edgar",
+      "first": "2009-06-30",
+      "last": "2024-09-30",
+      "updated_at": "2024-12-04T23:00:00Z"
+    },
+    {
+      "dataset": "rates",
+      "symbol": null,
+      "source": "treasury",
+      "first": "1990-01-02",
+      "last": "2024-12-04",
+      "updated_at": "2024-12-04T22:30:00Z"
+    }
+  ],
+  "warnings": [
+    {
+      "type": "coverage_gap",
+      "symbol": "BBB",
+      "timeframe": "1m",
+      "from": "2024-11-25",
+      "to": "2024-11-26"
+    },
+    {
+      "type": "unexplained_move",
+      "symbol": "CCC",
+      "date": "2024-10-17",
+      "change": -0.47
+    },
+    {
+      "type": "overlap_rejected",
+      "symbol": "DDD",
+      "source": "tiingo",
+      "message": "close differs from Alpaca by 3.1% on 2016-03-14"
+    }
+  ],
+  "stale_jobs": 1
+}

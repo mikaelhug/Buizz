@@ -1,0 +1,113 @@
+[
+  {
+    "type": "run_status",
+    "run_id": 42,
+    "bot": "red_green",
+    "status": "running"
+  },
+  {
+    "type": "equity",
+    "run_id": 42,
+    "bot": "red_green",
+    "at": "2024-12-04T21:00:00Z",
+    "equity": "100448.46"
+  },
+  {
+    "type": "order",
+    "run_id": 42,
+    "order": {
+      "order_id": 11,
+      "client_id": "BBB-2024-12-03",
+      "symbol": "BBB",
+      "status": "filled",
+      "reject_reason": null,
+      "filled_qty": 511,
+      "at": "2024-12-04T14:30:00Z"
+    }
+  },
+  {
+    "type": "fill",
+    "run_id": 42,
+    "fill": {
+      "order_id": 11,
+      "client_id": "BBB-2024-12-03",
+      "symbol": "BBB",
+      "at": "2024-12-04T14:30:00Z",
+      "qty": 511,
+      "price": "49.0245",
+      "commission": "2.56",
+      "feed": "iex"
+    }
+  },
+  {
+    "type": "log",
+    "run_id": 42,
+    "event": {
+      "seq": 2,
+      "at": "2024-12-05T08:00:01Z",
+      "clock": "2024-11-20T21:00:00Z",
+      "kind": {
+        "type": "log",
+        "level": "info",
+        "message": "BBB closed red, buying 25%"
+      }
+    }
+  },
+  {
+    "type": "job",
+    "job": {
+      "name": "bars_daily",
+      "every": "1d",
+      "last_started": "2024-12-04T22:05:00Z",
+      "last_finished": "2024-12-04T22:09:12Z",
+      "last_outcome": "ok",
+      "last_message": "1,412 bars",
+      "next_due": "2024-12-05T22:05:00Z",
+      "stale": false
+    }
+  },
+  {
+    "type": "feed",
+    "slots": {
+      "cap": 30,
+      "used": 22,
+      "connected": true,
+      "holders": [
+        {
+          "run_id": 42,
+          "bot": "red_green",
+          "symbols": [
+            "AAA",
+            "BBB"
+          ]
+        },
+        {
+          "run_id": 45,
+          "bot": "opening_range",
+          "symbols": [
+            "S00",
+            "S01",
+            "S02",
+            "S03",
+            "S04",
+            "S05",
+            "S06",
+            "S07",
+            "S08",
+            "S09",
+            "S10",
+            "S11",
+            "S12",
+            "S13",
+            "S14",
+            "S15",
+            "S16",
+            "S17",
+            "S18",
+            "S19"
+          ]
+        }
+      ]
+    }
+  }
+]

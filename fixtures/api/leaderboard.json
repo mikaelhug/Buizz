@@ -1,0 +1,61 @@
+{
+  "preset": "1y",
+  "period": {
+    "from": "2022-12-05",
+    "to": "2023-12-04"
+  },
+  "cost": {
+    "commission_per_share": "0.005",
+    "commission_min": "1.00",
+    "slippage_bps": "5",
+    "adv_participation": "0.05",
+    "adv_sessions": 20,
+    "borrow_rate": "0.02"
+  },
+  "rows": [
+    {
+      "bot": "red_green",
+      "run_id": 41,
+      "metrics": {
+        "total_return": 0.0044846,
+        "cagr": 0.11936243465864638,
+        "volatility": 0.041032233673161916,
+        "sharpe": 1.9756720692905883,
+        "sortino": 4.121476549595437,
+        "max_drawdown": 0.0058448,
+        "calmar": 20.42198786248398,
+        "win_rate": 0.6666666666666666,
+        "profit_factor": 5.2862338055913325,
+        "exposure": 0.2480964546315431,
+        "turnover": 1.7502176349076641,
+        "alpha": 0.6382125171354139,
+        "beta": -0.6170627952481548,
+        "trades": 3,
+        "sessions": 10
+      },
+      "finished_at": "2024-12-05T08:00:02Z"
+    },
+    {
+      "bot": "sma_cross",
+      "run_id": 37,
+      "metrics": {
+        "total_return": 0.0812,
+        "cagr": 0.0812,
+        "volatility": 0.041032233673161916,
+        "sharpe": 0.91,
+        "sortino": 4.121476549595437,
+        "max_drawdown": 0.0731,
+        "calmar": 20.42198786248398,
+        "win_rate": 0.6666666666666666,
+        "profit_factor": 5.2862338055913325,
+        "exposure": 0.2480964546315431,
+        "turnover": 1.7502176349076641,
+        "alpha": 0.6382125171354139,
+        "beta": -0.6170627952481548,
+        "trades": 4,
+        "sessions": 10
+      },
+      "finished_at": "2024-12-04T20:00:00Z"
+    }
+  ]
+}

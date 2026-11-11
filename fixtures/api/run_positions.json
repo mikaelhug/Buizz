@@ -1,0 +1,12 @@
+[
+  {
+    "symbol": "BBB",
+    "qty": 511,
+    "avg_cost": "49.0245",
+    "last_price": "48.80",
+    "market_value": "24936.80",
+    "unrealized_pnl": "-114.72",
+    "realized_pnl": "-131.99",
+    "weight": "0.2483"
+  }
+]

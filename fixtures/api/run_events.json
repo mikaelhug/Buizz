@@ -1,0 +1,46 @@
+{
+  "items": [
+    {
+      "seq": 1,
+      "at": "2024-12-05T08:00:01Z",
+      "clock": null,
+      "kind": {
+        "type": "status",
+        "status": "running",
+        "message": null
+      }
+    },
+    {
+      "seq": 2,
+      "at": "2024-12-05T08:00:01Z",
+      "clock": "2024-11-20T21:00:00Z",
+      "kind": {
+        "type": "log",
+        "level": "info",
+        "message": "BBB closed red, buying 25%"
+      }
+    },
+    {
+      "seq": 3,
+      "at": "2024-12-05T08:00:01Z",
+      "clock": "2024-11-20T21:00:00Z",
+      "kind": {
+        "type": "order_rejected",
+        "client_id": "AAA-2024-11-20",
+        "symbol": "AAA",
+        "reason": "zero_quantity"
+      }
+    },
+    {
+      "seq": 4,
+      "at": "2024-12-05T08:00:02Z",
+      "clock": "2024-12-04T21:00:00Z",
+      "kind": {
+        "type": "status",
+        "status": "completed",
+        "message": null
+      }
+    }
+  ],
+  "next_after": null
+}

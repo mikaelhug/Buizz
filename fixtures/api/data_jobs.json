@@ -1,0 +1,52 @@
+[
+  {
+    "name": "calendar",
+    "every": "1d",
+    "last_started": "2024-12-04T22:00:00Z",
+    "last_finished": "2024-12-04T22:00:01Z",
+    "last_outcome": "noop",
+    "last_message": null,
+    "next_due": "2024-12-05T22:00:00Z",
+    "stale": false
+  },
+  {
+    "name": "bars_daily",
+    "every": "1d",
+    "last_started": "2024-12-04T22:05:00Z",
+    "last_finished": "2024-12-04T22:09:12Z",
+    "last_outcome": "ok",
+    "last_message": "1,412 bars",
+    "next_due": "2024-12-05T22:05:00Z",
+    "stale": false
+  },
+  {
+    "name": "fundamentals",
+    "every": "1d",
+    "last_started": "2024-12-04T23:00:00Z",
+    "last_finished": "2024-12-04T23:00:04Z",
+    "last_outcome": "backoff",
+    "last_message": "429 from data.sec.gov, retry after 600s",
+    "next_due": "2024-12-04T23:10:04Z",
+    "stale": false
+  },
+  {
+    "name": "rates",
+    "every": "1d",
+    "last_started": "2024-11-30T22:30:00Z",
+    "last_finished": "2024-11-30T22:30:02Z",
+    "last_outcome": "failed",
+    "last_message": "http status 503",
+    "next_due": "2024-12-05T22:30:00Z",
+    "stale": true
+  },
+  {
+    "name": "state_snapshot",
+    "every": "1d",
+    "last_started": "2024-12-05T02:00:00Z",
+    "last_finished": "2024-12-05T02:00:03Z",
+    "last_outcome": "ok",
+    "last_message": "kept 14",
+    "next_due": "2024-12-06T02:00:00Z",
+    "stale": false
+  }
+]

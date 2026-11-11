@@ -1,0 +1,2710 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Buizz",
+    "description": "Spine HTTP API",
+    "license": {
+      "name": "UNLICENSED",
+      "identifier": "UNLICENSED"
+    },
+    "version": "1"
+  },
+  "paths": {
+    "/api/auth/login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "session cookie set",
+            "headers": {
+              "set-cookie": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "logout",
+        "responses": {
+          "204": {
+            "description": "session cookie cleared"
+          }
+        }
+      }
+    },
+    "/api/auth/session": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "session",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionInfo"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bots": {
+      "get": {
+        "tags": [
+          "bots"
+        ],
+        "operationId": "list_bots",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BotSummary"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bots/{name}": {
+      "get": {
+        "tags": [
+          "bots"
+        ],
+        "operationId": "bot_detail",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bots/{name}/backtests": {
+      "post": {
+        "tags": [
+          "bots"
+        ],
+        "operationId": "start_backtest",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartBacktest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "holdout locked or data gaps",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bots/{name}/live": {
+      "post": {
+        "tags": [
+          "bots"
+        ],
+        "operationId": "go_live",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunSummary"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "stream symbol cap reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bots/{name}/pause": {
+      "post": {
+        "tags": [
+          "bots"
+        ],
+        "operationId": "pause",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunSummary"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/data/feed": {
+      "get": {
+        "tags": [
+          "data"
+        ],
+        "operationId": "data_feed",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedSlots"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/data/health": {
+      "get": {
+        "tags": [
+          "data"
+        ],
+        "operationId": "data_health",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataHealth"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/data/jobs": {
+      "get": {
+        "tags": [
+          "data"
+        ],
+        "operationId": "data_jobs",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/JobView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/events": {
+      "get": {
+        "tags": [
+          "events"
+        ],
+        "operationId": "events",
+        "responses": {
+          "200": {
+            "description": "server-sent events; the event name is the `type` field",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpineEvent"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leaderboard": {
+      "get": {
+        "tags": [
+          "leaderboard"
+        ],
+        "operationId": "leaderboard",
+        "parameters": [
+          {
+            "name": "preset",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PeriodPreset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Leaderboard"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs": {
+      "get": {
+        "tags": [
+          "runs"
+        ],
+        "operationId": "list_runs",
+        "parameters": [
+          {
+            "name": "bot",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Mode"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RunSummary"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/{id}": {
+      "get": {
+        "tags": [
+          "runs"
+        ],
+        "operationId": "run_detail",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/RunId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunSummary"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/{id}/cancel": {
+      "post": {
+        "tags": [
+          "runs"
+        ],
+        "operationId": "cancel_run",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/RunId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunSummary"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/{id}/equity": {
+      "get": {
+        "tags": [
+          "runs"
+        ],
+        "operationId": "run_equity",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/RunId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EquitySeries"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/{id}/events": {
+      "get": {
+        "tags": [
+          "runs"
+        ],
+        "operationId": "run_events",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/RunId"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventsPage"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/{id}/orders": {
+      "get": {
+        "tags": [
+          "runs"
+        ],
+        "operationId": "run_orders",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/RunId"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrdersPage"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/{id}/positions": {
+      "get": {
+        "tags": [
+          "runs"
+        ],
+        "operationId": "run_positions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/RunId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PositionView"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ApiError": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        }
+      },
+      "BotDetail": {
+        "type": "object",
+        "required": [
+          "summary",
+          "manifest",
+          "bot_hash",
+          "runs"
+        ],
+        "properties": {
+          "summary": {
+            "$ref": "#/components/schemas/BotSummary"
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/BotManifest"
+          },
+          "bot_hash": {
+            "type": "string"
+          },
+          "runs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunSummary"
+            }
+          }
+        }
+      },
+      "BotManifest": {
+        "type": "object",
+        "required": [
+          "command",
+          "timeframe",
+          "universe"
+        ],
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "command": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "timeframe": {
+            "$ref": "#/components/schemas/Timeframe"
+          },
+          "wake": {
+            "$ref": "#/components/schemas/Wake"
+          },
+          "universe": {
+            "$ref": "#/components/schemas/UniverseSpec"
+          },
+          "params": {
+            "type": "object"
+          },
+          "benchmark": {
+            "$ref": "#/components/schemas/Symbol"
+          }
+        }
+      },
+      "BotStatus": {
+        "type": "string",
+        "enum": [
+          "idle",
+          "live",
+          "paused",
+          "backtesting",
+          "error"
+        ]
+      },
+      "BotSummary": {
+        "type": "object",
+        "required": [
+          "name",
+          "description",
+          "timeframe",
+          "status",
+          "sparkline",
+          "holdout_runs"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "timeframe": {
+            "$ref": "#/components/schemas/Timeframe"
+          },
+          "status": {
+            "$ref": "#/components/schemas/BotStatus"
+          },
+          "live_run": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RunId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "equity": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sparkline": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SparkPoint"
+            }
+          },
+          "stats": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Metrics"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stats_run": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RunId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "holdout_runs": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "last_run_at": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "CostModel": {
+        "type": "object",
+        "required": [
+          "commission_per_share",
+          "commission_min",
+          "slippage_bps",
+          "adv_participation",
+          "adv_sessions",
+          "borrow_rate"
+        ],
+        "properties": {
+          "commission_per_share": {
+            "type": "string"
+          },
+          "commission_min": {
+            "type": "string"
+          },
+          "slippage_bps": {
+            "type": "string"
+          },
+          "adv_participation": {
+            "type": "string"
+          },
+          "adv_sessions": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "borrow_rate": {
+            "type": "string"
+          }
+        }
+      },
+      "Coverage": {
+        "type": "object",
+        "required": [
+          "dataset",
+          "source",
+          "first",
+          "last",
+          "updated_at"
+        ],
+        "properties": {
+          "dataset": {
+            "$ref": "#/components/schemas/Dataset"
+          },
+          "symbol": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Symbol"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "$ref": "#/components/schemas/DataSource"
+          },
+          "first": {
+            "type": "string",
+            "format": "date"
+          },
+          "last": {
+            "type": "string",
+            "format": "date"
+          },
+          "updated_at": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        }
+      },
+      "CoverageGap": {
+        "type": "object",
+        "required": [
+          "symbol",
+          "timeframe",
+          "from",
+          "to"
+        ],
+        "properties": {
+          "symbol": {
+            "$ref": "#/components/schemas/Symbol"
+          },
+          "timeframe": {
+            "$ref": "#/components/schemas/Timeframe"
+          },
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
+      "DataHealth": {
+        "type": "object",
+        "required": [
+          "watermarks",
+          "coverage",
+          "warnings",
+          "stale_jobs"
+        ],
+        "properties": {
+          "watermarks": {
+            "$ref": "#/components/schemas/Watermarks"
+          },
+          "coverage": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Coverage"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DataWarning"
+            }
+          },
+          "stale_jobs": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "DataSource": {
+        "type": "string",
+        "enum": [
+          "alpaca",
+          "alpaca_stream",
+          "tiingo",
+          "edgar",
+          "treasury",
+          "fixture"
+        ]
+      },
+      "DataWarning": {
+        "oneOf": [
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CoverageGap"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "coverage_gap"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "type": "object",
+            "required": [
+              "symbol",
+              "date",
+              "change",
+              "type"
+            ],
+            "properties": {
+              "symbol": {
+                "$ref": "#/components/schemas/Symbol"
+              },
+              "date": {
+                "type": "string",
+                "format": "date"
+              },
+              "change": {
+                "type": "number",
+                "format": "double"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "unexplained_move"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "symbol",
+              "source",
+              "message",
+              "type"
+            ],
+            "properties": {
+              "symbol": {
+                "$ref": "#/components/schemas/Symbol"
+              },
+              "source": {
+                "$ref": "#/components/schemas/DataSource"
+              },
+              "message": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "overlap_rejected"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "Dataset": {
+        "type": "string",
+        "enum": [
+          "instruments",
+          "calendar",
+          "bars1d",
+          "bars1m",
+          "corporate_actions",
+          "fundamentals",
+          "rates"
+        ]
+      },
+      "DesiredState": {
+        "type": "string",
+        "enum": [
+          "running",
+          "paused",
+          "stopped"
+        ]
+      },
+      "EquityPoint": {
+        "type": "object",
+        "required": [
+          "at",
+          "equity",
+          "cash",
+          "gross_exposure"
+        ],
+        "properties": {
+          "at": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "equity": {
+            "type": "string"
+          },
+          "cash": {
+            "type": "string"
+          },
+          "gross_exposure": {
+            "type": "string"
+          }
+        }
+      },
+      "EquitySeries": {
+        "type": "object",
+        "required": [
+          "run_id",
+          "points",
+          "benchmark"
+        ],
+        "properties": {
+          "run_id": {
+            "$ref": "#/components/schemas/RunId"
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EquityPoint"
+            }
+          },
+          "benchmark": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SparkPoint"
+            }
+          }
+        }
+      },
+      "EventsPage": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunEvent"
+            }
+          },
+          "next_after": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "Feed": {
+        "type": "string",
+        "enum": [
+          "sip",
+          "iex"
+        ]
+      },
+      "FeedHolder": {
+        "type": "object",
+        "required": [
+          "run_id",
+          "bot",
+          "symbols"
+        ],
+        "properties": {
+          "run_id": {
+            "$ref": "#/components/schemas/RunId"
+          },
+          "bot": {
+            "type": "string"
+          },
+          "symbols": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Symbol"
+            }
+          }
+        }
+      },
+      "FeedSlots": {
+        "type": "object",
+        "required": [
+          "cap",
+          "used",
+          "connected",
+          "holders"
+        ],
+        "properties": {
+          "cap": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "used": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "connected": {
+            "type": "boolean"
+          },
+          "holders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeedHolder"
+            }
+          }
+        }
+      },
+      "Fill": {
+        "type": "object",
+        "required": [
+          "order_id",
+          "client_id",
+          "symbol",
+          "at",
+          "qty",
+          "price",
+          "commission",
+          "feed"
+        ],
+        "properties": {
+          "order_id": {
+            "$ref": "#/components/schemas/OrderId"
+          },
+          "client_id": {
+            "type": "string"
+          },
+          "symbol": {
+            "$ref": "#/components/schemas/Symbol"
+          },
+          "at": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "qty": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "price": {
+            "type": "string"
+          },
+          "commission": {
+            "type": "string"
+          },
+          "feed": {
+            "$ref": "#/components/schemas/Feed"
+          }
+        }
+      },
+      "JobOutcome": {
+        "type": "string",
+        "enum": [
+          "ok",
+          "noop",
+          "backoff",
+          "failed"
+        ]
+      },
+      "JobView": {
+        "type": "object",
+        "required": [
+          "name",
+          "every",
+          "stale"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "every": {
+            "type": "string"
+          },
+          "last_started": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_finished": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_outcome": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/JobOutcome"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "next_due": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stale": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Leaderboard": {
+        "type": "object",
+        "required": [
+          "preset",
+          "period",
+          "cost",
+          "rows"
+        ],
+        "properties": {
+          "preset": {
+            "$ref": "#/components/schemas/PeriodPreset"
+          },
+          "period": {
+            "$ref": "#/components/schemas/Period"
+          },
+          "cost": {
+            "$ref": "#/components/schemas/CostModel"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LeaderboardRow"
+            }
+          }
+        }
+      },
+      "LeaderboardRow": {
+        "type": "object",
+        "required": [
+          "bot",
+          "run_id",
+          "metrics",
+          "finished_at"
+        ],
+        "properties": {
+          "bot": {
+            "type": "string"
+          },
+          "run_id": {
+            "$ref": "#/components/schemas/RunId"
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/Metrics"
+          },
+          "finished_at": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        }
+      },
+      "LogLevel": {
+        "type": "string",
+        "enum": [
+          "debug",
+          "info",
+          "warn",
+          "error"
+        ]
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": [
+          "password"
+        ],
+        "properties": {
+          "password": {
+            "type": "string"
+          }
+        }
+      },
+      "Metrics": {
+        "type": "object",
+        "required": [
+          "total_return",
+          "cagr",
+          "volatility",
+          "max_drawdown",
+          "exposure",
+          "turnover",
+          "trades",
+          "sessions"
+        ],
+        "properties": {
+          "total_return": {
+            "type": "number",
+            "format": "double"
+          },
+          "cagr": {
+            "type": "number",
+            "format": "double"
+          },
+          "volatility": {
+            "type": "number",
+            "format": "double"
+          },
+          "sharpe": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "sortino": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "max_drawdown": {
+            "type": "number",
+            "format": "double"
+          },
+          "calmar": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "win_rate": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "profit_factor": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "exposure": {
+            "type": "number",
+            "format": "double"
+          },
+          "turnover": {
+            "type": "number",
+            "format": "double"
+          },
+          "alpha": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "beta": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "trades": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "sessions": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "Mode": {
+        "type": "string",
+        "enum": [
+          "backtest",
+          "live"
+        ]
+      },
+      "Order": {
+        "type": "object",
+        "required": [
+          "id",
+          "client_id",
+          "symbol",
+          "side",
+          "qty",
+          "filled_qty",
+          "requested",
+          "order_type",
+          "tif",
+          "reason",
+          "decided_at",
+          "status",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OrderId"
+          },
+          "client_id": {
+            "type": "string"
+          },
+          "symbol": {
+            "$ref": "#/components/schemas/Symbol"
+          },
+          "side": {
+            "$ref": "#/components/schemas/Side"
+          },
+          "qty": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "filled_qty": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "requested": {
+            "$ref": "#/components/schemas/OrderSize"
+          },
+          "order_type": {
+            "$ref": "#/components/schemas/OrderType"
+          },
+          "tif": {
+            "$ref": "#/components/schemas/TimeInForce"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "decided_at": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "session": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OrderStatus"
+          },
+          "reject_reason": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RejectReason"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updated_at": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        }
+      },
+      "OrderId": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "OrderSize": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "qty",
+              "by"
+            ],
+            "properties": {
+              "qty": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "by": {
+                "type": "string",
+                "enum": [
+                  "qty"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "weight",
+              "by"
+            ],
+            "properties": {
+              "weight": {
+                "type": "string"
+              },
+              "by": {
+                "type": "string",
+                "enum": [
+                  "target_weight"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "OrderStatus": {
+        "type": "string",
+        "enum": [
+          "working",
+          "filled",
+          "cancelled",
+          "expired",
+          "rejected"
+        ]
+      },
+      "OrderType": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "market"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "limit_price",
+              "type"
+            ],
+            "properties": {
+              "limit_price": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "limit"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "OrderUpdate": {
+        "type": "object",
+        "required": [
+          "order_id",
+          "client_id",
+          "symbol",
+          "status",
+          "filled_qty",
+          "at"
+        ],
+        "properties": {
+          "order_id": {
+            "$ref": "#/components/schemas/OrderId"
+          },
+          "client_id": {
+            "type": "string"
+          },
+          "symbol": {
+            "$ref": "#/components/schemas/Symbol"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OrderStatus"
+          },
+          "reject_reason": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RejectReason"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "filled_qty": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "at": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        }
+      },
+      "OrderView": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Order"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "avg_fill_price": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "OrdersPage": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderView"
+            }
+          },
+          "next_after": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "Period": {
+        "type": "object",
+        "required": [
+          "from",
+          "to"
+        ],
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
+      "PeriodPreset": {
+        "type": "string",
+        "enum": [
+          "1y",
+          "3y",
+          "5y",
+          "10y",
+          "holdout"
+        ]
+      },
+      "PositionView": {
+        "type": "object",
+        "required": [
+          "symbol",
+          "qty",
+          "avg_cost",
+          "last_price",
+          "market_value",
+          "unrealized_pnl",
+          "realized_pnl",
+          "weight"
+        ],
+        "properties": {
+          "symbol": {
+            "$ref": "#/components/schemas/Symbol"
+          },
+          "qty": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "avg_cost": {
+            "type": "string"
+          },
+          "last_price": {
+            "type": "string"
+          },
+          "market_value": {
+            "type": "string"
+          },
+          "unrealized_pnl": {
+            "type": "string"
+          },
+          "realized_pnl": {
+            "type": "string"
+          },
+          "weight": {
+            "type": "string"
+          }
+        }
+      },
+      "RejectReason": {
+        "type": "string",
+        "enum": [
+          "unknown_symbol",
+          "duplicate_client_id",
+          "zero_quantity",
+          "invalid_limit_price",
+          "no_price",
+          "not_shortable",
+          "max_position_weight",
+          "max_gross_exposure",
+          "run_paused"
+        ]
+      },
+      "Reproducibility": {
+        "type": "object",
+        "required": [
+          "bot_hash",
+          "engine_version",
+          "seed"
+        ],
+        "properties": {
+          "bot_hash": {
+            "type": "string"
+          },
+          "engine_version": {
+            "type": "string"
+          },
+          "seed": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "data_watermark": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "RiskLimit": {
+        "type": "string",
+        "enum": [
+          "max_position_weight",
+          "max_gross_exposure",
+          "max_drawdown"
+        ]
+      },
+      "RiskLimits": {
+        "type": "object",
+        "properties": {
+          "max_position_weight": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "max_gross_exposure": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "max_drawdown": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "RunBadge": {
+        "type": "string",
+        "enum": [
+          "survivorship_biased",
+          "holdout",
+          "data_warnings"
+        ]
+      },
+      "RunConfig": {
+        "type": "object",
+        "required": [
+          "bot",
+          "mode",
+          "params",
+          "universe",
+          "timeframe",
+          "wake",
+          "start",
+          "start_cash",
+          "cost",
+          "risk",
+          "seed",
+          "benchmark",
+          "holdout"
+        ],
+        "properties": {
+          "bot": {
+            "type": "string"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/Mode"
+          },
+          "params": {
+            "type": "object"
+          },
+          "universe": {
+            "$ref": "#/components/schemas/UniverseSpec"
+          },
+          "timeframe": {
+            "$ref": "#/components/schemas/Timeframe"
+          },
+          "wake": {
+            "$ref": "#/components/schemas/Wake"
+          },
+          "start": {
+            "type": "string",
+            "format": "date"
+          },
+          "end": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "start_cash": {
+            "type": "string"
+          },
+          "cost": {
+            "$ref": "#/components/schemas/CostModel"
+          },
+          "risk": {
+            "$ref": "#/components/schemas/RiskLimits"
+          },
+          "seed": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "benchmark": {
+            "$ref": "#/components/schemas/Symbol"
+          },
+          "holdout": {
+            "type": "boolean"
+          }
+        }
+      },
+      "RunEvent": {
+        "type": "object",
+        "required": [
+          "seq",
+          "at",
+          "kind"
+        ],
+        "properties": {
+          "seq": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "at": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "clock": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "$ref": "#/components/schemas/RunEventKind"
+          }
+        }
+      },
+      "RunEventKind": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "level",
+              "message",
+              "type"
+            ],
+            "properties": {
+              "level": {
+                "$ref": "#/components/schemas/LogLevel"
+              },
+              "message": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "log"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "status",
+              "type"
+            ],
+            "properties": {
+              "status": {
+                "$ref": "#/components/schemas/RunStatus"
+              },
+              "message": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "status"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "client_id",
+              "symbol",
+              "reason",
+              "type"
+            ],
+            "properties": {
+              "client_id": {
+                "type": "string"
+              },
+              "symbol": {
+                "$ref": "#/components/schemas/Symbol"
+              },
+              "reason": {
+                "$ref": "#/components/schemas/RejectReason"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "order_rejected"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "limit",
+              "value",
+              "threshold",
+              "type"
+            ],
+            "properties": {
+              "limit": {
+                "$ref": "#/components/schemas/RiskLimit"
+              },
+              "value": {
+                "type": "string"
+              },
+              "threshold": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "risk_breach"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "code": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int32"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "bot_exited"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "message",
+              "type"
+            ],
+            "properties": {
+              "message": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "data_warning"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "RunId": {
+        "type": "integer",
+        "format": "int64"
+      },
+      "RunStatus": {
+        "type": "string",
+        "enum": [
+          "queued",
+          "starting",
+          "running",
+          "paused",
+          "completed",
+          "failed",
+          "cancelled"
+        ]
+      },
+      "RunSummary": {
+        "type": "object",
+        "required": [
+          "id",
+          "bot",
+          "mode",
+          "status",
+          "desired",
+          "config",
+          "created_at",
+          "badges"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/RunId"
+          },
+          "bot": {
+            "type": "string"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/Mode"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RunStatus"
+          },
+          "desired": {
+            "$ref": "#/components/schemas/DesiredState"
+          },
+          "config": {
+            "$ref": "#/components/schemas/RunConfig"
+          },
+          "created_at": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "started_at": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "finished_at": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "clock": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "equity": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "metrics": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Metrics"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "result_hash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "badges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunBadge"
+            }
+          },
+          "reproducibility": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Reproducibility"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "SessionInfo": {
+        "type": "object",
+        "required": [
+          "authenticated"
+        ],
+        "properties": {
+          "authenticated": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Side": {
+        "type": "string",
+        "enum": [
+          "buy",
+          "sell"
+        ]
+      },
+      "SparkPoint": {
+        "type": "object",
+        "required": [
+          "at",
+          "equity"
+        ],
+        "properties": {
+          "at": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "equity": {
+            "type": "string"
+          }
+        }
+      },
+      "SpineEvent": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "run_id",
+              "bot",
+              "status",
+              "type"
+            ],
+            "properties": {
+              "run_id": {
+                "$ref": "#/components/schemas/RunId"
+              },
+              "bot": {
+                "type": "string"
+              },
+              "status": {
+                "$ref": "#/components/schemas/RunStatus"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "run_status"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "run_id",
+              "bot",
+              "at",
+              "equity",
+              "type"
+            ],
+            "properties": {
+              "run_id": {
+                "$ref": "#/components/schemas/RunId"
+              },
+              "bot": {
+                "type": "string"
+              },
+              "at": {
+                "$ref": "#/components/schemas/Timestamp"
+              },
+              "equity": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "equity"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "run_id",
+              "order",
+              "type"
+            ],
+            "properties": {
+              "run_id": {
+                "$ref": "#/components/schemas/RunId"
+              },
+              "order": {
+                "$ref": "#/components/schemas/OrderUpdate"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "order"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "run_id",
+              "fill",
+              "type"
+            ],
+            "properties": {
+              "run_id": {
+                "$ref": "#/components/schemas/RunId"
+              },
+              "fill": {
+                "$ref": "#/components/schemas/Fill"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "fill"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "run_id",
+              "event",
+              "type"
+            ],
+            "properties": {
+              "run_id": {
+                "$ref": "#/components/schemas/RunId"
+              },
+              "event": {
+                "$ref": "#/components/schemas/RunEvent"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "log"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "job",
+              "type"
+            ],
+            "properties": {
+              "job": {
+                "$ref": "#/components/schemas/JobView"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "job"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "slots",
+              "type"
+            ],
+            "properties": {
+              "slots": {
+                "$ref": "#/components/schemas/FeedSlots"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "feed"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "StartBacktest": {
+        "type": "object",
+        "properties": {
+          "preset": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PeriodPreset"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "period": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Period"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "params": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "start_cash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cost": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CostModel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "risk": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RiskLimits"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "seed": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "allow_holdout": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Symbol": {
+        "type": "string",
+        "example": "AAPL"
+      },
+      "TimeInForce": {
+        "type": "string",
+        "enum": [
+          "day"
+        ]
+      },
+      "Timeframe": {
+        "type": "string",
+        "enum": [
+          "1d",
+          "1m"
+        ]
+      },
+      "Timestamp": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "UniverseSpec": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "symbols"
+            ],
+            "properties": {
+              "symbols": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Symbol"
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "top_dollar_volume"
+            ],
+            "properties": {
+              "top_dollar_volume": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 0
+              }
+            }
+          }
+        ]
+      },
+      "Wake": {
+        "type": "string",
+        "examples": [
+          "bar",
+          "every:30m",
+          "at:15:55"
+        ],
+        "pattern": "^(bar|every:[0-9]+[mh]|at:[0-2][0-9]:[0-5][0-9])$"
+      },
+      "Watermarks": {
+        "type": "object",
+        "properties": {
+          "day": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "minute": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "bots"
+    },
+    {
+      "name": "runs"
+    },
+    {
+      "name": "leaderboard"
+    },
+    {
+      "name": "data"
+    },
+    {
+      "name": "auth"
+    },
+    {
+      "name": "events"
+    }
+  ]
+}

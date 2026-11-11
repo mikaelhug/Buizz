@@ -605,9 +605,9 @@ name = "buizz-spine"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "axum",
  "buizz-api",
  "buizz-core",
- "buizz-engine",
  "buizz-feed",
  "buizz-ingest",
  "buizz-market",
@@ -615,6 +615,7 @@ dependencies = [
  "buizz-sources",
  "buizz-state",
  "buizz-supervisor",
+ "rust_decimal",
  "tokio",
  "tracing",
  "tracing-subscriber",

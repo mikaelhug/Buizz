@@ -1,0 +1,137 @@
+[
+  {
+    "name": "red_green",
+    "description": "Buys red days, sells green days.",
+    "timeframe": "1d",
+    "status": "live",
+    "live_run": 42,
+    "equity": "100448.46",
+    "sparkline": [
+      {
+        "at": "2024-11-20T21:00:00Z",
+        "equity": "100000.00"
+      },
+      {
+        "at": "2024-11-21T21:00:00Z",
+        "equity": "99780.90"
+      },
+      {
+        "at": "2024-11-22T21:00:00Z",
+        "equity": "99591.52"
+      },
+      {
+        "at": "2024-11-25T21:00:00Z",
+        "equity": "99415.52"
+      },
+      {
+        "at": "2024-11-26T21:00:00Z",
+        "equity": "99420.52"
+      },
+      {
+        "at": "2024-11-27T21:00:00Z",
+        "equity": "99854.63"
+      },
+      {
+        "at": "2024-11-29T18:00:00Z",
+        "equity": "99965.93"
+      },
+      {
+        "at": "2024-12-02T21:00:00Z",
+        "equity": "99965.93"
+      },
+      {
+        "at": "2024-12-03T21:00:00Z",
+        "equity": "100454.25"
+      },
+      {
+        "at": "2024-12-04T21:00:00Z",
+        "equity": "100448.46"
+      }
+    ],
+    "stats": {
+      "total_return": 0.0044846,
+      "cagr": 0.11936243465864638,
+      "volatility": 0.041032233673161916,
+      "sharpe": 1.9756720692905883,
+      "sortino": 4.121476549595437,
+      "max_drawdown": 0.0058448,
+      "calmar": 20.42198786248398,
+      "win_rate": 0.6666666666666666,
+      "profit_factor": 5.2862338055913325,
+      "exposure": 0.2480964546315431,
+      "turnover": 1.7502176349076641,
+      "alpha": 0.6382125171354139,
+      "beta": -0.6170627952481548,
+      "trades": 3,
+      "sessions": 10
+    },
+    "stats_run": 41,
+    "holdout_runs": 1,
+    "last_run_at": "2024-12-05T08:00:00Z"
+  },
+  {
+    "name": "sma_cross",
+    "description": "50/200 day moving average crossover.",
+    "timeframe": "1d",
+    "status": "idle",
+    "live_run": null,
+    "equity": null,
+    "sparkline": [],
+    "stats": null,
+    "stats_run": null,
+    "holdout_runs": 0,
+    "last_run_at": null
+  },
+  {
+    "name": "momentum_12_1",
+    "description": "Top decile 12-1 month momentum, monthly rebalance.",
+    "timeframe": "1d",
+    "status": "backtesting",
+    "live_run": null,
+    "equity": null,
+    "sparkline": [],
+    "stats": null,
+    "stats_run": null,
+    "holdout_runs": 0,
+    "last_run_at": "2024-12-05T08:10:00Z"
+  },
+  {
+    "name": "value_quality",
+    "description": "Buffett-style quality at a fair price from SEC fundamentals.",
+    "timeframe": "1d",
+    "status": "paused",
+    "live_run": 39,
+    "equity": "98012.55",
+    "sparkline": [],
+    "stats": null,
+    "stats_run": null,
+    "holdout_runs": 0,
+    "last_run_at": "2024-11-30T10:00:00Z"
+  },
+  {
+    "name": "cannibal",
+    "description": "Singleton-style buyback cannibals.",
+    "timeframe": "1d",
+    "status": "idle",
+    "live_run": null,
+    "equity": null,
+    "sparkline": [],
+    "stats": null,
+    "stats_run": null,
+    "holdout_runs": 0,
+    "last_run_at": null
+  },
+  {
+    "name": "opening_range",
+    "description": "30-minute opening range breakout.",
+    "timeframe": "1m",
+    "status": "error",
+    "live_run": null,
+    "equity": null,
+    "sparkline": [],
+    "stats": null,
+    "stats_run": null,
+    "holdout_runs": 0,
+    "last_run_at": "2024-12-03T14:00:00Z"
+  }
+]

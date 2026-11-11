@@ -1,7 +1,7 @@
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
-use utoipa::ToSchema;
+use utoipa::{IntoParams, ToSchema};
 
 use crate::market::{Coverage, Symbol, Timeframe, Watermarks};
 use crate::ops::{DataWarning, JobOutcome};
@@ -238,4 +238,25 @@ impl SpineEvent {
             Self::Feed { .. } => "feed",
         }
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct RunsQuery {
+    pub bot: Option<String>,
+    pub mode: Option<Mode>,
+    pub limit: Option<u32>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct PageQuery {
+    pub after: Option<u64>,
+    pub limit: Option<u32>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct LeaderboardQuery {
+    pub preset: PeriodPreset,
 }
