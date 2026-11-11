@@ -1,11 +1,19 @@
+mod auth;
+mod bots;
+mod data;
+mod error;
+mod events;
 mod routes;
+mod runs;
+mod time;
 
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use axum::Router;
-use axum::extract::{State, WebSocketUpgrade};
+use axum::extract::{FromRef, State, WebSocketUpgrade};
 use axum::http::{HeaderMap, StatusCode, header};
+use axum::middleware::from_fn_with_state;
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use buizz_core::protocol::BOT_PATH;
@@ -18,7 +26,7 @@ use tower_http::services::{ServeDir, ServeFile};
 use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
 
-pub use routes::api_routes;
+use crate::auth::{Auth, require_session};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ApiConfig {
@@ -37,14 +45,43 @@ pub struct AppState {
     pub ingest: Ingest,
 }
 
+#[derive(Clone)]
+struct Api {
+    app: AppState,
+    auth: Arc<Auth>,
+}
+
+impl FromRef<Api> for AppState {
+    fn from_ref(api: &Api) -> Self {
+        api.app.clone()
+    }
+}
+
+impl FromRef<Api> for Arc<Auth> {
+    fn from_ref(api: &Api) -> Self {
+        api.auth.clone()
+    }
+}
+
 pub fn openapi() -> utoipa::openapi::OpenApi {
-    api_routes::<()>().into_openapi()
+    routes::protected_routes()
+        .merge(routes::public_routes())
+        .into_openapi()
 }
 
 pub fn router(app: AppState) -> Router {
     let web_dir = app.config.web_dir.clone();
-    let (api, _) = api_routes().split_for_parts();
-    let router = api.route(BOT_PATH, get(bot_socket)).with_state(app);
+    let api = Api {
+        auth: Arc::new(Auth::new(&app.config)),
+        app,
+    };
+    let (protected, _) = routes::protected_routes().split_for_parts();
+    let (public, _) = routes::public_routes().split_for_parts();
+    let router = protected
+        .route_layer(from_fn_with_state(api.auth.clone(), require_session))
+        .merge(public)
+        .route(BOT_PATH, get(bot_socket))
+        .with_state(api);
     match web_dir {
         Some(dir) => {
             let index = dir.join("index.html");
@@ -52,10 +89,6 @@ pub fn router(app: AppState) -> Router {
         }
         None => router,
     }
-}
-
-pub fn fixture_router() -> Router {
-    api_routes::<()>().split_for_parts().0
 }
 
 async fn bot_socket(
@@ -88,6 +121,6 @@ async fn bot_socket(
 )]
 struct ApiDoc;
 
-fn base_router<S: Clone + Send + Sync + 'static>() -> OpenApiRouter<S> {
+fn base_router() -> OpenApiRouter<Api> {
     OpenApiRouter::with_openapi(ApiDoc::openapi())
 }
