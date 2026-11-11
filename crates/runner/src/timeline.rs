@@ -4,7 +4,7 @@ use buizz_core::market::{Bar, Calendar, CorporateAction, Instrument, Session, Sy
 use buizz_core::run::{RunConfig, UniverseSpec};
 use buizz_core::time::Timestamp;
 use buizz_core::visibility::bar_visible_at;
-use buizz_market::{MarketError, MarketStore};
+use buizz_market::{MarketError, MarketStore, TIMESTAMP_RESOLUTION};
 use chrono::{NaiveDate, TimeDelta};
 use tokio::task::JoinHandle;
 
@@ -294,7 +294,7 @@ impl Timeline {
             .map_or(session.close, |last| last.close);
         if let Some(through) = visible_through {
             let bound = match self.timeframe {
-                Timeframe::Minute => through - TimeDelta::seconds(60) + TimeDelta::nanoseconds(1),
+                Timeframe::Minute => through - TimeDelta::seconds(60) + TIMESTAMP_RESOLUTION,
                 Timeframe::Day => sessions
                     .get(sessions.partition_point(|candidate| candidate.close <= through))
                     .map_or(Timestamp::MAX, |candidate| candidate.open),
