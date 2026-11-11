@@ -206,6 +206,8 @@ impl CostModel {
     }
 }
 
+pub const DRAWDOWN_STOP: &str = "stopped by drawdown limit";
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RiskLimits {

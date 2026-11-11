@@ -1,5 +1,4 @@
 use std::future::Future;
-use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -18,7 +17,7 @@ use crate::world::repository;
 const DEADLINE: Duration = Duration::from_secs(90);
 const POLL: Duration = Duration::from_millis(100);
 const EVENTS_PAGE: u32 = 1000;
-const LAUNCH_ATTEMPTS: usize = 5;
+const LISTENING: &str = "spine listening addr=";
 
 pub async fn eventually<T, F: Future<Output = Option<T>>>(
     what: &str,
@@ -44,7 +43,6 @@ pub struct Spine {
     pub password: String,
     pub fake: FakeProviders,
     options: Options,
-    port: u16,
     dir: TempDir,
     child: Option<Child>,
     client: Client,
@@ -73,13 +71,6 @@ fn bot_dir(name: &str) -> PathBuf {
     }
 }
 
-fn free_port() -> u16 {
-    TcpListener::bind("127.0.0.1:0")
-        .and_then(|listener| listener.local_addr())
-        .expect("a free port")
-        .port()
-}
-
 impl Spine {
     pub async fn start(fake: FakeProviders, options: Options) -> Self {
         let dir = tempfile::Builder::new()
@@ -101,7 +92,6 @@ impl Spine {
         let mut spine = Self {
             base: String::new(),
             password,
-            port: 0,
             fake,
             options,
             dir,
@@ -114,29 +104,13 @@ impl Spine {
     }
 
     async fn launch(&mut self) {
-        for _ in 0..LAUNCH_ATTEMPTS {
-            if self.port == 0 {
-                self.port = free_port();
-                self.base = format!("http://127.0.0.1:{}", self.port);
-            }
-            if self.try_launch().await {
-                return;
-            }
-            self.kill().await;
-            self.port = 0;
-        }
-        panic!(
-            "the spine did not start on a free port in {LAUNCH_ATTEMPTS} attempts\n{}",
-            self.log()
-        );
-    }
-
-    async fn try_launch(&mut self) -> bool {
+        let log_path = self.dir.path().join("spine.log");
         let log = std::fs::OpenOptions::new()
             .create(true)
             .append(true)
-            .open(self.dir.path().join("spine.log"))
+            .open(&log_path)
             .expect("the spine log");
+        let launched_at = log.metadata().expect("the spine log size").len();
         let url = &self.fake.url;
         let mut command = Command::new(binary());
         command
@@ -148,7 +122,7 @@ impl Spine {
                     .filter_map(|name| std::env::var_os(name).map(|value| (name, value))),
             )
             .env("RUST_LOG", "info")
-            .env("BUIZZ_BIND", format!("127.0.0.1:{}", self.port))
+            .env("BUIZZ_BIND", "127.0.0.1:0")
             .env("BUIZZ_ADMIN_PASSWORD", &self.password)
             .env("BUIZZ_SECURE_COOKIES", "false")
             .env("BUIZZ_WEB_DIR", repository().join("web/dist"))
@@ -170,29 +144,24 @@ impl Spine {
                 .env("TIINGO_URL", url);
         }
         let mut child = command.spawn().expect("the spine starts");
-        let session = format!("{}/api/auth/session", self.base);
-        let listening = eventually("the spine to listen", || {
+        let addr = eventually("the spine to listen", || {
             let exited = child.try_wait().expect("the spine is waitable").is_some();
-            let probe = self.client.get(&session).send();
+            let log = std::fs::read(&log_path).unwrap_or_default();
             async move {
-                if exited {
-                    return Some(false);
-                }
-                probe
-                    .await
-                    .ok()
-                    .map(|response| response.status() == StatusCode::OK)
+                let text = String::from_utf8_lossy(log.get(launched_at as usize..)?);
+                let addr = text.lines().find_map(|line| {
+                    let (_, rest) = line.split_once(LISTENING)?;
+                    rest.split_whitespace().next().map(str::to_owned)
+                });
+                assert!(addr.is_some() || !exited, "the spine exited\n{text}");
+                addr
             }
         })
         .await;
         self.child = Some(child);
-        if !listening {
-            return false;
-        }
+        self.base = format!("http://{addr}");
         let login = self.login(&self.password).await;
-        if login.status() != StatusCode::NO_CONTENT {
-            return false;
-        }
+        assert_eq!(login.status(), StatusCode::NO_CONTENT, "{}", self.log());
         let cookie = login
             .headers()
             .get(header::SET_COOKIE)
@@ -205,7 +174,6 @@ impl Spine {
             .next()
             .expect("the cookie has a value")
             .to_owned();
-        true
     }
 
     pub async fn login(&self, password: &str) -> reqwest::Response {
@@ -298,12 +266,16 @@ impl Spine {
         self.get(&format!("/api/runs/{id}")).await
     }
 
-    pub async fn finished(&self, id: RunId) -> RunSummary {
-        let run = eventually("the run to finish", || async {
+    pub async fn ended(&self, id: RunId) -> RunSummary {
+        eventually("the run to finish", || async {
             let run = self.run(id).await;
             run.status.is_finished().then_some(run)
         })
-        .await;
+        .await
+    }
+
+    pub async fn finished(&self, id: RunId) -> RunSummary {
+        let run = self.ended(id).await;
         assert_eq!(
             run.status,
             buizz_core::run::RunStatus::Completed,

@@ -12,11 +12,12 @@ use buizz_core::protocol::{
     StepEvent,
 };
 use buizz_core::run::{
-    DesiredState, EquityPoint, LogLevel, Mode, RiskLimit, RunEvent, RunEventKind, RunId, RunStatus,
+    DRAWDOWN_STOP, DesiredState, EquityPoint, LogLevel, Mode, RunEvent, RunEventKind, RunId,
+    RunStatus,
 };
 use buizz_core::time::Timestamp;
 use buizz_core::visibility::order_session;
-use buizz_engine::{Cycle, Engine, EngineError, Outbox};
+use buizz_engine::{Cycle, DrawdownStop, Engine, EngineError, Outbox};
 use buizz_feed::FeedLease;
 use buizz_ingest::IngestError;
 use buizz_market::MarketError;
@@ -36,6 +37,7 @@ use crate::{Inner, gate_symbols, now, report};
 const EXIT_GRACE: Duration = Duration::from_secs(5);
 const IDLE_RECHECK: Duration = Duration::from_secs(60);
 const EVENT_PAGE: u32 = 1000;
+const BACKTEST_EQUITY_EVERY: Duration = Duration::from_millis(250);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Control {
@@ -58,6 +60,7 @@ enum Exit {
     Cancelled,
     Shutdown,
     Failed(String),
+    DrawdownStopped,
 }
 
 type Flow<T> = Result<T, Exit>;
@@ -183,14 +186,19 @@ pub(crate) async fn run(mut launch: Launch) {
             }
         }
     };
-    let (status, message) = match exit {
-        Exit::Shutdown => (None, None),
-        Exit::Completed => (Some(RunStatus::Completed), None),
-        Exit::Cancelled => (Some(RunStatus::Cancelled), None),
-        Exit::Failed(message) => (Some(RunStatus::Failed), Some(message)),
+    let (status, message, reason) = match exit {
+        Exit::Shutdown => (None, None, EndReason::Stopped),
+        Exit::Completed => (Some(RunStatus::Completed), None, EndReason::Completed),
+        Exit::Cancelled => (Some(RunStatus::Cancelled), None, EndReason::Stopped),
+        Exit::Failed(message) => (Some(RunStatus::Failed), Some(message), EndReason::Failed),
+        Exit::DrawdownStopped => (
+            Some(RunStatus::Failed),
+            Some(DRAWDOWN_STOP.to_owned()),
+            EndReason::RiskLimit,
+        ),
     };
     let (message, result_hash) = match closing {
-        Some((driver, _slot)) => driver.close(status, message).await,
+        Some((driver, _slot)) => driver.close(status, reason, message).await,
         None => (message, None),
     };
     if let Some(status) = status
@@ -262,15 +270,15 @@ pub(crate) async fn conclude(
     let Some(run) = inner.state.run(run_id).await? else {
         return Err(StateError::UnknownRun(run_id));
     };
-    let metrics = match status {
-        RunStatus::Completed => match report::metrics(&inner.market, &inner.state, &run).await {
+    let metrics = match result_hash {
+        Some(_) => match report::metrics(&inner.market, &inner.state, &run).await {
             Ok(metrics) => Some(metrics),
             Err(error) => {
                 tracing::warn!(run = %run_id, %error, "cannot compute run metrics");
                 None
             }
         },
-        _ => None,
+        None => None,
     };
     let at = now();
     inner
@@ -342,11 +350,12 @@ struct Driver {
     process: Option<Process>,
     status: RunStatus,
     paused: bool,
-    halted: Option<String>,
     event_seq: u64,
     step_seq: u64,
     bot_state: Option<Vec<u8>>,
     arrived_while_deciding: Option<(Timestamp, Timestamp)>,
+    equity_shown_at: Option<tokio::time::Instant>,
+    unshown_equity: Option<EquityPoint>,
 }
 
 impl Driver {
@@ -403,11 +412,12 @@ impl Driver {
             process: None,
             status: run.status,
             paused: false,
-            halted: None,
             event_seq: last_event_seq(&inner, run.id).await?,
             step_seq: last_step,
             bot_state,
             arrived_while_deciding: None,
+            equity_shown_at: None,
+            unshown_equity: None,
             spec,
             run,
             inner,
@@ -416,6 +426,10 @@ impl Driver {
 
     fn live(&self) -> bool {
         self.run.mode == Mode::Live
+    }
+
+    fn benched(&self) -> bool {
+        self.paused || self.engine.drawdown_stop().is_some()
     }
 
     fn streams(&self) -> bool {
@@ -512,6 +526,7 @@ impl Driver {
 
     async fn drive(&mut self) -> Exit {
         match self.advance().await {
+            Ok(()) if self.engine.drawdown_stop().is_some() => Exit::DrawdownStopped,
             Ok(()) => Exit::Completed,
             Err(exit) => exit,
         }
@@ -533,14 +548,14 @@ impl Driver {
                 continue;
             }
             match next.filter(|point| self.processable(point)) {
-                Some(_) if !self.paused && self.link.is_none() => self.await_bot().await?,
+                Some(_) if !self.benched() && self.link.is_none() => self.await_bot().await?,
                 Some(point) => {
                     self.cycle(&point).await?;
                     if self.frame.due && self.link.is_some() && !self.arrived_while_deciding() {
                         self.wake().await?;
                     }
                 }
-                None if self.frame.due && (self.paused || self.link.is_some()) => {
+                None if self.frame.due && (self.benched() || self.link.is_some()) => {
                     self.wake().await?;
                 }
                 None => {
@@ -595,6 +610,9 @@ impl Driver {
     }
 
     async fn launch(&mut self) -> Flow<()> {
+        if self.engine.drawdown_stop().is_some() {
+            return Ok(());
+        }
         if let Some(message) = self.outdated().await? {
             return match self.run.mode {
                 Mode::Backtest => Err(Exit::Failed(message)),
@@ -643,16 +661,18 @@ impl Driver {
             .await?;
         match self.run.mode {
             Mode::Live => self.set_status(RunStatus::Paused, message).await,
-            Mode::Backtest => {
-                if let Some(message) = message {
-                    self.note(RunEventKind::Log {
-                        level: LogLevel::Warn,
-                        message: message.clone(),
-                    });
-                    self.halted = Some(message);
-                }
-                Ok(())
-            }
+            Mode::Backtest => Ok(()),
+        }
+    }
+
+    async fn dismiss_bot(&mut self) {
+        self.frame.discard();
+        if let Some(link) = self.link.take() {
+            link.end(EndReason::RiskLimit, Some(DRAWDOWN_STOP.to_owned()))
+                .await;
+        }
+        if let Some(process) = self.process.take() {
+            process.stop().await;
         }
     }
 
@@ -691,17 +711,15 @@ impl Driver {
         {
             self.frame.due = true;
         }
-        if let Some(breach) = self.absorb()
-            && !self.paused
-        {
-            let message = format!(
-                "drawdown {:.2}% breached the {:.2}% limit; the bot is paused",
-                breach.0 * Decimal::ONE_HUNDRED,
-                breach.1 * Decimal::ONE_HUNDRED
-            );
-            self.pause(EndReason::RiskLimit, Some(message)).await?;
+        self.absorb();
+        match self.engine.drawdown_stop() {
+            Some(DrawdownStop::Flat) => Err(Exit::DrawdownStopped),
+            Some(DrawdownStop::Closing) => {
+                self.dismiss_bot().await;
+                Ok(())
+            }
+            None => Ok(()),
         }
-        Ok(())
     }
 
     fn held(&self) -> BTreeSet<Symbol> {
@@ -714,7 +732,7 @@ impl Driver {
             .collect()
     }
 
-    fn absorb(&mut self) -> Option<(Decimal, Decimal)> {
+    fn absorb(&mut self) {
         let Outbox {
             ledger,
             orders,
@@ -735,19 +753,19 @@ impl Driver {
                 order: OrderUpdate::from(order),
             });
         }
-        for point in &equity_points {
-            self.inner.broadcast(SpineEvent::Equity {
-                run_id,
-                bot: self.run.bot.clone(),
-                at: point.at,
-                equity: point.equity,
-            });
+        if self.live() {
+            for point in &equity_points {
+                self.broadcast_equity(point.at, point.equity);
+            }
+        } else if let Some(point) = equity_points.last() {
+            self.unshown_equity = Some(point.clone());
+            self.show_backtest_equity(false);
         }
         self.pending.ledger.extend(ledger);
         self.pending.orders.extend(orders);
         self.pending.equity_points.extend(equity_points);
         self.pending.dirty = true;
-        if !self.paused {
+        if !self.benched() {
             self.frame.events.extend(step_events);
         }
         for order in rejections {
@@ -762,18 +780,13 @@ impl Driver {
         for message in warnings {
             self.note(RunEventKind::DataWarning { message });
         }
-        let mut drawdown = None;
         for breach in breaches {
-            if breach.limit == RiskLimit::MaxDrawdown {
-                drawdown = Some((breach.value, breach.threshold));
-            }
             self.note(RunEventKind::RiskBreach {
                 limit: breach.limit,
                 value: breach.value,
                 threshold: breach.threshold,
             });
         }
-        drawdown
     }
 
     async fn wake(&mut self) -> Flow<()> {
@@ -781,7 +794,7 @@ impl Driver {
         if self.live() {
             self.publish_equity();
         }
-        if self.paused {
+        if self.benched() {
             self.frame.discard();
             return self.commit(false).await;
         }
@@ -796,13 +809,31 @@ impl Driver {
 
     fn publish_equity(&self) {
         if let Some(at) = self.clock {
-            self.inner.broadcast(SpineEvent::Equity {
-                run_id: self.run.id,
-                bot: self.run.bot.clone(),
-                at,
-                equity: self.engine.portfolio().equity(),
-            });
+            self.broadcast_equity(at, self.engine.portfolio().equity());
         }
+    }
+
+    fn show_backtest_equity(&mut self, last: bool) {
+        let due = last
+            || self
+                .equity_shown_at
+                .is_none_or(|shown| shown.elapsed() >= BACKTEST_EQUITY_EVERY);
+        if !due {
+            return;
+        }
+        if let Some(point) = self.unshown_equity.take() {
+            self.broadcast_equity(point.at, point.equity);
+            self.equity_shown_at = Some(tokio::time::Instant::now());
+        }
+    }
+
+    fn broadcast_equity(&self, at: Timestamp, equity: Decimal) {
+        self.inner.broadcast(SpineEvent::Equity {
+            run_id: self.run.id,
+            bot: self.run.bot.clone(),
+            at,
+            equity,
+        });
     }
 
     async fn await_bot(&mut self) -> Flow<()> {
@@ -823,7 +854,7 @@ impl Driver {
                     return Err(Exit::Failed(message));
                 }
             }
-            if self.paused {
+            if self.benched() {
                 return Ok(());
             }
         }
@@ -845,7 +876,7 @@ impl Driver {
         let Some(socket) = socket else {
             return Err(Exit::Shutdown);
         };
-        if self.paused {
+        if self.benched() {
             return Ok(());
         }
         let ready = self.ready().await?;
@@ -1012,14 +1043,14 @@ impl Driver {
         self.absorb();
         if ordered {
             let held = self.held();
-            self.timeline.track(held);
+            self.timeline.track(held).await?;
         }
         self.lease_stream().await?;
         self.commit(false).await
     }
 
     async fn checkpoint(&mut self) -> Flow<()> {
-        if self.paused || self.frame.events.is_empty() {
+        if self.benched() || self.frame.events.is_empty() {
             return self.commit(true).await;
         }
         let events = std::mem::take(&mut self.pending.events);
@@ -1170,13 +1201,9 @@ impl Driver {
     async fn close(
         mut self,
         status: Option<RunStatus>,
-        message: Option<String>,
+        reason: EndReason,
+        mut message: Option<String>,
     ) -> (Option<String>, Option<String>) {
-        let reason = match status {
-            Some(RunStatus::Completed) => EndReason::Completed,
-            Some(RunStatus::Failed) => EndReason::Failed,
-            _ => EndReason::Stopped,
-        };
         if let Some(link) = self.link.take() {
             link.end(reason, message.clone()).await;
         }
@@ -1187,7 +1214,7 @@ impl Driver {
             self.engine.cancel_all(self.after);
             self.absorb();
         }
-        let mut message = message.or_else(|| self.halted.clone());
+        self.show_backtest_equity(true);
         let persisted = match status {
             Some(_) => self.commit(true).await,
             None => self.checkpoint().await,
@@ -1205,7 +1232,9 @@ impl Driver {
             tracing::error!(run = %self.run.id, %error, "cannot persist the last steps of a run");
             message.get_or_insert(error);
         }
-        let result_hash = (status == Some(RunStatus::Completed)).then(|| self.engine.result_hash());
+        let concluded =
+            status.is_some() && matches!(reason, EndReason::Completed | EndReason::RiskLimit);
+        let result_hash = concluded.then(|| self.engine.result_hash());
         (message, result_hash)
     }
 }

@@ -158,7 +158,7 @@ function RunHistory({ history, selected, name, onCancelled }: HistoryProps) {
                   </td>
                   <td className="nowrap muted">{fmt.local(run.created_at)}</td>
                   <td className="badges">
-                    <RunBadges badges={run.badges} />
+                    <RunBadges run={run} />
                     {run.mode === "backtest" && (run.status === "queued" || run.status === "starting" || run.status === "running") && (
                       <button type="button" className="btn btn-xs btn-ghost" onClick={() => void cancel(run)}>
                         Cancel

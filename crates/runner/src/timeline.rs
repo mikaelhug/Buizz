@@ -211,8 +211,22 @@ impl Timeline {
         }
     }
 
-    pub(crate) fn track(&mut self, held: BTreeSet<Symbol>) {
-        self.tracked.extend(held);
+    pub(crate) async fn track(&mut self, held: BTreeSet<Symbol>) -> Result<(), MarketError> {
+        let added: Vec<Symbol> = held
+            .into_iter()
+            .filter(|symbol| !self.tracked.contains(symbol))
+            .collect();
+        if let Some(date) = self.session.date
+            && !added.is_empty()
+        {
+            let volumes = self
+                .market
+                .average_daily_volume(added.clone(), date, self.adv_sessions)
+                .await?;
+            self.session.average_daily_volume.extend(volumes);
+        }
+        self.tracked.extend(added);
+        Ok(())
     }
 
     pub(crate) async fn bars(

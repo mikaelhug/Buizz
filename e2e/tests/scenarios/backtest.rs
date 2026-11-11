@@ -121,7 +121,7 @@ async fn red_green_backtest_matches_the_hand_computation_from_the_cli_the_api_an
         assert!(printed.contains(&line), "{line:?} in {printed:#?}");
     }
     for line in [
-        "orders: 12 (7 filled, 5 rejected)",
+        "orders: 7 (7 filled)",
         "  AAA      net +0 shares",
         "  BBB      net +511 shares",
     ] {
@@ -143,10 +143,12 @@ async fn red_green_backtest_matches_the_hand_computation_from_the_cli_the_api_an
     let queued: RunSummary = spine
         .post("/api/bots/red_green/backtests", request.clone())
         .await;
-    let mut equity_events = 0;
+    let mut equity_events = Vec::new();
     loop {
         match events.next().await {
-            SpineEvent::Equity { run_id, .. } if run_id == queued.id => equity_events += 1,
+            SpineEvent::Equity {
+                run_id, at, equity, ..
+            } if run_id == queued.id => equity_events.push((at, equity)),
             SpineEvent::RunStatus { run_id, status, .. }
                 if run_id == queued.id && status.is_finished() =>
             {
@@ -155,9 +157,17 @@ async fn red_green_backtest_matches_the_hand_computation_from_the_cli_the_api_an
             _ => {}
         }
     }
-    assert_eq!(equity_events, 10, "one equity event per session close");
     let first = spine.finished(queued.id).await;
     assert_eq!(first.config, config);
+    assert!(
+        (1..=10).contains(&equity_events.len()),
+        "backtest equity events are coalesced: {equity_events:#?}"
+    );
+    assert_eq!(
+        equity_events.last().copied(),
+        first.clock.zip(first.equity),
+        "the last equity event is the final equity"
+    );
 
     let actual = observed(&spine, &first).await;
     let tolerance = expected["metrics_tolerance"].as_f64().expect("a tolerance");

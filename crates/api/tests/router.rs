@@ -1,4 +1,4 @@
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -21,6 +21,8 @@ use buizz_supervisor::{Supervisor, SupervisorConfig};
 use rust_decimal::Decimal;
 use tempfile::TempDir;
 use tower::ServiceExt;
+
+const SPINE_IP: [u8; 4] = [10, 42, 0, 9];
 
 struct Spine {
     router: Router,
@@ -93,6 +95,7 @@ async fn spine() -> Spine {
             admin_password: "correct horse battery".to_owned(),
             web_dir: Some(web),
             secure_cookies: false,
+            spine_ip: IpAddr::from(SPINE_IP),
         }),
         runner,
         market,
@@ -239,4 +242,6 @@ async fn the_bot_socket_refuses_peers_outside_the_spine_host() {
     assert_eq!(outside.status, StatusCode::FORBIDDEN);
     let local = send(&spine, bot_dial([127, 0, 0, 1])).await;
     assert_ne!(local.status, StatusCode::FORBIDDEN);
+    let bound = send(&spine, bot_dial(SPINE_IP)).await;
+    assert_ne!(bound.status, StatusCode::FORBIDDEN);
 }

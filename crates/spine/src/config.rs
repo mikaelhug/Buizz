@@ -24,6 +24,8 @@ pub struct Config {
     pub treasury: TreasuryConfig,
 }
 
+const MIN_ADMIN_PASSWORD_CHARS: usize = 12;
+
 fn var(name: &str) -> Option<String> {
     std::env::var(name)
         .ok()
@@ -41,6 +43,25 @@ fn flag(name: &str, default: bool) -> Result<bool> {
         Some("0" | "false" | "off") => Ok(false),
         Some(other) => anyhow::bail!("{name} must be true or false, got {other:?}"),
     }
+}
+
+fn admin_password(value: Option<String>) -> Result<String> {
+    let password = value.context("BUIZZ_ADMIN_PASSWORD is required")?;
+    let length = password.chars().count();
+    anyhow::ensure!(
+        length >= MIN_ADMIN_PASSWORD_CHARS,
+        "BUIZZ_ADMIN_PASSWORD must be at least {MIN_ADMIN_PASSWORD_CHARS} characters, it has {length}"
+    );
+    Ok(password)
+}
+
+pub fn spine_url(bound: SocketAddr) -> String {
+    let ip = match bound.ip() {
+        IpAddr::V4(ip) if ip.is_unspecified() => IpAddr::V4(Ipv4Addr::LOCALHOST),
+        IpAddr::V6(ip) if ip.is_unspecified() => IpAddr::V6(Ipv6Addr::LOCALHOST),
+        ip => ip,
+    };
+    format!("ws://{}", SocketAddr::new(ip, bound.port()))
 }
 
 impl Config {
@@ -62,8 +83,7 @@ impl Config {
             bots_dir: var_or("BUIZZ_BOTS_DIR", "bots").into(),
             web_dir: var("BUIZZ_WEB_DIR").map(PathBuf::from),
             fixture_dir: var("BUIZZ_FIXTURE_DIR").map(PathBuf::from),
-            admin_password: var("BUIZZ_ADMIN_PASSWORD")
-                .context("BUIZZ_ADMIN_PASSWORD is required")?,
+            admin_password: admin_password(var("BUIZZ_ADMIN_PASSWORD"))?,
             secure_cookies: flag("BUIZZ_SECURE_COOKIES", true)?,
             ingest: flag("BUIZZ_INGEST", true)?,
             alpaca,
@@ -83,15 +103,6 @@ impl Config {
         })
     }
 
-    pub fn spine_url(&self) -> String {
-        let ip = match self.bind.ip() {
-            IpAddr::V4(ip) if ip.is_unspecified() => IpAddr::V4(Ipv4Addr::LOCALHOST),
-            IpAddr::V6(ip) if ip.is_unspecified() => IpAddr::V6(Ipv6Addr::LOCALHOST),
-            ip => ip,
-        };
-        format!("ws://{}", SocketAddr::new(ip, self.bind.port()))
-    }
-
     pub fn stream(&self) -> Option<StreamConfig> {
         self.alpaca.clone().map(|alpaca| StreamConfig {
             alpaca,
@@ -99,5 +110,16 @@ impl Config {
             reconnect_initial: std::time::Duration::from_secs(1),
             reconnect_max: std::time::Duration::from_secs(60),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_short_admin_password_is_refused() {
+        assert!(admin_password(Some("eleven-char".to_owned())).is_err());
+        assert!(admin_password(Some("twelve-chars".to_owned())).is_ok());
     }
 }

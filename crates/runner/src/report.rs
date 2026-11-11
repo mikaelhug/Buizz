@@ -19,17 +19,18 @@ pub(crate) async fn benchmark(
 ) -> Result<Vec<SparkPoint>, RunnerError> {
     let config = &run.config;
     let calendar = market
-        .calendar(config.start, config.end.unwrap_or(through).min(through))
+        .calendar(NaiveDate::MIN, config.end.unwrap_or(through).min(through))
         .await?;
-    let (Some(first), Some(last)) = (calendar.sessions().first(), calendar.sessions().last())
-    else {
+    let sessions = calendar.between(config.start, NaiveDate::MAX);
+    let (Some(first), Some(last)) = (sessions.first(), sessions.last()) else {
         return Ok(Vec::new());
     };
+    let from = calendar.previous_before(first.date).unwrap_or(first);
     let bars = market
         .bars_between(
             Timeframe::Day,
             vec![config.benchmark.clone()],
-            first.open,
+            from.open,
             last.close,
         )
         .await?;

@@ -1,5 +1,6 @@
 mod config;
 
+use std::io::IsTerminal;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -36,8 +37,15 @@ async fn main() -> Result<()> {
         .with_env_filter(
             EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
         )
+        .with_ansi(std::io::stdout().is_terminal())
         .init();
     let config = Config::from_env()?;
+    let listener = TcpListener::bind(config.bind)
+        .await
+        .with_context(|| format!("cannot bind {}", config.bind))?;
+    let bound = listener
+        .local_addr()
+        .context("cannot read the bound address")?;
     std::fs::create_dir_all(&config.data_dir)
         .with_context(|| format!("cannot create {}", config.data_dir.display()))?;
 
@@ -78,7 +86,7 @@ async fn main() -> Result<()> {
         sources,
     );
     let supervisor = Supervisor::new(SupervisorConfig {
-        spine_url: config.spine_url(),
+        spine_url: config::spine_url(bound),
         log_dir: config.data_dir.join("logs"),
         max_parallel_backtests: std::thread::available_parallelism().map_or(1, usize::from),
         restart_delay: Duration::from_secs(1),
@@ -98,9 +106,6 @@ async fn main() -> Result<()> {
             ingest: ingest.clone(),
         },
     );
-    let listener = TcpListener::bind(config.bind)
-        .await
-        .with_context(|| format!("cannot bind {}", config.bind))?;
     runner.recover().await?;
 
     let feed_task = feed.spawn();
@@ -112,6 +117,7 @@ async fn main() -> Result<()> {
             admin_password: config.admin_password.clone(),
             web_dir: config.web_dir.clone(),
             secure_cookies: config.secure_cookies,
+            spine_ip: bound.ip(),
         }),
         runner: runner.clone(),
         market,
@@ -120,7 +126,7 @@ async fn main() -> Result<()> {
         ingest,
         shutdown,
     });
-    tracing::info!(bind = %config.bind, "spine listening");
+    tracing::info!(addr = %bound, "spine listening");
     axum::serve(
         listener,
         app.into_make_service_with_connect_info::<std::net::SocketAddr>(),

@@ -4,8 +4,8 @@ The types are `buizz_core::protocol`; golden frames for every message are in `fi
 
 ## Transport
 
-- The supervisor starts the bot with `BUIZZ_SPINE_URL` (the spine's `BUIZZ_BIND` address, loopback when it binds all interfaces, e.g. `ws://127.0.0.1:8080`), `BUIZZ_RUN_ID` and `BUIZZ_RUN_TOKEN`.
-- The bot opens a WebSocket to `$BUIZZ_SPINE_URL/bot/v1` with `Authorization: Bearer $BUIZZ_RUN_TOKEN`. A bad token is refused at the upgrade with 401, and a connection from anywhere but the spine's own host (loopback) with 403.
+- The supervisor starts the bot with `BUIZZ_SPINE_URL` (the address the spine is bound to, loopback when it binds all interfaces, e.g. `ws://127.0.0.1:8080`), `BUIZZ_RUN_ID` and `BUIZZ_RUN_TOKEN`.
+- The bot opens a WebSocket to `$BUIZZ_SPINE_URL/bot/v1` with `Authorization: Bearer $BUIZZ_RUN_TOKEN`. A bad token is refused at the upgrade with 401, and a connection from anywhere but the spine's own host (loopback or the address the spine is bound to) with 403.
 - Every frame is one binary WebSocket message holding one MessagePack map with a `type` key. Structs are maps with named fields; unknown fields must be ignored.
 - Encoding: timestamps are `int64` nanoseconds since the Unix epoch, UTC. Dates are `"YYYY-MM-DD"` strings. Money, prices, quantities as weights and rates are decimal strings (`"49.2246"`); share quantities are integers. Enums are snake_case strings.
 
@@ -25,7 +25,7 @@ spine -> end {reason, message?}
 - Strict alternation: after a `step` the spine only answers queries until it receives the `ack` with the same `seq`. A second `hello`, an ack with the wrong `seq` or any frame outside this order ends the run with `error {code: protocol_violation}`.
 - `error` with `id: null` is fatal and is followed by the socket closing; with an `id` it answers that query and the step continues.
 - Identical in backtest and live. In live, bars that become visible while the bot is deciding coalesce into the next step: `bars` then holds several rows per symbol.
-- `end` reasons: `completed`, `paused`, `stopped`, `risk_limit`, `failed`. On `paused` the process is stopped; resuming starts a new connection that receives `ready` with the saved `state` and current holdings, never the paused interval.
+- `end` reasons: `completed`, `paused`, `stopped`, `risk_limit`, `failed`. `risk_limit` is the drawdown stop: the spine closes every position without the bot and the run ends as failed. On `paused` the process is stopped; resuming starts a new connection that receives `ready` with the saved `state` and current holdings, never the paused interval.
 
 ## Step
 

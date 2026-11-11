@@ -295,6 +295,7 @@ mod tests {
             admin_password: "secret".to_owned(),
             web_dir: None,
             secure_cookies: true,
+            spine_ip: IpAddr::V4(Ipv4Addr::LOCALHOST),
         })
     }
 

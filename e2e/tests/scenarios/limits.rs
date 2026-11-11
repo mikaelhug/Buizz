@@ -1,6 +1,6 @@
-use buizz_core::api::{ApiError, FeedSlots, RunSummary};
-use buizz_core::order::{OrderStatus, RejectReason};
-use buizz_core::run::{LogLevel, RiskLimit, RunEventKind};
+use buizz_core::api::{ApiError, FeedSlots, PositionView, RunSummary};
+use buizz_core::order::{OrderStatus, RejectReason, Side};
+use buizz_core::run::{RiskLimit, RunEventKind, RunStatus};
 use reqwest::{Method, StatusCode};
 use serde_json::json;
 
@@ -9,8 +9,7 @@ use crate::spine::{Options, Spine};
 use crate::world::{World, decimal, stamp};
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_full_stream_refuses_a_run_an_oversized_order_is_rejected_and_a_drawdown_pauses_the_bot()
-{
+async fn a_full_stream_refuses_a_run_an_oversized_order_is_rejected_and_a_drawdown_stops_the_run() {
     let spine = Spine::start(
         FakeProviders::serve(World::fixture_market().await).await,
         Options {
@@ -48,10 +47,12 @@ async fn a_full_stream_refuses_a_run_an_oversized_order_is_rejected_and_a_drawdo
             }),
         )
         .await;
-    let run = spine.finished(queued.id).await;
+    let run = spine.ended(queued.id).await;
     let breached_at = stamp("2024-11-22T21:00:00Z");
-    let message = "drawdown 0.59% breached the 0.50% limit; the bot is paused";
-    assert_eq!(run.message.as_deref(), Some(message));
+    assert_eq!(run.status, RunStatus::Failed);
+    assert_eq!(run.message.as_deref(), Some("stopped by drawdown limit"));
+    assert_eq!(run.clock, Some(stamp("2024-11-25T21:00:00Z")));
+    assert!(run.metrics.is_some(), "the stopped run is measured");
 
     let orders = spine.orders(run.id).await;
     let oversized = &orders[0].order;
@@ -62,12 +63,22 @@ async fn a_full_stream_refuses_a_run_an_oversized_order_is_rejected_and_a_drawdo
         Some(RejectReason::MaxPositionWeight)
     );
     assert_eq!(orders[1].order.status, OrderStatus::Filled);
+    let (decided, closing) = orders.split_at(orders.len() - 1);
     assert!(
-        orders
+        decided
             .iter()
             .all(|order| order.order.decided_at < breached_at),
-        "no decisions after the breach: {orders:#?}"
+        "no bot decisions after the breach: {orders:#?}"
     );
+    let close = &closing[0].order;
+    assert_eq!(close.symbol.as_str(), "BBB");
+    assert_eq!(close.side, Side::Sell);
+    assert_eq!(close.status, OrderStatus::Filled);
+    assert_eq!(close.reason, "stopped by drawdown limit");
+    assert_eq!(close.decided_at, breached_at);
+    assert_eq!(close.updated_at, stamp("2024-11-25T14:30:00Z"));
+    let positions: Vec<PositionView> = spine.get(&format!("/api/runs/{}/positions", run.id)).await;
+    assert!(positions.is_empty(), "flat after the stop: {positions:#?}");
 
     let events = spine.events(run.id).await;
     let breach = events
@@ -87,10 +98,6 @@ async fn a_full_stream_refuses_a_run_an_oversized_order_is_rejected_and_a_drawdo
         unreachable!("matched above");
     };
     assert_eq!(threshold, decimal("0.005"));
-    assert!(events.iter().any(|event| matches!(
-        &event.kind,
-        RunEventKind::Log { level: LogLevel::Warn, message: text } if text == message
-    )));
     let steps: Vec<_> = spine
         .logs(run.id)
         .await
