@@ -12,6 +12,7 @@ STATE_LIMIT = 64 * 1024
 type Timeframe = Literal["1d", "1m"]
 type Adjust = Literal["raw", "split", "all"]
 type LogLevel = Literal["debug", "info", "warn", "error"]
+type EndReason = Literal["completed", "paused", "stopped", "risk_limit", "failed", "disconnected"]
 type Metric = Literal[
     "revenue",
     "cost_of_revenue",
@@ -185,7 +186,7 @@ class Error(msgspec.Struct, frozen=True, tag_field="type", tag="error"):
 
 
 class End(msgspec.Struct, frozen=True, tag_field="type", tag="end"):
-    reason: Literal["completed", "paused", "stopped", "risk_limit", "failed"]
+    reason: EndReason
     message: str | None
 
 

@@ -10,7 +10,7 @@ import msgspec
 import pytest
 from websockets.sync.server import ServerConnection, serve
 
-from buizz import Bar, Bot, Context, SpineError, run
+from buizz import Bar, Bot, Context, EndReason, SpineError, run
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -49,8 +49,18 @@ class RedGreen(Bot):
         ctx.log("AAA closed red")
         ctx.state["days_red"] = 1
 
-    def on_end(self, ctx: Context, reason: str) -> None:
+    def on_end(self, ctx: Context, reason: EndReason) -> None:
         observed["end"] = reason
+
+
+class PausedMidStep(Bot):
+    def on_step(self, ctx: Context) -> None:
+        ctx.state["decided"] = True
+        ctx.history(["AAA"], "1d", 2, "split")
+        observed["after_end"] = True
+
+    def on_end(self, ctx: Context, reason: EndReason) -> None:
+        observed["paused"] = (reason, ctx.state)
 
 
 def play_spine(connection: ServerConnection, received: list[bytes]) -> None:
@@ -73,6 +83,20 @@ def play_spine(connection: ServerConnection, received: list[bytes]) -> None:
     connection.send(golden("step_live"))
     expect()
     connection.send(golden("end_backtest"))
+
+
+def pause_mid_step(connection: ServerConnection, received: list[bytes]) -> None:
+    received.append(as_bytes(connection.recv()))
+    connection.send(golden("ready_backtest"))
+    connection.send(golden("step_backtest"))
+    received.append(as_bytes(connection.recv()))
+    connection.send(golden("end_live"))
+    connection.close()
+
+
+def as_bytes(frame: str | bytes) -> bytes:
+    assert isinstance(frame, bytes)
+    return frame
 
 
 def authorize(connection: ServerConnection, request: Any) -> Any:
@@ -116,3 +140,11 @@ def test_bot_replies_match_the_golden_frames(monkeypatch: pytest.MonkeyPatch) ->
     assert observed["fundamentals"][0].value == Decimal(410000000)
     assert len(observed["live_bars"]) == 2
     assert observed["live_events"][0].symbol == "AAA"
+
+
+def test_a_pause_while_the_bot_waits_on_a_query_ends_it_cleanly(monkeypatch: pytest.MonkeyPatch) -> None:
+    received = play(monkeypatch, pause_mid_step, PausedMidStep)
+
+    assert len(received) == 2
+    assert "after_end" not in observed
+    assert observed["paused"] == ("paused", {"decided": True})

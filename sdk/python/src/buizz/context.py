@@ -10,7 +10,7 @@ import msgspec
 import numpy as np
 import numpy.typing as npt
 
-from buizz.errors import ProtocolError, StateTooLarge
+from buizz.errors import ProtocolError, StateTooLarge, UsageError
 from buizz.wire import (
     STATE_LIMIT,
     Ack,
@@ -232,11 +232,11 @@ class Context:
 
     @property
     def clock(self) -> datetime:
-        return from_ns(self._current().clock)
+        return from_ns(self._current("ctx.clock").clock)
 
     @property
     def session(self) -> Session:
-        session = self._current().session
+        session = self._current("ctx.session").session
         return Session(session.date, from_ns(session.open), from_ns(session.close))
 
     @property
@@ -246,12 +246,12 @@ class Context:
     @property
     def bars(self) -> dict[str, Bar]:
         if self._bars is None:
-            self._bars = last_bars(self._current().bars)
+            self._bars = last_bars(self._current("ctx.bars").bars)
         return self._bars
 
     @property
     def events(self) -> list[Event]:
-        return self._current().events
+        return self._current("ctx.events").events
 
     @property
     def portfolio(self) -> Portfolio:
@@ -267,6 +267,7 @@ class Context:
     def history(
         self, symbols: list[str], tf: Timeframe = "1d", bars: int | np.integer[Any] = 1, adjust: Adjust = "raw"
     ) -> dict[str, History]:
+        self._current("ctx.history")
         if tf not in TIMEFRAMES:
             raise ValueError(f"tf must be one of {sorted(TIMEFRAMES)}, got {tf!r}")
         if adjust not in ADJUSTMENTS:
@@ -277,6 +278,7 @@ class Context:
         return split_history(result.bars, symbols)
 
     def fundamentals(self, symbols: list[str], metrics: list[Metric]) -> list[FundamentalPoint]:
+        self._current("ctx.fundamentals")
         unknown = [metric for metric in metrics if metric not in METRICS]
         if unknown:
             raise ValueError(f"unknown fundamental metrics {unknown}; the metrics are {sorted(METRICS)}")
@@ -321,9 +323,11 @@ class Context:
         return self._submit(symbol, WeightSize(wire_decimal("weight", weight)), reason, limit_price, client_id)
 
     def cancel(self, client_id: str) -> None:
+        self._current("ctx.cancel")
         self._cancels.append(client_id)
 
     def log(self, message: str, level: LogLevel = "info") -> None:
+        self._current("ctx.log")
         self._logs.append(LogLine(level, message))
 
     def begin(self, step: Step) -> None:
@@ -339,13 +343,18 @@ class Context:
         self._issued = {}
 
     def finish(self) -> Ack:
-        ack = Ack(self._current().seq, self._orders, self._cancels, self._changed_state(), self._logs)
-        self._orders, self._cancels, self._logs = [], [], []
+        ack = Ack(self._current("the ack").seq, self._orders, self._cancels, self._changed_state(), self._logs)
+        self.close()
         return ack
 
-    def _current(self) -> Step:
+    def close(self) -> None:
+        self._step = None
+        self._bars = None
+        self._orders, self._cancels, self._logs = [], [], []
+
+    def _current(self, member: str) -> Step:
         if self._step is None:
-            raise ProtocolError("step data is only available inside on_step")
+            raise UsageError(f"{member} is only available inside on_step")
         return self._step
 
     def _changed_state(self) -> bytes | None:
@@ -366,13 +375,14 @@ class Context:
         limit_price: Decimal | float | None,
         client_id: str | None,
     ) -> str:
+        self._current("placing an order")
         client_id = client_id or self._next_client_id(symbol)
         order_type = Market() if limit_price is None else Limit(wire_decimal("limit_price", limit_price))
         self._orders.append(OrderRequest(client_id, symbol, size, order_type, "day", reason))
         return client_id
 
     def _next_client_id(self, symbol: str) -> str:
-        step = self._current()
+        step = self._current("placing an order")
         stamp = (
             step.session.date.isoformat() if self._timeframe == "1d" else from_ns(step.clock).strftime(INTRADAY_STAMP)
         )

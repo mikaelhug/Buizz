@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from buizz.context import Context
+    from buizz.wire import EndReason
 
 
 class Bot:
@@ -13,5 +14,5 @@ class Bot:
     def on_step(self, ctx: Context) -> None:
         raise NotImplementedError
 
-    def on_end(self, ctx: Context, reason: str) -> None:
+    def on_end(self, ctx: Context, reason: EndReason) -> None:
         return None
