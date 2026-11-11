@@ -1,0 +1,73 @@
+{
+  "bars": {
+    "close": {
+      "bin": "0000000000e068406666666666664840"
+    },
+    "high": {
+      "bin": "0000000000806940cdcccccccccc4840"
+    },
+    "low": {
+      "bin": "cdcccccccccc6840cdcccccccc4c4840"
+    },
+    "open": {
+      "bin": "00000000006069409a99999999994840"
+    },
+    "start": {
+      "bin": "0010253d2d020a180010253d2d020a18"
+    },
+    "symbol_index": {
+      "bin": "00000100"
+    },
+    "symbols": [
+      "AAA",
+      "BBB"
+    ],
+    "volume": {
+      "bin": "00000000804f424100000000e0c83041"
+    }
+  },
+  "cash": "74892.90",
+  "clock": 1732222800000000000,
+  "equity": "99780.90",
+  "events": [
+    {
+      "at": 1732199400000000000,
+      "client_id": "BBB-2024-11-20",
+      "commission": "2.55",
+      "feed": "sip",
+      "order_id": 2,
+      "price": "49.2246",
+      "qty": 510,
+      "symbol": "BBB",
+      "type": "fill"
+    },
+    {
+      "at": 1732199400000000000,
+      "client_id": "BBB-2024-11-20",
+      "filled_qty": 510,
+      "order_id": 2,
+      "reject_reason": null,
+      "status": "filled",
+      "symbol": "BBB",
+      "type": "order"
+    }
+  ],
+  "holdings": {
+    "positions": [
+      {
+        "avg_cost": "49.2246",
+        "qty": 510,
+        "symbol": "BBB"
+      }
+    ],
+    "working": []
+  },
+  "seq": 1,
+  "session": {
+    "close": 1732222800000000000,
+    "date": "2024-11-21",
+    "open": 1732199400000000000
+  },
+  "type": "step",
+  "universe": null
+}

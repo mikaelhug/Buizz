@@ -1,0 +1,45 @@
+{
+  "cancels": [
+    "BBB-limit-0"
+  ],
+  "logs": [
+    {
+      "level": "info",
+      "message": "AAA closed red"
+    }
+  ],
+  "orders": [
+    {
+      "client_id": "AAA-2024-11-21",
+      "order_type": {
+        "type": "market"
+      },
+      "reason": "red day",
+      "size": {
+        "by": "target_weight",
+        "weight": "0.25"
+      },
+      "symbol": "AAA",
+      "tif": "day"
+    },
+    {
+      "client_id": "BBB-limit-1",
+      "order_type": {
+        "limit_price": "49.60",
+        "type": "limit"
+      },
+      "reason": "take profit",
+      "size": {
+        "by": "qty",
+        "qty": -100
+      },
+      "symbol": "BBB",
+      "tif": "day"
+    }
+  ],
+  "seq": 1,
+  "state": {
+    "bin": "7b22646179735f726564223a317d"
+  },
+  "type": "ack"
+}

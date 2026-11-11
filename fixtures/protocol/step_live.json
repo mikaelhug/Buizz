@@ -1,0 +1,55 @@
+{
+  "bars": {
+    "close": {
+      "bin": "295c8fc2f5285940295c8fc2f58848400ad7a3703d2a59400ad7a3703d8a4840"
+    },
+    "high": {
+      "bin": "295c8fc2f5285940295c8fc2f58848400ad7a3703d2a59400ad7a3703d8a4840"
+    },
+    "low": {
+      "bin": "d7a3703d0a27594048e17a14ae874840295c8fc2f5285940295c8fc2f5884840"
+    },
+    "open": {
+      "bin": "48e17a14ae27594048e17a14ae874840295c8fc2f5285940295c8fc2f5884840"
+    },
+    "start": {
+      "bin": "0060e69332640d180060e69332640d1800b82d8c40640d1800b82d8c40640d18"
+    },
+    "symbol_index": {
+      "bin": "0000010000000100"
+    },
+    "symbols": [
+      "AAA",
+      "BBB"
+    ],
+    "volume": {
+      "bin": "000000008087c24000000000006ea440000000008087c24000000000006ea440"
+    }
+  },
+  "cash": "99965.93",
+  "clock": 1733151720000000000,
+  "equity": "99965.93",
+  "events": [
+    {
+      "ex_date": "2024-12-02",
+      "kind": {
+        "rate": "0.24",
+        "type": "cash_dividend"
+      },
+      "symbol": "AAA",
+      "type": "corporate_action"
+    }
+  ],
+  "holdings": null,
+  "seq": 318,
+  "session": {
+    "close": 1733173200000000000,
+    "date": "2024-12-02",
+    "open": 1733149800000000000
+  },
+  "type": "step",
+  "universe": [
+    "AAA",
+    "BBB"
+  ]
+}

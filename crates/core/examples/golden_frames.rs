@@ -1,0 +1,385 @@
+use std::path::PathBuf;
+use std::str::FromStr;
+
+use buizz_core::market::{
+    Adjustment, CorporateAction, CorporateActionKind, Feed, FundamentalMetric, FundamentalPoint,
+    PeriodType, Session, Symbol, Timeframe,
+};
+use buizz_core::order::{
+    Fill, OrderId, OrderRequest, OrderSize, OrderStatus, OrderType, OrderUpdate, Side, TimeInForce,
+};
+use buizz_core::protocol::{
+    Ack, BarBuffer, BarRow, BotMessage, Data, DataResult, End, EndReason, ErrorCode, Hello,
+    Holdings, LogLine, PROTOCOL_VERSION, PositionSnapshot, ProtocolError, Query, QueryRequest,
+    Ready, SpineMessage, Step, StepEvent, WorkingOrder, encode,
+};
+use buizz_core::run::{LogLevel, Mode, RunId, Wake};
+use buizz_core::time::Timestamp;
+use chrono::NaiveDate;
+use rust_decimal::Decimal;
+use serde::Serialize;
+use serde_bytes::ByteBuf;
+use serde_json::{Map, Value, json};
+
+fn at(text: &str) -> Timestamp {
+    text.parse().expect("valid timestamp")
+}
+
+fn date(text: &str) -> NaiveDate {
+    text.parse().expect("valid date")
+}
+
+fn money(text: &str) -> Decimal {
+    Decimal::from_str(text).expect("valid decimal")
+}
+
+fn session(day: &str, close: &str) -> Session {
+    Session {
+        date: date(day),
+        open: at(&format!("{day}T14:30:00Z")),
+        close: at(&format!("{day}T{close}Z")),
+    }
+}
+
+fn row(symbol: &str, start: &str, ohlcv: [f64; 5]) -> BarRow {
+    BarRow {
+        symbol: Symbol::new(symbol),
+        start: at(start),
+        open: ohlcv[0],
+        high: ohlcv[1],
+        low: ohlcv[2],
+        close: ohlcv[3],
+        volume: ohlcv[4],
+    }
+}
+
+fn bars(rows: &[BarRow]) -> BarBuffer {
+    BarBuffer::from_rows(rows).expect("small buffer")
+}
+
+fn params() -> Map<String, Value> {
+    match json!({ "weight": 0.25 }) {
+        Value::Object(map) => map,
+        _ => unreachable!(),
+    }
+}
+
+fn render(value: &rmpv::Value) -> Value {
+    match value {
+        rmpv::Value::Nil => Value::Null,
+        rmpv::Value::Boolean(flag) => Value::Bool(*flag),
+        rmpv::Value::Integer(int) => int
+            .as_i64()
+            .map(Value::from)
+            .or_else(|| int.as_u64().map(Value::from))
+            .unwrap_or(Value::Null),
+        rmpv::Value::F32(float) => json!(float),
+        rmpv::Value::F64(float) => json!(float),
+        rmpv::Value::String(text) => Value::String(text.as_str().unwrap_or_default().to_owned()),
+        rmpv::Value::Binary(bytes) => {
+            json!({ "bin": bytes.iter().map(|byte| format!("{byte:02x}")).collect::<String>() })
+        }
+        rmpv::Value::Array(items) => Value::Array(items.iter().map(render).collect()),
+        rmpv::Value::Map(entries) => Value::Object(
+            entries
+                .iter()
+                .map(|(key, value)| (key.as_str().unwrap_or_default().to_owned(), render(value)))
+                .collect(),
+        ),
+        rmpv::Value::Ext(_, _) => Value::Null,
+    }
+}
+
+fn write<T: Serialize>(dir: &std::path::Path, name: &str, message: &T) {
+    let frame = encode(message).expect("frame encodes");
+    let value = rmpv::decode::read_value(&mut frame.as_slice()).expect("frame is msgpack");
+    std::fs::write(dir.join(format!("{name}.msgpack")), &frame).expect("write frame");
+    let pretty = serde_json::to_string_pretty(&render(&value)).expect("render json");
+    std::fs::write(dir.join(format!("{name}.json")), pretty + "\n").expect("write json");
+}
+
+fn main() {
+    let dir: PathBuf = std::env::args()
+        .nth(1)
+        .map(PathBuf::from)
+        .expect("usage: golden_frames <output dir>");
+    std::fs::create_dir_all(&dir).expect("create output dir");
+
+    let aaa = Symbol::new("AAA");
+    let bbb = Symbol::new("BBB");
+    let universe = vec![aaa.clone(), bbb.clone()];
+
+    write(
+        &dir,
+        "hello",
+        &BotMessage::Hello(Hello {
+            protocol: PROTOCOL_VERSION,
+            sdk: "buizz-python/0.1.0".to_owned(),
+        }),
+    );
+
+    write(
+        &dir,
+        "ready_backtest",
+        &SpineMessage::Ready(Box::new(Ready {
+            run_id: RunId(41),
+            bot: "red_green".to_owned(),
+            mode: Mode::Backtest,
+            timeframe: Timeframe::Day,
+            wake: Wake::Bar,
+            params: params(),
+            universe: universe.clone(),
+            start: date("2024-11-20"),
+            end: Some(date("2024-12-04")),
+            seed: 7,
+            state: None,
+            cash: money("100000.00"),
+            equity: money("100000.00"),
+            holdings: Holdings::default(),
+        })),
+    );
+
+    write(
+        &dir,
+        "ready_live",
+        &SpineMessage::Ready(Box::new(Ready {
+            run_id: RunId(42),
+            bot: "opening_range".to_owned(),
+            mode: Mode::Live,
+            timeframe: Timeframe::Minute,
+            wake: "every:30m".parse().expect("valid wake"),
+            params: params(),
+            universe: universe.clone(),
+            start: date("2024-11-29"),
+            end: None,
+            seed: 7,
+            state: Some(ByteBuf::from(br#"{"range_high":99.53}"#.to_vec())),
+            cash: money("75104.63"),
+            equity: money("99854.63"),
+            holdings: Holdings {
+                positions: vec![PositionSnapshot {
+                    symbol: aaa.clone(),
+                    qty: 250,
+                    avg_cost: money("99.0495"),
+                }],
+                working: vec![WorkingOrder {
+                    order_id: OrderId(5),
+                    client_id: "AAA-2024-11-27".to_owned(),
+                    symbol: aaa.clone(),
+                    side: Side::Sell,
+                    qty: 250,
+                    filled_qty: 0,
+                    order_type: OrderType::Market,
+                }],
+            },
+        })),
+    );
+
+    write(
+        &dir,
+        "step_backtest",
+        &SpineMessage::Step(Box::new(Step {
+            seq: 1,
+            clock: at("2024-11-21T21:00:00Z"),
+            session: session("2024-11-21", "21:00:00"),
+            universe: None,
+            bars: bars(&[
+                row("AAA", "2024-11-21T14:30:00Z", [203.0, 204.0, 198.4, 199.0, 2_400_000.0]),
+                row("BBB", "2024-11-21T14:30:00Z", [49.2, 49.6, 48.6, 48.8, 1_100_000.0]),
+            ]),
+            events: vec![
+                StepEvent::Fill(Fill {
+                    order_id: OrderId(2),
+                    client_id: "BBB-2024-11-20".to_owned(),
+                    symbol: bbb.clone(),
+                    at: at("2024-11-21T14:30:00Z"),
+                    qty: 510,
+                    price: money("49.2246"),
+                    commission: money("2.55"),
+                    feed: Feed::Sip,
+                }),
+                StepEvent::Order(OrderUpdate {
+                    order_id: OrderId(2),
+                    client_id: "BBB-2024-11-20".to_owned(),
+                    symbol: bbb.clone(),
+                    status: OrderStatus::Filled,
+                    reject_reason: None,
+                    filled_qty: 510,
+                    at: at("2024-11-21T14:30:00Z"),
+                }),
+            ],
+            cash: money("74892.90"),
+            equity: money("99780.90"),
+            holdings: Some(Holdings {
+                positions: vec![PositionSnapshot {
+                    symbol: bbb.clone(),
+                    qty: 510,
+                    avg_cost: money("49.2246"),
+                }],
+                working: Vec::new(),
+            }),
+        })),
+    );
+
+    write(
+        &dir,
+        "step_live",
+        &SpineMessage::Step(Box::new(Step {
+            seq: 318,
+            clock: at("2024-12-02T15:02:00Z"),
+            session: session("2024-12-02", "21:00:00"),
+            universe: Some(universe.clone()),
+            bars: bars(&[
+                row("AAA", "2024-12-02T15:00:00Z", [100.62, 100.64, 100.61, 100.64, 9_487.0]),
+                row("BBB", "2024-12-02T15:00:00Z", [49.06, 49.07, 49.06, 49.07, 2_615.0]),
+                row("AAA", "2024-12-02T15:01:00Z", [100.64, 100.66, 100.64, 100.66, 9_487.0]),
+                row("BBB", "2024-12-02T15:01:00Z", [49.07, 49.08, 49.07, 49.08, 2_615.0]),
+            ]),
+            events: vec![StepEvent::CorporateAction(CorporateAction {
+                symbol: aaa.clone(),
+                ex_date: date("2024-12-02"),
+                kind: CorporateActionKind::CashDividend { rate: money("0.24") },
+            })],
+            cash: money("99965.93"),
+            equity: money("99965.93"),
+            holdings: None,
+        })),
+    );
+
+    write(
+        &dir,
+        "query_history",
+        &BotMessage::Query(Query {
+            id: 1,
+            request: QueryRequest::History {
+                symbols: vec![aaa.clone()],
+                timeframe: Timeframe::Day,
+                bars: 2,
+                adjust: Adjustment::Split,
+            },
+        }),
+    );
+
+    write(
+        &dir,
+        "query_fundamentals",
+        &BotMessage::Query(Query {
+            id: 2,
+            request: QueryRequest::Fundamentals {
+                symbols: vec![bbb.clone()],
+                metrics: vec![FundamentalMetric::NetIncome, FundamentalMetric::SharesOutstanding],
+            },
+        }),
+    );
+
+    write(
+        &dir,
+        "data_history",
+        &SpineMessage::Data(Data {
+            id: 1,
+            result: DataResult::History {
+                bars: bars(&[
+                    row("AAA", "2024-11-25T14:30:00Z", [98.75, 99.1, 97.55, 98.0, 3_900_000.0]),
+                    row("AAA", "2024-11-26T14:30:00Z", [98.5, 99.2, 96.4, 97.0, 4_300_000.0]),
+                ]),
+            },
+        }),
+    );
+
+    write(
+        &dir,
+        "data_fundamentals",
+        &SpineMessage::Data(Data {
+            id: 2,
+            result: DataResult::Fundamentals {
+                points: vec![FundamentalPoint {
+                    symbol: bbb.clone(),
+                    metric: FundamentalMetric::NetIncome,
+                    period_type: PeriodType::Annual,
+                    period_start: Some(date("2023-01-01")),
+                    period_end: date("2023-12-31"),
+                    value: money("410000000"),
+                    form: "10-K".to_owned(),
+                    filed: date("2024-02-15"),
+                    available_at: at("2024-02-16T14:30:00Z"),
+                }],
+            },
+        }),
+    );
+
+    write(
+        &dir,
+        "error",
+        &SpineMessage::Error(ProtocolError {
+            id: Some(3),
+            code: ErrorCode::BadQuery,
+            message: "history bars must be between 1 and 10000".to_owned(),
+        }),
+    );
+
+    write(
+        &dir,
+        "ack_backtest",
+        &BotMessage::Ack(Ack {
+            seq: 1,
+            orders: vec![
+                OrderRequest {
+                    client_id: "AAA-2024-11-21".to_owned(),
+                    symbol: aaa.clone(),
+                    size: OrderSize::TargetWeight {
+                        weight: money("0.25"),
+                    },
+                    order_type: OrderType::Market,
+                    tif: TimeInForce::Day,
+                    reason: "red day".to_owned(),
+                },
+                OrderRequest {
+                    client_id: "BBB-limit-1".to_owned(),
+                    symbol: bbb.clone(),
+                    size: OrderSize::Qty { qty: -100 },
+                    order_type: OrderType::Limit {
+                        limit_price: money("49.60"),
+                    },
+                    tif: TimeInForce::Day,
+                    reason: "take profit".to_owned(),
+                },
+            ],
+            cancels: vec!["BBB-limit-0".to_owned()],
+            state: Some(ByteBuf::from(br#"{"days_red":1}"#.to_vec())),
+            logs: vec![LogLine {
+                level: LogLevel::Info,
+                message: "AAA closed red".to_owned(),
+            }],
+        }),
+    );
+
+    write(
+        &dir,
+        "ack_live",
+        &BotMessage::Ack(Ack {
+            seq: 318,
+            orders: Vec::new(),
+            cancels: Vec::new(),
+            state: None,
+            logs: Vec::new(),
+        }),
+    );
+
+    write(
+        &dir,
+        "end_backtest",
+        &SpineMessage::End(End {
+            reason: EndReason::Completed,
+            message: None,
+        }),
+    );
+
+    write(
+        &dir,
+        "end_live",
+        &SpineMessage::End(End {
+            reason: EndReason::Paused,
+            message: Some("paused from the UI".to_owned()),
+        }),
+    );
+}

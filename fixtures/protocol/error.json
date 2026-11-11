@@ -1,0 +1,6 @@
+{
+  "code": "bad_query",
+  "id": 3,
+  "message": "history bars must be between 1 and 10000",
+  "type": "error"
+}

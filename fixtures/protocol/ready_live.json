@@ -1,0 +1,45 @@
+{
+  "bot": "opening_range",
+  "cash": "75104.63",
+  "end": null,
+  "equity": "99854.63",
+  "holdings": {
+    "positions": [
+      {
+        "avg_cost": "99.0495",
+        "qty": 250,
+        "symbol": "AAA"
+      }
+    ],
+    "working": [
+      {
+        "client_id": "AAA-2024-11-27",
+        "filled_qty": 0,
+        "order_id": 5,
+        "order_type": {
+          "type": "market"
+        },
+        "qty": 250,
+        "side": "sell",
+        "symbol": "AAA"
+      }
+    ]
+  },
+  "mode": "live",
+  "params": {
+    "weight": 0.25
+  },
+  "run_id": 42,
+  "seed": 7,
+  "start": "2024-11-29",
+  "state": {
+    "bin": "7b2272616e67655f68696768223a39392e35337d"
+  },
+  "timeframe": "1m",
+  "type": "ready",
+  "universe": [
+    "AAA",
+    "BBB"
+  ],
+  "wake": "every:30m"
+}

@@ -1,0 +1,14 @@
+{
+  "id": 2,
+  "request": {
+    "kind": "fundamentals",
+    "metrics": [
+      "net_income",
+      "shares_outstanding"
+    ],
+    "symbols": [
+      "BBB"
+    ]
+  },
+  "type": "query"
+}

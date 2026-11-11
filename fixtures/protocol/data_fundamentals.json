@@ -1,0 +1,20 @@
+{
+  "id": 2,
+  "result": {
+    "kind": "fundamentals",
+    "points": [
+      {
+        "available_at": 1708093800000000000,
+        "filed": "2024-02-15",
+        "form": "10-K",
+        "metric": "net_income",
+        "period_end": "2023-12-31",
+        "period_start": "2023-01-01",
+        "period_type": "FY",
+        "symbol": "BBB",
+        "value": "410000000"
+      }
+    ]
+  },
+  "type": "data"
+}

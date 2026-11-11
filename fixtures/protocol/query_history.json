@@ -1,0 +1,13 @@
+{
+  "id": 1,
+  "request": {
+    "adjust": "split",
+    "bars": 2,
+    "kind": "history",
+    "symbols": [
+      "AAA"
+    ],
+    "timeframe": "1d"
+  },
+  "type": "query"
+}
