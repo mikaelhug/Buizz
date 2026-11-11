@@ -69,6 +69,7 @@ async fn main() -> Result<()> {
             snapshot_dir: config.data_dir.join("backups"),
             snapshot_keep: SNAPSHOTS_KEPT,
             history_start: alpaca::HISTORY_START,
+            enabled: config.ingest,
         },
         market.clone(),
         state.clone(),
@@ -101,7 +102,7 @@ async fn main() -> Result<()> {
     runner.recover().await?;
 
     let feed_task = feed.spawn();
-    let ingest_task = config.ingest.then(|| ingest.spawn());
+    let ingest_task = ingest.spawn();
 
     let app = buizz_api::router(AppState {
         config: Arc::new(ApiConfig {

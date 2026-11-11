@@ -224,7 +224,7 @@ fn future_filing() -> FundamentalFact {
     }
 }
 
-async fn rewrite(store: MarketStore, symbols: Vec<Symbol>) {
+async fn rewrite(store: MarketStore, symbols: Vec<Symbol>, loaded_through: Timestamp) {
     let from: Timestamp = "2024-11-01T00:00:00Z".parse().unwrap();
     let to: Timestamp = "2025-01-01T00:00:00Z".parse().unwrap();
     for round in 0..ROUNDS {
@@ -246,7 +246,7 @@ async fn rewrite(store: MarketStore, symbols: Vec<Symbol>) {
             .append_fundamental_facts(DataSource::Fixture, vec![future_filing()])
             .await
             .unwrap();
-        let through = from + TimeDelta::minutes(i64::try_from(round).unwrap());
+        let through = loaded_through + TimeDelta::minutes(i64::try_from(round).unwrap());
         store
             .advance_watermark(Timeframe::Minute, through)
             .await
@@ -276,7 +276,13 @@ async fn as_of_boundaries_hold_while_a_writer_rewrites_the_data() {
         .await
         .unwrap();
 
-    let writer = tokio::spawn(rewrite(store.clone(), symbols.clone()));
+    let loaded_through = store
+        .watermarks()
+        .borrow()
+        .minute
+        .expect("the fixture advances the minute watermark");
+    assert_eq!(loaded_through, "2024-12-02T21:00:00Z".parse().unwrap());
+    let writer = tokio::spawn(rewrite(store.clone(), symbols.clone(), loaded_through));
     let readers: Vec<_> = (0..READERS)
         .map(|_| {
             let store = store.clone();
@@ -301,6 +307,6 @@ async fn as_of_boundaries_hold_while_a_writer_rewrites_the_data() {
     assert_eq!(rewritten, loaded);
     assert_eq!(
         store.watermarks().borrow().minute,
-        Some("2024-11-01T00:05:00Z".parse().unwrap())
+        Some(loaded_through + TimeDelta::minutes(i64::try_from(ROUNDS - 1).unwrap()))
     );
 }

@@ -1069,7 +1069,8 @@
           "watermarks",
           "coverage",
           "warnings",
-          "stale_jobs"
+          "stale_jobs",
+          "ingest_enabled"
         ],
         "properties": {
           "watermarks": {
@@ -1091,6 +1092,9 @@
             "type": "integer",
             "format": "int32",
             "minimum": 0
+          },
+          "ingest_enabled": {
+            "type": "boolean"
           }
         }
       },

@@ -411,6 +411,7 @@ export interface components {
             warnings: components["schemas"]["DataWarning"][];
             /** Format: int32 */
             stale_jobs: number;
+            ingest_enabled: boolean;
         };
         /** @enum {string} */
         DataSource: "alpaca" | "alpaca_stream" | "tiingo" | "edgar" | "treasury" | "fixture";

@@ -10,6 +10,7 @@ use buizz_core::market::{
 use buizz_core::ops::{CoverageGap, DataWarning};
 use buizz_core::protocol::BarRow;
 use buizz_core::time::Timestamp;
+use buizz_core::visibility::bar_visible_at;
 use chrono::{NaiveDate, TimeDelta};
 use duckdb::Connection;
 use tokio::sync::watch;
@@ -122,8 +123,18 @@ impl MarketStore {
             .into_iter()
             .map(|row| row.into_bar(&calendar))
             .collect::<Result<Vec<_>>>()?;
+        let minute: Vec<Bar> = fixture::rows(dir, "bar_1m.csv").await?;
+        let loaded = [
+            (
+                Timeframe::Day,
+                visible_through(Timeframe::Day, &daily, &calendar),
+            ),
+            (
+                Timeframe::Minute,
+                visible_through(Timeframe::Minute, &minute, &calendar),
+            ),
+        ];
         self.upsert_bars(source, Timeframe::Day, daily).await?;
-        let minute = fixture::rows(dir, "bar_1m.csv").await?;
         self.upsert_bars(source, Timeframe::Minute, minute).await?;
         let actions = fixture::rows::<ActionRow>(dir, "corporate_actions.csv")
             .await?
@@ -135,6 +146,11 @@ impl MarketStore {
         self.append_fundamental_facts(source, facts).await?;
         self.upsert_risk_free_rates(source, fixture::rows(dir, "rates.csv").await?)
             .await?;
+        for (timeframe, through) in loaded {
+            if let Some(through) = through {
+                self.advance_watermark(timeframe, through).await?;
+            }
+        }
         Ok(())
     }
 
@@ -371,4 +387,13 @@ impl MarketStore {
             })
             .await
     }
+}
+
+fn visible_through(timeframe: Timeframe, bars: &[Bar], calendar: &Calendar) -> Option<Timestamp> {
+    bars.iter()
+        .filter_map(|bar| {
+            let session = calendar.containing(bar.start)?;
+            Some(bar_visible_at(timeframe, bar.start, session))
+        })
+        .max()
 }

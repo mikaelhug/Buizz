@@ -45,10 +45,19 @@ export function DataHealth() {
               </dt>
               <dd>{fmt.dateTime(health.data.watermarks.minute)}</dd>
             </div>
-            <div>
-              <dt>Stale jobs</dt>
-              <dd className={stale ? "down" : undefined}>{fmt.integer(stale ?? health.data.stale_jobs)}</dd>
-            </div>
+            {health.data.ingest_enabled ? (
+              <div>
+                <dt>Stale jobs</dt>
+                <dd className={stale ? "down" : undefined}>{fmt.integer(stale ?? health.data.stale_jobs)}</dd>
+              </div>
+            ) : (
+              <div>
+                <dt className="help" title="Scheduled data jobs are disabled (BUIZZ_INGEST=false)">
+                  Ingest
+                </dt>
+                <dd className="muted">off</dd>
+              </div>
+            )}
           </dl>
         )}
       </header>

@@ -53,7 +53,7 @@ The spine (`cargo run -p buizz-spine`) reads these environment variables. Empty 
 | `BUIZZ_DATA_DIR` | `data` | Where `market.duckdb`, `state.db` and `backups/` live |
 | `BUIZZ_BOTS_DIR` | `bots` | Folder scanned for bots |
 | `BUIZZ_WEB_DIR` | unset | A built web bundle (`web/dist`) to serve from the spine; unset serves the API only |
-| `BUIZZ_FIXTURE_DIR` | unset | Load the CSV fixture data set in this folder into the market store at start |
+| `BUIZZ_FIXTURE_DIR` | unset | Load the CSV fixture data set in this folder into the market store at start and advance the data watermarks to it |
 | `BUIZZ_SECURE_COOKIES` | `true` | Mark the session cookie `Secure`; set `false` for plain HTTP |
 | `BUIZZ_INGEST` | `true` | Run the scheduled data jobs; `false` for fixture-only work |
 | `ALPACA_KEY_ID`, `ALPACA_SECRET_KEY` | unset | Alpaca market data credentials; both are needed to enable Alpaca, the live feed and minute-bar backtests |

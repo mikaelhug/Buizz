@@ -157,6 +157,7 @@ pub struct DataHealth {
     pub coverage: Vec<Coverage>,
     pub warnings: Vec<DataWarning>,
     pub stale_jobs: u32,
+    pub ingest_enabled: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]

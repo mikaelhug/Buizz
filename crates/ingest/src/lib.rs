@@ -50,6 +50,7 @@ pub struct IngestConfig {
     pub snapshot_dir: PathBuf,
     pub snapshot_keep: usize,
     pub history_start: NaiveDate,
+    pub enabled: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -138,7 +139,11 @@ impl Ingest {
         for spec in JOBS {
             let previous = latest.iter().find(|run| run.job == spec.name);
             let success = self.state.last_job_success(spec.name).await?;
-            views.push(schedule::view(&spec, previous, success.as_ref(), now));
+            let view = schedule::view(&spec, previous, success.as_ref(), now);
+            views.push(JobView {
+                stale: self.config.enabled && view.stale,
+                ..view
+            });
         }
         Ok(views)
     }
@@ -147,9 +152,16 @@ impl Ingest {
         self.events.subscribe()
     }
 
-    pub fn spawn(&self) -> JoinHandle<()> {
+    pub fn enabled(&self) -> bool {
+        self.config.enabled
+    }
+
+    pub fn spawn(&self) -> Option<JoinHandle<()>> {
+        if !self.config.enabled {
+            return None;
+        }
         let ingest = self.clone();
-        tokio::spawn(async move {
+        Some(tokio::spawn(async move {
             if let Err(error) = ingest.restore_daily_watermark().await {
                 tracing::error!(%error, "could not restore the daily watermark");
             }
@@ -161,7 +173,7 @@ impl Ingest {
                     tracing::error!(%error, "ingest tick failed");
                 }
             }
-        })
+        }))
     }
 
     async fn run(&self, job: &str, now: Timestamp) -> Result<Work, IngestError> {
