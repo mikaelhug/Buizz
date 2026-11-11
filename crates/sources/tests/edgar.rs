@@ -5,7 +5,7 @@ use buizz_core::market::{
     Calendar, FundamentalFact, FundamentalMetric, PeriodType, Session, Symbol,
 };
 use buizz_core::time::Timestamp;
-use buizz_sources::edgar::{EdgarClient, EdgarConfig};
+use buizz_sources::edgar::{EdgarClient, EdgarConfig, normalize_company_facts};
 use chrono::{Datelike, NaiveDate, NaiveTime, TimeDelta, Weekday};
 use rust_decimal::Decimal;
 
@@ -21,11 +21,11 @@ fn open_of(date: NaiveDate) -> Timestamp {
     Timestamp::at_exchange_time(date, NaiveTime::from_hms_opt(9, 30, 0).unwrap()).unwrap()
 }
 
-fn weekday_calendar() -> Calendar {
+fn weekday_calendar(first_year: i32, last_year: i32) -> Calendar {
     let close = NaiveTime::from_hms_opt(16, 0, 0).unwrap();
     let sessions = (0..)
-        .map(|offset| date(2021, 1, 1) + TimeDelta::days(offset))
-        .take_while(|day| day.year() < 2025)
+        .map(|offset| date(first_year, 1, 1) + TimeDelta::days(offset))
+        .take_while(|day| day.year() <= last_year)
         .filter(|day| !matches!(day.weekday(), Weekday::Sat | Weekday::Sun))
         .map(|day| Session {
             date: day,
@@ -91,7 +91,7 @@ async fn companyfacts_become_append_only_point_in_time_facts() {
     assert_eq!(tickers.get(&Symbol::new("BRK.B")), Some(&1067983));
 
     let facts = client
-        .company_facts(&apple, tickers[&apple], &weekday_calendar())
+        .company_facts(&apple, tickers[&apple], &weekday_calendar(2021, 2024))
         .await
         .unwrap();
 
@@ -128,4 +128,37 @@ async fn companyfacts_become_append_only_point_in_time_facts() {
 
     assert!(facts.iter().all(|fact| fact.concept != "ConceptWeDoNotMap"));
     assert!(facts.iter().all(|fact| fact.form != "8-K"));
+}
+
+#[test]
+fn a_later_filing_in_a_preferred_concept_keeps_the_original_filing() {
+    let revenue = |end: &str, val: u64, filed: &str, accn: &str| {
+        format!(
+            r#"{{"start":"{}-01-01","end":"{end}","val":{val},"fy":2019,"fp":"FY","form":"10-K","filed":"{filed}","accn":"{accn}"}}"#,
+            &end[..4]
+        )
+    };
+    let payload = format!(
+        r#"{{"cik":1,"facts":{{"us-gaap":{{
+            "SalesRevenueNet":{{"units":{{"USD":[{}]}}}},
+            "RevenueFromContractWithCustomerExcludingAssessedTax":{{"units":{{"USD":[{},{}]}}}}
+        }}}}}}"#,
+        revenue("2017-12-31", 100, "2018-02-20", "0000000001-18-000001"),
+        revenue("2017-12-31", 100, "2020-02-20", "0000000001-20-000001"),
+        revenue("2019-12-31", 120, "2020-02-20", "0000000001-20-000001"),
+    );
+    let facts = normalize_company_facts(
+        &Symbol::new("XYZ"),
+        payload.as_bytes(),
+        &weekday_calendar(2017, 2021),
+    )
+    .unwrap();
+    let fy2017: Vec<_> = select(&facts, FundamentalMetric::Revenue, PeriodType::Annual)
+        .into_iter()
+        .filter(|fact| fact.period_end == date(2017, 12, 31))
+        .collect();
+    assert_eq!(fy2017.len(), 1);
+    assert_eq!(fy2017[0].concept, "SalesRevenueNet");
+    assert_eq!(fy2017[0].filed, date(2018, 2, 20));
+    assert_eq!(facts.len(), 2);
 }

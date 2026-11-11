@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
 
 use buizz_core::market::{Calendar, FundamentalFact, FundamentalMetric, PeriodType, Symbol};
 use buizz_core::visibility::fundamental_visible_at;
@@ -40,7 +40,7 @@ struct Observation {
     frame: Option<String>,
 }
 
-type Claim = (FundamentalMetric, NaiveDate, PeriodType);
+type Claim = (FundamentalMetric, NaiveDate, PeriodType, String);
 
 struct Collector<'a> {
     symbol: &'a Symbol,
@@ -48,7 +48,6 @@ struct Collector<'a> {
     calendar: &'a Calendar,
     cover_counts: Vec<(NaiveDate, Decimal)>,
     facts: Vec<FundamentalFact>,
-    seen: HashSet<(FundamentalMetric, NaiveDate, PeriodType, Decimal)>,
     claimed: HashMap<Claim, (&'static str, &'static str)>,
 }
 
@@ -74,7 +73,6 @@ pub fn normalize_company_facts(
         calendar,
         cover_counts: cover_counts(lookup(DEI, COVER_PAGE_SHARES)),
         facts: Vec::new(),
-        seen: HashSet::new(),
         claimed: HashMap::new(),
     };
 
@@ -115,9 +113,31 @@ pub fn normalize_company_facts(
         }
     }
 
-    let mut facts = collector.facts;
-    facts.sort_by_key(|fact| (fact.metric, fact.period_end, fact.period_type));
-    Ok(facts)
+    Ok(drop_repeated_values(collector.facts))
+}
+
+fn drop_repeated_values(mut facts: Vec<FundamentalFact>) -> Vec<FundamentalFact> {
+    let period = |fact: &FundamentalFact| {
+        (
+            fact.metric,
+            fact.period_end,
+            fact.period_type,
+            fact.period_start,
+        )
+    };
+    facts.sort_by(|a, b| {
+        (period(a), a.filed, &a.accession).cmp(&(period(b), b.filed, &b.accession))
+    });
+    let mut kept: Vec<FundamentalFact> = Vec::with_capacity(facts.len());
+    for fact in facts {
+        let repeated = kept
+            .last()
+            .is_some_and(|last| period(last) == period(&fact) && last.value == fact.value);
+        if !repeated {
+            kept.push(fact);
+        }
+    }
+    kept
 }
 
 impl Collector<'_> {
@@ -155,16 +175,14 @@ impl Collector<'_> {
             {
                 continue;
             }
-            let claim = (source.metric, observation.end, period_type);
+            let claim = (
+                source.metric,
+                observation.end,
+                period_type,
+                observation.accn.clone(),
+            );
             let owner = (source.taxonomy, source.concept);
-            if self.claimed.get(&claim).is_some_and(|held| *held != owner) {
-                continue;
-            }
-            self.claimed.insert(claim, owner);
-            if !self
-                .seen
-                .insert((source.metric, observation.end, period_type, value))
-            {
+            if *self.claimed.entry(claim).or_insert(owner) != owner {
                 continue;
             }
             let Some(available_at) = fundamental_visible_at(observation.filed, self.calendar)
