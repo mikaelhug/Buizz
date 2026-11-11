@@ -552,6 +552,10 @@ h2 {
   background: var(--info-bg);
 }
 
+.table tr.quiet {
+  opacity: 0.5;
+}
+
 .table tr.stale td:first-child {
   box-shadow: inset 2px 0 var(--warn);
 }

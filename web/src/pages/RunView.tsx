@@ -264,12 +264,16 @@ function Orders({ orders }: { orders: Paged<Schemas["OrderView"]> }) {
             </thead>
             <tbody>
               {orders.data.items.map((order) => (
-                <tr key={order.id}>
+                <tr key={order.id} className={order.qty === 0 ? "quiet" : undefined}>
                   <td className="nowrap muted" title={order.client_id}>
                     {fmt.dateTime(order.decided_at)}
                   </td>
                   <td className="sym">{order.symbol}</td>
-                  <td className={order.side === "buy" ? "up" : "down"}>{order.side}</td>
+                  {order.qty === 0 ? (
+                    <td className="muted">{ABSENT}</td>
+                  ) : (
+                    <td className={order.side === "buy" ? "up" : "down"}>{order.side}</td>
+                  )}
                   <td className="r num nowrap">
                     {fmt.integer(order.filled_qty)}/{fmt.integer(order.qty)}
                   </td>
