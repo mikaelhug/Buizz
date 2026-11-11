@@ -633,7 +633,7 @@ impl Engine {
             if qty == 0 {
                 continue;
             }
-            *used += qty;
+            *used = used.saturating_add(qty);
             let commission = self.cost.commission(qty, self.state.month_shares);
             self.state.month_shares = self.state.month_shares.saturating_add(qty);
             let fill = Fill {
