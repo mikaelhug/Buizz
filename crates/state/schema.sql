@@ -53,6 +53,9 @@ CREATE TABLE IF NOT EXISTS ledger_entry (
     PRIMARY KEY (run_id, seq)
 ) STRICT;
 
+CREATE INDEX IF NOT EXISTS ledger_fill_by_order ON ledger_entry (run_id, json_extract(body, '$.order_id'))
+    WHERE kind = 'fill';
+
 CREATE TABLE IF NOT EXISTS equity_point (
     run_id INTEGER NOT NULL REFERENCES run (id) ON DELETE CASCADE,
     at INTEGER NOT NULL,

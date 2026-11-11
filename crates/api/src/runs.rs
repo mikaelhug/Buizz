@@ -127,7 +127,12 @@ pub(crate) async fn run_orders(
     require_run(&app, id).await?;
     let limit = page_limit(&page);
     let orders = app.state.orders(id, page.after, limit).await?;
-    let prices = average_fill_prices(&app.state.fills(id).await?);
+    let prices = match (orders.first(), orders.last()) {
+        (Some(first), Some(last)) => {
+            average_fill_prices(&app.state.fills(id, first.id..=last.id).await?)
+        }
+        _ => HashMap::new(),
+    };
     let next_after = next_after(&orders, limit, |order| order.id.0);
     let items = orders
         .into_iter()

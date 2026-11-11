@@ -3,6 +3,7 @@ mod db;
 mod jobs;
 mod runs;
 
+use std::ops::RangeInclusive;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -10,7 +11,7 @@ use buizz_core::api::{RunSummary, SparkPoint};
 use buizz_core::ledger::{LedgerEntry, Portfolio};
 use buizz_core::market::{DataSource, Dataset, Symbol};
 use buizz_core::ops::{JobOutcome, JobRun, SourceFetch};
-use buizz_core::order::{Fill, Order};
+use buizz_core::order::{Fill, Order, OrderId};
 use buizz_core::performance::Metrics;
 use buizz_core::run::{
     DesiredState, EquityPoint, Mode, RunBadge, RunConfig, RunEvent, RunId, RunStatus,
@@ -196,9 +197,9 @@ impl StateStore {
             .await
     }
 
-    pub async fn fills(&self, run_id: RunId) -> Result<Vec<Fill>> {
+    pub async fn fills(&self, run_id: RunId, orders: RangeInclusive<OrderId>) -> Result<Vec<Fill>> {
         self.db
-            .read(move |connection| runs::fills(connection, run_id))
+            .read(move |connection| runs::fills(connection, run_id, orders))
             .await
     }
 
