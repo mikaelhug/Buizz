@@ -40,13 +40,8 @@ class Gtaa5(Bot):
         timed_out = [asset for asset in assets if targets[asset] == 0]
         targets[cash] = sleeve * len(timed_out)
         reasons[cash] = f"cash for {len(timed_out)} of {len(assets)} sleeves: {', '.join(timed_out) or 'none'}"
-        book = float(ctx.portfolio.equity)
-        weights = {
-            symbol: position.qty * ctx.bars[symbol].close / book for symbol, position in ctx.portfolio.positions.items()
-        }
-        sells_first = sorted(targets, key=lambda symbol: weights.get(symbol, 0.0) - targets[symbol], reverse=True)
         ctx.rebalance(
-            {symbol: targets[symbol] for symbol in sells_first},
+            targets,
             reason=reasons,
             exit_reason="not one of the five sleeves or cash",
         )

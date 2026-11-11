@@ -18,9 +18,8 @@ class SixtyForty(Bot):
         book = float(ctx.portfolio.equity)
         weights = {symbol: ctx.position(symbol).qty * ctx.bars[symbol].close / book for symbol in targets}
         occasion = "month-end rebalance" if invested else "initial allocation"
-        sells_first = sorted(targets, key=lambda symbol: weights[symbol] - targets[symbol], reverse=True)
         ctx.rebalance(
-            {symbol: targets[symbol] for symbol in sells_first},
+            targets,
             reason={
                 symbol: f"{occasion}: {symbol} at {weights[symbol]:.1%} of equity, target {target:.0%}"
                 for symbol, target in targets.items()
