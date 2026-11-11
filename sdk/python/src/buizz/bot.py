@@ -12,3 +12,6 @@ class Bot:
 
     def on_step(self, ctx: Context) -> None:
         raise NotImplementedError
+
+    def on_end(self, ctx: Context, reason: str) -> None:
+        return None
