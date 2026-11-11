@@ -449,6 +449,7 @@ export interface components {
             /** Format: int32 */
             used: number;
             connected: boolean;
+            error?: string | null;
             holders: components["schemas"]["FeedHolder"][];
         };
         Fill: {
