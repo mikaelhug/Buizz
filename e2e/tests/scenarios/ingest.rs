@@ -47,16 +47,30 @@ async fn an_empty_spine_backfills_backs_off_rejects_a_bad_tiingo_tail_and_restar
         BTreeMap::from([
             ("calendar", ok),
             ("instruments", ok),
+            ("index_membership", ok),
             ("bars_1d", ok),
             ("corporate_actions", Some(JobOutcome::Backoff)),
             ("fundamentals", ok),
+            ("filings", ok),
             ("rates", ok),
+            ("borrow", ok),
             ("state_snapshot", ok),
             ("tiingo_history", Some(JobOutcome::Failed)),
         ]),
         "{jobs:#?}"
     );
     assert!(message(&jobs, "corporate_actions").contains("rate limited"));
+    assert_eq!(message(&jobs, "instruments"), "instruments: 3 rows");
+    assert!(
+        message(&jobs, "index_membership").contains("from 9 changes"),
+        "{}",
+        message(&jobs, "index_membership")
+    );
+    assert_eq!(message(&jobs, "filings"), "filings: 3 rows");
+    assert_eq!(
+        message(&jobs, "borrow"),
+        "borrow: 6 tickers as of 2026-11-11T20:10:41Z"
+    );
     let rejected = message(&jobs, "tiingo_history");
     assert!(
         rejected.contains("AAPL") && rejected.contains("rejected"),
