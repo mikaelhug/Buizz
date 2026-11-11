@@ -9,7 +9,7 @@ use crate::{Ingest, IngestError};
 
 const COMPANIES_PER_RUN: usize = 1_000;
 const REFRESH_AFTER: TimeDelta = TimeDelta::days(7);
-const NO_CIK: &str = "no SEC CIK for this ticker";
+pub(crate) const NO_CIK: &str = "no SEC CIK for this ticker";
 
 impl Ingest {
     pub(crate) async fn fundamentals(&self, now: Timestamp) -> Result<Work, IngestError> {
@@ -19,17 +19,7 @@ impl Ingest {
         if let Some(work) = self.backoff_work(now, DataSource::Edgar).await? {
             return Ok(work);
         }
-        let mut due: Vec<Symbol> = Vec::new();
-        for instrument in self.active_instruments().await? {
-            if due.len() == COMPANIES_PER_RUN {
-                break;
-            }
-            if instrument.asset_class == AssetClass::Stock
-                && self.facts_due(now, &instrument.symbol).await?
-            {
-                due.push(instrument.symbol);
-            }
-        }
+        let due = self.companies_due(now, Dataset::Fundamentals).await?;
         if due.is_empty() {
             return Ok(Work::noop("no company needs a refresh"));
         }
@@ -80,15 +70,34 @@ impl Ingest {
         Ok(work)
     }
 
-    async fn facts_due(&self, now: Timestamp, symbol: &Symbol) -> Result<bool, IngestError> {
+    pub(crate) async fn companies_due(
+        &self,
+        now: Timestamp,
+        dataset: Dataset,
+    ) -> Result<Vec<Symbol>, IngestError> {
+        let mut due: Vec<Symbol> = Vec::new();
+        for instrument in self.active_instruments().await? {
+            if due.len() == COMPANIES_PER_RUN {
+                break;
+            }
+            if instrument.asset_class == AssetClass::Stock
+                && self.company_due(now, dataset, &instrument.symbol).await?
+            {
+                due.push(instrument.symbol);
+            }
+        }
+        Ok(due)
+    }
+
+    async fn company_due(
+        &self,
+        now: Timestamp,
+        dataset: Dataset,
+        symbol: &Symbol,
+    ) -> Result<bool, IngestError> {
         let latest = self
             .state
-            .recent_fetches(
-                DataSource::Edgar,
-                Dataset::Fundamentals,
-                Some(symbol.clone()),
-                1,
-            )
+            .recent_fetches(DataSource::Edgar, dataset, Some(symbol.clone()), 1)
             .await?;
         Ok(latest.first().is_none_or(|fetch| {
             let waiting = fetch.retry_after.is_some_and(|until| until > now);

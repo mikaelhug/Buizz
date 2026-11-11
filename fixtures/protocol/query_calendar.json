@@ -1,0 +1,9 @@
+{
+  "id": 4,
+  "request": {
+    "from": "2024-11-28",
+    "kind": "calendar",
+    "to": "2024-12-02"
+  },
+  "type": "query"
+}

@@ -1,0 +1,11 @@
+{
+  "id": 5,
+  "result": {
+    "kind": "universe",
+    "symbols": [
+      "SPY",
+      "AAA"
+    ]
+  },
+  "type": "data"
+}

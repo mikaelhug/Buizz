@@ -17,14 +17,12 @@ from buizz.wire import (
     End,
     EndReason,
     Error,
-    FundamentalsRequest,
-    FundamentalsResult,
     Hello,
-    HistoryRequest,
-    HistoryResult,
     Inbound,
     Query,
     Ready,
+    Request,
+    Result,
     Step,
     decode_inbound,
     encode,
@@ -93,7 +91,7 @@ def run(bot: type[Bot]) -> None:
             raise unexpected(ready)
         next_query_id = 0
 
-        def query(request: HistoryRequest | FundamentalsRequest) -> HistoryResult | FundamentalsResult:
+        def query(request: Request) -> Result:
             nonlocal next_query_id
             next_query_id += 1
             link.send(Query(next_query_id, request))

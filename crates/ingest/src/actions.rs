@@ -28,9 +28,9 @@ impl Ingest {
         if let Some(work) = self.backoff_work(now, DataSource::Alpaca).await? {
             return Ok(work);
         }
-        let symbols = self.active_symbols().await?;
+        let symbols = self.priced_symbols().await?;
         if symbols.is_empty() {
-            return Ok(Work::noop("no active instruments"));
+            return Ok(Work::noop("no instruments to price"));
         }
         let to = now.exchange_date();
         let history_start = self.config.history_start;

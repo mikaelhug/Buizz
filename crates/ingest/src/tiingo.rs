@@ -44,7 +44,7 @@ impl Ingest {
             .min(SYMBOLS_PER_RUN);
         let mut batch = Batch::default();
         let mut remaining = room;
-        for symbol in self.active_symbols().await? {
+        for symbol in self.priced_symbols().await? {
             if remaining == 0 {
                 break;
             }

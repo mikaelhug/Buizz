@@ -1,5 +1,5 @@
 description = "Opening-range breakout on SPY and QQQ: limit entry beyond the first 30-minute range, stopped at the opposite side, flat before the close."
-command = ["uv", "run", "--frozen", "--project", "../../sdk/python", "python", "bot.py"]
+command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
 timeframe = "1m"
 wake = "every:5m"
 universe = { symbols = ["SPY", "QQQ"] }

@@ -11,10 +11,13 @@ STATE_LIMIT = 64 * 1024
 
 type Timeframe = Literal["1d", "1m"]
 type Adjust = Literal["raw", "split", "all"]
+type AssetClass = Literal["stock", "etf"]
+type StockIndex = Literal["sp500"]
 type LogLevel = Literal["debug", "info", "warn", "error"]
 type EndReason = Literal["completed", "paused", "stopped", "risk_limit", "failed", "disconnected"]
 type TimeInForce = Literal["day", "gtc"]
 type Auction = Literal["open", "close"]
+type MacroSeries = Literal["treasury_3m", "tb3ms", "gs10", "aaa", "baa", "cpiaucns"]
 type Metric = Literal[
     "revenue",
     "cost_of_revenue",
@@ -49,6 +52,21 @@ type Metric = Literal[
     "share_repurchases",
     "acquisitions",
     "shares_outstanding",
+    "short_term_debt",
+    "short_term_borrowings",
+    "current_long_term_debt",
+    "long_term_debt_noncurrent",
+    "preferred_stock",
+    "minority_interest",
+    "retained_earnings",
+    "income_taxes_payable",
+    "short_term_investments",
+    "convertible_debt",
+    "secured_debt",
+    "land",
+    "buildings",
+    "ppe_gross",
+    "advertising",
 ]
 
 
@@ -204,9 +222,67 @@ class FundamentalsResult(msgspec.Struct, frozen=True, tag_field="kind", tag="fun
     points: list[FundamentalFact]
 
 
+class InstrumentProfile(msgspec.Struct, frozen=True):
+    symbol: str
+    name: str
+    exchange: str
+    asset_class: AssetClass
+    sic: int | None
+    sic_description: str | None
+
+
+class InstrumentsResult(msgspec.Struct, frozen=True, tag_field="kind", tag="instruments"):
+    instruments: list[InstrumentProfile]
+
+
+class EarningsReleaseFrame(msgspec.Struct, frozen=True):
+    symbol: str
+    cik: int
+    accession: str
+    form: str
+    filed: date
+    report_date: date | None
+    accepted_at: int
+
+
+class EarningsResult(msgspec.Struct, frozen=True, tag_field="kind", tag="earnings"):
+    releases: list[EarningsReleaseFrame]
+
+
+class CalendarResult(msgspec.Struct, frozen=True, tag_field="kind", tag="calendar"):
+    sessions: list[SessionFrame]
+
+
+class UniverseResult(msgspec.Struct, frozen=True, tag_field="kind", tag="universe"):
+    symbols: list[str]
+
+
+class MacroFact(msgspec.Struct, frozen=True):
+    series: MacroSeries
+    date: date
+    value: Decimal
+    published: date
+    available_at: int
+
+
+class MacroResult(msgspec.Struct, frozen=True, tag_field="kind", tag="macro"):
+    points: list[MacroFact]
+
+
+type Result = (
+    HistoryResult
+    | FundamentalsResult
+    | CalendarResult
+    | UniverseResult
+    | MacroResult
+    | InstrumentsResult
+    | EarningsResult
+)
+
+
 class Data(msgspec.Struct, frozen=True, tag_field="type", tag="data"):
     id: int
-    result: HistoryResult | FundamentalsResult
+    result: Result
 
 
 class Error(msgspec.Struct, frozen=True, tag_field="type", tag="error"):
@@ -237,9 +313,44 @@ class FundamentalsRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="fu
     metrics: list[Metric]
 
 
+class InstrumentsRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="instruments"):
+    symbols: list[str]
+
+
+class EarningsRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="earnings"):
+    symbols: list[str]
+
+
+class CalendarRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="calendar"):
+    start: date = msgspec.field(name="from")
+    end: date = msgspec.field(name="to")
+
+
+class UniverseRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="universe"):
+    date: date
+    universe: dict[str, str | int]
+
+
+class MacroRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="macro"):
+    series: list[MacroSeries]
+    start: date = msgspec.field(name="from")
+    end: date = msgspec.field(name="to")
+
+
+type Request = (
+    HistoryRequest
+    | FundamentalsRequest
+    | CalendarRequest
+    | UniverseRequest
+    | MacroRequest
+    | InstrumentsRequest
+    | EarningsRequest
+)
+
+
 class Query(msgspec.Struct, frozen=True, tag_field="type", tag="query"):
     id: int
-    request: HistoryRequest | FundamentalsRequest
+    request: Request
 
 
 class QtySize(msgspec.Struct, frozen=True, tag_field="by", tag="qty"):

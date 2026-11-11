@@ -115,8 +115,14 @@ function awaitingData(run: Run): boolean {
 }
 
 function universe(spec: Schemas["UniverseSpec"]): string {
-  return "symbols" in spec ? spec.symbols.join(" ") : `Top ${spec.top_dollar_volume} by dollar volume`;
+  if ("symbols" in spec) return spec.symbols.join(" ");
+  if ("index" in spec) return `${INDEX_NAMES[spec.index]} members as of each session`;
+  const kind = spec.asset_class ? ` ${ASSET_CLASS_NAMES[spec.asset_class]}` : "";
+  return `Top ${spec.top_dollar_volume}${kind} by dollar volume`;
 }
+
+const INDEX_NAMES: Record<Schemas["StockIndex"], string> = { sp500: "S&P 500" };
+const ASSET_CLASS_NAMES: Record<Schemas["AssetClass"], string> = { stock: "stocks", etf: "ETFs" };
 
 function costTitle(cost: Schemas["CostModel"], risk: Schemas["RiskLimits"]): string {
   return [

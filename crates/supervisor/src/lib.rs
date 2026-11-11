@@ -113,10 +113,36 @@ fn load(name: String, dir: PathBuf) -> Result<BotSpec, SupervisorError> {
     })
 }
 
+const SHARED_BOT_CODE: [&str; 3] = ["buizz_bots", "pyproject.toml", "uv.lock"];
+
 pub fn bot_hash(dir: &Path) -> Result<String, SupervisorError> {
     let mut hasher = blake3::Hasher::new();
     hash_tree(dir, Path::new(""), &mut hasher)?;
+    if let Some(bots_dir) = dir.parent() {
+        for name in SHARED_BOT_CODE {
+            let shared = bots_dir.join(name);
+            if shared.is_dir() {
+                hash_tree(bots_dir, Path::new(name), &mut hasher)?;
+            } else if shared.is_file() {
+                hash_file(&shared, Path::new(name), &mut hasher)?;
+            }
+        }
+    }
     Ok(hasher.finalize().to_hex().to_string())
+}
+
+fn hash_file(
+    path: &Path,
+    label: &Path,
+    hasher: &mut blake3::Hasher,
+) -> Result<(), SupervisorError> {
+    let bytes = fs::read(path).map_err(|e| SupervisorError::Io(path.to_path_buf(), e))?;
+    let label = label.to_string_lossy();
+    hasher.update(&(label.len() as u64).to_le_bytes());
+    hasher.update(label.as_bytes());
+    hasher.update(&(bytes.len() as u64).to_le_bytes());
+    hasher.update(&bytes);
+    Ok(())
 }
 
 fn hash_tree(
@@ -142,13 +168,7 @@ fn hash_tree(
         if file_type.is_dir() {
             hash_tree(root, &child, hasher)?;
         } else if file_type.is_file() {
-            let path = root.join(&child);
-            let bytes = fs::read(&path).map_err(|e| SupervisorError::Io(path, e))?;
-            let label = child.to_string_lossy();
-            hasher.update(&(label.len() as u64).to_le_bytes());
-            hasher.update(label.as_bytes());
-            hasher.update(&(bytes.len() as u64).to_le_bytes());
-            hasher.update(&bytes);
+            hash_file(&root.join(&child), &child, hasher)?;
         }
     }
     Ok(())

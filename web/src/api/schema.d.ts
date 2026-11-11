@@ -363,6 +363,8 @@ export interface components {
         ApiError: {
             error: string;
         };
+        /** @enum {string} */
+        AssetClass: "stock" | "etf";
         BotDetail: {
             summary: components["schemas"]["BotSummary"];
             manifest: components["schemas"]["BotManifest"];
@@ -450,7 +452,7 @@ export interface components {
             ingest_enabled: boolean;
         };
         /** @enum {string} */
-        DataSource: "alpaca" | "alpaca_stream" | "tiingo" | "edgar" | "treasury" | "fixture";
+        DataSource: "alpaca" | "alpaca_stream" | "tiingo" | "edgar" | "treasury" | "fred" | "fixture" | "wikipedia" | "interactive_brokers";
         DataWarning: (components["schemas"]["CoverageGap"] & {
             /** @enum {string} */
             type: "coverage_gap";
@@ -470,7 +472,7 @@ export interface components {
             type: "overlap_rejected";
         };
         /** @enum {string} */
-        Dataset: "instruments" | "calendar" | "bars1d" | "bars1m" | "corporate_actions" | "fundamentals" | "rates";
+        Dataset: "instruments" | "calendar" | "bars1d" | "bars1m" | "corporate_actions" | "fundamentals" | "rates" | "companies" | "earnings_releases" | "index_membership" | "borrow" | "macro";
         /** @enum {string} */
         DesiredState: "running" | "paused" | "stopped";
         EquityPoint: {
@@ -690,7 +692,7 @@ export interface components {
             max_drawdown?: string | null;
         };
         /** @enum {string} */
-        RunBadge: "survivorship_biased" | "holdout" | "data_warnings" | "drawdown_stop";
+        RunBadge: "survivorship_biased" | "holdout" | "data_warnings" | "drawdown_stop" | "thin_index_history";
         RunConfig: {
             bot: string;
             mode: components["schemas"]["Mode"];
@@ -828,6 +830,8 @@ export interface components {
             seed?: number | null;
             allow_holdout?: boolean;
         };
+        /** @enum {string} */
+        StockIndex: "sp500";
         /** @example AAPL */
         Symbol: string;
         /** @enum {string} */
@@ -850,6 +854,9 @@ export interface components {
         } | {
             /** Format: int32 */
             top_dollar_volume: number;
+            asset_class?: components["schemas"]["AssetClass"] | null;
+        } | {
+            index: components["schemas"]["StockIndex"];
         };
         /**
          * @example bar

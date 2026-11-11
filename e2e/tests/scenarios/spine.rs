@@ -135,6 +135,10 @@ impl Spine {
             .env("SEC_DATA_URL", url)
             .env("SEC_WWW_URL", url)
             .env("TREASURY_URL", url)
+            .env("WIKIPEDIA_URL", url)
+            .env("IBKR_FTP_ADDRESS", &self.fake.ftp_address)
+            .env("FRED_API_KEY", "e2e-fred")
+            .env("FRED_URL", url)
             .stdout(log.try_clone().expect("the spine log"))
             .stderr(log)
             .kill_on_drop(true);

@@ -16,6 +16,10 @@ const BADGES: Record<Schemas["RunBadge"], { text: string; title: string }> = {
     text: "Drawdown stop",
     title: "Equity fell by the max drawdown limit from its peak; every position was closed and the run ended",
   },
+  thin_index_history: {
+    text: "Thin index history",
+    title: "The run starts before the index change log is complete enough to rebuild membership reliably",
+  },
 };
 
 export function RunBadges({ run }: { run: Schemas["RunSummary"] }) {

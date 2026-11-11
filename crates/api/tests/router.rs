@@ -44,10 +44,13 @@ async fn spine() -> Spine {
         alpaca: None,
         tiingo: None,
         edgar: None,
+        fred: None,
         treasury: TreasuryClient::new(TreasuryConfig {
             base_url: treasury::BASE_URL.to_owned(),
         })
         .expect("treasury client"),
+        wikipedia: None,
+        ibkr: None,
     };
     let feed = FeedManager::new(
         FeedConfig {

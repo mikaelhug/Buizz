@@ -7,11 +7,12 @@ use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use buizz_core::market::{Bar, CorporateActionKind, Symbol};
+use buizz_core::market::{AssetClass, Bar, CorporateActionKind, Symbol};
 use buizz_core::time::Timestamp;
 use chrono::{Datelike, NaiveDate, NaiveTime, TimeDelta};
 use serde_json::{Number, Value, json};
-use tokio::net::TcpListener;
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{broadcast, watch};
 
 use crate::world::World;
@@ -66,6 +67,7 @@ impl Fake {
 #[derive(Clone)]
 pub struct FakeProviders {
     pub url: String,
+    pub ftp_address: String,
     fake: Arc<Fake>,
 }
 
@@ -87,11 +89,15 @@ impl FakeProviders {
             .route("/stream", get(stream))
             .route("/tiingo/daily/{symbol}/prices", get(tiingo))
             .route("/files/company_tickers.json", get(tickers))
+            .route("/files/company_tickers_mf.json", get(fund_tickers))
             .route("/api/xbrl/companyfacts/{file}", get(company_facts))
+            .route("/submissions/{file}", get(submissions))
+            .route("/w/api.php", get(wikipedia))
             .route(
                 "/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv/{year}/all",
                 get(treasury),
             )
+            .route("/fred/series/observations", get(fred))
             .route("/control/release", post(release))
             .with_state(fake.clone());
         let listener = TcpListener::bind("127.0.0.1:0")
@@ -99,7 +105,16 @@ impl FakeProviders {
             .expect("the fake providers bind");
         let url = format!("http://{}", listener.local_addr().expect("bound address"));
         tokio::spawn(async move { axum::serve(listener, router).await });
-        Self { url, fake }
+        let ftp = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("the fake FTP server binds");
+        let ftp_address = ftp.local_addr().expect("bound address").to_string();
+        tokio::spawn(serve_ftp(ftp, fake.clone()));
+        Self {
+            url,
+            ftp_address,
+            fake,
+        }
     }
 
     pub fn stream_url(&self) -> String {
@@ -399,6 +414,113 @@ async fn tickers(State(fake): State<Arc<Fake>>) -> Response {
     Json(entries).into_response()
 }
 
+async fn fund_tickers(State(fake): State<Arc<Fake>>) -> Response {
+    if let Some(limited) = fake.answer("fund_tickers") {
+        return limited;
+    }
+    let rows: Vec<Value> = fake
+        .world()
+        .instruments
+        .iter()
+        .filter(|instrument| instrument.asset_class == AssetClass::Etf)
+        .enumerate()
+        .map(|(index, instrument)| {
+            json!([
+                index,
+                format!("S{index:09}"),
+                format!("C{index:09}"),
+                instrument.symbol
+            ])
+        })
+        .collect();
+    Json(json!({"fields": ["cik", "seriesId", "classId", "symbol"], "data": rows})).into_response()
+}
+
+async fn submissions(State(fake): State<Arc<Fake>>, Path(file): Path<String>) -> Response {
+    if let Some(limited) = fake.answer("submissions") {
+        return limited;
+    }
+    let world = fake.world();
+    world
+        .companies
+        .iter()
+        .find(|company| file == format!("CIK{:010}.json", company.cik))
+        .map_or_else(
+            || StatusCode::NOT_FOUND.into_response(),
+            |company| Json(company.submissions.clone()).into_response(),
+        )
+}
+
+async fn wikipedia(State(fake): State<Arc<Fake>>, Query(params): Query<Params>) -> Response {
+    if let Some(limited) = fake.answer("wikipedia") {
+        return limited;
+    }
+    let world = fake.world();
+    match world.wikipedia.get(param(&params, "page")) {
+        Some(wikitext) => {
+            Json(json!({"parse": {"title": param(&params, "page"), "wikitext": wikitext}}))
+                .into_response()
+        }
+        None => Json(json!({"error": {"code": "missingtitle"}})).into_response(),
+    }
+}
+
+async fn serve_ftp(listener: TcpListener, fake: Arc<Fake>) {
+    while let Ok((control, _)) = listener.accept().await {
+        tokio::spawn(ftp_session(control, fake.clone()));
+    }
+}
+
+async fn ftp_session(control: TcpStream, fake: Arc<Fake>) -> std::io::Result<()> {
+    let (reader, mut writer) = control.into_split();
+    let mut lines = BufReader::new(reader).lines();
+    writer.write_all(b"220 fake short stock server\r\n").await?;
+    let mut passive: Option<TcpListener> = None;
+    while let Some(line) = lines.next_line().await? {
+        let (command, argument) = line.split_once(' ').unwrap_or((line.as_str(), ""));
+        let reply = match command.to_ascii_uppercase().as_str() {
+            "USER" => "331 password please".to_owned(),
+            "PASS" => "230 logged in".to_owned(),
+            "TYPE" => "200 type set".to_owned(),
+            "PASV" => {
+                let listener = TcpListener::bind("127.0.0.1:0").await?;
+                let port = listener.local_addr()?.port();
+                passive = Some(listener);
+                format!(
+                    "227 Entering Passive Mode (127,0,0,1,{},{})",
+                    port >> 8,
+                    port & 0xff
+                )
+            }
+            "RETR" => {
+                let file = (argument == "usa.txt")
+                    .then(|| {
+                        let _ = fake.answer("borrow");
+                        fake.world().borrow.clone()
+                    })
+                    .flatten();
+                match (file, passive.take()) {
+                    (Some(file), Some(listener)) => {
+                        writer.write_all(b"150 sending\r\n").await?;
+                        let (mut data, _) = listener.accept().await?;
+                        data.write_all(&file).await?;
+                        data.shutdown().await?;
+                        "226 done".to_owned()
+                    }
+                    _ => "550 no such file".to_owned(),
+                }
+            }
+            "QUIT" => {
+                writer.write_all(b"221 bye\r\n").await?;
+                return Ok(());
+            }
+            _ => "502 not implemented".to_owned(),
+        };
+        writer.write_all(format!("{reply}\r\n").as_bytes()).await?;
+    }
+    Ok(())
+}
+
 async fn company_facts(State(fake): State<Arc<Fake>>, Path(file): Path<String>) -> Response {
     if let Some(limited) = fake.answer("company_facts") {
         return limited;
@@ -432,6 +554,34 @@ async fn treasury(State(fake): State<Arc<Fake>>, Path(year): Path<i32>) -> Respo
         ));
     }
     csv.into_response()
+}
+
+async fn fred(State(fake): State<Arc<Fake>>, Query(params): Query<Params>) -> Response {
+    if let Some(limited) = fake.answer("fred") {
+        return limited;
+    }
+    let series = param(&params, "series_id");
+    let offset: usize = param(&params, "offset").parse().unwrap_or(0);
+    let world = fake.world();
+    let vintages: Vec<Value> = world
+        .macro_vintages
+        .iter()
+        .filter(|vintage| vintage.series.fred_id() == Some(series))
+        .map(|vintage| {
+            json!({
+                "realtime_start": vintage.published,
+                "realtime_end": "9999-12-31",
+                "date": vintage.date,
+                "value": vintage.value.map_or_else(|| ".".to_owned(), |value| value.to_string()),
+            })
+        })
+        .collect();
+    Json(json!({
+        "count": vintages.len(),
+        "offset": offset,
+        "observations": vintages.iter().skip(offset).take(PAGE_ROWS).collect::<Vec<_>>(),
+    }))
+    .into_response()
 }
 
 async fn release(State(fake): State<Arc<Fake>>, Json(request): Json<Value>) -> Response {
