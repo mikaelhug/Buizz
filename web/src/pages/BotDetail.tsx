@@ -3,9 +3,10 @@ import { api, errorMessage, must, type Schemas } from "../api/client";
 import { useSpineEvents } from "../api/stream";
 import { fmt } from "../lib/format";
 import { href, navigate } from "../lib/route";
+import { PAGE_SIZE, type Paged, usePaged } from "../lib/usePaged";
 import { useResource } from "../lib/useResource";
 import { confirmDialog } from "../ui/Dialog";
-import { Failure, Loading } from "../ui/Feedback";
+import { Failure, LoadMore, Loading } from "../ui/Feedback";
 import { MetricValue } from "../ui/Metrics";
 import { RunBadges, StatusPill } from "../ui/Status";
 import { notify } from "../ui/Toaster";
@@ -17,11 +18,19 @@ type Run = Schemas["RunSummary"];
 
 export function BotDetail({ name, runId }: { name: string; runId: number | undefined }) {
   const detail = useResource(() => must(api.GET("/api/bots/{name}", { params: { path: { name } } })), [name]);
+  const history = usePaged(async (before) => {
+    const items = await must(api.GET("/api/runs", { params: { query: { bot: name, limit: PAGE_SIZE, ...(before === undefined ? {} : { before }) } } }));
+    return { items, next_after: items.length === PAGE_SIZE ? (items.at(-1)?.id ?? null) : null };
+  }, [name]);
   const [backtesting, setBacktesting] = useState(false);
+  const reload = () => {
+    detail.reload();
+    history.reload();
+  };
 
   useSpineEvents((event) => {
     if (event.type === "run_status" && event.bot === name) {
-      detail.reload();
+      reload();
     }
   });
 
@@ -49,7 +58,7 @@ export function BotDetail({ name, runId }: { name: string; runId: number | undef
           <BotActions
             bot={summary}
             onChanged={(run) => {
-              detail.reload();
+              reload();
               showRun(run);
             }}
           />
@@ -59,14 +68,14 @@ export function BotDetail({ name, runId }: { name: string; runId: number | undef
         </span>
       </header>
       {selected !== undefined && <RunView key={selected} runId={selected} />}
-      <RunHistory runs={runs} selected={selected} name={name} onCancelled={detail.reload} />
+      <RunHistory history={history} selected={selected} name={name} onCancelled={reload} />
       {backtesting && (
         <BacktestDialog
           bot={summary}
           onClose={() => setBacktesting(false)}
           onStarted={(run) => {
             setBacktesting(false);
-            detail.reload();
+            reload();
             showRun(run);
           }}
         />
@@ -79,7 +88,9 @@ function period(run: Run): string {
   return `${run.config.start} → ${run.config.end ?? "now"}`;
 }
 
-function RunHistory({ runs, selected, name, onCancelled }: { runs: Run[]; selected: number | undefined; name: string; onCancelled: () => void }) {
+type HistoryProps = { history: Paged<Run>; selected: number | undefined; name: string; onCancelled: () => void };
+
+function RunHistory({ history, selected, name, onCancelled }: HistoryProps) {
   const cancel = async (run: Run) => {
     const confirmed = await confirmDialog({
       title: `Cancel backtest #${run.id}?`,
@@ -101,7 +112,9 @@ function RunHistory({ runs, selected, name, onCancelled }: { runs: Run[]; select
   return (
     <section className="panel">
       <h2>Runs</h2>
-      {runs.length === 0 ? (
+      {!history.data ? (
+        history.error ? <Failure message={history.error} onRetry={history.reload} /> : <Loading />
+      ) : history.data.items.length === 0 ? (
         <p className="empty">No runs yet</p>
       ) : (
         <div className="table-wrap">
@@ -120,7 +133,7 @@ function RunHistory({ runs, selected, name, onCancelled }: { runs: Run[]; select
               </tr>
             </thead>
             <tbody>
-              {runs.map((run) => (
+              {history.data.items.map((run) => (
                 <tr key={run.id} className={run.id === selected ? "selected" : undefined}>
                   <td>
                     <a href={href({ page: "bot", name, run: run.id })} title={run.result_hash ? `Result hash ${run.result_hash}` : undefined}>
@@ -156,6 +169,7 @@ function RunHistory({ runs, selected, name, onCancelled }: { runs: Run[]; select
           </table>
         </div>
       )}
+      <LoadMore onClick={history.loadMore} />
     </section>
   );
 }

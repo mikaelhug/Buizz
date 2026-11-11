@@ -12,3 +12,11 @@ export function Failure({ message, onRetry }: { message: string; onRetry: () => 
     </div>
   );
 }
+
+export function LoadMore({ onClick }: { onClick: (() => void) | undefined }) {
+  return onClick ? (
+    <button type="button" className="btn btn-sm load-more" onClick={onClick}>
+      Load more
+    </button>
+  ) : null;
+}

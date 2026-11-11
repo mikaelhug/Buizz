@@ -66,6 +66,7 @@ pub struct RunFilter {
     pub mode: Option<Mode>,
     pub statuses: Vec<RunStatus>,
     pub desired: Option<DesiredState>,
+    pub before: Option<RunId>,
     pub limit: Option<u32>,
 }
 

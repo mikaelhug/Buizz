@@ -6,7 +6,7 @@ import { appendPoint } from "../lib/series";
 import { PAGE_SIZE, type Paged, usePaged } from "../lib/usePaged";
 import { type Resource, useResource } from "../lib/useResource";
 import { EquityChart } from "../ui/EquityChart";
-import { Failure, Loading } from "../ui/Feedback";
+import { Failure, LoadMore, Loading } from "../ui/Feedback";
 import { MetricGrid } from "../ui/Metrics";
 import { RunBadges, StatusPill } from "../ui/Status";
 
@@ -233,21 +233,12 @@ function Positions({ positions }: { positions: Resource<Schemas["PositionView"][
   );
 }
 
-
 function requested(size: Schemas["OrderSize"]): string {
   return size.by === "qty" ? `${fmt.integer(size.qty)} sh` : `${fmt.percent(size.weight)} wt`;
 }
 
 function orderType(type: Schemas["OrderType"]): string {
   return type.type === "market" ? "MKT" : `LMT ${fmt.price(type.limit_price)}`;
-}
-
-function LoadMore({ onClick }: { onClick: (() => void) | undefined }) {
-  return onClick ? (
-    <button type="button" className="btn btn-sm load-more" onClick={onClick}>
-      Load more
-    </button>
-  ) : null;
 }
 
 function Orders({ orders }: { orders: Paged<Schemas["OrderView"]> }) {

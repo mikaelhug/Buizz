@@ -455,6 +455,14 @@
             }
           },
           {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/RunId"
+            }
+          },
+          {
             "name": "limit",
             "in": "query",
             "required": false,

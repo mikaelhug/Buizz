@@ -112,6 +112,10 @@ pub fn list(connection: &Connection, filter: &RunFilter) -> Result<Vec<RunSummar
         conditions.push("desired = ?".to_owned());
         values.push(enum_text(&desired)?.into());
     }
+    if let Some(before) = filter.before {
+        conditions.push("id < ?".to_owned());
+        values.push(before.0.into());
+    }
     if !filter.statuses.is_empty() {
         let marks = vec!["?"; filter.statuses.len()].join(", ");
         conditions.push(format!("status IN ({marks})"));

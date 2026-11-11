@@ -58,6 +58,7 @@ pub(crate) async fn list_runs(
     let filter = RunFilter {
         bot: query.bot,
         mode: query.mode,
+        before: query.before,
         limit: Some(query.limit.unwrap_or(DEFAULT_RUNS).clamp(1, MAX_RUNS)),
         ..RunFilter::default()
     };

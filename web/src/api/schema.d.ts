@@ -1180,6 +1180,7 @@ export interface operations {
             query?: {
                 bot?: string;
                 mode?: components["schemas"]["Mode"];
+                before?: components["schemas"]["RunId"];
                 limit?: number;
             };
             header?: never;
