@@ -58,7 +58,7 @@ export function BotDetail({ name, runId }: { name: string; runId: number | undef
           </button>
         </span>
       </header>
-      {selected === undefined ? <p className="empty">No runs yet</p> : <RunView key={selected} runId={selected} />}
+      {selected !== undefined && <RunView key={selected} runId={selected} />}
       <RunHistory runs={runs} selected={selected} name={name} onCancelled={detail.reload} />
       {backtesting && (
         <BacktestDialog
