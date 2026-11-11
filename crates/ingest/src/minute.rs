@@ -18,6 +18,13 @@ impl Ingest {
         from: NaiveDate,
         to: NaiveDate,
     ) -> Result<(), IngestError> {
+        let gaps = self
+            .market
+            .coverage_gaps(symbols.to_vec(), Timeframe::Minute, from, to)
+            .await?;
+        if gaps.is_empty() {
+            return Ok(());
+        }
         let alpaca = self
             .sources
             .alpaca
@@ -30,10 +37,6 @@ impl Ingest {
             }
             .into());
         }
-        let gaps = self
-            .market
-            .coverage_gaps(symbols.to_vec(), Timeframe::Minute, from, to)
-            .await?;
         let calendar = self.market.calendar(from, to).await?;
         let mut grouped: BTreeMap<(NaiveDate, NaiveDate), Vec<Symbol>> = BTreeMap::new();
         for gap in gaps {
