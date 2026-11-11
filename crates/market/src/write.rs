@@ -96,11 +96,59 @@ fn stage<T>(
     Ok(count)
 }
 
-fn replace_staged(transaction: &Transaction<'_>, table: &str) -> Result<()> {
-    transaction.execute_batch(&format!(
-        "INSERT OR REPLACE INTO main.{table} SELECT * FROM stage_{table}; DELETE FROM stage_{table}"
-    ))?;
-    Ok(())
+const KEYS: [(&str, &[&str]); 8] = [
+    ("instrument", &["symbol"]),
+    ("calendar", &["date"]),
+    ("bar_1d", &["symbol", "date"]),
+    ("corporate_action", &["symbol", "ex_date", "kind"]),
+    ("rate_daily", &["date"]),
+    ("macro_observation", &["series", "date", "published"]),
+    ("company", &["symbol"]),
+    ("earnings_release", &["symbol", "accession"]),
+];
+
+fn replace_staged(transaction: &Transaction<'_>, table: &str, batch_id: i64) -> Result<u64> {
+    let keys = KEYS
+        .iter()
+        .find_map(|(name, keys)| (*name == table).then_some(*keys))
+        .expect("every staged table has its keys");
+    let mut statement = transaction.prepare_cached(
+        "SELECT column_name FROM duckdb_columns() WHERE schema_name = 'main' \
+         AND table_name = ? AND column_name <> 'batch_id' ORDER BY column_index",
+    )?;
+    let columns = statement
+        .query_map(params![table], |row| row.get::<_, String>(0))?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    let same_key = keys
+        .iter()
+        .map(|key| format!("m.{key} = s.{key}"))
+        .collect::<Vec<_>>()
+        .join(" AND ");
+    let differs = columns
+        .iter()
+        .map(|column| format!("m.{column} IS DISTINCT FROM s.{column}"))
+        .collect::<Vec<_>>()
+        .join(" OR ");
+    transaction.execute(
+        &format!(
+            "DELETE FROM stage_{table} s WHERE EXISTS (SELECT 1 FROM main.{table} m \
+             WHERE {same_key} AND NOT ({differs}))"
+        ),
+        [],
+    )?;
+    transaction.execute(
+        &format!(
+            "INSERT INTO main.{table}_revision SELECT m.*, ? FROM main.{table} m \
+             JOIN stage_{table} s ON {same_key}"
+        ),
+        params![batch_id],
+    )?;
+    let written = transaction.execute(
+        &format!("INSERT OR REPLACE INTO main.{table} SELECT * FROM stage_{table}"),
+        [],
+    )?;
+    transaction.execute(&format!("DELETE FROM stage_{table}"), [])?;
+    Ok(written as u64)
 }
 
 pub(crate) fn instruments(
@@ -118,7 +166,7 @@ pub(crate) fn instruments(
         Dataset::Instruments,
         Coverage::new(),
         |transaction, batch_id| {
-            let rows = stage(
+            stage(
                 transaction,
                 "instrument",
                 unique.values(),
@@ -136,8 +184,7 @@ pub(crate) fn instruments(
                     ])
                 },
             )?;
-            replace_staged(transaction, "instrument")?;
-            Ok(rows)
+            replace_staged(transaction, "instrument", batch_id)
         },
     )
 }
@@ -162,7 +209,7 @@ pub(crate) fn sessions(
         Dataset::Calendar,
         coverage,
         |transaction, batch_id| {
-            let rows = stage(
+            stage(
                 transaction,
                 "calendar",
                 unique.values(),
@@ -176,13 +223,15 @@ pub(crate) fn sessions(
                 },
             )?;
             if let Some((from, to)) = replaced {
+                let removed = "FROM main.calendar WHERE date BETWEEN ? AND ? \
+                     AND date NOT IN (SELECT date FROM stage_calendar)";
                 transaction.execute(
-                    "DELETE FROM main.calendar WHERE date BETWEEN ? AND ?",
-                    params![from, to],
+                    &format!("INSERT INTO main.calendar_revision SELECT *, ? {removed}"),
+                    params![batch_id, from, to],
                 )?;
+                transaction.execute(&format!("DELETE {removed}"), params![from, to])?;
             }
-            replace_staged(transaction, "calendar")?;
-            Ok(rows)
+            replace_staged(transaction, "calendar", batch_id)
         },
     )
 }
@@ -207,7 +256,7 @@ pub(crate) fn daily_bars(
         Dataset::Bars1d,
         coverage,
         |transaction, batch_id| {
-            let rows = stage(
+            stage(
                 transaction,
                 "bar_1d",
                 &unique,
@@ -225,8 +274,7 @@ pub(crate) fn daily_bars(
                     ])
                 },
             )?;
-            replace_staged(transaction, "bar_1d")?;
-            Ok(rows)
+            replace_staged(transaction, "bar_1d", batch_id)
         },
     )
 }
@@ -322,7 +370,7 @@ pub(crate) fn corporate_actions(
         Dataset::CorporateActions,
         coverage,
         |transaction, batch_id| {
-            let rows = stage(
+            stage(
                 transaction,
                 "corporate_action",
                 unique.values(),
@@ -340,8 +388,7 @@ pub(crate) fn corporate_actions(
                     ])
                 },
             )?;
-            replace_staged(transaction, "corporate_action")?;
-            Ok(rows)
+            replace_staged(transaction, "corporate_action", batch_id)
         },
     )
 }
@@ -437,7 +484,7 @@ pub(crate) fn risk_free_rates(
         Dataset::Rates,
         coverage,
         |transaction, batch_id| {
-            let rows = stage(
+            stage(
                 transaction,
                 "rate_daily",
                 unique.values(),
@@ -450,8 +497,7 @@ pub(crate) fn risk_free_rates(
                     ])
                 },
             )?;
-            replace_staged(transaction, "rate_daily")?;
-            Ok(rows)
+            replace_staged(transaction, "rate_daily", batch_id)
         },
     )
 }
@@ -485,7 +531,7 @@ pub(crate) fn macro_observations(
         Dataset::Macro,
         coverage,
         |transaction, batch_id| {
-            let rows = stage(
+            stage(
                 transaction,
                 "macro_observation",
                 unique,
@@ -500,8 +546,7 @@ pub(crate) fn macro_observations(
                     ])
                 },
             )?;
-            replace_staged(transaction, "macro_observation")?;
-            Ok(rows)
+            replace_staged(transaction, "macro_observation", batch_id)
         },
     )
 }
@@ -521,7 +566,7 @@ pub(crate) fn companies(
         Dataset::Companies,
         Coverage::new(),
         |transaction, batch_id| {
-            let rows = stage(
+            stage(
                 transaction,
                 "company",
                 unique.values(),
@@ -535,8 +580,7 @@ pub(crate) fn companies(
                     ])
                 },
             )?;
-            replace_staged(transaction, "company")?;
-            Ok(rows)
+            replace_staged(transaction, "company", batch_id)
         },
     )
 }
@@ -560,7 +604,7 @@ pub(crate) fn earnings_releases(
         Dataset::EarningsReleases,
         coverage,
         |transaction, batch_id| {
-            let rows = stage(
+            stage(
                 transaction,
                 "earnings_release",
                 unique.values(),
@@ -577,8 +621,7 @@ pub(crate) fn earnings_releases(
                     ])
                 },
             )?;
-            replace_staged(transaction, "earnings_release")?;
-            Ok(rows)
+            replace_staged(transaction, "earnings_release", batch_id)
         },
     )
 }
@@ -607,6 +650,15 @@ pub(crate) fn index_history(
         Dataset::IndexMembership,
         coverage,
         |transaction, batch_id| {
+            for table in ["index_member", "index_history"] {
+                transaction.execute(
+                    &format!(
+                        "INSERT INTO main.{table}_revision SELECT *, ? FROM main.{table} \
+                         WHERE index_name = ?"
+                    ),
+                    params![batch_id, index],
+                )?;
+            }
             transaction.execute(
                 "DELETE FROM main.index_member WHERE index_name = ?",
                 params![index],
@@ -667,4 +719,91 @@ pub(crate) fn borrow_availability(
             Ok(unique.len() as u64)
         },
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use buizz_core::market::AssetClass;
+    use chrono::NaiveTime;
+
+    use super::*;
+
+    fn instrument(name: &str) -> Instrument {
+        Instrument {
+            symbol: Symbol::new("FB"),
+            name: name.to_owned(),
+            exchange: "NASDAQ".to_owned(),
+            asset_class: AssetClass::Stock,
+            active: true,
+            shortable: true,
+            first_session: None,
+            last_session: None,
+        }
+    }
+
+    fn session(day: u32) -> Session {
+        let date = NaiveDate::from_ymd_opt(2024, 7, day).unwrap();
+        let at = |hour| {
+            Timestamp::at_exchange_time(date, NaiveTime::from_hms_opt(hour, 0, 0).unwrap()).unwrap()
+        };
+        Session {
+            date,
+            open: at(9),
+            close: at(16),
+        }
+    }
+
+    fn texts(connection: &Connection, sql: &str) -> Vec<String> {
+        let mut statement = connection.prepare(sql).unwrap();
+        statement
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .collect::<duckdb::Result<_>>()
+            .unwrap()
+    }
+
+    #[test]
+    fn a_replaced_value_keeps_the_version_it_superseded() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        crate::migrate::migrate(&mut connection).unwrap();
+        prepare(&connection).unwrap();
+        let source = DataSource::Alpaca;
+        instruments(&mut connection, source, vec![instrument("Facebook")]).unwrap();
+        let renamed =
+            instruments(&mut connection, source, vec![instrument("Meta Platforms")]).unwrap();
+        let unchanged =
+            instruments(&mut connection, source, vec![instrument("Meta Platforms")]).unwrap();
+        assert_eq!((renamed.rows, unchanged.rows), (1, 0));
+        assert_eq!(
+            texts(&connection, "SELECT name FROM instrument"),
+            ["Meta Platforms"]
+        );
+        assert_eq!(
+            texts(
+                &connection,
+                "SELECT name || ' until ' || superseded_by FROM instrument_revision"
+            ),
+            [format!("Facebook until {}", renamed.batch_id)]
+        );
+
+        let range = (session(1).date, session(5).date);
+        let all = vec![session(1), session(2), session(5)];
+        sessions(&mut connection, source, Some(range), all).unwrap();
+        let closed = vec![session(1), session(5)];
+        sessions(&mut connection, source, Some(range), closed).unwrap();
+        assert_eq!(
+            texts(
+                &connection,
+                "SELECT CAST(date AS VARCHAR) FROM calendar ORDER BY date"
+            ),
+            ["2024-07-01", "2024-07-05"]
+        );
+        assert_eq!(
+            texts(
+                &connection,
+                "SELECT CAST(date AS VARCHAR) FROM calendar_revision"
+            ),
+            ["2024-07-02"]
+        );
+    }
 }

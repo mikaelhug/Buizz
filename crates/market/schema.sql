@@ -158,3 +158,14 @@ CREATE TABLE IF NOT EXISTS borrow_availability (
     available_or_more BOOLEAN NOT NULL,
     batch_id BIGINT NOT NULL
 );
+
+CREATE TABLE instrument_revision AS SELECT *, CAST(NULL AS BIGINT) AS superseded_by FROM instrument LIMIT 0;
+CREATE TABLE calendar_revision AS SELECT *, CAST(NULL AS BIGINT) AS superseded_by FROM calendar LIMIT 0;
+CREATE TABLE bar_1d_revision AS SELECT *, CAST(NULL AS BIGINT) AS superseded_by FROM bar_1d LIMIT 0;
+CREATE TABLE corporate_action_revision AS SELECT *, CAST(NULL AS BIGINT) AS superseded_by FROM corporate_action LIMIT 0;
+CREATE TABLE rate_daily_revision AS SELECT *, CAST(NULL AS BIGINT) AS superseded_by FROM rate_daily LIMIT 0;
+CREATE TABLE macro_observation_revision AS SELECT *, CAST(NULL AS BIGINT) AS superseded_by FROM macro_observation LIMIT 0;
+CREATE TABLE company_revision AS SELECT *, CAST(NULL AS BIGINT) AS superseded_by FROM company LIMIT 0;
+CREATE TABLE earnings_release_revision AS SELECT *, CAST(NULL AS BIGINT) AS superseded_by FROM earnings_release LIMIT 0;
+CREATE TABLE index_member_revision AS SELECT *, CAST(NULL AS BIGINT) AS superseded_by FROM index_member LIMIT 0;
+CREATE TABLE index_history_revision AS SELECT *, CAST(NULL AS BIGINT) AS superseded_by FROM index_history LIMIT 0;

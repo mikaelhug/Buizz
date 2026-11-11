@@ -2,7 +2,7 @@ use duckdb::{Connection, params};
 
 use crate::{MarketError, Result, SCHEMA};
 
-const MIGRATIONS: [&str; 0] = [];
+const MIGRATIONS: [&str; 1] = [include_str!("../migrations/2_revisions.sql")];
 
 pub(crate) const LATEST: i64 = MIGRATIONS.len() as i64 + 1;
 
@@ -95,7 +95,10 @@ mod tests {
         let mut connection = Connection::open_in_memory().unwrap();
         migrate(&mut connection).unwrap();
         connection
-            .execute_batch(&format!("UPDATE schema_version SET version = {}", LATEST + 1))
+            .execute_batch(&format!(
+                "UPDATE schema_version SET version = {}",
+                LATEST + 1
+            ))
             .unwrap();
         assert!(matches!(
             migrate(&mut connection),
