@@ -37,12 +37,12 @@ Equity points `E_1..E_n` are the session closes (n = 10) and `E_0` is the start 
 | Metric | Definition | Value |
 |---|---|---|
 | total_return | `E_n / start_cash − 1` | 0.0044846 |
-| cagr | `(E_n / start_cash)^(252 / n) − 1` | 0.119362… |
+| cagr | `(E_n / start_cash)^(252 / n) − 1`, absent when n < 252 | absent |
 | volatility | `stdev(r, ddof=1) × √252` | 0.038766… |
 | sharpe | `mean(r − rf) / stdev(r − rf, ddof=1) × √252` | 1.765925… |
 | sortino | `mean(r − rf) / √(Σ min(r − rf, 0)² / 10) × √252` | 3.664590… |
 | max_drawdown | `max (peak − E) / peak` over `E_0..E_n` (100,000.00 → 99,415.52) | 0.0058448 |
-| calmar | `cagr / max_drawdown` | 20.42198… |
+| calmar | `cagr / max_drawdown`, absent with cagr | absent |
 | trades | closed round trips (flat → flat per symbol; a fill that crosses zero closes the trip with its pro-rata share and opens the next, a split to zero shares closes it) | 3 |
 | win_rate | winning round trips / trades; pnl = Σ fill cash deltas + dividends: BBB −131.99, AAA 97.92, AAA 599.81 | 0.6667 |
 | profit_factor | Σ wins / Σ |losses| = 697.73 / 131.99 | 5.286233… |

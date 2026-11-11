@@ -96,6 +96,9 @@ fn daily_risk_free(rates: &[RiskFreeRate], point: &EquityPoint) -> Option<f64> {
 
 fn cagr(start_cash: Decimal, equity: &[EquityPoint]) -> Option<f64> {
     let periods = equity.len() as f64;
+    if periods < TRADING_DAYS {
+        return None;
+    }
     final_ratio(start_cash, equity).map(|ratio| ratio.max(0.0).powf(TRADING_DAYS / periods) - 1.0)
 }
 
@@ -336,12 +339,11 @@ mod tests {
             );
         };
         close("total_return", actual.total_return, expected.total_return);
-        close("cagr", actual.cagr, expected.cagr);
         close("volatility", actual.volatility, expected.volatility);
         close("sharpe", actual.sharpe, expected.sharpe);
         close("sortino", actual.sortino, expected.sortino);
         close("max_drawdown", actual.max_drawdown, expected.max_drawdown);
-        close("calmar", actual.calmar, expected.calmar);
+        assert_eq!((actual.cagr, actual.calmar), (None, None));
         close("win_rate", actual.win_rate, expected.win_rate);
         close(
             "profit_factor",
