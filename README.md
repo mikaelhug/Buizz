@@ -40,7 +40,7 @@ The other bots in `bots/` need real data: set the provider keys below and start 
 | `buizz bots` | List bots with status, timeframe and equity |
 | `buizz backtest bots/<name> --from YYYY-MM-DD --to YYYY-MM-DD [--param key=value]...` | Backtest a bot, wait, print metrics and an order summary |
 
-`buizz` is the SDK's console script; run it with `uv run --frozen buizz` inside `sdk/python`. It talks to a running spine: `BUIZZ_URL` (default `http://127.0.0.1:8080`) and `BUIZZ_ADMIN_PASSWORD` (the spine's admin password, used to log in). `--param` values are parsed as JSON and fall back to strings. The spine runs the bot from its own `bots/` directory, so the argument only selects the folder name.
+`buizz` is the SDK's console script; run it with `uv run --frozen buizz` inside `sdk/python`. It talks to a running spine: `BUIZZ_URL` (default `http://127.0.0.1:8080`) and `BUIZZ_ADMIN_PASSWORD` (the spine's admin password, used to log in). `--param` values are parsed as JSON and fall back to strings. A `--param` key that is not in the bot's `bot.toml` params, or a `--cost` field that is not in the cost model, is refused before the run is queued. The spine runs the bot from its own `bots/` directory, so the argument only selects the folder name.
 
 ## Configuration
 

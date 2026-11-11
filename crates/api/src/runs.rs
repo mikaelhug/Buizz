@@ -13,7 +13,7 @@ use buizz_core::api::{
 use buizz_core::market::{Adjustment, Symbol};
 use buizz_core::money::round_price;
 use buizz_core::order::{Fill, OrderId};
-use buizz_core::run::{CostModel, Mode, Period, RunBadge, RunId, RunStatus};
+use buizz_core::run::{BotManifest, CostModel, Mode, Period, RunBadge, RunId, RunStatus};
 use buizz_market::HistoryRequest;
 use buizz_state::RunFilter;
 use rust_decimal::Decimal;
@@ -325,6 +325,12 @@ async fn benchmarks(
     Ok(benchmarks)
 }
 
+fn as_configured(run: &RunSummary, manifest: &BotManifest, cost: &CostModel) -> bool {
+    run.config.cost == *cost
+        && run.config.risk == manifest.risk
+        && run.config.params == manifest.params
+}
+
 #[utoipa::path(get, path = "/api/leaderboard", tag = "leaderboard",
     params(LeaderboardQuery),
     responses((status = 200, body = Leaderboard)))]
@@ -333,6 +339,12 @@ pub(crate) async fn leaderboard(
     Query(query): Query<LeaderboardQuery>,
 ) -> Result<Json<Leaderboard>, Failure> {
     let cost = CostModel::default();
+    let scan = app.runner.bots();
+    let manifests: HashMap<&str, &BotManifest> = scan
+        .bots
+        .iter()
+        .map(|bot| (bot.name.as_str(), &bot.manifest))
+        .collect();
     let runs = app
         .state
         .runs(RunFilter {
@@ -350,7 +362,12 @@ pub(crate) async fn leaderboard(
     let trials = trials(&runs);
     let mut groups: Vec<(Period, Vec<&RunSummary>)> = Vec::new();
     let mut seen: HashSet<(Period, &str)> = HashSet::new();
-    for run in runs.iter().filter(|run| run.config.cost == cost) {
+    let ranked = runs.iter().filter(|run| {
+        manifests
+            .get(run.bot.as_str())
+            .is_some_and(|manifest| as_configured(run, manifest, &cost))
+    });
+    for run in ranked {
         let period = query.preset.resolve(run.created_at.exchange_date());
         if !compared_period(run, period)
             || run.metrics.is_none()

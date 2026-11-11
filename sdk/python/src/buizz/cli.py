@@ -7,17 +7,20 @@ import os
 import sys
 import time
 from collections import Counter
+from decimal import Decimal, InvalidOperation
 from http.cookiejar import CookieJar
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 from urllib.error import HTTPError
 from urllib.request import HTTPCookieProcessor, Request, build_opener
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 DEFAULT_URL = "http://127.0.0.1:8080"
 FINISHED = {"completed", "failed", "cancelled"}
 POLL_SECONDS = 1.0
 ORDERS_PAGE = 1000
-COUNTED_COSTS = frozenset({"adv_sessions"})
 RISK_LIMITS = ("max_position_weight", "max_gross_exposure", "max_drawdown")
 
 
@@ -71,20 +74,54 @@ def parse_risk(text: str) -> tuple[str, str | None]:
     return key, value
 
 
+def decimal_text(value: str) -> str:
+    try:
+        number = Decimal(value)
+    except InvalidOperation:
+        number = None
+    if number is None or not number.is_finite():
+        raise ValueError(f"must be a number, got {value!r}")
+    return value
+
+
+def whole_number(value: str) -> int:
+    if not value.isdigit():
+        raise ValueError(f"must be a whole number, got {value!r}")
+    return int(value)
+
+
+def commission_tiers(value: str) -> list[Any]:
+    try:
+        tiers = json.loads(value)
+    except ValueError:
+        tiers = None
+    if not isinstance(tiers, list):
+        raise ValueError(f'must be a JSON list such as [{{"above": 300000, "per_share": "0.002"}}], got {value!r}')
+    return cast("list[Any]", tiers)
+
+
+COST_FIELDS: dict[str, Callable[[str], Any]] = {
+    "commission_per_share": decimal_text,
+    "commission_min": decimal_text,
+    "commission_tiers": commission_tiers,
+    "slippage_bps": decimal_text,
+    "slippage_per_share": decimal_text,
+    "adv_participation": decimal_text,
+    "adv_sessions": whole_number,
+    "borrow_rate": decimal_text,
+    "financing_spread": decimal_text,
+}
+
+
 def parse_cost(text: str) -> tuple[str, Any]:
     key, separator, value = text.partition("=")
-    if not separator or not key:
-        raise argparse.ArgumentTypeError(f"expected key=value, got {text!r}")
-    if key in COUNTED_COSTS:
-        if not value.isdigit():
-            raise argparse.ArgumentTypeError(f"{key} must be a whole number, got {value!r}")
-        return key, int(value)
-    if value.startswith(("[", "{")):
-        try:
-            return key, json.loads(value)
-        except ValueError:
-            raise argparse.ArgumentTypeError(f"{key} is not valid JSON: {value!r}") from None
-    return key, value
+    parse = COST_FIELDS.get(key)
+    if not separator or parse is None:
+        raise argparse.ArgumentTypeError(f"expected one of {', '.join(COST_FIELDS)}=VALUE, got {text!r}")
+    try:
+        return key, parse(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"{key} {exc}") from None
 
 
 def format_value(value: Any) -> str:
@@ -119,12 +156,18 @@ def trade_summary(api: Api, run_id: int) -> list[str]:
 def backtest(api: Api, args: argparse.Namespace) -> int:
     bot = Path(args.bot).name
     body: dict[str, Any] = {"period": {"from": args.start, "to": args.end}, "allow_holdout": args.allow_holdout}
+    manifest: dict[str, Any] = api.call("GET", f"/api/bots/{bot}")["manifest"] if args.param or args.risk else {}
     if args.param:
-        body["params"] = dict(args.param)
+        params = dict(args.param)
+        defaults: dict[str, Any] = manifest.get("params", {})
+        if unknown := sorted(params.keys() - defaults.keys()):
+            raise CliError(
+                f"{bot} has no param {', '.join(unknown)}; its params are {', '.join(sorted(defaults)) or 'none'}"
+            )
+        body["params"] = params
     if args.cost:
         body["cost"] = dict(args.cost)
     if args.risk:
-        manifest = api.call("GET", f"/api/bots/{bot}")["manifest"]
         body["risk"] = {**dict.fromkeys(RISK_LIMITS), **manifest.get("risk", {}), **dict(args.risk)}
     run = api.call("POST", f"/api/bots/{bot}/backtests", body)
     print(f"run {run['id']} queued for {bot} {args.start}..{args.end}")

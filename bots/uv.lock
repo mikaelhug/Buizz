@@ -5,7 +5,7 @@ requires-python = ">=3.13"
 [[package]]
 name = "buizz"
 version = "0.1.0"
-source = { directory = "../sdk/python" }
+source = { editable = "../sdk/python" }
 dependencies = [
     { name = "msgspec" },
     { name = "numpy" },
@@ -45,7 +45,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "buizz", directory = "../sdk/python" },
+    { name = "buizz", editable = "../sdk/python" },
     { name = "hmmlearn", specifier = ">=0.3.3" },
     { name = "lightgbm", specifier = ">=4.6.0" },
     { name = "scikit-learn", specifier = ">=1.7.0" },
