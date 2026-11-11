@@ -871,6 +871,9 @@
           },
           "benchmark": {
             "$ref": "#/components/schemas/Symbol"
+          },
+          "risk": {
+            "$ref": "#/components/schemas/RiskLimits"
           }
         }
       },
@@ -2039,7 +2042,8 @@
               "null"
             ]
           }
-        }
+        },
+        "additionalProperties": false
       },
       "RunBadge": {
         "type": "string",

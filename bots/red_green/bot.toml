@@ -4,3 +4,7 @@ timeframe = "1d"
 wake = "bar"
 universe = { symbols = ["AAA", "BBB"] }
 params = { weight = 0.25 }
+
+[risk]
+max_position_weight = 0.3
+max_gross_exposure = 1.0

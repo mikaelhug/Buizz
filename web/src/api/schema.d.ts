@@ -361,6 +361,7 @@ export interface components {
             universe: components["schemas"]["UniverseSpec"];
             params?: Record<string, never>;
             benchmark?: components["schemas"]["Symbol"];
+            risk?: components["schemas"]["RiskLimits"];
         };
         /** @enum {string} */
         BotStatus: "idle" | "live" | "paused" | "backtesting" | "error";

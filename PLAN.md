@@ -119,11 +119,10 @@ Out of v1: brokers and real money; options, crypto, FX; tick/quote simulation; e
 3. Code review each module of Buizz (one review per crate, the SDK and the web app); fix confirmed findings.
    Known issues to fold into the reviews:
    - A repeated `client_id` is silently ignored, but `docs/protocol.md` says it is rejected and `RejectReason::DuplicateClientId` is never produced.
-   - Runs get no default risk limits, and the UI and CLI cannot set any; a drawdown breach in a backtest reads as a pause with reason `risk_limit`.
+   - The UI and CLI cannot override a bot's risk limits for one backtest; a drawdown breach in a backtest reads as a pause with reason `risk_limit`.
    - `buizz backtest` has no holdout option, and its per-symbol net shares ignore splits; metrics that are absent may print as `None`.
    - The ADV volume cap treats a missing average daily volume as zero, so the order never fills.
    - The spine has no health route; cluster probes need a cheap unauthenticated `/healthz`.
-   - Live runs can never have risk limits: `go_live` uses the spine defaults (none) and neither `bot.toml` nor the UI can set them, so the drawdown kill switch only works for API-started backtests. Needs a decision on where live risk limits are configured.
    - `result_hash` depends on decimal scale: `100000` and `100000.00` start cash give different hashes for identical runs.
    - A live run's SPY benchmark only extends on reload or status change.
 4. Implement the bot backlog in `bots/BRIEFS.md`, one Opus 5.5 agent per bot, each followed by a critical review of that implementation against its brief. Contract gaps (G1–G13) land as their own PRs before the bots they block.

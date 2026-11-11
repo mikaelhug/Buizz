@@ -204,6 +204,7 @@ impl CostModel {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
 pub struct RiskLimits {
     pub max_position_weight: Option<Decimal>,
     pub max_gross_exposure: Option<Decimal>,
@@ -440,6 +441,8 @@ pub struct BotManifest {
     pub params: Map<String, Value>,
     #[serde(default = "BotManifest::default_benchmark")]
     pub benchmark: Symbol,
+    #[serde(default)]
+    pub risk: RiskLimits,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -464,6 +467,19 @@ impl BotManifest {
         }
         if manifest.timeframe == Timeframe::Day && manifest.wake != Wake::Bar {
             return Err(ManifestError::Invalid("daily bots must use wake = \"bar\""));
+        }
+        let risk = manifest.risk;
+        let limits = [
+            risk.max_position_weight,
+            risk.max_gross_exposure,
+            risk.max_drawdown,
+        ];
+        if limits
+            .into_iter()
+            .flatten()
+            .any(|limit| limit <= Decimal::ZERO)
+        {
+            return Err(ManifestError::Invalid("risk limits must be positive"));
         }
         match &manifest.universe {
             UniverseSpec::Symbols { symbols } if symbols.is_empty() => {

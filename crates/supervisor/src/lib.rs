@@ -178,20 +178,10 @@ pub enum OutputStream {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ProcessEvent {
-    Started {
-        pid: u32,
-    },
-    Line {
-        stream: OutputStream,
-        line: String,
-    },
-    Exited {
-        code: Option<i32>,
-    },
-    Restarting {
-        attempt: u32,
-        delay: Duration,
-    },
+    Started { pid: u32 },
+    Line { stream: OutputStream, line: String },
+    Exited { code: Option<i32> },
+    Restarting { attempt: u32, delay: Duration },
 }
 
 pub struct BotProcess {

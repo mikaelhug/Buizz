@@ -13,8 +13,8 @@ use buizz_core::api::{RunSummary, SparkPoint, SpineEvent, StartBacktest};
 use buizz_core::market::{Instrument, Symbol, Timeframe};
 use buizz_core::ops::{CoverageGap, DataWarning};
 use buizz_core::run::{
-    CostModel, DesiredState, Mode, PeriodPreset, RiskLimits, RunBadge, RunConfig, RunEvent,
-    RunEventKind, RunId, RunStatus, UniverseSpec,
+    CostModel, DesiredState, Mode, PeriodPreset, RunBadge, RunConfig, RunEvent, RunEventKind,
+    RunId, RunStatus, UniverseSpec,
 };
 use buizz_core::time::Timestamp;
 use buizz_engine::ENGINE_VERSION;
@@ -73,7 +73,6 @@ pub struct RunnerConfig {
     pub bots_dir: PathBuf,
     pub start_cash: Decimal,
     pub cost: CostModel,
-    pub risk: RiskLimits,
 }
 
 pub struct RunnerDeps {
@@ -465,7 +464,7 @@ impl Runner {
             end,
             start_cash,
             cost: request.cost.unwrap_or(defaults.cost),
-            risk: request.risk.unwrap_or(defaults.risk),
+            risk: request.risk.unwrap_or(manifest.risk),
             seed,
             benchmark: manifest.benchmark.clone(),
             holdout,

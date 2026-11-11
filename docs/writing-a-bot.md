@@ -58,6 +58,7 @@ if __name__ == "__main__":
 | `universe` | yes | `{ symbols = ["SPY", "QQQ"] }` (not empty) or `{ top_dollar_volume = 500 }` (positive) |
 | `params` | no | Default parameters, available as `ctx.params` |
 | `benchmark` | no, default `"SPY"` | Symbol the equity curve is compared with |
+| `[risk]` | no | Risk limits for live runs and the default for backtests, see [Risk limits](#risk-limits) |
 
 The spine starts `command` with `BUIZZ_SPINE_URL`, `BUIZZ_RUN_ID` and `BUIZZ_RUN_TOKEN` set. Of the spine's own environment the bot only inherits `PATH`, `HOME`, `LANG`, `TZ`, `TMPDIR` and the `UV_*` and `PYTHON*` variables, so API keys and the admin password never reach it. Output on stdout and stderr is captured to `logs/<run_id>.log` under the spine's data directory (`BUIZZ_DATA_DIR`, default `data`).
 
@@ -147,7 +148,16 @@ Shorting is allowed for instruments flagged shortable.
 
 ## Risk limits
 
-A run can carry `max_position_weight`, `max_gross_exposure` and `max_drawdown` (fractions). None is set by default; they are set per run through the `risk` field of the backtest request of the HTTP API. An order that would grow a position past `max_position_weight`, or the book past `max_gross_exposure`, is rejected. Falling past `max_drawdown` from the peak equity records a risk breach and pauses the run with end reason `risk_limit`.
+A bot declares its limits in a `[risk]` section of `bot.toml`, each a positive fraction and each optional:
+
+```toml
+[risk]
+max_position_weight = 0.3
+max_gross_exposure = 1.0
+max_drawdown = 0.2
+```
+
+They apply to every live run and are the default for backtests; the `risk` field of a backtest request replaces them for that run. A run keeps the limits it started with: a live run captures them when it goes live, so after changing them stop the live run and go live again. An order that would grow a position past `max_position_weight`, or the book past `max_gross_exposure`, is rejected. Falling past `max_drawdown` from the peak equity records a risk breach and pauses the run with end reason `risk_limit`. Without a `[risk]` section a run has no limits.
 
 ## Holdout and honest data
 
