@@ -11,7 +11,7 @@ use buizz_core::market::{Feed, Symbol};
 use buizz_core::time::Timestamp;
 use buizz_sources::alpaca::AlpacaConfig;
 use buizz_sources::alpaca_stream::{SYMBOL_CAP, StreamConfig, StreamEvent, spawn};
-use chrono::{TimeDelta, Utc};
+use chrono::TimeDelta;
 use rust_decimal::Decimal;
 use serde_json::Value;
 use tokio::net::TcpListener;
@@ -111,7 +111,7 @@ async fn next(events: &mut Receiver<StreamEvent>) -> StreamEvent {
 }
 
 fn now() -> i64 {
-    Timestamp::from_datetime(Utc::now()).unwrap().nanos()
+    Timestamp::now().nanos()
 }
 
 #[tokio::test]
