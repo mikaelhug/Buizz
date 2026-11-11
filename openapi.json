@@ -1305,7 +1305,8 @@
         "required": [
           "run_id",
           "points",
-          "benchmark"
+          "benchmark",
+          "benchmark_metrics"
         ],
         "properties": {
           "run_id": {
@@ -1322,6 +1323,9 @@
             "items": {
               "$ref": "#/components/schemas/SparkPoint"
             }
+          },
+          "benchmark_metrics": {
+            "$ref": "#/components/schemas/Metrics"
           }
         }
       },
@@ -1532,7 +1536,8 @@
           "preset",
           "period",
           "cost",
-          "rows"
+          "rows",
+          "benchmarks"
         ],
         "properties": {
           "preset": {
@@ -1549,6 +1554,27 @@
             "items": {
               "$ref": "#/components/schemas/LeaderboardRow"
             }
+          },
+          "benchmarks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LeaderboardBenchmark"
+            }
+          }
+        }
+      },
+      "LeaderboardBenchmark": {
+        "type": "object",
+        "required": [
+          "symbol",
+          "metrics"
+        ],
+        "properties": {
+          "symbol": {
+            "$ref": "#/components/schemas/Symbol"
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/Metrics"
           }
         }
       },
@@ -1557,7 +1583,10 @@
         "required": [
           "bot",
           "run_id",
+          "params",
           "metrics",
+          "badges",
+          "trials",
           "finished_at"
         ],
         "properties": {
@@ -1567,8 +1596,22 @@
           "run_id": {
             "$ref": "#/components/schemas/RunId"
           },
+          "params": {
+            "type": "object"
+          },
           "metrics": {
             "$ref": "#/components/schemas/Metrics"
+          },
+          "badges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunBadge"
+            }
+          },
+          "trials": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
           },
           "finished_at": {
             "$ref": "#/components/schemas/Timestamp"

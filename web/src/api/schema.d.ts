@@ -485,6 +485,7 @@ export interface components {
             run_id: components["schemas"]["RunId"];
             points: components["schemas"]["EquityPoint"][];
             benchmark: components["schemas"]["SparkPoint"][];
+            benchmark_metrics: components["schemas"]["Metrics"];
         };
         EventsPage: {
             items: components["schemas"]["RunEvent"][];
@@ -535,11 +536,20 @@ export interface components {
             period: components["schemas"]["Period"];
             cost: components["schemas"]["CostModel"];
             rows: components["schemas"]["LeaderboardRow"][];
+            benchmarks: components["schemas"]["LeaderboardBenchmark"][];
+        };
+        LeaderboardBenchmark: {
+            symbol: components["schemas"]["Symbol"];
+            metrics: components["schemas"]["Metrics"];
         };
         LeaderboardRow: {
             bot: string;
             run_id: components["schemas"]["RunId"];
+            params: Record<string, never>;
             metrics: components["schemas"]["Metrics"];
+            badges: components["schemas"]["RunBadge"][];
+            /** Format: int32 */
+            trials: number;
             finished_at: components["schemas"]["Timestamp"];
         };
         /** @enum {string} */

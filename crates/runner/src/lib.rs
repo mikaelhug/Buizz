@@ -13,6 +13,7 @@ use buizz_core::api::{RunSummary, SparkPoint, SpineEvent, StartBacktest};
 use buizz_core::market::{Dataset, Instrument, StockIndex, Symbol, Timeframe};
 use buizz_core::money::CASH_DECIMALS;
 use buizz_core::ops::{CoverageGap, DataWarning};
+use buizz_core::performance::Metrics;
 use buizz_core::run::{
     CostModel, DesiredState, Mode, PeriodPreset, RunBadge, RunConfig, RunEvent, RunEventKind,
     RunId, RunStatus, UniverseSpec,
@@ -386,6 +387,14 @@ impl Runner {
 
     pub async fn benchmark(&self, run: &RunSummary) -> Result<Vec<SparkPoint>, RunnerError> {
         report::benchmark(&self.inner.market, run, now().exchange_date()).await
+    }
+
+    pub async fn benchmark_metrics(
+        &self,
+        run: &RunSummary,
+        benchmark: &[SparkPoint],
+    ) -> Result<Metrics, RunnerError> {
+        report::benchmark_metrics(&self.inner.market, run, benchmark).await
     }
 
     pub async fn shutdown(&self) {

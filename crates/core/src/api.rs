@@ -82,6 +82,7 @@ pub struct EquitySeries {
     pub run_id: RunId,
     pub points: Vec<EquityPoint>,
     pub benchmark: Vec<SparkPoint>,
+    pub benchmark_metrics: Metrics,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -139,8 +140,18 @@ pub struct StartBacktest {
 pub struct LeaderboardRow {
     pub bot: String,
     pub run_id: RunId,
+    #[schema(value_type = Object)]
+    pub params: Map<String, Value>,
     pub metrics: Metrics,
+    pub badges: Vec<RunBadge>,
+    pub trials: u32,
     pub finished_at: Timestamp,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct LeaderboardBenchmark {
+    pub symbol: Symbol,
+    pub metrics: Metrics,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -149,6 +160,7 @@ pub struct Leaderboard {
     pub period: Period,
     pub cost: CostModel,
     pub rows: Vec<LeaderboardRow>,
+    pub benchmarks: Vec<LeaderboardBenchmark>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
