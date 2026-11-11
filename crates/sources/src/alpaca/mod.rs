@@ -229,7 +229,9 @@ fn sum_dividends_per_ex_date(actions: Vec<CorporateAction>) -> Vec<CorporateActi
     for action in actions {
         match action.kind {
             CorporateActionKind::CashDividend { rate } => {
-                *dividends.entry((action.symbol, action.ex_date)).or_default() += rate;
+                *dividends
+                    .entry((action.symbol, action.ex_date))
+                    .or_default() += rate;
             }
             CorporateActionKind::Split { .. } => merged.push(action),
         }

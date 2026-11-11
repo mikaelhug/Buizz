@@ -2,8 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use buizz_core::market::{
     Adjustment, AdjustmentFactor, Bar, Calendar, CorporateAction, CorporateActionKind, Coverage,
-    DataSource, Dataset, Feed, FundamentalMetric, FundamentalPoint, Instrument,
-    RiskFreeRate, SIP_DELAY, Session, Symbol, Timeframe,
+    DataSource, Dataset, Feed, FundamentalMetric, FundamentalPoint, Instrument, RiskFreeRate,
+    SIP_DELAY, Session, Symbol, Timeframe,
 };
 use buizz_core::ops::{CoverageGap, DataWarning, UNEXPLAINED_MOVE_THRESHOLD};
 use buizz_core::protocol::BarRow;
@@ -438,13 +438,20 @@ pub(crate) fn fundamentals(
         })?
         .collect::<duckdb::Result<Vec<_>>>()?;
     points.sort_by(|a, b| {
-        (&a.symbol, a.metric, a.period_end, a.period_type, a.period_start).cmp(&(
-            &b.symbol,
-            b.metric,
-            b.period_end,
-            b.period_type,
-            b.period_start,
-        ))
+        (
+            &a.symbol,
+            a.metric,
+            a.period_end,
+            a.period_type,
+            a.period_start,
+        )
+            .cmp(&(
+                &b.symbol,
+                b.metric,
+                b.period_end,
+                b.period_type,
+                b.period_start,
+            ))
     });
     Ok(points)
 }

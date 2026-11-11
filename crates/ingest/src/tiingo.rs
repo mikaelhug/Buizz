@@ -19,10 +19,7 @@ impl Ingest {
         let Some(tiingo) = &self.sources.tiingo else {
             return Ok(Work::unconfigured("Tiingo"));
         };
-        if let Some(work) = self
-            .backoff_work(now, DataSource::Tiingo)
-            .await?
-        {
+        if let Some(work) = self.backoff_work(now, DataSource::Tiingo).await? {
             return Ok(work);
         }
         let history_start = self.config.history_start;

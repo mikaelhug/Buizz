@@ -24,10 +24,7 @@ impl Ingest {
             None,
             Some((from, to)),
         );
-        if let Some(work) = self
-            .backoff_work(now, DataSource::Alpaca)
-            .await?
-        {
+        if let Some(work) = self.backoff_work(now, DataSource::Alpaca).await? {
             return Ok(work);
         }
         let sessions = match alpaca.calendar(from, to).await {
@@ -64,10 +61,7 @@ impl Ingest {
             return Ok(Work::unconfigured("Alpaca"));
         };
         let key = FetchKey::new(DataSource::Alpaca, Dataset::Instruments, None, None);
-        if let Some(work) = self
-            .backoff_work(now, DataSource::Alpaca)
-            .await?
-        {
+        if let Some(work) = self.backoff_work(now, DataSource::Alpaca).await? {
             return Ok(work);
         }
         let mut assets = match alpaca.assets().await {
@@ -113,10 +107,7 @@ impl Ingest {
     }
 
     pub(crate) async fn rates(&self, now: Timestamp) -> Result<Work, IngestError> {
-        if let Some(work) = self
-            .backoff_work(now, DataSource::Treasury)
-            .await?
-        {
+        if let Some(work) = self.backoff_work(now, DataSource::Treasury).await? {
             return Ok(work);
         }
         let treasury = &self.sources.treasury;

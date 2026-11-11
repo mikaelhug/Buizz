@@ -75,9 +75,9 @@ mod tests {
         let failed = lane.run(|_| -> Result<()> { panic!("boom") }).await;
         assert!(matches!(failed, Err(MarketError::Panicked(message)) if message == "boom"));
         let answer = lane
-            .run(|connection| {
-                Ok(connection.query_row("SELECT 42", [], |row| row.get::<_, i64>(0))?)
-            })
+            .run(
+                |connection| Ok(connection.query_row("SELECT 42", [], |row| row.get::<_, i64>(0))?),
+            )
             .await;
         assert_eq!(answer.unwrap(), 42);
     }

@@ -30,7 +30,9 @@ impl Ingest {
         let sip_delay = TimeDelta::from_std(SIP_DELAY).expect("the SIP delay fits a time delta");
         let settled = now - sip_delay - SETTLE_MARGIN;
         let sessions = calendar.sessions();
-        let Some(target_index) = sessions.iter().rposition(|session| session.close <= settled)
+        let Some(target_index) = sessions
+            .iter()
+            .rposition(|session| session.close <= settled)
         else {
             return Ok(Work::noop("no settled session in the calendar"));
         };

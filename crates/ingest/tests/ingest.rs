@@ -348,7 +348,12 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
         .await
         .unwrap()
         .into_iter()
-        .map(|instrument| (instrument.symbol.as_str().to_owned(), instrument.asset_class))
+        .map(|instrument| {
+            (
+                instrument.symbol.as_str().to_owned(),
+                instrument.asset_class,
+            )
+        })
         .collect();
     assert_eq!(
         classes,

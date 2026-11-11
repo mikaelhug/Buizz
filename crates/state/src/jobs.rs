@@ -111,7 +111,10 @@ fn retry_after(fetch: &SourceFetch) -> Option<Timestamp> {
         })
 }
 
-pub fn rate_limited_until(connection: &Connection, source: DataSource) -> Result<Option<Timestamp>> {
+pub fn rate_limited_until(
+    connection: &Connection,
+    source: DataSource,
+) -> Result<Option<Timestamp>> {
     let until: Option<i64> = connection.query_row(
         "SELECT MAX(retry_after) FROM source_fetch WHERE source = ? AND status = 'rate_limited'",
         [enum_text(&source)?],
