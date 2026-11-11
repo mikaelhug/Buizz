@@ -270,6 +270,7 @@ impl LiveProcess {
     }
 
     pub async fn stop(mut self) -> Result<(), SupervisorError> {
+        self.events.close();
         if let Some(stop) = self.stop.take() {
             let _ = stop.send(());
         }

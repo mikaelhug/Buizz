@@ -112,3 +112,30 @@ async fn process_groups_logs_and_restarts() {
     assert_eq!(restarts, expected);
     live.stop().await.unwrap();
 }
+
+#[tokio::test]
+async fn stopping_a_chatty_live_bot_nobody_reads_returns() {
+    let temp = tempfile::tempdir().unwrap();
+    let bots = temp.path().join("bots");
+    let chatty = write_bot(
+        &bots,
+        "chatty",
+        "i=0\nwhile [ $i -lt 3000 ]; do echo line $i; i=$((i+1)); done\nexec sleep 300\n",
+    );
+    let supervisor = Supervisor::new(SupervisorConfig {
+        spine_url: "ws://127.0.0.1:1".into(),
+        max_parallel_backtests: 1,
+        restart_delay: Duration::from_millis(10),
+        kill_grace: Duration::from_secs(2),
+    });
+    let live = supervisor.keep_alive(Launch {
+        run_id: RunId(3),
+        token: "secret".into(),
+        bot: chatty,
+    });
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    tokio::time::timeout(Duration::from_secs(10), live.stop())
+        .await
+        .expect("stop returns while the event queue is full")
+        .unwrap();
+}
