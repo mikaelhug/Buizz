@@ -187,6 +187,11 @@ def history_bars(bars: object) -> int:
     return count
 
 
+def signed_remaining(order: WorkingOrder) -> int:
+    remaining = order.qty - order.filled_qty
+    return remaining if order.side == "buy" else -remaining
+
+
 def check_state(value: object, path: str) -> None:
     kind = type(value)
     if kind is dict:
@@ -541,19 +546,28 @@ class Context:
         reasons = {} if reason is None else dict.fromkeys(targets, reason) if isinstance(reason, str) else dict(reason)
         if missing := sorted(targets.keys() - reasons.keys()):
             raise ValueError(f"rebalance needs a reason for {missing}")
-        held = dict.fromkeys(symbol for symbol, position in self._positions.items() if position.qty != 0)
+        projected = {symbol: position.qty for symbol, position in self._positions.items() if position.qty != 0}
         if self._cancels_wait_for_close:
-            held |= dict.fromkeys(
-                order.symbol for order in self._working if not isinstance(order.order_type, Stop | TrailingStop)
-            )
+            for order in self._working:
+                if not isinstance(order.order_type, Stop | TrailingStop):
+                    projected[order.symbol] = projected.get(order.symbol, 0) + signed_remaining(order)
         for order in self._working:
             self.cancel(order.client_id)
-        for symbol, weight in targets.items():
-            if weight != 0 or symbol in held:
-                self.order_target_weight(symbol, weight, reason=reasons[symbol], at=at)
-        for symbol in held:
-            if symbol not in targets:
-                self.order_target_weight(symbol, 0, reason=exit_reason, at=at)
+        goals = targets | {symbol: Decimal(0) for symbol in projected if symbol not in targets}
+        closes = self._last_closes([symbol for symbol, weight in goals.items() if weight != 0])
+        changes: list[tuple[bool, str, Decimal]] = []
+        for symbol, weight in goals.items():
+            if weight != 0 and symbol not in closes:
+                self.log(f"rebalance skipped {symbol}: no price seen yet for a weight of {weight}", level="warn")
+                continue
+            held = projected.get(symbol, 0)
+            target = 0 if weight == 0 else int(weight * self._equity / closes[symbol])
+            if target != held:
+                changes.append((abs(target) > abs(held), symbol, weight))
+        for _, symbol, weight in sorted(changes, key=lambda change: change[0]):
+            self.order_target_weight(
+                symbol, weight, reason=reasons[symbol] if symbol in targets else exit_reason, at=at
+            )
 
     def cancel(self, client_id: str) -> None:
         self._current("ctx.cancel")
@@ -601,6 +615,13 @@ class Context:
             raise StateTooLarge(len(encoded), STATE_LIMIT)
         self._persisted = encoded
         return encoded
+
+    def _last_closes(self, symbols: list[str]) -> dict[str, Decimal]:
+        closes = {symbol: self.bars[symbol].close for symbol in symbols if symbol in self.bars}
+        if missing := [symbol for symbol in symbols if symbol not in closes]:
+            history = self.history(missing, self._timeframe)
+            closes |= {symbol: float(bars.close[-1]) for symbol, bars in history.items() if len(bars.close)}
+        return {symbol: Decimal(repr(close)) for symbol, close in closes.items() if math.isfinite(close) and close > 0}
 
     def _submit(
         self,
