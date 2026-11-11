@@ -1267,6 +1267,12 @@
           "connected": {
             "type": "boolean"
           },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "holders": {
             "type": "array",
             "items": {

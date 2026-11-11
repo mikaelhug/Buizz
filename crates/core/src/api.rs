@@ -174,6 +174,7 @@ pub struct FeedSlots {
     pub cap: u32,
     pub used: u32,
     pub connected: bool,
+    pub error: Option<String>,
     pub holders: Vec<FeedHolder>,
 }
 

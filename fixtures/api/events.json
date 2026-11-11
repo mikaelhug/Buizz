@@ -72,6 +72,7 @@
       "cap": 30,
       "used": 22,
       "connected": true,
+      "error": null,
       "holders": [
         {
           "run_id": 42,
