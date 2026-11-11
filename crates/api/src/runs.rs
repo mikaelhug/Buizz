@@ -30,6 +30,7 @@ const MAX_PAGE: u32 = 1000;
 const LEADERBOARD_RUNS: u32 = 1000;
 const LOG_DIR: &str = "data/logs";
 const LOG_TAIL_BYTES: u64 = 256 * 1024;
+const WEIGHT_DECIMALS: u32 = 4;
 
 async fn require_run(app: &AppState, id: RunId) -> Result<RunSummary, Failure> {
     app.state
@@ -237,7 +238,7 @@ pub(crate) async fn run_positions(
                 weight: if equity.is_zero() {
                     Decimal::ZERO
                 } else {
-                    market_value / equity
+                    (market_value / equity).round_dp(WEIGHT_DECIMALS)
                 },
             }
         })

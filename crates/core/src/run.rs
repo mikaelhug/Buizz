@@ -348,8 +348,11 @@ impl PeriodPreset {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct EquityPoint {
     pub at: Timestamp,
+    #[serde(with = "crate::money::cash")]
     pub equity: Decimal,
+    #[serde(with = "crate::money::cash")]
     pub cash: Decimal,
+    #[serde(with = "crate::money::cash")]
     pub gross_exposure: Decimal,
 }
 
