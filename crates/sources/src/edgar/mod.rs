@@ -1,9 +1,16 @@
 use std::collections::BTreeMap;
 use std::time::Duration;
 
-use buizz_core::market::{Calendar, FundamentalFact, FundamentalMetric, Symbol};
+use buizz_core::market::{Calendar, FundamentalFact, Symbol};
+use serde::Deserialize;
 
-use crate::http::{RateLimit, SourceError};
+use crate::http::{HttpClient, RateLimit, SourceError};
+
+mod concepts;
+mod normalize;
+
+pub use concepts::metric_for;
+pub use normalize::normalize_company_facts;
 
 pub const DATA_URL: &str = "https://data.sec.gov";
 pub const WWW_URL: &str = "https://www.sec.gov";
@@ -40,35 +47,51 @@ pub enum UnitKind {
 }
 
 #[derive(Clone)]
-pub struct EdgarClient {}
+pub struct EdgarClient {
+    http: HttpClient,
+    data_url: String,
+    www_url: String,
+}
+
+#[derive(Deserialize)]
+struct TickerEntry {
+    cik_str: u32,
+    ticker: String,
+}
 
 impl EdgarClient {
-    pub fn new(_config: EdgarConfig) -> Result<Self, SourceError> {
-        unimplemented!()
+    pub fn new(config: EdgarConfig) -> Result<Self, SourceError> {
+        Ok(Self {
+            http: HttpClient::new(&config.user_agent, RATE_LIMIT)?,
+            data_url: config.data_url.trim_end_matches('/').to_owned(),
+            www_url: config.www_url.trim_end_matches('/').to_owned(),
+        })
     }
 
     pub async fn ticker_map(&self) -> Result<BTreeMap<Symbol, u32>, SourceError> {
-        unimplemented!()
+        let url = format!("{}/files/company_tickers.json", self.www_url);
+        let body = self.fetch(url).await?;
+        let entries: BTreeMap<String, TickerEntry> = serde_json::from_slice(&body)
+            .map_err(|error| SourceError::Decode(error.to_string()))?;
+        Ok(entries
+            .into_values()
+            .map(|entry| (Symbol::new(&entry.ticker), entry.cik_str))
+            .collect())
     }
 
     pub async fn company_facts(
         &self,
-        _symbol: &Symbol,
-        _cik: u32,
-        _calendar: &Calendar,
+        symbol: &Symbol,
+        cik: u32,
+        calendar: &Calendar,
     ) -> Result<Vec<FundamentalFact>, SourceError> {
-        unimplemented!()
+        let url = format!("{}/api/xbrl/companyfacts/CIK{cik:010}.json", self.data_url);
+        let body = self.fetch(url).await?;
+        normalize_company_facts(symbol, &body, calendar)
     }
-}
 
-pub fn normalize_company_facts(
-    _symbol: &Symbol,
-    _payload: &[u8],
-    _calendar: &Calendar,
-) -> Result<Vec<FundamentalFact>, SourceError> {
-    unimplemented!()
-}
-
-pub fn metric_for(_taxonomy: &str, _concept: &str) -> Option<(FundamentalMetric, UnitKind)> {
-    unimplemented!()
+    async fn fetch(&self, url: String) -> Result<Vec<u8>, SourceError> {
+        let response = self.http.send(self.http.client().get(url)).await?;
+        Ok(response.bytes().await?.to_vec())
+    }
 }
