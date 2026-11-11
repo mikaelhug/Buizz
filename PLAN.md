@@ -88,9 +88,9 @@ Known parity gap, stated honestly: live minute bars are IEX (partial volume), ba
 
 ## UI
 
-- Bot grid: one card per bot with status, equity sparkline, Live/Pause; hover shows key stats.
-- Bot detail: equity vs SPY, metrics, orders with reasons, positions, logs, run history, "Backtest" with period presets or a custom range.
-- Leaderboard: bots compared on the same preset period and cost model only.
+- Bot grid: one card per bot with status, equity sparkline, Live/Pause; hover shows key stats; filter by status and name, sort by status, name or last run.
+- Bot detail: equity vs SPY with an underwater (drawdown) pane, metrics beside the benchmark's, monthly returns, orders with reasons, positions, logs, run history, "Backtest" with period presets or a custom range.
+- Leaderboard: bots compared on the same preset period and cost model only, ranked against the benchmark's buy and hold over that period. Runs ended by the drawdown stop stay on it. Each row shows its trial count (completed backtests of that bot) and its badges; trade statistics from fewer than 30 trades are greyed, and Sharpe carries its standard error on hover.
 - Data health: job runs, staleness, coverage, feed slots (e.g. 22/30).
 - Single admin login (password → HttpOnly session cookie).
 

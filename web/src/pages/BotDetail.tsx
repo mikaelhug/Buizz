@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api, errorMessage, must, type Schemas } from "../api/client";
 import { useSpineEvents } from "../api/stream";
-import { fmt } from "../lib/format";
+import { fmt, paramsText } from "../lib/format";
 import { href, navigate } from "../lib/route";
 import { PAGE_SIZE, type Paged, usePaged } from "../lib/usePaged";
 import { useResource } from "../lib/useResource";
@@ -55,7 +55,6 @@ export function BotDetail({ name, runId }: { name: string; runId: number | undef
         )}
         <span className="detail-desc muted">{summary.description}</span>
         <span className="detail-actions">
-          <span className="num detail-equity">{fmt.money(summary.equity)}</span>
           <BotActions
             bot={summary}
             onChanged={(run) => {
@@ -111,6 +110,8 @@ function RunHistory({ history, selected, name, onCancelled }: HistoryProps) {
     }
   };
 
+  const varied = new Set(history.data?.items.map((run) => paramsText(run.config.params))).size > 1;
+
   return (
     <section className="panel">
       <h2>Runs</h2>
@@ -128,6 +129,7 @@ function RunHistory({ history, selected, name, onCancelled }: HistoryProps) {
                 <th>Mode</th>
                 <th>Status</th>
                 <th>Period</th>
+                {varied && <th>Params</th>}
                 <th className="r">Return</th>
                 <th className="r">Sharpe</th>
                 <th className="r">Max DD</th>
@@ -148,6 +150,7 @@ function RunHistory({ history, selected, name, onCancelled }: HistoryProps) {
                     <StatusPill status={run.status} />
                   </td>
                   <td className="nowrap">{period(run)}</td>
+                  {varied && <td className="mono nowrap">{paramsText(run.config.params)}</td>}
                   <td className="r">
                     <MetricValue metrics={run.metrics} metric="total_return" />
                   </td>
@@ -159,7 +162,7 @@ function RunHistory({ history, selected, name, onCancelled }: HistoryProps) {
                   </td>
                   <td className="nowrap muted">{fmt.local(run.created_at)}</td>
                   <td className="badges">
-                    <RunBadges run={run} />
+                    <RunBadges badges={run.badges} />
                     {run.mode === "backtest" && (run.status === "queued" || run.status === "starting" || run.status === "running") && (
                       <button type="button" className="btn btn-xs btn-ghost" onClick={() => void cancel(run)}>
                         Cancel

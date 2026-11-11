@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, must, mustSucceed, type Schemas } from "../api/client";
 import { useSpineEvents } from "../api/stream";
-import { ABSENT, fmt, label, tone } from "../lib/format";
+import { ABSENT, fmt, label, paramsText, tone } from "../lib/format";
 import { appendPoints } from "../lib/series";
 import { useFrameBatch } from "../lib/useFrameBatch";
 import { PAGE_SIZE, type Paged, usePaged } from "../lib/usePaged";
@@ -9,6 +9,7 @@ import { type Resource, useResource } from "../lib/useResource";
 import { EquityChart } from "../ui/EquityChart";
 import { Failure, LoadMore, Loading, StaleFailure } from "../ui/Feedback";
 import { MetricGrid } from "../ui/Metrics";
+import { MonthlyReturns } from "../ui/MonthlyReturns";
 import { RunBadges, StatusPill } from "../ui/Status";
 
 type Run = Schemas["RunSummary"];
@@ -98,8 +99,11 @@ export function RunView({ runId }: { runId: number }) {
         )}
       </section>
       <section className="panel">
-        <MetricGrid metrics={run.data.metrics} />
+        <MetricGrid metrics={run.data.metrics} benchmark={curve.data && { symbol: run.data.config.benchmark, metrics: curve.data.benchmark_metrics }} />
       </section>
+      {curve.data && (
+        <MonthlyReturns points={curve.data.points} benchmark={curve.data.benchmark} benchmarkSymbol={run.data.config.benchmark} startCash={run.data.config.start_cash} />
+      )}
       <div className="split split-wide">
         <Positions positions={positions} />
         <Events events={events} />
@@ -153,9 +157,7 @@ function reproTitle(run: Run): string | undefined {
 }
 
 function RunHeader({ run }: { run: Run }) {
-  const params = Object.entries(run.config.params)
-    .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
-    .join(" ");
+  const params = paramsText(run.config.params);
   return (
     <section className="run-head">
       <h2 className="help" title={reproTitle(run)}>
@@ -163,7 +165,7 @@ function RunHeader({ run }: { run: Run }) {
       </h2>
       <span className="muted">{run.mode}</span>
       <StatusPill status={run.status} />
-      <RunBadges run={run} />
+      <RunBadges badges={run.badges} />
       {run.message && <span className="run-message">{run.message}</span>}
       <dl className="facts">
         <div>

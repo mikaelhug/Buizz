@@ -801,11 +801,6 @@ h2 {
   margin-left: auto;
 }
 
-.detail-equity {
-  font-size: 16px;
-  font-weight: 600;
-}
-
 .run-head {
   display: flex;
   flex-wrap: wrap;
@@ -865,7 +860,7 @@ h2 {
 }
 
 .equity-chart {
-  height: 300px;
+  height: 420px;
 }
 
 .chart-empty {
@@ -889,6 +884,23 @@ h2 {
 .metric dd {
   margin: 0;
   font-size: 15px;
+  font-weight: 600;
+}
+
+.metric-bench {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.table.monthly td,
+.table.monthly th {
+  padding: 4px 6px;
+}
+
+.table.monthly td.year {
   font-weight: 600;
 }
 
@@ -1212,15 +1224,46 @@ h2 {
 
   .detail-actions {
     width: 100%;
+    justify-content: flex-end;
     margin-left: 0;
   }
 
-  .detail-equity {
-    margin-right: auto;
+  .equity-chart {
+    height: 320px;
   }
 
-  .equity-chart,
   .chart-empty {
     height: 220px;
   }
+}
+
+.page-filter {
+  width: 180px;
+  margin-left: auto;
+}
+
+.sticky-name th:nth-child(2),
+.sticky-name td:nth-child(2) {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--surface);
+}
+
+.sticky-name tbody tr:hover td:nth-child(2) {
+  background: var(--surface-2);
+}
+
+.table td.thin {
+  color: var(--muted);
+}
+
+.table td.thin .num {
+  color: inherit;
+}
+
+.table tr.benchmark-row td {
+  background: var(--surface-2);
+  color: var(--muted);
+  font-style: italic;
 }

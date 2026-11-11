@@ -1,6 +1,7 @@
+import { useState } from "react";
 import { api, must, type Schemas } from "../api/client";
 import { type SpineEvent, useSpineEvents } from "../api/stream";
-import { fmt } from "../lib/format";
+import { fmt, label } from "../lib/format";
 import { href } from "../lib/route";
 import { appendPoints } from "../lib/series";
 import { useFrameBatch } from "../lib/useFrameBatch";
@@ -15,6 +16,20 @@ type Bot = Schemas["BotSummary"];
 type EquityEvent = Extract<SpineEvent, { type: "equity" }>;
 
 const SPARKLINE_CAP = 120;
+
+type StatusFilter = "all" | Bot["status"];
+type Order = "attention" | "name" | "recent";
+
+const STATUS_FILTERS: readonly StatusFilter[] = ["all", "error", "live", "paused", "backtesting", "idle"];
+const ATTENTION: Record<Bot["status"], number> = { error: 0, live: 1, paused: 2, backtesting: 3, idle: 4 };
+
+const byName = (a: Bot, b: Bot) => a.name.localeCompare(b.name);
+
+const ORDERS: Record<Order, { text: string; compare: (a: Bot, b: Bot) => number }> = {
+  attention: { text: "Status", compare: (a, b) => ATTENTION[a.status] - ATTENTION[b.status] || byName(a, b) },
+  name: { text: "Name", compare: byName },
+  recent: { text: "Last run", compare: (a, b) => (b.last_run_at ?? "").localeCompare(a.last_run_at ?? "") || byName(a, b) },
+};
 
 function rebucket<P>(points: P[]): P[] {
   return points.length <= SPARKLINE_CAP ? points : points.filter((_, index) => index % 2 === 0 || index === points.length - 1);
@@ -48,20 +63,53 @@ export function BotGrid() {
     }
   });
 
+  const [filter, setFilter] = useState("");
+  const [status, setStatus] = useState<StatusFilter>("all");
+  const [order, setOrder] = useState<Order>("attention");
+
   if (!bots.data) {
     return bots.error ? <Failure message={bots.error} onRetry={bots.reload} /> : <Loading />;
   }
   if (bots.data.length === 0) {
     return <p className="empty">No bots in bots/</p>;
   }
+  const counts = new Map<StatusFilter, number>([["all", bots.data.length]]);
+  for (const bot of bots.data) {
+    counts.set(bot.status, (counts.get(bot.status) ?? 0) + 1);
+  }
+  const query = filter.trim().toLowerCase();
+  const shown = bots.data
+    .filter((bot) => (status === "all" || bot.status === status) && bot.name.toLowerCase().includes(query))
+    .toSorted(ORDERS[order].compare);
   return (
     <>
+      <header className="page-head">
+        <div className="segmented segmented-sm" role="radiogroup" aria-label="Status">
+          {STATUS_FILTERS.filter((option) => counts.has(option)).map((option) => (
+            <button key={option} type="button" role="radio" aria-checked={status === option} className={status === option ? "active" : undefined} onClick={() => setStatus(option)}>
+              {label(option)} {counts.get(option)}
+            </button>
+          ))}
+        </div>
+        <select className="input input-sm" aria-label="Sort" value={order} onChange={(event) => setOrder(event.target.value as Order)}>
+          {(Object.keys(ORDERS) as Order[]).map((option) => (
+            <option key={option} value={option}>
+              {ORDERS[option].text}
+            </option>
+          ))}
+        </select>
+        <input className="input input-sm page-filter" type="search" placeholder="Filter bots" aria-label="Filter bots" value={filter} onChange={(event) => setFilter(event.target.value)} />
+      </header>
       <StaleFailure resource={bots} />
-      <section className="bot-grid">
-      {bots.data.map((bot) => (
-        <BotCard key={bot.name} bot={bot} onChanged={bots.reload} />
-        ))}
-      </section>
+      {shown.length === 0 ? (
+        <p className="empty">No matching bots</p>
+      ) : (
+        <section className="bot-grid">
+          {shown.map((bot) => (
+            <BotCard key={bot.name} bot={bot} onChanged={bots.reload} />
+          ))}
+        </section>
+      )}
     </>
   );
 }
