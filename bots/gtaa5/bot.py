@@ -1,7 +1,8 @@
-from datetime import date, timedelta
+from datetime import date
 
 import numpy as np
 import numpy.typing as npt
+from buizz_bots.sessions import last_session_of_month
 
 from buizz import Bot, Context, History, run
 
@@ -18,9 +19,9 @@ def month_end_closes(history: History, today: date) -> npt.NDArray[np.float64]:
 
 class Gtaa5(Bot):
     def on_step(self, ctx: Context) -> None:
-        today = ctx.session.date
-        if ctx.calendar(today, today + timedelta(days=10))[1].date.month == today.month:
+        if not last_session_of_month(ctx):
             return
+        today = ctx.session.date
         assets: list[str] = ctx.params["assets"]
         cash: str = ctx.params["cash"]
         months = int(ctx.params["sma_months"])
@@ -40,13 +41,8 @@ class Gtaa5(Bot):
         timed_out = [asset for asset in assets if targets[asset] == 0]
         targets[cash] = sleeve * len(timed_out)
         reasons[cash] = f"cash for {len(timed_out)} of {len(assets)} sleeves: {', '.join(timed_out) or 'none'}"
-        book = float(ctx.portfolio.equity)
-        weights = {
-            symbol: position.qty * ctx.bars[symbol].close / book for symbol, position in ctx.portfolio.positions.items()
-        }
-        sells_first = sorted(targets, key=lambda symbol: weights.get(symbol, 0.0) - targets[symbol], reverse=True)
         ctx.rebalance(
-            {symbol: targets[symbol] for symbol in sells_first},
+            targets,
             reason=reasons,
             exit_reason="not one of the five sleeves or cash",
         )

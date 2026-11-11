@@ -103,16 +103,11 @@ class HrpAllocation(Bot):
         targets = dict.fromkeys(symbols, 0.0) | {
             symbol: float(scale * weight) for symbol, weight in zip(eligible, weights, strict=True)
         }
-        equity = float(ctx.portfolio.equity)
-        held = {
-            symbol: ctx.position(symbol).qty * history[symbol].close[-1] / equity if ctx.position(symbol).qty else 0.0
-            for symbol in symbols
-        }
         levered = f", levered x{scale:.2f} to {target_vol:.0%} ex-ante volatility" if target_vol > 0 else ""
         window = f"{lookback}-session window to {ctx.session.date}"
         why = {symbol: f"{reason}{levered}, {window}" for symbol, reason in zip(eligible, reasons, strict=True)}
         ctx.rebalance(
-            {symbol: targets[symbol] for symbol in sorted(symbols, key=lambda s: held[s] - targets[s], reverse=True)},
+            targets,
             reason={symbol: why.get(symbol, f"no full {window}") for symbol in symbols},
             exit_reason="not part of the cross-asset set",
         )
