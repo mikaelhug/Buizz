@@ -2,7 +2,8 @@ import { useState } from "react";
 import { api, must, type Schemas } from "../api/client";
 import { useSpineEvents } from "../api/stream";
 import { ABSENT, fmt, label, tone } from "../lib/format";
-import { appendPoint } from "../lib/series";
+import { appendPoints } from "../lib/series";
+import { useFrameBatch } from "../lib/useFrameBatch";
 import { PAGE_SIZE, type Paged, usePaged } from "../lib/usePaged";
 import { type Resource, useResource } from "../lib/useResource";
 import { EquityChart } from "../ui/EquityChart";
@@ -12,7 +13,7 @@ import { RunBadges, StatusPill } from "../ui/Status";
 
 type Run = Schemas["RunSummary"];
 type SparkPoint = Schemas["SparkPoint"];
-type Curve = { points: SparkPoint[]; benchmark: SparkPoint[] };
+type Curve = Omit<Schemas["EquitySeries"], "points"> & { points: SparkPoint[] };
 
 export function RunView({ runId }: { runId: number }) {
   const path = { params: { path: { id: runId } } };
@@ -28,6 +29,15 @@ export function RunView({ runId }: { runId: number }) {
     [runId],
   );
 
+  const appendEquity = useFrameBatch<SparkPoint>((points) => {
+    const last = points.at(-1);
+    if (!last) {
+      return;
+    }
+    curve.mutate((current) => ({ ...current, points: appendPoints(current.points, points) }));
+    run.mutate((current) => ({ ...current, equity: last.equity, clock: last.at }));
+  });
+
   useSpineEvents((event) => {
     if (!("run_id" in event) || event.run_id !== runId) {
       return;
@@ -37,12 +47,9 @@ export function RunView({ runId }: { runId: number }) {
         run.reload();
         curve.reload();
         break;
-      case "equity": {
-        const point = { at: event.at, equity: event.equity };
-        curve.mutate((current) => ({ ...current, points: appendPoint(current.points, point) }));
-        run.mutate((current) => ({ ...current, equity: event.equity, clock: event.at }));
+      case "equity":
+        appendEquity({ at: event.at, equity: event.equity });
         break;
-      }
       case "order":
       case "fill":
         orders.reload();

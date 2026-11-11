@@ -2,7 +2,7 @@ import { api, must, type Schemas } from "../api/client";
 import { useSpineEvents } from "../api/stream";
 import { fmt } from "../lib/format";
 import { href } from "../lib/route";
-import { appendPoint } from "../lib/series";
+import { appendPoints } from "../lib/series";
 import { useResource } from "../lib/useResource";
 import { Failure, Loading } from "../ui/Feedback";
 import { HOVER_METRICS, METRICS, MetricValue } from "../ui/Metrics";
@@ -22,7 +22,7 @@ export function BotGrid() {
       const point = { at: event.at, equity: event.equity };
       bots.mutate((current) =>
         current.map((bot) =>
-          bot.live_run === event.run_id ? { ...bot, equity: event.equity, sparkline: appendPoint(bot.sparkline, point) } : bot,
+          bot.live_run === event.run_id ? { ...bot, equity: event.equity, sparkline: appendPoints(bot.sparkline, [point]) } : bot,
         ),
       );
     }

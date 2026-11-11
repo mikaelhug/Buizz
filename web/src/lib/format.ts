@@ -30,10 +30,25 @@ const exchangeParts = new Intl.DateTimeFormat("en-US", {
   second: "numeric",
 });
 
-export function exchangeWallSeconds(at: string): number {
-  const parts = exchangeParts.formatToParts(new Date(at));
+const HOUR_MS = 3_600_000;
+const exchangeOffsets = new Map<number, number>();
+
+function exchangeOffsetSeconds(hour: number): number {
+  const cached = exchangeOffsets.get(hour);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const parts = exchangeParts.formatToParts(new Date(hour * HOUR_MS));
   const part = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((candidate) => candidate.type === type)?.value);
-  return Date.UTC(part("year"), part("month") - 1, part("day"), part("hour"), part("minute"), part("second")) / 1000;
+  const wall = Date.UTC(part("year"), part("month") - 1, part("day"), part("hour"), part("minute"), part("second"));
+  const offset = (wall - hour * HOUR_MS) / 1000;
+  exchangeOffsets.set(hour, offset);
+  return offset;
+}
+
+export function exchangeWallSeconds(at: string): number {
+  const ms = Date.parse(at);
+  return Math.floor(ms / 1000) + exchangeOffsetSeconds(Math.floor(ms / HOUR_MS));
 }
 
 type Maybe<T> = T | null | undefined;
