@@ -15,7 +15,9 @@ pub fn fundamental_visible_at(filed: NaiveDate, calendar: &Calendar) -> Option<T
 }
 
 pub fn corporate_action_visible_at(ex_date: NaiveDate, calendar: &Calendar) -> Option<Timestamp> {
-    calendar.first_on_or_after(ex_date).map(|session| session.open)
+    calendar
+        .first_on_or_after(ex_date)
+        .map(|session| session.open)
 }
 
 pub fn order_session(

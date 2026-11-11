@@ -35,7 +35,9 @@ impl From<&str> for Symbol {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, ToSchema)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum AssetClass {
     Stock,
@@ -54,7 +56,9 @@ pub struct Instrument {
     pub last_session: Option<NaiveDate>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, ToSchema)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, ToSchema,
+)]
 pub enum Timeframe {
     #[serde(rename = "1d")]
     Day,
@@ -93,7 +97,9 @@ impl FromStr for Timeframe {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, ToSchema)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum Feed {
     Sip,
@@ -112,7 +118,9 @@ pub struct Bar {
     pub feed: Feed,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, ToSchema)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, ToSchema,
+)]
 pub struct Session {
     pub date: NaiveDate,
     pub open: Timestamp,
@@ -165,13 +173,17 @@ impl Calendar {
     }
 
     pub fn next_after(&self, date: NaiveDate) -> Option<&Session> {
-        let index = self.sessions.partition_point(|session| session.date <= date);
+        let index = self
+            .sessions
+            .partition_point(|session| session.date <= date);
         self.sessions.get(index)
     }
 
     pub fn previous_before(&self, date: NaiveDate) -> Option<&Session> {
         let index = self.sessions.partition_point(|session| session.date < date);
-        index.checked_sub(1).map(|previous| &self.sessions[previous])
+        index
+            .checked_sub(1)
+            .map(|previous| &self.sessions[previous])
     }
 
     pub fn containing(&self, at: Timestamp) -> Option<&Session> {
@@ -198,8 +210,13 @@ pub struct CorporateAction {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum CorporateActionKind {
-    Split { old_rate: Decimal, new_rate: Decimal },
-    CashDividend { rate: Decimal },
+    Split {
+        old_rate: Decimal,
+        new_rate: Decimal,
+    },
+    CashDividend {
+        rate: Decimal,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
@@ -251,7 +268,9 @@ impl AdjustmentFactor {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, ToSchema)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum FundamentalMetric {
     Revenue,
@@ -289,7 +308,9 @@ pub enum FundamentalMetric {
     SharesOutstanding,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, ToSchema)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, ToSchema,
+)]
 pub enum PeriodType {
     #[serde(rename = "FY")]
     Annual,
@@ -337,7 +358,9 @@ pub struct RiskFreeRate {
     pub percent: Decimal,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, ToSchema)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum DataSource {
     Alpaca,
@@ -348,7 +371,9 @@ pub enum DataSource {
     Fixture,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, ToSchema)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum Dataset {
     Instruments,

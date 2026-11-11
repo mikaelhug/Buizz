@@ -184,8 +184,16 @@ fn main() {
             session: session("2024-11-21", "21:00:00"),
             universe: None,
             bars: bars(&[
-                row("AAA", "2024-11-21T14:30:00Z", [203.0, 204.0, 198.4, 199.0, 2_400_000.0]),
-                row("BBB", "2024-11-21T14:30:00Z", [49.2, 49.6, 48.6, 48.8, 1_100_000.0]),
+                row(
+                    "AAA",
+                    "2024-11-21T14:30:00Z",
+                    [203.0, 204.0, 198.4, 199.0, 2_400_000.0],
+                ),
+                row(
+                    "BBB",
+                    "2024-11-21T14:30:00Z",
+                    [49.2, 49.6, 48.6, 48.8, 1_100_000.0],
+                ),
             ]),
             events: vec![
                 StepEvent::Fill(Fill {
@@ -230,15 +238,33 @@ fn main() {
             session: session("2024-12-02", "21:00:00"),
             universe: Some(universe.clone()),
             bars: bars(&[
-                row("AAA", "2024-12-02T15:00:00Z", [100.62, 100.64, 100.61, 100.64, 9_487.0]),
-                row("BBB", "2024-12-02T15:00:00Z", [49.06, 49.07, 49.06, 49.07, 2_615.0]),
-                row("AAA", "2024-12-02T15:01:00Z", [100.64, 100.66, 100.64, 100.66, 9_487.0]),
-                row("BBB", "2024-12-02T15:01:00Z", [49.07, 49.08, 49.07, 49.08, 2_615.0]),
+                row(
+                    "AAA",
+                    "2024-12-02T15:00:00Z",
+                    [100.62, 100.64, 100.61, 100.64, 9_487.0],
+                ),
+                row(
+                    "BBB",
+                    "2024-12-02T15:00:00Z",
+                    [49.06, 49.07, 49.06, 49.07, 2_615.0],
+                ),
+                row(
+                    "AAA",
+                    "2024-12-02T15:01:00Z",
+                    [100.64, 100.66, 100.64, 100.66, 9_487.0],
+                ),
+                row(
+                    "BBB",
+                    "2024-12-02T15:01:00Z",
+                    [49.07, 49.08, 49.07, 49.08, 2_615.0],
+                ),
             ]),
             events: vec![StepEvent::CorporateAction(CorporateAction {
                 symbol: aaa.clone(),
                 ex_date: date("2024-12-02"),
-                kind: CorporateActionKind::CashDividend { rate: money("0.24") },
+                kind: CorporateActionKind::CashDividend {
+                    rate: money("0.24"),
+                },
             })],
             cash: money("99965.93"),
             equity: money("99965.93"),
@@ -267,7 +293,10 @@ fn main() {
             id: 2,
             request: QueryRequest::Fundamentals {
                 symbols: vec![bbb.clone()],
-                metrics: vec![FundamentalMetric::NetIncome, FundamentalMetric::SharesOutstanding],
+                metrics: vec![
+                    FundamentalMetric::NetIncome,
+                    FundamentalMetric::SharesOutstanding,
+                ],
             },
         }),
     );
@@ -279,8 +308,16 @@ fn main() {
             id: 1,
             result: DataResult::History {
                 bars: bars(&[
-                    row("AAA", "2024-11-25T14:30:00Z", [98.75, 99.1, 97.55, 98.0, 3_900_000.0]),
-                    row("AAA", "2024-11-26T14:30:00Z", [98.5, 99.2, 96.4, 97.0, 4_300_000.0]),
+                    row(
+                        "AAA",
+                        "2024-11-25T14:30:00Z",
+                        [98.75, 99.1, 97.55, 98.0, 3_900_000.0],
+                    ),
+                    row(
+                        "AAA",
+                        "2024-11-26T14:30:00Z",
+                        [98.5, 99.2, 96.4, 97.0, 4_300_000.0],
+                    ),
                 ]),
             },
         }),

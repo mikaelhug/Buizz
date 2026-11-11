@@ -23,7 +23,10 @@ fn fixture<T: DeserializeOwned>(name: &str, text: &str) -> T {
 
 macro_rules! fixture {
     ($name:literal) => {
-        fixture($name, include_str!(concat!("../../../fixtures/api/", $name, ".json")))
+        fixture(
+            $name,
+            include_str!(concat!("../../../fixtures/api/", $name, ".json")),
+        )
     };
 }
 

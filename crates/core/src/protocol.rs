@@ -256,10 +256,16 @@ pub enum BarBufferError {
 }
 
 impl BarBuffer {
-    pub fn from_rows<'a>(rows: impl IntoIterator<Item = &'a BarRow>) -> Result<Self, BarBufferError> {
+    pub fn from_rows<'a>(
+        rows: impl IntoIterator<Item = &'a BarRow>,
+    ) -> Result<Self, BarBufferError> {
         let mut buffer = Self::default();
         for row in rows {
-            let index = match buffer.symbols.iter().position(|symbol| *symbol == row.symbol) {
+            let index = match buffer
+                .symbols
+                .iter()
+                .position(|symbol| *symbol == row.symbol)
+            {
                 Some(index) => index,
                 None => {
                     buffer.symbols.push(row.symbol.clone());
@@ -268,7 +274,9 @@ impl BarBuffer {
             };
             let index = u16::try_from(index).map_err(|_| BarBufferError::TooManySymbols)?;
             buffer.symbol_index.extend_from_slice(&index.to_le_bytes());
-            buffer.start.extend_from_slice(&row.start.nanos().to_le_bytes());
+            buffer
+                .start
+                .extend_from_slice(&row.start.nanos().to_le_bytes());
             buffer.open.extend_from_slice(&row.open.to_le_bytes());
             buffer.high.extend_from_slice(&row.high.to_le_bytes());
             buffer.low.extend_from_slice(&row.low.to_le_bytes());
@@ -303,12 +311,19 @@ impl BarBuffer {
             }
         }
         let float = |column: &ByteBuf, row: usize| {
-            f64::from_le_bytes(column[row * 8..row * 8 + 8].try_into().expect("8-byte slice"))
+            f64::from_le_bytes(
+                column[row * 8..row * 8 + 8]
+                    .try_into()
+                    .expect("8-byte slice"),
+            )
         };
         (0..len)
             .map(|row| {
-                let index =
-                    u16::from_le_bytes(self.symbol_index[row * 2..row * 2 + 2].try_into().expect("2-byte slice"));
+                let index = u16::from_le_bytes(
+                    self.symbol_index[row * 2..row * 2 + 2]
+                        .try_into()
+                        .expect("2-byte slice"),
+                );
                 let symbol = self
                     .symbols
                     .get(usize::from(index))
@@ -316,7 +331,9 @@ impl BarBuffer {
                 Ok(BarRow {
                     symbol: symbol.clone(),
                     start: Timestamp::from_nanos(i64::from_le_bytes(
-                        self.start[row * 8..row * 8 + 8].try_into().expect("8-byte slice"),
+                        self.start[row * 8..row * 8 + 8]
+                            .try_into()
+                            .expect("8-byte slice"),
                     )),
                     open: float(&self.open, row),
                     high: float(&self.high, row),

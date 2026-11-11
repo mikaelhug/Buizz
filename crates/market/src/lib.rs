@@ -105,7 +105,11 @@ impl MarketStore {
         unimplemented!()
     }
 
-    pub async fn advance_watermark(&self, _timeframe: Timeframe, _through: Timestamp) -> Result<()> {
+    pub async fn advance_watermark(
+        &self,
+        _timeframe: Timeframe,
+        _through: Timestamp,
+    ) -> Result<()> {
         unimplemented!()
     }
 
@@ -171,7 +175,11 @@ impl MarketStore {
         unimplemented!()
     }
 
-    pub async fn risk_free_rates(&self, _from: NaiveDate, _to: NaiveDate) -> Result<Vec<RiskFreeRate>> {
+    pub async fn risk_free_rates(
+        &self,
+        _from: NaiveDate,
+        _to: NaiveDate,
+    ) -> Result<Vec<RiskFreeRate>> {
         unimplemented!()
     }
 

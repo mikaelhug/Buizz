@@ -154,10 +154,16 @@ impl Portfolio {
                 position.last_price = *price;
             }
             LedgerKind::Dividend { symbol, amount, .. } => {
-                self.positions.entry(symbol.clone()).or_default().realized_pnl += *amount;
+                self.positions
+                    .entry(symbol.clone())
+                    .or_default()
+                    .realized_pnl += *amount;
             }
             LedgerKind::BorrowFee { symbol, amount, .. } => {
-                self.positions.entry(symbol.clone()).or_default().realized_pnl -= *amount;
+                self.positions
+                    .entry(symbol.clone())
+                    .or_default()
+                    .realized_pnl -= *amount;
             }
             LedgerKind::Split {
                 symbol,
@@ -190,7 +196,9 @@ impl Portfolio {
     }
 
     pub fn qty(&self, symbol: &Symbol) -> i64 {
-        self.positions.get(symbol).map_or(0, |position| position.qty)
+        self.positions
+            .get(symbol)
+            .map_or(0, |position| position.qty)
     }
 
     pub fn equity(&self) -> Decimal {
@@ -210,15 +218,14 @@ impl Portfolio {
     }
 
     pub fn open_positions(&self) -> impl Iterator<Item = (&Symbol, &Position)> {
-        self.positions.iter().filter(|(_, position)| position.qty != 0)
+        self.positions
+            .iter()
+            .filter(|(_, position)| position.qty != 0)
     }
 }
 
 pub fn split_qty(qty: i64, old_rate: Decimal, new_rate: Decimal) -> (i64, Decimal) {
     let exact = Decimal::from(qty) * new_rate / old_rate;
     let whole = exact.trunc();
-    (
-        i64::try_from(whole).unwrap_or(0),
-        exact - whole,
-    )
+    (i64::try_from(whole).unwrap_or(0), exact - whole)
 }

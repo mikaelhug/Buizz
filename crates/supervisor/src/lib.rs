@@ -15,10 +15,7 @@ pub enum SupervisorError {
         source: buizz_core::run::ManifestError,
     },
     #[error("cannot spawn bot {bot}: {source}")]
-    Spawn {
-        bot: String,
-        source: std::io::Error,
-    },
+    Spawn { bot: String, source: std::io::Error },
     #[error("cannot signal bot process group {pid}: {source}")]
     Signal { pid: u32, source: nix::Error },
 }
@@ -80,10 +77,21 @@ pub enum OutputStream {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ProcessEvent {
-    Started { pid: u32 },
-    Line { stream: OutputStream, line: String, at: Timestamp },
-    Exited { code: Option<i32> },
-    Restarting { attempt: u32, delay: Duration },
+    Started {
+        pid: u32,
+    },
+    Line {
+        stream: OutputStream,
+        line: String,
+        at: Timestamp,
+    },
+    Exited {
+        code: Option<i32>,
+    },
+    Restarting {
+        attempt: u32,
+        delay: Duration,
+    },
 }
 
 pub struct BotProcess {}

@@ -235,7 +235,9 @@ impl RiskLimits {
 
     pub fn drawdown_breached(&self, peak_equity: Decimal, equity: Decimal) -> bool {
         match self.max_drawdown {
-            Some(limit) if peak_equity > Decimal::ZERO => (peak_equity - equity) / peak_equity >= limit,
+            Some(limit) if peak_equity > Decimal::ZERO => {
+                (peak_equity - equity) / peak_equity >= limit
+            }
             _ => false,
         }
     }
@@ -464,9 +466,11 @@ impl BotManifest {
             UniverseSpec::Symbols { symbols } if symbols.is_empty() => {
                 Err(ManifestError::Invalid("universe.symbols must not be empty"))
             }
-            UniverseSpec::TopDollarVolume { top_dollar_volume: 0 } => {
-                Err(ManifestError::Invalid("universe.top_dollar_volume must be positive"))
-            }
+            UniverseSpec::TopDollarVolume {
+                top_dollar_volume: 0,
+            } => Err(ManifestError::Invalid(
+                "universe.top_dollar_volume must be positive",
+            )),
             _ => Ok(manifest),
         }
     }

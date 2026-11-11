@@ -25,7 +25,9 @@ pub struct Config {
 }
 
 fn var(name: &str) -> Option<String> {
-    std::env::var(name).ok().filter(|value| !value.trim().is_empty())
+    std::env::var(name)
+        .ok()
+        .filter(|value| !value.trim().is_empty())
 }
 
 fn var_or(name: &str, default: &str) -> String {
@@ -60,7 +62,8 @@ impl Config {
             bots_dir: var_or("BUIZZ_BOTS_DIR", "bots").into(),
             web_dir: var("BUIZZ_WEB_DIR").map(PathBuf::from),
             fixture_dir: var("BUIZZ_FIXTURE_DIR").map(PathBuf::from),
-            admin_password: var("BUIZZ_ADMIN_PASSWORD").context("BUIZZ_ADMIN_PASSWORD is required")?,
+            admin_password: var("BUIZZ_ADMIN_PASSWORD")
+                .context("BUIZZ_ADMIN_PASSWORD is required")?,
             secure_cookies: flag("BUIZZ_SECURE_COOKIES", true)?,
             ingest: flag("BUIZZ_INGEST", true)?,
             alpaca,

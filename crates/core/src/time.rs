@@ -53,7 +53,9 @@ impl Add<TimeDelta> for Timestamp {
     type Output = Self;
 
     fn add(self, delta: TimeDelta) -> Self {
-        let nanos = delta.num_nanoseconds().expect("time delta fits in i64 nanoseconds");
+        let nanos = delta
+            .num_nanoseconds()
+            .expect("time delta fits in i64 nanoseconds");
         Self(self.0 + nanos)
     }
 }
@@ -62,7 +64,9 @@ impl Sub<TimeDelta> for Timestamp {
     type Output = Self;
 
     fn sub(self, delta: TimeDelta) -> Self {
-        let nanos = delta.num_nanoseconds().expect("time delta fits in i64 nanoseconds");
+        let nanos = delta
+            .num_nanoseconds()
+            .expect("time delta fits in i64 nanoseconds");
         Self(self.0 - nanos)
     }
 }
@@ -77,7 +81,11 @@ impl Sub for Timestamp {
 
 impl fmt::Display for Timestamp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.to_datetime().to_rfc3339_opts(SecondsFormat::AutoSi, true))
+        f.write_str(
+            &self
+                .to_datetime()
+                .to_rfc3339_opts(SecondsFormat::AutoSi, true),
+        )
     }
 }
 

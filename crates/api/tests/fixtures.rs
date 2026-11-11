@@ -7,7 +7,11 @@ async fn every_stub_route_serves_a_fixture_that_matches_its_type() {
     let routes = [
         (Method::GET, "/api/bots", None),
         (Method::GET, "/api/bots/red_green", None),
-        (Method::POST, "/api/bots/red_green/backtests", Some(r#"{"preset":"1y"}"#)),
+        (
+            Method::POST,
+            "/api/bots/red_green/backtests",
+            Some(r#"{"preset":"1y"}"#),
+        ),
         (Method::POST, "/api/bots/red_green/live", None),
         (Method::POST, "/api/bots/red_green/pause", None),
         (Method::GET, "/api/runs?bot=red_green&mode=backtest", None),
@@ -37,6 +41,10 @@ async fn every_stub_route_serves_a_fixture_that_matches_its_type() {
             .oneshot(request)
             .await
             .expect("router answers");
-        assert!(response.status().is_success(), "{method} {uri} -> {}", response.status());
+        assert!(
+            response.status().is_success(),
+            "{method} {uri} -> {}",
+            response.status()
+        );
     }
 }

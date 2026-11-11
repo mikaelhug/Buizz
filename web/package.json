@@ -6,8 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
-    "gen": "openapi-typescript ../openapi.json --output src/api/schema.d.ts"
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "lightweight-charts": "5.3.0",

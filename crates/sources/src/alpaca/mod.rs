@@ -1,6 +1,8 @@
 use std::time::Duration;
 
-use buizz_core::market::{Bar, Calendar, CorporateAction, Feed, Instrument, Session, Symbol, Timeframe};
+use buizz_core::market::{
+    Bar, Calendar, CorporateAction, Feed, Instrument, Session, Symbol, Timeframe,
+};
 use buizz_core::time::Timestamp;
 use chrono::NaiveDate;
 
@@ -52,11 +54,19 @@ impl AlpacaClient {
         unimplemented!()
     }
 
-    pub async fn bars(&self, _request: &BarsRequest, _calendar: &Calendar) -> Result<Vec<Bar>, SourceError> {
+    pub async fn bars(
+        &self,
+        _request: &BarsRequest,
+        _calendar: &Calendar,
+    ) -> Result<Vec<Bar>, SourceError> {
         unimplemented!()
     }
 
-    pub async fn calendar(&self, _from: NaiveDate, _to: NaiveDate) -> Result<Vec<Session>, SourceError> {
+    pub async fn calendar(
+        &self,
+        _from: NaiveDate,
+        _to: NaiveDate,
+    ) -> Result<Vec<Session>, SourceError> {
         unimplemented!()
     }
 

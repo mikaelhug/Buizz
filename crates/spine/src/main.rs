@@ -31,13 +31,19 @@ const START_CASH: Decimal = Decimal::from_parts(100_000, 0, 0, false, 0);
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+        )
         .init();
     let config = Config::from_env()?;
     std::fs::create_dir_all(&config.data_dir)
         .with_context(|| format!("cannot create {}", config.data_dir.display()))?;
 
-    let market = MarketStore::open(&config.data_dir.join(buizz_market::FILE_NAME), MARKET_READERS).await?;
+    let market = MarketStore::open(
+        &config.data_dir.join(buizz_market::FILE_NAME),
+        MARKET_READERS,
+    )
+    .await?;
     if let Some(fixture_dir) = &config.fixture_dir {
         market.load_fixture(fixture_dir).await?;
     }
