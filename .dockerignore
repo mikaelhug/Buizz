@@ -1,0 +1,15 @@
+.git
+.github
+.claude
+target
+data
+node_modules
+web/dist
+.venv
+__pycache__
+.ruff_cache
+.pytest_cache
+.pyright
+docs
+fixtures
+openapi.json
