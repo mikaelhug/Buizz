@@ -1,3 +1,4 @@
+use std::fmt;
 use std::time::Duration;
 
 use buizz_core::market::{
@@ -7,7 +8,7 @@ use buizz_core::time::Timestamp;
 use chrono::{NaiveDate, TimeDelta};
 use serde::de::DeserializeOwned;
 
-use crate::http::{HttpClient, RateLimit, SourceError};
+use crate::http::{HttpClient, REDACTED, RateLimit, SourceError};
 
 mod wire;
 
@@ -25,7 +26,7 @@ pub const MAX_PAGE_LIMIT: u32 = 10_000;
 pub const ACTIONS_PAGE_LIMIT: u32 = 1_000;
 const ACTIONS_SYMBOLS_PER_REQUEST: usize = 100;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct AlpacaConfig {
     pub key_id: String,
     pub secret_key: String,
@@ -41,6 +42,17 @@ impl AlpacaConfig {
             data_url: DATA_URL.to_owned(),
             trading_url: TRADING_URL.to_owned(),
         }
+    }
+}
+
+impl fmt::Debug for AlpacaConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AlpacaConfig")
+            .field("key_id", &self.key_id)
+            .field("secret_key", &REDACTED)
+            .field("data_url", &self.data_url)
+            .field("trading_url", &self.trading_url)
+            .finish()
     }
 }
 

@@ -10,6 +10,8 @@ use serde_json::Number;
 use tokio::sync::Mutex;
 use tokio::time::Instant;
 
+pub(crate) const REDACTED: &str = "<redacted>";
+
 #[derive(Debug, thiserror::Error)]
 pub enum SourceError {
     #[error("http: {0}")]

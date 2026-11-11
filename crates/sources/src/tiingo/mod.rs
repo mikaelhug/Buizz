@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt;
 use std::time::Duration;
 
 use buizz_core::market::{Bar, Calendar, CorporateAction, CorporateActionKind, Feed, Symbol};
@@ -8,7 +9,7 @@ use reqwest::header::AUTHORIZATION;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Deserializer};
 
-use crate::http::{HttpClient, RateLimit, SourceError, decimal};
+use crate::http::{HttpClient, REDACTED, RateLimit, SourceError, decimal};
 
 pub const BASE_URL: &str = "https://api.tiingo.com";
 pub const RATE_LIMIT: RateLimit = RateLimit {
@@ -22,10 +23,19 @@ pub const URL_ENV: &str = "TIINGO_URL";
 pub const MIN_OVERLAP: usize = 20;
 const MAX_MEDIAN_DIFFERENCE: Decimal = Decimal::from_parts(5, 0, 0, false, 2);
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct TiingoConfig {
     pub api_key: String,
     pub base_url: String,
+}
+
+impl fmt::Debug for TiingoConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TiingoConfig")
+            .field("api_key", &REDACTED)
+            .field("base_url", &self.base_url)
+            .finish()
+    }
 }
 
 impl TiingoConfig {
