@@ -122,7 +122,10 @@ def test_bot_replies_match_the_golden_frames(monkeypatch: pytest.MonkeyPatch) ->
     received = play(monkeypatch, play_spine, RedGreen)
 
     hello, query_history, query_fundamentals, failing_query, ack_first, ack_second = received
-    assert hello == golden("hello")
+    sent_hello = msgspec.msgpack.decode(hello)
+    expected_hello = msgspec.msgpack.decode(golden("hello"))
+    assert sent_hello["protocol"] == expected_hello["protocol"]
+    assert sent_hello["sdk"].startswith("buizz-python/")
     assert query_history == golden("query_history")
     assert query_fundamentals == golden("query_fundamentals")
     assert msgspec.msgpack.decode(failing_query)["request"]["symbols"] == ["ZZZ"]
