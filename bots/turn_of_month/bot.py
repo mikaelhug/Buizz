@@ -13,7 +13,9 @@ def turn_of_month_day(sessions: list[date], day: date, first_day: int, last_day:
     from_end = from_start - len(month) - 1
     if from_start <= last_day:
         return from_start
-    if sessions[-1] > month[-1] and from_end >= first_day:
+    if sessions[-1] <= month[-1]:
+        raise RuntimeError(f"the exchange calendar ends before the month after {day} begins")
+    if from_end >= first_day:
         return from_end
     return None
 
