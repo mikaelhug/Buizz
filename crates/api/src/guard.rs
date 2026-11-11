@@ -1,11 +1,14 @@
 use axum::extract::Request;
-use axum::http::{HeaderMap, Method, StatusCode, header};
+use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, header};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 
 use crate::error::Failure;
 
 const FETCH_SITE: &str = "sec-fetch-site";
+const CONTENT_SECURITY_POLICY: &str = "default-src 'self'; script-src 'self'; style-src 'self'; \
+    connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; \
+    frame-ancestors 'none'";
 
 fn same_origin(headers: &HeaderMap) -> bool {
     if let Some(site) = headers.get(FETCH_SITE) {
@@ -35,6 +38,24 @@ pub(crate) async fn reject_cross_site(request: Request, next: Next) -> Response 
     } else {
         Failure::new(StatusCode::FORBIDDEN, "cross-site request refused").into_response()
     }
+}
+
+pub(crate) async fn security_headers(mut response: Response) -> Response {
+    let headers = response.headers_mut();
+    headers.insert(
+        header::CONTENT_SECURITY_POLICY,
+        HeaderValue::from_static(CONTENT_SECURITY_POLICY),
+    );
+    headers.insert(
+        header::X_CONTENT_TYPE_OPTIONS,
+        HeaderValue::from_static("nosniff"),
+    );
+    headers.insert(header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY"));
+    headers.insert(
+        header::REFERRER_POLICY,
+        HeaderValue::from_static("same-origin"),
+    );
+    response
 }
 
 #[cfg(test)]

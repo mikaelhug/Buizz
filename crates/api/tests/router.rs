@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use axum::Router;
 use axum::body::{Body, to_bytes};
-use axum::http::{Request, StatusCode, header};
+use axum::http::{HeaderMap, HeaderName, Request, StatusCode, header};
 use buizz_api::{ApiConfig, AppState};
 use buizz_core::run::{CostModel, RiskLimits};
 use buizz_feed::{FeedConfig, FeedManager};
@@ -108,8 +108,14 @@ async fn spine() -> Spine {
 
 struct Reply {
     status: StatusCode,
-    content_type: Option<String>,
+    headers: HeaderMap,
     body: String,
+}
+
+impl Reply {
+    fn header(&self, name: HeaderName) -> Option<&str> {
+        self.headers.get(name).and_then(|value| value.to_str().ok())
+    }
 }
 
 async fn send(spine: &Spine, request: Request<Body>) -> Reply {
@@ -120,17 +126,13 @@ async fn send(spine: &Spine, request: Request<Body>) -> Reply {
         .await
         .expect("infallible router");
     let status = response.status();
-    let content_type = response
-        .headers()
-        .get(header::CONTENT_TYPE)
-        .and_then(|value| value.to_str().ok())
-        .map(str::to_owned);
+    let headers = response.headers().clone();
     let body = to_bytes(response.into_body(), usize::MAX)
         .await
         .expect("body");
     Reply {
         status,
-        content_type,
+        headers,
         body: String::from_utf8_lossy(&body).into_owned(),
     }
 }
@@ -151,7 +153,7 @@ async fn unknown_api_paths_are_json_not_found_while_app_paths_serve_the_ui() {
     let spine = spine().await;
     let reply = send(&spine, get("/api/nope")).await;
     assert_eq!(reply.status, StatusCode::NOT_FOUND);
-    assert_eq!(reply.content_type.as_deref(), Some("application/json"));
+    assert_eq!(reply.header(header::CONTENT_TYPE), Some("application/json"));
     assert!(reply.body.contains("\"error\""));
     let page = send(&spine, get("/bots/red_green")).await;
     assert_eq!(page.status, StatusCode::OK);
@@ -198,7 +200,22 @@ async fn malformed_inputs_answer_with_an_api_error() {
     for request in [bad_path, bad_query, bad_body] {
         let reply = send(&spine, request).await;
         assert_eq!(reply.status, StatusCode::BAD_REQUEST, "{}", reply.body);
-        assert_eq!(reply.content_type.as_deref(), Some("application/json"));
+        assert_eq!(reply.header(header::CONTENT_TYPE), Some("application/json"));
         assert!(reply.body.starts_with("{\"error\":"), "{}", reply.body);
     }
+}
+
+#[tokio::test]
+async fn pages_forbid_framing_sniffing_and_foreign_scripts() {
+    let spine = spine().await;
+    let page = send(&spine, get("/")).await;
+    assert_eq!(page.status, StatusCode::OK);
+    let policy = page
+        .header(header::CONTENT_SECURITY_POLICY)
+        .expect("content security policy");
+    assert!(policy.contains("script-src 'self'"));
+    assert!(policy.contains("frame-ancestors 'none'"));
+    assert_eq!(page.header(header::X_CONTENT_TYPE_OPTIONS), Some("nosniff"));
+    assert_eq!(page.header(header::X_FRAME_OPTIONS), Some("DENY"));
+    assert_eq!(page.header(header::REFERRER_POLICY), Some("same-origin"));
 }

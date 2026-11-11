@@ -15,7 +15,7 @@ use std::sync::Arc;
 use axum::Router;
 use axum::extract::{FromRef, State, WebSocketUpgrade};
 use axum::http::{HeaderMap, StatusCode, header};
-use axum::middleware::{from_fn, from_fn_with_state};
+use axum::middleware::{from_fn, from_fn_with_state, map_response};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{any, get};
 use buizz_core::protocol::BOT_PATH;
@@ -30,7 +30,7 @@ use utoipa_axum::router::OpenApiRouter;
 
 use crate::auth::{Auth, require_session};
 use crate::error::Failure;
-use crate::guard::reject_cross_site;
+use crate::guard::{reject_cross_site, security_headers};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ApiConfig {
@@ -95,7 +95,9 @@ pub fn router(app: AppState) -> Router {
         }
         None => router,
     };
-    router.layer(from_fn(reject_cross_site))
+    router
+        .layer(from_fn(reject_cross_site))
+        .layer(map_response(security_headers))
 }
 
 #[utoipa::path(get, path = "/healthz", tag = "health",
