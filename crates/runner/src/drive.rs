@@ -804,9 +804,19 @@ impl Driver {
         let Some(link) = self.link.as_mut() else {
             return Ok(());
         };
-        let answered = tokio::select! {
-            answered = link.step(step, &market) => Some(answered),
-            _ = self.control.changed() => None,
+        let answered = {
+            let mut answer = std::pin::pin!(link.step(step, &market));
+            loop {
+                tokio::select! {
+                    answered = &mut answer => break Some(answered),
+                    changed = self.control.changed() => {
+                        let control = *self.control.borrow();
+                        if changed.is_err() || control.shutdown || control.desired != DesiredState::Running {
+                            break None;
+                        }
+                    }
+                }
+            }
         };
         match answered {
             None => self.reconcile().await,
