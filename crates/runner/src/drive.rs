@@ -12,8 +12,8 @@ use buizz_core::protocol::{
     StepEvent,
 };
 use buizz_core::run::{
-    DRAWDOWN_STOP, DesiredState, EquityPoint, LogLevel, Mode, RunBadge, RunEvent, RunEventKind,
-    RunId, RunStatus,
+    DRAWDOWN_STOP, DesiredState, EquityPoint, LogLevel, Mode, RunBadge, RunConfig, RunEvent,
+    RunEventKind, RunId, RunStatus,
 };
 use buizz_core::time::Timestamp;
 use buizz_core::visibility::{close_auction_session, open_auction_session, order_session};
@@ -25,6 +25,7 @@ use buizz_state::{RunOutcome, StateError, StepCommit};
 use buizz_supervisor::{
     BotProcess, BotSpec, LiveProcess, OutputStream, ProcessEvent, SupervisorError, bot_hash,
 };
+use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
 use serde::{Deserialize, Serialize};
@@ -228,8 +229,8 @@ pub(crate) async fn run(mut launch: Launch) {
     let token = inner.issue_token(run_id);
     let (exit, closing) = match prepare(&inner, &launch.run, &mut launch.receiver).await {
         Err(exit) => (exit, None),
-        Ok(slot) => {
-            let opened = Driver::open(launch, &token).await;
+        Ok((slot, minutes)) => {
+            let opened = Driver::open(launch, &token, minutes).await;
             match opened {
                 Err(exit) => (exit, None),
                 Ok(mut driver) => (driver.drive().await, Some((driver, slot))),
@@ -260,39 +261,54 @@ pub(crate) async fn run(mut launch: Launch) {
     inner.forget(run_id, &token);
 }
 
+type Prepared = (Option<tokio::sync::OwnedSemaphorePermit>, BTreeSet<Symbol>);
+
 async fn prepare(
     inner: &Inner,
     run: &RunSummary,
     control: &mut watch::Receiver<Control>,
-) -> Flow<Option<tokio::sync::OwnedSemaphorePermit>> {
+) -> Flow<Prepared> {
     if run.mode == Mode::Live {
-        return Ok(None);
+        return Ok((None, BTreeSet::new()));
     }
+    let mut minutes = BTreeSet::new();
     if run.config.needs_minute_bars() {
         let config = &run.config;
-        let end = config.end.unwrap_or(config.start);
         let symbols = gate_symbols(&inner.market, config).await?;
-        tokio::select! {
-            ensured = inner.ingest.ensure_minute_coverage(&symbols, config.start, end) => ensured?,
-            exit = interrupted(control) => return Err(exit),
-        }
-        let gaps = inner
-            .market
-            .coverage_gaps(symbols, Timeframe::Minute, config.start, end)
-            .await?;
-        if let Some(gap) = gaps.first() {
-            return Err(Exit::Failed(format!(
-                "market data has {} minute-bar gaps, the first {} from {} to {}",
-                gaps.len(),
-                gap.symbol,
-                gap.from,
-                gap.to
-            )));
-        }
+        backfill_minutes(inner, config, &symbols, config.start, control).await?;
+        minutes.extend(symbols);
     }
     tokio::select! {
-        slot = inner.supervisor.backtest_slot() => Ok(Some(slot)),
+        slot = inner.supervisor.backtest_slot() => Ok((Some(slot), minutes)),
         exit = interrupted(control) => Err(exit),
+    }
+}
+
+async fn backfill_minutes(
+    inner: &Inner,
+    config: &RunConfig,
+    symbols: &[Symbol],
+    from: NaiveDate,
+    control: &mut watch::Receiver<Control>,
+) -> Flow<()> {
+    let end = config.end.unwrap_or(config.start);
+    tokio::select! {
+        ensured = inner.ingest.ensure_minute_coverage(symbols, from, end) => ensured?,
+        exit = interrupted(control) => return Err(exit),
+    }
+    let gaps = inner
+        .market
+        .coverage_gaps(symbols.to_vec(), Timeframe::Minute, from, end)
+        .await?;
+    match gaps.first() {
+        None => Ok(()),
+        Some(gap) => Err(Exit::Failed(format!(
+            "market data has {} minute-bar gaps, the first {} from {} to {}",
+            gaps.len(),
+            gap.symbol,
+            gap.from,
+            gap.to
+        ))),
     }
 }
 
@@ -399,6 +415,7 @@ struct Driver {
     after: Timestamp,
     clock: Option<Timestamp>,
     session: Option<Session>,
+    minutes: BTreeSet<Symbol>,
     link: Option<BotLink>,
     process: Option<Process>,
     status: RunStatus,
@@ -412,7 +429,7 @@ struct Driver {
 }
 
 impl Driver {
-    async fn open(launch: Launch, token: &str) -> Flow<Self> {
+    async fn open(launch: Launch, token: &str, minutes: BTreeSet<Symbol>) -> Flow<Self> {
         let Launch {
             inner,
             run,
@@ -470,6 +487,7 @@ impl Driver {
             after,
             clock,
             session,
+            minutes,
             link: None,
             process: None,
             status: run.status,
@@ -770,6 +788,7 @@ impl Driver {
             }
             let held = self.held();
             self.timeline.enter(&point.session, &held).await?;
+            self.backfill_newcomers(point.session.date).await?;
             self.lease_stream().await?;
         }
         let bars = if point.pre_close {
@@ -831,6 +850,31 @@ impl Driver {
             }
             None => Ok(()),
         }
+    }
+
+    async fn backfill_newcomers(&mut self, from: NaiveDate) -> Flow<()> {
+        if self.live() || !self.run.config.needs_minute_bars() {
+            return Ok(());
+        }
+        let newcomers: Vec<Symbol> = self
+            .timeline
+            .tracked()
+            .difference(&self.minutes)
+            .cloned()
+            .collect();
+        if newcomers.is_empty() {
+            return Ok(());
+        }
+        backfill_minutes(
+            &self.inner,
+            &self.run.config,
+            &newcomers,
+            from,
+            &mut self.control,
+        )
+        .await?;
+        self.minutes.extend(newcomers);
+        Ok(())
     }
 
     fn held(&self) -> BTreeSet<Symbol> {
@@ -1165,6 +1209,7 @@ impl Driver {
         if ordered {
             let held = self.held();
             self.timeline.track(held).await?;
+            self.backfill_newcomers(current.date).await?;
         }
         self.lease_stream().await?;
         self.commit(false).await

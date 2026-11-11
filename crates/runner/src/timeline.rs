@@ -112,6 +112,10 @@ impl Timeline {
         self.instruments.get(symbol)
     }
 
+    pub(crate) fn tracked(&self) -> &BTreeSet<Symbol> {
+        &self.tracked
+    }
+
     pub(crate) fn session(&self) -> &SessionData {
         &self.session
     }
