@@ -6,7 +6,7 @@ use axum::extract::ws::WebSocket;
 use buizz_core::api::{RunSummary, SpineEvent};
 use buizz_core::ledger::LedgerEntry;
 use buizz_core::market::{Bar, Session, Symbol, Timeframe, Watermarks};
-use buizz_core::order::{Order, OrderUpdate};
+use buizz_core::order::{Order, OrderRequest, OrderUpdate, RejectReason};
 use buizz_core::protocol::{
     Ack, BarBuffer, BarBufferError, EndReason, ErrorCode, Holdings, MAX_STATE_BYTES, Ready, Step,
     StepEvent,
@@ -22,7 +22,7 @@ use buizz_ingest::IngestError;
 use buizz_market::MarketError;
 use buizz_state::{RunOutcome, StateError, StepCommit};
 use buizz_supervisor::{
-    BotProcess, BotSpec, LiveProcess, OutputStream, ProcessEvent, SupervisorError,
+    BotProcess, BotSpec, LiveProcess, OutputStream, ProcessEvent, SupervisorError, bot_hash,
 };
 use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
@@ -209,10 +209,6 @@ async fn prepare(
     if run.mode == Mode::Live {
         return Ok(None);
     }
-    let slot = tokio::select! {
-        slot = inner.supervisor.backtest_slot() => slot,
-        exit = interrupted(control) => return Err(exit),
-    };
     if run.config.timeframe == Timeframe::Minute {
         let config = &run.config;
         let end = config.end.unwrap_or(config.start);
@@ -235,7 +231,10 @@ async fn prepare(
             )));
         }
     }
-    Ok(Some(slot))
+    tokio::select! {
+        slot = inner.supervisor.backtest_slot() => Ok(Some(slot)),
+        exit = interrupted(control) => Err(exit),
+    }
 }
 
 async fn interrupted(control: &mut watch::Receiver<Control>) -> Exit {
@@ -330,7 +329,7 @@ struct Driver {
     control: watch::Receiver<Control>,
     sockets: mpsc::Receiver<WebSocket>,
     watermarks: watch::Receiver<Watermarks>,
-    _lease: Option<FeedLease>,
+    lease: Option<FeedLease>,
     engine: Engine,
     timeline: Timeline,
     committer: Committer,
@@ -391,7 +390,7 @@ impl Driver {
             control,
             sockets,
             watermarks: inner.market.watermarks(),
-            _lease: lease,
+            lease,
             engine,
             timeline,
             committer: Committer::spawn(inner.state.clone(), last_step),
@@ -417,6 +416,98 @@ impl Driver {
 
     fn live(&self) -> bool {
         self.run.mode == Mode::Live
+    }
+
+    fn streams(&self) -> bool {
+        self.live() && self.run.config.timeframe == Timeframe::Minute
+    }
+
+    fn wanted(&self) -> BTreeSet<Symbol> {
+        self.timeline
+            .session()
+            .universe
+            .iter()
+            .cloned()
+            .chain(self.held())
+            .collect()
+    }
+
+    async fn lease_stream(&mut self) -> Flow<()> {
+        if !self.streams() || self.paused {
+            return Ok(());
+        }
+        let wanted = self.wanted();
+        let leased = match self.lease.as_mut() {
+            Some(lease) => lease.cover(wanted),
+            None => self
+                .inner
+                .feed
+                .acquire(self.run.id, &self.run.bot, wanted)
+                .map(|lease| self.lease = Some(lease)),
+        };
+        match leased {
+            Ok(()) => Ok(()),
+            Err(error) => {
+                let message = format!("{error}; the run is paused");
+                self.pause(EndReason::Failed, Some(message)).await
+            }
+        }
+    }
+
+    fn lease_orders(&mut self, orders: &[OrderRequest]) -> BTreeSet<Symbol> {
+        if !self.streams() {
+            return BTreeSet::new();
+        }
+        let symbols: BTreeSet<Symbol> = orders
+            .iter()
+            .map(|order| order.symbol.clone())
+            .filter(|symbol| self.timeline.instrument(symbol).is_some())
+            .collect();
+        let Some(lease) = self.lease.as_mut() else {
+            return BTreeSet::new();
+        };
+        let mut uncovered = BTreeSet::new();
+        for symbol in symbols {
+            if lease.symbols().contains(&symbol) {
+                continue;
+            }
+            let wanted: Vec<Symbol> = lease
+                .symbols()
+                .iter()
+                .cloned()
+                .chain([symbol.clone()])
+                .collect();
+            if lease.cover(wanted).is_err() {
+                uncovered.insert(symbol);
+            }
+        }
+        uncovered
+    }
+
+    async fn outdated(&mut self) -> Flow<Option<String>> {
+        let Some(recorded) = self.run.reproducibility.as_ref() else {
+            return Ok(None);
+        };
+        let dir = self.spec.dir.clone();
+        let current = tokio::task::spawn_blocking(move || bot_hash(&dir))
+            .await
+            .expect("hashing a bot does not panic")?;
+        Ok((current != recorded.bot_hash).then(|| {
+            format!(
+                "the code of bot {} changed since this run started; stop the run and start a new one",
+                self.run.bot
+            )
+        }))
+    }
+
+    async fn enter_next_session(&mut self) -> Flow<()> {
+        if self.timeline.session().date.is_none()
+            && let Some(point) = self.timeline.next_point(self.after)
+        {
+            let held = self.held();
+            self.timeline.enter(&point.session, &held).await?;
+        }
+        Ok(())
     }
 
     async fn drive(&mut self) -> Exit {
@@ -456,7 +547,7 @@ impl Driver {
                     if self.frame.due {
                         self.publish_equity();
                     }
-                    self.commit(true).await?;
+                    self.checkpoint().await?;
                     if next.is_none() {
                         self.timeline.refresh().await?;
                     }
@@ -504,6 +595,17 @@ impl Driver {
     }
 
     async fn launch(&mut self) -> Flow<()> {
+        if let Some(message) = self.outdated().await? {
+            return match self.run.mode {
+                Mode::Backtest => Err(Exit::Failed(message)),
+                Mode::Live => self.pause(EndReason::Failed, Some(message)).await,
+            };
+        }
+        self.enter_next_session().await?;
+        self.lease_stream().await?;
+        if self.paused {
+            return Ok(());
+        }
         let launch = buizz_supervisor::Launch {
             run_id: self.run.id,
             token: self.token.clone(),
@@ -519,6 +621,7 @@ impl Driver {
 
     async fn pause(&mut self, reason: EndReason, message: Option<String>) -> Flow<()> {
         self.paused = true;
+        self.lease = None;
         self.engine.cancel_all(self.after);
         self.absorb();
         self.frame.discard();
@@ -560,6 +663,7 @@ impl Driver {
             }
             let held = self.held();
             self.timeline.enter(&point.session, &held).await?;
+            self.lease_stream().await?;
         }
         let visible_through = self.live().then(|| self.visible_through()).flatten();
         let bars = self.timeline.bars(point, visible_through).await?;
@@ -766,12 +870,7 @@ impl Driver {
     }
 
     async fn ready(&mut self) -> Flow<Ready> {
-        if self.timeline.session().date.is_none()
-            && let Some(point) = self.timeline.next_point(self.after)
-        {
-            let held = self.held();
-            self.timeline.enter(&point.session, &held).await?;
-        }
+        self.enter_next_session().await?;
         let config = &self.run.config;
         let portfolio = self.engine.portfolio();
         Ok(Ready {
@@ -819,9 +918,19 @@ impl Driver {
         let Some(link) = self.link.as_mut() else {
             return Ok(());
         };
-        let answered = tokio::select! {
-            answered = link.step(step, &market) => Some(answered),
-            _ = self.control.changed() => None,
+        let answered = {
+            let mut answer = std::pin::pin!(link.step(step, &market));
+            loop {
+                tokio::select! {
+                    answered = &mut answer => break Some(answered),
+                    changed = self.control.changed() => {
+                        let control = *self.control.borrow();
+                        if changed.is_err() || control.shutdown || control.desired != DesiredState::Running {
+                            break None;
+                        }
+                    }
+                }
+            }
         };
         match answered {
             None => self.reconcile().await,
@@ -884,6 +993,7 @@ impl Driver {
                 message: line.message,
             });
         }
+        let unleased = self.lease_orders(&orders);
         let clock = self.after;
         let session = order_session(self.run.config.timeframe, clock, self.timeline.calendar())
             .or(self.session.as_ref())
@@ -893,14 +1003,30 @@ impl Driver {
         let timeline = &self.timeline;
         self.engine
             .accept(clock, session, orders, cancels, |symbol| {
-                timeline.instrument(symbol)
+                match timeline.instrument(symbol) {
+                    None => Err(RejectReason::UnknownSymbol),
+                    Some(_) if unleased.contains(symbol) => Err(RejectReason::NoStreamSlot),
+                    Some(instrument) => Ok(instrument),
+                }
             });
         self.absorb();
         if ordered {
             let held = self.held();
             self.timeline.track(held);
         }
+        self.lease_stream().await?;
         self.commit(false).await
+    }
+
+    async fn checkpoint(&mut self) -> Flow<()> {
+        if self.paused || self.frame.events.is_empty() {
+            return self.commit(true).await;
+        }
+        let events = std::mem::take(&mut self.pending.events);
+        if !events.is_empty() {
+            self.inner.state.append_events(self.run.id, events).await?;
+        }
+        Ok(())
     }
 
     async fn commit(&mut self, force: bool) -> Flow<()> {
@@ -953,7 +1079,7 @@ impl Driver {
                 level: LogLevel::Info,
                 message: format!("bot process {pid} started"),
             },
-            Some(ProcessEvent::Line { stream, line, .. }) => RunEventKind::Log {
+            Some(ProcessEvent::Line { stream, line }) => RunEventKind::Log {
                 level: match stream {
                     OutputStream::Stdout => LogLevel::Info,
                     OutputStream::Stderr => LogLevel::Warn,
@@ -1062,7 +1188,11 @@ impl Driver {
             self.absorb();
         }
         let mut message = message.or_else(|| self.halted.clone());
-        let flushed = match self.commit(true).await {
+        let persisted = match status {
+            Some(_) => self.commit(true).await,
+            None => self.checkpoint().await,
+        };
+        let flushed = match persisted {
             Ok(()) => self
                 .committer
                 .finish()

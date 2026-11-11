@@ -892,6 +892,9 @@
           },
           "benchmark": {
             "$ref": "#/components/schemas/Symbol"
+          },
+          "risk": {
+            "$ref": "#/components/schemas/RiskLimits"
           }
         }
       },
@@ -1997,7 +2000,8 @@
           "not_shortable",
           "max_position_weight",
           "max_gross_exposure",
-          "invalid_size"
+          "invalid_size",
+          "no_stream_slot"
         ]
       },
       "Reproducibility": {
@@ -2060,7 +2064,8 @@
               "null"
             ]
           }
-        }
+        },
+        "additionalProperties": false
       },
       "RunBadge": {
         "type": "string",

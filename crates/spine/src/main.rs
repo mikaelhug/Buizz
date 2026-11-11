@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use buizz_api::{ApiConfig, AppState};
-use buizz_core::run::{CostModel, RiskLimits};
+use buizz_core::run::CostModel;
 use buizz_feed::{FeedConfig, FeedManager};
 use buizz_ingest::{Ingest, IngestConfig};
 use buizz_market::MarketStore;
@@ -17,9 +17,11 @@ use buizz_sources::edgar::EdgarClient;
 use buizz_sources::tiingo::TiingoClient;
 use buizz_sources::treasury::TreasuryClient;
 use buizz_state::StateStore;
-use buizz_supervisor::{Backoff, Supervisor, SupervisorConfig};
+use buizz_supervisor::{Supervisor, SupervisorConfig};
 use rust_decimal::Decimal;
 use tokio::net::TcpListener;
+use tokio::signal::unix::{SignalKind, signal};
+use tokio::sync::watch;
 use tracing_subscriber::EnvFilter;
 
 use crate::config::Config;
@@ -77,11 +79,9 @@ async fn main() -> Result<()> {
     );
     let supervisor = Supervisor::new(SupervisorConfig {
         spine_url: config.spine_url(),
+        log_dir: config.data_dir.join("logs"),
         max_parallel_backtests: std::thread::available_parallelism().map_or(1, usize::from),
-        restart: Backoff {
-            initial: Duration::from_secs(1),
-            max: Duration::from_secs(300),
-        },
+        restart_delay: Duration::from_secs(1),
         kill_grace: Duration::from_secs(10),
     });
     let runner = Runner::new(
@@ -89,7 +89,6 @@ async fn main() -> Result<()> {
             bots_dir: config.bots_dir.clone(),
             start_cash: START_CASH,
             cost: CostModel::default(),
-            risk: RiskLimits::default(),
         },
         RunnerDeps {
             market: market.clone(),
@@ -99,11 +98,15 @@ async fn main() -> Result<()> {
             ingest: ingest.clone(),
         },
     );
+    let listener = TcpListener::bind(config.bind)
+        .await
+        .with_context(|| format!("cannot bind {}", config.bind))?;
     runner.recover().await?;
 
     let feed_task = feed.spawn();
     let ingest_task = ingest.spawn();
 
+    let (shutting_down, shutdown) = watch::channel(false);
     let app = buizz_api::router(AppState {
         config: Arc::new(ApiConfig {
             admin_password: config.admin_password.clone(),
@@ -115,16 +118,14 @@ async fn main() -> Result<()> {
         state,
         feed,
         ingest,
+        shutdown,
     });
-    let listener = TcpListener::bind(config.bind)
-        .await
-        .with_context(|| format!("cannot bind {}", config.bind))?;
     tracing::info!(bind = %config.bind, "spine listening");
     axum::serve(
         listener,
         app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
     )
-    .with_graceful_shutdown(shutdown_signal())
+    .with_graceful_shutdown(shutdown_signal(shutting_down))
     .await?;
 
     runner.shutdown().await;
@@ -135,12 +136,21 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn shutdown_signal() {
-    let interrupt = tokio::signal::ctrl_c();
-    let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-        .expect("SIGTERM handler installs");
+async fn shutdown_signal(shutting_down: watch::Sender<bool>) {
+    let mut interrupt = signal(SignalKind::interrupt()).expect("SIGINT handler installs");
+    let mut terminate = signal(SignalKind::terminate()).expect("SIGTERM handler installs");
     tokio::select! {
-        _ = interrupt => {}
+        _ = interrupt.recv() => {}
         _ = terminate.recv() => {}
     }
+    tracing::info!("shutting down; a second signal exits at once");
+    shutting_down.send_replace(true);
+    tokio::spawn(async move {
+        tokio::select! {
+            _ = interrupt.recv() => {}
+            _ = terminate.recv() => {}
+        }
+        tracing::warn!("second signal, exiting without a clean shutdown");
+        std::process::exit(1);
+    });
 }

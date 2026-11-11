@@ -48,6 +48,36 @@ impl Leases {
             .flat_map(|holder| &holder.symbols)
             .collect()
     }
+
+    fn admit(&self, cap: usize, except: Option<u64>, symbols: &[Symbol]) -> Result<(), FeedError> {
+        let others: BTreeSet<&Symbol> = self
+            .held
+            .iter()
+            .filter(|(id, _)| Some(**id) != except)
+            .flat_map(|(_, holder)| &holder.symbols)
+            .collect();
+        let requested = symbols
+            .iter()
+            .filter(|symbol| !others.contains(symbol))
+            .count();
+        let available = cap.saturating_sub(others.len());
+        if requested > available {
+            return Err(FeedError::CapExceeded {
+                requested,
+                available,
+                holders: self.held.values().cloned().collect(),
+            });
+        }
+        Ok(())
+    }
+}
+
+fn distinct(symbols: impl IntoIterator<Item = Symbol>) -> Vec<Symbol> {
+    symbols
+        .into_iter()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
 }
 
 struct Inner {
@@ -86,18 +116,28 @@ impl Inner {
 
 pub struct FeedLease {
     id: u64,
-    run_id: RunId,
     symbols: Vec<Symbol>,
     inner: Arc<Inner>,
 }
 
 impl FeedLease {
-    pub fn run_id(&self) -> RunId {
-        self.run_id
-    }
-
     pub fn symbols(&self) -> &[Symbol] {
         &self.symbols
+    }
+
+    pub fn cover(&mut self, symbols: impl IntoIterator<Item = Symbol>) -> Result<(), FeedError> {
+        let symbols = distinct(symbols);
+        if symbols == self.symbols {
+            return Ok(());
+        }
+        let mut leases = self.inner.leases();
+        leases.admit(self.inner.cap, Some(self.id), &symbols)?;
+        if let Some(holder) = leases.held.get_mut(&self.id) {
+            holder.symbols = symbols.clone();
+        }
+        self.inner.publish_leases(&leases);
+        self.symbols = symbols;
+        Ok(())
     }
 }
 
@@ -136,34 +176,27 @@ impl FeedManager {
         }
     }
 
-    pub async fn acquire(
+    pub fn admits(&self, symbols: impl IntoIterator<Item = Symbol>) -> Result<(), FeedError> {
+        if !self.inner.configured {
+            return Err(FeedError::Unavailable);
+        }
+        self.inner
+            .leases()
+            .admit(self.inner.cap, None, &distinct(symbols))
+    }
+
+    pub fn acquire(
         &self,
         run_id: RunId,
         bot: &str,
-        symbols: Vec<Symbol>,
+        symbols: impl IntoIterator<Item = Symbol>,
     ) -> Result<FeedLease, FeedError> {
         if !self.inner.configured {
             return Err(FeedError::Unavailable);
         }
-        let symbols: Vec<Symbol> = symbols
-            .into_iter()
-            .collect::<BTreeSet<_>>()
-            .into_iter()
-            .collect();
+        let symbols = distinct(symbols);
         let mut leases = self.inner.leases();
-        let held = leases.symbols();
-        let requested = symbols
-            .iter()
-            .filter(|symbol| !held.contains(symbol))
-            .count();
-        let available = self.inner.cap.saturating_sub(held.len());
-        if requested > available {
-            return Err(FeedError::CapExceeded {
-                requested,
-                available,
-                holders: leases.held.values().cloned().collect(),
-            });
-        }
+        leases.admit(self.inner.cap, None, &symbols)?;
         let id = leases.next_id;
         leases.next_id += 1;
         leases.held.insert(
@@ -177,7 +210,6 @@ impl FeedManager {
         self.inner.publish_leases(&leases);
         Ok(FeedLease {
             id,
-            run_id,
             symbols,
             inner: Arc::clone(&self.inner),
         })

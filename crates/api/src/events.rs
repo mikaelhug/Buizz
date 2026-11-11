@@ -35,8 +35,15 @@ pub(crate) async fn events(
             }
         })
     });
+    let mut shutdown = app.shutdown.clone();
+    let closed = async move {
+        tokio::select! {
+            () = session.ended() => {}
+            Ok(_) = shutdown.wait_for(|down| *down) => {}
+        }
+    };
     let stream = live
-        .take_until(session.ended())
+        .take_until(closed)
         .filter_map(|event| future::ready(frame(&event).map(Ok)));
     Sse::new(stream).keep_alive(KeepAlive::default())
 }

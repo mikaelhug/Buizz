@@ -14,8 +14,8 @@ use buizz_core::market::{Instrument, Symbol, Timeframe};
 use buizz_core::money::CASH_DECIMALS;
 use buizz_core::ops::{CoverageGap, DataWarning};
 use buizz_core::run::{
-    CostModel, DesiredState, Mode, PeriodPreset, RiskLimits, RunBadge, RunConfig, RunEvent,
-    RunEventKind, RunId, RunStatus, UniverseSpec,
+    CostModel, DesiredState, Mode, PeriodPreset, RunBadge, RunConfig, RunEvent, RunEventKind,
+    RunId, RunStatus, UniverseSpec,
 };
 use buizz_core::time::Timestamp;
 use buizz_engine::ENGINE_VERSION;
@@ -23,7 +23,7 @@ use buizz_feed::{FeedError, FeedLease, FeedManager};
 use buizz_ingest::{Ingest, IngestError};
 use buizz_market::{MarketError, MarketStore};
 use buizz_state::{NewRun, RunFilter, StateError, StateStore};
-use buizz_supervisor::{BotScan, BotSpec, Supervisor, SupervisorError, scan_bots};
+use buizz_supervisor::{BotScan, BotSpec, Supervisor, SupervisorError, load_bot, scan_bots};
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use tokio::sync::{broadcast, mpsc, watch};
@@ -74,7 +74,6 @@ pub struct RunnerConfig {
     pub bots_dir: PathBuf,
     pub start_cash: Decimal,
     pub cost: CostModel,
-    pub risk: RiskLimits,
 }
 
 pub struct RunnerDeps {
@@ -188,36 +187,26 @@ impl Runner {
             })
             .await?;
         runs.reverse();
-        let scan = self.bots();
         for mut run in runs {
             if run.desired == DesiredState::Stopped {
                 self.conclude(run.id, RunStatus::Cancelled, None).await?;
                 continue;
             }
-            let Some(spec) = scan.bots.iter().find(|spec| spec.name == run.bot).cloned() else {
-                let message = format!("bot folder {} is gone", run.bot);
-                self.conclude(run.id, RunStatus::Failed, Some(message))
-                    .await?;
-                continue;
+            let spec = match self.bot(&run.bot).await {
+                Ok(spec) => spec,
+                Err(error) => {
+                    self.conclude(run.id, RunStatus::Failed, Some(error.to_string()))
+                        .await?;
+                    continue;
+                }
             };
-            let mut lease = None;
             if run.mode == Mode::Backtest {
                 state
                     .set_status(run.id, RunStatus::Queued, None, now())
                     .await?;
-            } else if run.config.timeframe == Timeframe::Minute {
-                match self.lease(&run).await {
-                    Ok(acquired) => lease = Some(acquired),
-                    Err(error) => {
-                        state.set_desired(run.id, DesiredState::Paused).await?;
-                        state
-                            .set_status(run.id, RunStatus::Paused, Some(error.to_string()), now())
-                            .await?;
-                    }
-                }
+                run = self.summary(run.id).await?;
             }
-            run = self.summary(run.id).await?;
-            self.spawn(run, spec, lease);
+            self.spawn(run, spec, None);
         }
         Ok(())
     }
@@ -228,7 +217,7 @@ impl Runner {
         request: StartBacktest,
         today: NaiveDate,
     ) -> Result<RunSummary, RunnerError> {
-        let spec = self.bot(bot)?;
+        let spec = self.bot(bot).await?;
         let period = match (request.period, request.preset) {
             (Some(period), _) => period,
             (None, Some(preset)) => preset.resolve(today),
@@ -276,10 +265,17 @@ impl Runner {
     }
 
     pub async fn go_live(&self, bot: &str) -> Result<RunSummary, RunnerError> {
-        let spec = self.bot(bot)?;
+        let spec = self.bot(bot).await?;
+        let today = now().exchange_date();
         if let Some(run) = self.live_run(bot).await? {
             if run.desired != DesiredState::Paused {
                 return Err(RunnerError::AlreadyLive(bot.to_owned()));
+            }
+            if run.config.timeframe == Timeframe::Minute {
+                let portfolio = self.inner.state.portfolio(run.id).await?;
+                let held = portfolio.open_positions().map(|(symbol, _)| symbol.clone());
+                let universe = universe_at(&self.inner.market, &run.config, today).await?;
+                self.inner.feed.admits(universe.into_iter().chain(held))?;
             }
             self.inner
                 .state
@@ -288,7 +284,6 @@ impl Runner {
             self.inner.steer(run.id, DesiredState::Running);
             return self.summary(run.id).await;
         }
-        let today = now().exchange_date();
         let config = self.run_config(
             &spec,
             Mode::Live,
@@ -306,6 +301,14 @@ impl Runner {
                 allow_holdout: false,
             },
         )?;
+        let streamed = match config.timeframe {
+            Timeframe::Minute => {
+                let universe = universe_at(&self.inner.market, &config, today).await?;
+                self.inner.feed.admits(universe.clone())?;
+                Some(universe)
+            }
+            Timeframe::Day => None,
+        };
         let run = match self
             .create(config, &spec, RunStatus::Starting, Vec::new())
             .await
@@ -315,18 +318,8 @@ impl Runner {
             }
             created => created?,
         };
-        let lease = if run.config.timeframe == Timeframe::Minute {
-            match self.lease(&run).await {
-                Ok(lease) => Some(lease),
-                Err(error) => {
-                    self.conclude(run.id, RunStatus::Failed, Some(error.to_string()))
-                        .await?;
-                    return Err(error);
-                }
-            }
-        } else {
-            None
-        };
+        let lease =
+            streamed.and_then(|universe| self.inner.feed.acquire(run.id, &run.bot, universe).ok());
         self.spawn(run.clone(), spec, lease);
         Ok(run)
     }
@@ -388,6 +381,10 @@ impl Runner {
         self.inner.events.subscribe()
     }
 
+    pub fn log_path(&self, run_id: RunId) -> PathBuf {
+        self.inner.supervisor.log_path(run_id)
+    }
+
     pub async fn benchmark(&self, run: &RunSummary) -> Result<Vec<SparkPoint>, RunnerError> {
         report::benchmark(&self.inner.market, run, now().exchange_date()).await
     }
@@ -411,12 +408,15 @@ impl Runner {
         }
     }
 
-    fn bot(&self, name: &str) -> Result<BotSpec, RunnerError> {
-        self.bots()
-            .bots
-            .into_iter()
-            .find(|spec| spec.name == name)
-            .ok_or_else(|| RunnerError::UnknownBot(name.to_owned()))
+    async fn bot(&self, name: &str) -> Result<BotSpec, RunnerError> {
+        let (bots_dir, name) = (self.inner.config.bots_dir.clone(), name.to_owned());
+        let loaded = tokio::task::spawn_blocking(move || load_bot(&bots_dir, &name))
+            .await
+            .expect("loading a bot does not panic");
+        match loaded {
+            Err(SupervisorError::NoSuchBot(name)) => Err(RunnerError::UnknownBot(name)),
+            loaded => Ok(loaded?),
+        }
     }
 
     fn run_config(
@@ -458,16 +458,11 @@ impl Runner {
             end,
             start_cash,
             cost: request.cost.unwrap_or(defaults.cost),
-            risk: request.risk.unwrap_or(defaults.risk),
+            risk: request.risk.unwrap_or(manifest.risk),
             seed,
             benchmark: manifest.benchmark.clone(),
             holdout,
         })
-    }
-
-    async fn lease(&self, run: &RunSummary) -> Result<FeedLease, RunnerError> {
-        let symbols = universe_at(&self.inner.market, &run.config).await?;
-        Ok(self.inner.feed.acquire(run.id, &run.bot, symbols).await?)
     }
 
     async fn create(
@@ -587,12 +582,16 @@ impl Runner {
     }
 }
 
-async fn universe_at(market: &MarketStore, config: &RunConfig) -> Result<Vec<Symbol>, MarketError> {
+async fn universe_at(
+    market: &MarketStore,
+    config: &RunConfig,
+    date: NaiveDate,
+) -> Result<Vec<Symbol>, MarketError> {
     match &config.universe {
         UniverseSpec::Symbols { symbols } => Ok(symbols.clone()),
         UniverseSpec::TopDollarVolume { top_dollar_volume } => {
             market
-                .top_dollar_volume(*top_dollar_volume, config.start, config.cost.adv_sessions)
+                .top_dollar_volume(*top_dollar_volume, date, config.cost.adv_sessions)
                 .await
         }
     }
@@ -602,7 +601,7 @@ pub(crate) async fn gate_symbols(
     market: &MarketStore,
     config: &RunConfig,
 ) -> Result<Vec<Symbol>, MarketError> {
-    let mut symbols = universe_at(market, config).await?;
+    let mut symbols = universe_at(market, config, config.start).await?;
     symbols.push(config.benchmark.clone());
     symbols.sort();
     symbols.dedup();

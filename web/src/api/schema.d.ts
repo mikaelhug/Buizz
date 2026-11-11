@@ -377,6 +377,7 @@ export interface components {
             universe: components["schemas"]["UniverseSpec"];
             params?: Record<string, never>;
             benchmark?: components["schemas"]["Symbol"];
+            risk?: components["schemas"]["RiskLimits"];
         };
         /** @enum {string} */
         BotStatus: "idle" | "live" | "paused" | "backtesting" | "error";
@@ -639,7 +640,7 @@ export interface components {
             weight: string;
         };
         /** @enum {string} */
-        RejectReason: "unknown_symbol" | "duplicate_client_id" | "zero_quantity" | "invalid_limit_price" | "no_price" | "not_shortable" | "max_position_weight" | "max_gross_exposure" | "invalid_size";
+        RejectReason: "unknown_symbol" | "duplicate_client_id" | "zero_quantity" | "invalid_limit_price" | "no_price" | "not_shortable" | "max_position_weight" | "max_gross_exposure" | "invalid_size" | "no_stream_slot";
         Reproducibility: {
             bot_hash: string;
             engine_version: string;

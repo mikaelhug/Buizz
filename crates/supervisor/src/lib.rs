@@ -1,14 +1,12 @@
 use std::collections::VecDeque;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;
 
 use buizz_core::protocol::{ENV_RUN_ID, ENV_RUN_TOKEN, ENV_SPINE_URL};
 use buizz_core::run::{BotManifest, RunId};
-use buizz_core::time::Timestamp;
-use chrono::Utc;
 use nix::errno::Errno;
 use nix::sys::signal::{Signal, killpg};
 use nix::unistd::Pid;
@@ -19,10 +17,11 @@ use tokio::sync::{OwnedSemaphorePermit, Semaphore, mpsc, oneshot, watch};
 use tokio::task::JoinHandle;
 use tokio::time::Instant;
 
-const LOG_DIR: &str = "data/logs";
 const EVENT_BUFFER: usize = 1024;
 const RESTART_WINDOW: Duration = Duration::from_secs(600);
 const MAX_RESTARTS_IN_WINDOW: usize = 5;
+const INHERITED_VARS: [&str; 5] = ["PATH", "HOME", "LANG", "TZ", "TMPDIR"];
+const INHERITED_PREFIXES: [&str; 2] = ["UV_", "PYTHON"];
 const IGNORED_NAMES: [&str; 6] = [
     "__pycache__",
     ".venv",
@@ -34,6 +33,8 @@ const IGNORED_NAMES: [&str; 6] = [
 
 #[derive(Debug, thiserror::Error)]
 pub enum SupervisorError {
+    #[error("no bot named {0:?}")]
+    NoSuchBot(String),
     #[error("bot directory {0}: {1}")]
     Io(PathBuf, std::io::Error),
     #[error("bot {bot}: {source}")]
@@ -74,7 +75,7 @@ pub fn scan_bots(dir: &Path) -> Result<BotScan, SupervisorError> {
     folders.sort();
     let mut scan = BotScan::default();
     for (name, path) in folders {
-        match load_bot(name, path) {
+        match load(name, path) {
             Ok(bot) => scan.bots.push(bot),
             Err(error) => scan.invalid.push(error),
         }
@@ -82,7 +83,20 @@ pub fn scan_bots(dir: &Path) -> Result<BotScan, SupervisorError> {
     Ok(scan)
 }
 
-fn load_bot(name: String, dir: PathBuf) -> Result<BotSpec, SupervisorError> {
+pub fn load_bot(bots_dir: &Path, name: &str) -> Result<BotSpec, SupervisorError> {
+    let mut components = Path::new(name).components();
+    let direct_child = matches!(
+        (components.next(), components.next()),
+        (Some(Component::Normal(_)), None)
+    );
+    let dir = bots_dir.join(name);
+    if !direct_child || name.starts_with('.') || !dir.join(BotManifest::FILE_NAME).is_file() {
+        return Err(SupervisorError::NoSuchBot(name.to_owned()));
+    }
+    load(name.to_owned(), dir)
+}
+
+fn load(name: String, dir: PathBuf) -> Result<BotSpec, SupervisorError> {
     let manifest_path = dir.join(BotManifest::FILE_NAME);
     let text =
         fs::read_to_string(&manifest_path).map_err(|e| SupervisorError::Io(manifest_path, e))?;
@@ -140,24 +154,12 @@ fn hash_tree(
     Ok(())
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Backoff {
-    pub initial: Duration,
-    pub max: Duration,
-}
-
-impl Backoff {
-    pub fn delay(&self, attempt: u32) -> Duration {
-        let doublings = 2u32.saturating_pow(attempt.saturating_sub(1));
-        self.initial.saturating_mul(doublings).min(self.max)
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SupervisorConfig {
     pub spine_url: String,
+    pub log_dir: PathBuf,
     pub max_parallel_backtests: usize,
-    pub restart: Backoff,
+    pub restart_delay: Duration,
     pub kill_grace: Duration,
 }
 
@@ -176,21 +178,10 @@ pub enum OutputStream {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ProcessEvent {
-    Started {
-        pid: u32,
-    },
-    Line {
-        stream: OutputStream,
-        line: String,
-        at: Timestamp,
-    },
-    Exited {
-        code: Option<i32>,
-    },
-    Restarting {
-        attempt: u32,
-        delay: Duration,
-    },
+    Started { pid: u32 },
+    Line { stream: OutputStream, line: String },
+    Exited { code: Option<i32> },
+    Restarting { attempt: u32, delay: Duration },
 }
 
 pub struct BotProcess {
@@ -198,6 +189,15 @@ pub struct BotProcess {
     kill_grace: Duration,
     events: mpsc::Receiver<ProcessEvent>,
     exit: watch::Receiver<Option<Option<i32>>>,
+}
+
+fn inherited(name: &std::ffi::OsStr) -> bool {
+    name.to_str().is_some_and(|name| {
+        INHERITED_VARS.contains(&name)
+            || INHERITED_PREFIXES
+                .iter()
+                .any(|prefix| name.starts_with(prefix))
+    })
 }
 
 fn signal_group(pid: u32, signal: Signal) -> Result<(), SupervisorError> {
@@ -259,8 +259,7 @@ async fn pump_output(
         match line {
             Ok(Some(line)) => {
                 let _ = log.write_all(format!("{line}\n").as_bytes()).await;
-                let at = Timestamp::from_datetime(Utc::now()).unwrap_or_default();
-                let _ = events.try_send(ProcessEvent::Line { stream, line, at });
+                let _ = events.try_send(ProcessEvent::Line { stream, line });
             }
             Ok(None) | Err(_) => match stream {
                 OutputStream::Stdout => stdout_open = false,
@@ -283,6 +282,7 @@ impl LiveProcess {
     }
 
     pub async fn stop(mut self) -> Result<(), SupervisorError> {
+        self.events.close();
         if let Some(stop) = self.stop.take() {
             let _ = stop.send(());
         }
@@ -324,12 +324,17 @@ impl Supervisor {
             .expect("backtest semaphore is never closed")
     }
 
+    pub fn log_path(&self, run_id: RunId) -> PathBuf {
+        self.config.log_dir.join(format!("{run_id}.log"))
+    }
+
     pub async fn spawn(&self, launch: &Launch) -> Result<BotProcess, SupervisorError> {
         let bot = &launch.bot;
-        tokio::fs::create_dir_all(LOG_DIR)
+        let log_dir = &self.config.log_dir;
+        tokio::fs::create_dir_all(log_dir)
             .await
-            .map_err(|e| SupervisorError::Io(PathBuf::from(LOG_DIR), e))?;
-        let log_path = Path::new(LOG_DIR).join(format!("{}.log", launch.run_id));
+            .map_err(|e| SupervisorError::Io(log_dir.clone(), e))?;
+        let log_path = self.log_path(launch.run_id);
         let log = OpenOptions::new()
             .create(true)
             .append(true)
@@ -344,6 +349,8 @@ impl Supervisor {
         let mut child = Command::new(program)
             .args(args)
             .current_dir(&bot.dir)
+            .env_clear()
+            .envs(std::env::vars_os().filter(|(name, _)| inherited(name)))
             .env(ENV_SPINE_URL, &self.config.spine_url)
             .env(ENV_RUN_ID, launch.run_id.to_string())
             .env(ENV_RUN_TOKEN, &launch.token)
@@ -436,7 +443,10 @@ impl Supervisor {
             }
             restarts.push_back(now);
             let attempt = restarts.len() as u32;
-            let delay = self.config.restart.delay(attempt);
+            let delay = self
+                .config
+                .restart_delay
+                .saturating_mul(2u32.saturating_pow(attempt - 1));
             let _ = events
                 .send(ProcessEvent::Restarting { attempt, delay })
                 .await;

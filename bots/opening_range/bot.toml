@@ -4,3 +4,7 @@ timeframe = "1m"
 wake = "every:5m"
 universe = { symbols = ["SPY", "QQQ"] }
 params = { range_minutes = 30, weight = 0.45, limit_buffer_bps = 5, flatten_minutes_before_close = 5 }
+
+[risk]
+max_position_weight = 0.5
+max_gross_exposure = 1.0

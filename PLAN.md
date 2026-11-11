@@ -118,10 +118,7 @@ Out of v1: brokers and real money; options, crypto, FX; tick/quote simulation; e
 2. Confirm every worktree branch is merged into `main` and pruned.
 3. Code review each module of Buizz (one review per crate, the SDK and the web app); fix confirmed findings.
    Known issues to fold into the reviews:
-   - Bot logs go to `data/logs` relative to the working directory in the supervisor and the API, ignoring `BUIZZ_DATA_DIR`.
-   - Runs get no default risk limits, and the UI and CLI cannot set any; a drawdown breach in a backtest reads as a pause with reason `risk_limit`.
-   - Live runs can never have risk limits: `go_live` uses the spine defaults (none) and neither `bot.toml` nor the UI can set them, so the drawdown kill switch only works for API-started backtests. Needs a decision on where live risk limits are configured.
-   - The spine does not exit on SIGTERM while a browser holds the SSE stream open (graceful shutdown waits on it); Kubernetes pod shutdown would hang until SIGKILL.
+   - The UI and CLI cannot override a bot's risk limits for one backtest; a drawdown breach in a backtest reads as a pause with reason `risk_limit`.
    - A live run's SPY benchmark only extends on reload or status change.
    - No time seam: the runner, feed, ingest, API and supervisor call the wall clock directly, so the live e2e scenarios must sleep between 23:28 and 00:11 ET. Add one `now()` in `buizz_core::time` with a test offset.
    - The spine cannot report its bound address when `BUIZZ_BIND` uses port 0; e2e works around it with relaunch-on-collision.

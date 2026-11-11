@@ -8,7 +8,7 @@ use axum::extract::ConnectInfo;
 use axum::http::{HeaderMap, HeaderName, Request, StatusCode, header};
 use buizz_api::{ApiConfig, AppState};
 use buizz_core::protocol::BOT_PATH;
-use buizz_core::run::{CostModel, RiskLimits};
+use buizz_core::run::CostModel;
 use buizz_feed::{FeedConfig, FeedManager};
 use buizz_ingest::{Ingest, IngestConfig};
 use buizz_market::MarketStore;
@@ -17,7 +17,7 @@ use buizz_sources::Sources;
 use buizz_sources::alpaca::HISTORY_START;
 use buizz_sources::treasury::{self, TreasuryClient, TreasuryConfig};
 use buizz_state::StateStore;
-use buizz_supervisor::{Backoff, Supervisor, SupervisorConfig};
+use buizz_supervisor::{Supervisor, SupervisorConfig};
 use rust_decimal::Decimal;
 use tempfile::TempDir;
 use tower::ServiceExt;
@@ -69,11 +69,9 @@ async fn spine() -> Spine {
     );
     let supervisor = Supervisor::new(SupervisorConfig {
         spine_url: "ws://127.0.0.1:1".to_owned(),
+        log_dir: data.path().join("logs"),
         max_parallel_backtests: 1,
-        restart: Backoff {
-            initial: Duration::from_secs(1),
-            max: Duration::from_secs(1),
-        },
+        restart_delay: Duration::from_secs(1),
         kill_grace: Duration::from_secs(1),
     });
     let runner = Runner::new(
@@ -81,7 +79,6 @@ async fn spine() -> Spine {
             bots_dir: data.path().join("bots"),
             start_cash: Decimal::from(100_000),
             cost: CostModel::default(),
-            risk: RiskLimits::default(),
         },
         RunnerDeps {
             market: market.clone(),
@@ -102,6 +99,7 @@ async fn spine() -> Spine {
         state,
         feed,
         ingest,
+        shutdown: tokio::sync::watch::channel(false).1,
     });
     Spine {
         router,

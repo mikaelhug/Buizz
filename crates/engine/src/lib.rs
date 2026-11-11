@@ -170,7 +170,7 @@ impl Engine {
         session: NaiveDate,
         orders: Vec<OrderRequest>,
         cancels: Vec<String>,
-        instrument: impl Fn(&Symbol) -> Option<&'a Instrument>,
+        instrument: impl Fn(&Symbol) -> Result<&'a Instrument, RejectReason>,
     ) {
         for client_id in &cancels {
             self.close_where(decided_at, OrderStatus::Cancelled, |order| {
@@ -516,9 +516,9 @@ impl Engine {
         &self,
         order: &mut Order,
         session: NaiveDate,
-        instrument: Option<&Instrument>,
+        instrument: Result<&Instrument, RejectReason>,
     ) -> Result<(), RejectReason> {
-        let instrument = instrument.ok_or(RejectReason::UnknownSymbol)?;
+        let instrument = instrument?;
         if let OrderType::Limit { limit_price } = order.order_type
             && limit_price <= Decimal::ZERO
         {
@@ -760,7 +760,11 @@ mod tests {
             first_session: None,
             last_session: None,
         };
-        let known = |symbol: &Symbol| (*symbol == instrument.symbol).then_some(&instrument);
+        let known = |symbol: &Symbol| {
+            (*symbol == instrument.symbol)
+                .then_some(&instrument)
+                .ok_or(RejectReason::UnknownSymbol)
+        };
         engine.accept(
             session.close,
             session.date.succ_opt().unwrap(),
@@ -991,7 +995,7 @@ mod tests {
             first.date.succ_opt().unwrap(),
             vec![buy("AAA-1", 10)],
             Vec::new(),
-            |_| None,
+            |_| Err(RejectReason::UnknownSymbol),
         );
         let rejected = &engine.drain().rejections[0];
         assert_eq!(

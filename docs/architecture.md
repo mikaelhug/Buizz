@@ -34,14 +34,14 @@ flowchart LR
 
 | Component | Crate or folder | Job |
 |---|---|---|
-| Spine | `crates/spine` | The binary: reads the environment, wires everything, serves HTTP, shuts down cleanly |
+| Spine | `crates/spine` | The binary: reads the environment, wires everything, serves HTTP, shuts down cleanly on SIGTERM or Ctrl-C (closing event streams, then stopping runs at their last checkpoint); a second signal exits at once |
 | Core | `crates/core` | Types and rules shared by all: run config, cost model, risk limits, order and ledger types, visibility rules, bot protocol messages, API types |
 | Market store | `crates/market` | Embedded DuckDB (`market.duckdb`): instruments, calendar, daily and 1m bars, corporate actions, fundamentals, rates, coverage. All reads a run does are as-of queries here |
 | State store | `crates/state` | SQLite in WAL mode (`state.db`): runs, orders, ledger, equity points, run events, job runs, fetch records, step checkpoints |
 | Engine | `crates/engine` | Pure, deterministic order matching and portfolio ledger. Takes a bar cycle and the bot's orders, returns fills, ledger entries, equity points and risk breaches |
 | Runner | `crates/runner` | Drives runs: replays bars in lockstep with the bot, calls the engine, commits each step and its checkpoint to the state store, applies the data gate and holdout rule, recovers runs after a restart |
-| Supervisor | `crates/supervisor` | Scans `bots/`, starts one child process per run (own process group, killed as a group), captures its output, restarts live bots with backoff, runs backtests in parallel up to the core count |
-| Feed manager | `crates/feed` | Holds the Alpaca real-time stream subscriptions for live 1m runs. Ref-counted, capped at 30 symbols, refuses over the cap naming the holders, backfills gaps and writes bars to the market store |
+| Supervisor | `crates/supervisor` | Scans `bots/`, starts one child process per run (own process group, killed as a group), captures its output, restarts a crashed live bot after 1, 2, 4, 8 and 16 s and pauses the run after 5 crashes in 10 minutes, runs backtests in parallel up to the core count |
+| Feed manager | `crates/feed` | Holds the Alpaca real-time stream subscriptions for live 1m runs. Ref-counted, capped at 30 symbols, refuses over the cap naming the holders, backfills gaps and the session so far for newly subscribed symbols, and writes bars to the market store |
 | Ingest | `crates/ingest` | Scheduled jobs that fill the market store (see below), a lazy 1m backfill for minute backtests, a daily `state.db` snapshot |
 | Sources | `crates/sources` | Clients for Alpaca (REST and stream), Tiingo, SEC EDGAR and US Treasury with rate limits and backoff |
 | API | `crates/api` | Axum routes under `/api` for bots, runs, leaderboard and data health, server-sent events for live updates, the bot WebSocket at `/bot/v1` (loopback peers only), an unauthenticated `GET /healthz` (204) for probes, and the web bundle when `BUIZZ_WEB_DIR` is set; unknown `/api` paths answer a JSON 404. One admin password, an HttpOnly session cookie, failed logins rate-limited per client (an IPv4 address or an IPv6 /64) with a global failure budget that, once spent, paces password checks to one per second, and requests other than reads refused unless a browser sends them from the same origin. Every response carries a same-origin-only Content-Security-Policy that also forbids framing, `nosniff` and a same-origin referrer policy |
@@ -55,9 +55,9 @@ flowchart LR
 
 The engine only ever reads the market store. Ingest and the feed manager write bars and advance a watermark; a run replays bars up to what the store holds. A backtest is a replay that finds all its bars already there. A live run is the same replay loop blocked at the watermark: it waits until the next bar arrives and then goes on. There is no separate live code path for decisions, so backtest and live behave the same by construction, and recovering after a restart is resuming from the last checkpoint.
 
-For each bar the runner runs one cycle: order expiry, corporate actions, fills at the bar's open, then at the bar's visible time mark to market, risk limits, wake the bot, accept its orders. A bar's cycle finishes before the next bar's begins. Each step is committed together with the engine checkpoint.
+For each bar the runner runs one cycle: order expiry, corporate actions, fills at the bar's open, then at the bar's visible time mark to market, risk limits, wake the bot, accept its orders. A bar's cycle finishes before the next bar's begins. Each step is committed together with the engine checkpoint, and a checkpoint is never taken while fills, order changes or corporate actions still wait for the bot's next step, so a restart replays those bars instead of losing their events.
 
-Live runs on 1m bars use the real-time IEX stream; backtests use SIP history, so volume is partial live. Live fills are tagged with the feed. The volume cap uses the average daily volume, so it is the same in both modes. Live runs on daily bars use the official daily bar and take no stream slot.
+Live runs on 1m bars use the real-time IEX stream; backtests use SIP history, so volume is partial live. A live 1m run leases stream slots for its session's universe plus the symbols it holds or has orders in, again at every new session and after every step; going live or resuming is refused when the slots are not free, a paused run holds none, and an order for a symbol no free slot can cover is rejected with `no_stream_slot`. Live fills are tagged with the feed. The volume cap uses the average daily volume, so it is the same in both modes. Live runs on daily bars use the official daily bar and take no stream slot.
 When bars arrive in live while the bot is still deciding, they coalesce into its next step. Pausing a live run cancels its working orders and stops the bot process while the spine keeps marking equity; resuming starts the bot again with its saved state and current holdings and never replays the paused interval.
 
 ## Guarantees
@@ -68,7 +68,7 @@ When bars arrive in live while the bot is still deciding, they coalesce into its
 
 **Crash safety.** The ledger and checkpoints are written in SQLite transactions, one per step. On start the runner recovers runs that were active.
 
-**Reproducibility.** A run records the bot content hash, engine version, seed, data watermark and its full config. The engine version is a number bumped whenever the engine's behaviour or checkpoint changes. A live run resumes from an older engine's checkpoint; a backtest refuses to, so its result never mixes two engines.
+**Reproducibility.** A run records the bot content hash, engine version, seed, data watermark and its full config. The engine version is a number bumped whenever the engine's behaviour or checkpoint changes. A live run resumes from an older engine's checkpoint; a backtest refuses to, so its result never mixes two engines. A run never continues under different bot code: whenever the runner starts the bot process it compares the folder's hash, failing a backtest and pausing a live run with the reason.
 
 ## Data sources and limits
 
@@ -92,6 +92,6 @@ All under `BUIZZ_DATA_DIR` (default `data/`) unless noted.
 | `market.duckdb` | Market data | Yes, by ingesting again from the sources |
 | `state.db` | Runs, orders, ledger, equity, events, job history, fetch budget | No: this is the backup target |
 | `backups/state-YYYY-MM-DD.db` | Daily snapshots of `state.db` | |
-| `data/logs/<run_id>.log` | Bot process output, one file per run | Relative to the spine's working directory |
+| `logs/<run_id>.log` | Bot process output, one file per run | |
 
 Bots are read from `BUIZZ_BOTS_DIR`. Market data watermarks are held in memory and re-advanced on start from what the store contains.

@@ -10,7 +10,7 @@ bots/red_green/
   bot.py
 ```
 
-The spine rescans `bots/` on every request, so a new or edited bot shows up without a restart. A folder is a bot when it holds a `bot.toml`; folders starting with `.` are ignored. Each run records a content hash of the folder.
+The spine rescans `bots/` on every request, so a new or edited bot shows up without a restart. A folder is a bot when it holds a `bot.toml`; folders starting with `.` are ignored. Each run records a content hash of the folder and never continues under different code: when a backtest is (re)started after a restart, or a live run is started or resumed, with edited bot code, the backtest fails and the live run pauses with the reason. Stop it and start a new run.
 
 ## Walkthrough: `red_green`
 
@@ -58,8 +58,9 @@ if __name__ == "__main__":
 | `universe` | yes | `{ symbols = ["SPY", "QQQ"] }` (not empty) or `{ top_dollar_volume = 500 }` (positive) |
 | `params` | no | Default parameters, available as `ctx.params` |
 | `benchmark` | no, default `"SPY"` | Symbol the equity curve is compared with |
+| `[risk]` | no | Risk limits for live runs and the default for backtests, see [Risk limits](#risk-limits) |
 
-The spine starts `command` with `BUIZZ_SPINE_URL`, `BUIZZ_RUN_ID` and `BUIZZ_RUN_TOKEN` set. Output on stdout and stderr is captured to `data/logs/<run_id>.log`.
+The spine starts `command` with `BUIZZ_SPINE_URL`, `BUIZZ_RUN_ID` and `BUIZZ_RUN_TOKEN` set. Of the spine's own environment the bot only inherits `PATH`, `HOME`, `LANG`, `TZ`, `TMPDIR` and the `UV_*` and `PYTHON*` variables, so API keys and the admin password never reach it. Output on stdout and stderr is captured to `logs/<run_id>.log` under the spine's data directory (`BUIZZ_DATA_DIR`, default `data`).
 
 **Universe.** `symbols` is a fixed list. `top_dollar_volume = N` selects the N symbols with the highest average dollar volume over the last 20 sessions, recomputed as of each session; the step carries `universe` whenever it changed and `ctx.universe` follows.
 
@@ -123,7 +124,7 @@ ctx.log(message, level="info")
 - `cancel` cancels a working order by client id.
 - `log` writes a line of the given level (`debug`, `info`, `warn`, `error`) into the run's event log; the bot's stdout and stderr go to the log file.
 
-Orders are rejected, with the reason on the order and in the run events, for: `unknown_symbol`, `duplicate_client_id`, `zero_quantity`, `invalid_limit_price`, `no_price` (no close seen yet), `not_shortable`, `max_position_weight`, `max_gross_exposure` and `invalid_size` (a quantity or target weight too large to compute).
+Orders are rejected, with the reason on the order and in the run events, for: `unknown_symbol`, `duplicate_client_id`, `zero_quantity`, `invalid_limit_price`, `no_price` (no close seen yet), `not_shortable`, `max_position_weight`, `max_gross_exposure`, `invalid_size` (a quantity or target weight too large to compute) and, for live `1m` runs, `no_stream_slot` (the symbol is outside the universe and holdings and the 30-symbol stream has no free slot for it).
 
 ### State
 
@@ -153,7 +154,16 @@ Shorting is allowed for instruments flagged shortable.
 
 ## Risk limits
 
-A run can carry `max_position_weight`, `max_gross_exposure` and `max_drawdown` (fractions). None is set by default; they are set per run through the `risk` field of the backtest request of the HTTP API. An order that would grow a position past `max_position_weight`, or the book past `max_gross_exposure`, is rejected; while equity is at or below zero every order that grows a position breaks a limit that is set. Without limits nothing is rejected for exposure. Falling past `max_drawdown` from the peak equity records a risk breach and pauses the run with end reason `risk_limit`.
+A bot declares its limits in a `[risk]` section of `bot.toml`, each a positive fraction and each optional:
+
+```toml
+[risk]
+max_position_weight = 0.3
+max_gross_exposure = 1.0
+max_drawdown = 0.2
+```
+
+They apply to every live run and are the default for backtests; the `risk` field of a backtest request replaces them for that run. A run keeps the limits it started with: a live run captures them when it goes live, so after changing them stop the live run and go live again. An order that would grow a position past `max_position_weight`, or the book past `max_gross_exposure`, is rejected; while equity is at or below zero every order that grows a position breaks a limit that is set. Without limits nothing is rejected for exposure. Falling past `max_drawdown` from the peak equity records a risk breach and pauses the run with end reason `risk_limit`. Without a `[risk]` section a run has no limits.
 
 ## Holdout and honest data
 
@@ -174,4 +184,4 @@ uv run --frozen buizz backtest ../../bots/red_green --from 2024-11-20 --to 2024-
 uv run --frozen buizz backtest ../../bots/sma_cross --from 2020-01-01 --to 2024-12-31 --param fast=20 --param slow=100
 ```
 
-It queues the run, prints the clock and equity while it runs, then the metrics (`total_return`, `cagr`, `volatility`, `sharpe`, `sortino`, `max_drawdown`, `calmar`, `win_rate`, `profit_factor`, `exposure`, `turnover`, `alpha`, `beta`, `trades`, `sessions`; `-` when a metric is undefined for the run, e.g. `cagr` and `calmar` for runs shorter than 252 sessions, because annualizing a shorter return mostly magnifies noise) and the orders by status with the net shares held per symbol after splits. The exit code is 1 when the run fails or is cancelled. The same run is in the UI with the equity curve against the benchmark, the orders with their reasons, positions and the bot log. Bot output and tracebacks are in `data/logs/<run_id>.log`.
+It queues the run, prints the clock and equity while it runs, then the metrics (`total_return`, `cagr`, `volatility`, `sharpe`, `sortino`, `max_drawdown`, `calmar`, `win_rate`, `profit_factor`, `exposure`, `turnover`, `alpha`, `beta`, `trades`, `sessions`; `-` when a metric is undefined for the run, e.g. `cagr` and `calmar` for runs shorter than 252 sessions, because annualizing a shorter return mostly magnifies noise) and the orders by status with the net shares held per symbol after splits. The exit code is 1 when the run fails or is cancelled. The same run is in the UI with the equity curve against the benchmark, the orders with their reasons, positions and the bot log. Bot output and tracebacks are in `logs/<run_id>.log` under the data directory.

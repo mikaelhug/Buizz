@@ -49,6 +49,7 @@ impl Problems {
 }
 
 struct Backfill {
+    symbols: BTreeSet<Symbol>,
     from: Timestamp,
     to: Timestamp,
     attempt: u32,
@@ -137,13 +138,15 @@ impl Pump {
                 self.problems.stream = None;
                 let now = minute_floor(now());
                 match self.settled_through {
-                    Some(through) => self.request_backfill(through, now),
+                    Some(through) => self.request_backfill(self.subscribed.clone(), through, now),
                     None => self.settled_through = Some(now),
                 }
             }
             StreamEvent::Subscribed { .. } => self.problems.subscription = None,
             StreamEvent::Bar(bar) => self.on_bar(bar).await,
-            StreamEvent::Gap { from, to } => self.request_backfill(from, to),
+            StreamEvent::Gap { from, to } => {
+                self.request_backfill(self.subscribed.clone(), from, to);
+            }
             StreamEvent::SymbolLimitExceeded => {
                 self.problems.subscription =
                     Some("Alpaca refused the subscription: symbol limit exceeded".to_owned());
@@ -166,16 +169,35 @@ impl Pump {
             return;
         }
         let removed = self.subscribed.difference(&wanted).cloned().collect();
-        let added = wanted.difference(&self.subscribed).cloned().collect();
+        let added: BTreeSet<Symbol> = wanted.difference(&self.subscribed).cloned().collect();
         let outcome = self
             .stream
             .unsubscribe(removed)
             .await
-            .and(self.stream.subscribe(added).await);
+            .and(self.stream.subscribe(added.iter().cloned().collect()).await);
         if let Err(error) = outcome {
             self.problems.subscription = Some(error.to_string());
         }
         self.subscribed = wanted;
+        if !added.is_empty() {
+            self.backfill_session(added).await;
+        }
+    }
+
+    async fn backfill_session(&mut self, symbols: BTreeSet<Symbol>) {
+        let now = now();
+        let date = now.exchange_date();
+        let calendar = match self.inner.market.calendar(date, date).await {
+            Ok(calendar) => calendar,
+            Err(error) => {
+                self.problems.calendar = Some(error.to_string());
+                return;
+            }
+        };
+        if let Some(session) = calendar.session(date) {
+            let to = self.settled_through.unwrap_or_else(|| minute_floor(now));
+            self.request_backfill(symbols, session.open, to.min(session.close));
+        }
     }
 
     async fn on_bar(&mut self, bar: Bar) {
@@ -236,23 +258,39 @@ impl Pump {
         self.queue(DataSource::AlpacaStream, bars);
     }
 
-    fn request_backfill(&mut self, from: Timestamp, to: Timestamp) {
+    fn request_backfill(&mut self, symbols: BTreeSet<Symbol>, from: Timestamp, to: Timestamp) {
         let floor = minute_floor(now()) - BACKFILL_LOOKBACK_LIMIT;
         let from = self
             .settled_through
             .map_or(from, |through| from.min(through))
             .max(floor);
-        let (from, to) = match &self.backfill {
-            Some(running) if running.from <= from && to <= running.to => return,
-            Some(running) => (from.min(running.from), to.max(running.to)),
-            None => (from, to),
+        let (symbols, from, to) = match &self.backfill {
+            Some(running)
+                if running.from <= from
+                    && to <= running.to
+                    && symbols.is_subset(&running.symbols) =>
+            {
+                return;
+            }
+            Some(running) => (
+                symbols.union(&running.symbols).cloned().collect(),
+                from.min(running.from),
+                to.max(running.to),
+            ),
+            None => (symbols, from, to),
         };
         if from < to {
-            self.start_backfill(from, to, 0);
+            self.start_backfill(symbols, from, to, 0);
         }
     }
 
-    fn start_backfill(&mut self, from: Timestamp, to: Timestamp, attempt: u32) {
+    fn start_backfill(
+        &mut self,
+        symbols: BTreeSet<Symbol>,
+        from: Timestamp,
+        to: Timestamp,
+        attempt: u32,
+    ) {
         let delay = match attempt {
             0 => Duration::ZERO,
             _ => RETRY_INITIAL
@@ -262,11 +300,12 @@ impl Pump {
         let fetch = fetch_minutes(
             self.alpaca.clone(),
             self.inner.market.clone(),
-            self.subscribed.iter().cloned().collect(),
+            symbols.iter().cloned().collect(),
             from,
             to,
         );
         self.backfill = Some(Backfill {
+            symbols,
             from,
             to,
             attempt,
@@ -303,7 +342,7 @@ impl Pump {
                     "backfill {}..{} failed: {error}",
                     done.from, done.to
                 ));
-                self.start_backfill(done.from, done.to, done.attempt + 1);
+                self.start_backfill(done.symbols, done.from, done.to, done.attempt + 1);
             }
         }
     }
