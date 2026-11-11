@@ -1,12 +1,12 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, PoisonError, RwLock};
 
 use buizz_core::market::{
     Adjustment, Bar, BorrowAvailability, Calendar, Company, CorporateAction, Coverage, DataSource,
     EarningsRelease, FundamentalFact, FundamentalMetric, FundamentalPoint, IndexHistory,
     Instrument, InstrumentProfile, MacroObservation, MacroPoint, MacroSeries, RiskFreeRate,
-    Session, StockIndex, Symbol, Timeframe, Watermarks,
+    SecFiling, Session, StockIndex, Symbol, Timeframe, Watermarks,
 };
 use buizz_core::ops::{CoverageGap, DataWarning};
 use buizz_core::protocol::BarRow;
@@ -24,11 +24,27 @@ use crate::read::BarQuery;
 mod codec;
 mod fixture;
 mod lane;
+mod migrate;
 mod read;
 mod write;
 
-pub const SCHEMA: &str = include_str!("../schema.sql");
+pub(crate) const SCHEMA: &str = include_str!("../schema.sql");
 pub const FILE_NAME: &str = "market.duckdb";
+const UNRECOVERABLE: [&str; 13] = [
+    "ingest_batch",
+    "borrow_availability",
+    "index_member",
+    "index_history",
+    "instrument_revision",
+    "calendar_revision",
+    "bar_1d_revision",
+    "corporate_action_revision",
+    "rate_daily_revision",
+    "macro_observation_revision",
+    "company_revision",
+    "earnings_release_revision",
+    "index_member_revision",
+];
 pub const TIMESTAMP_RESOLUTION: TimeDelta = TimeDelta::microseconds(1);
 
 #[derive(Debug, thiserror::Error)]
@@ -39,6 +55,10 @@ pub enum MarketError {
     Fixture(String),
     #[error("market store io: {0}")]
     Io(#[from] std::io::Error),
+    #[error("market store schema is version {found}, newer than the {known} this spine knows")]
+    NewerSchema { found: i64, known: i64 },
+    #[error("market store setting: {0}")]
+    Setting(String),
     #[error("market store has shut down")]
     Closed,
     #[error("market store worker failed: {0}")]
@@ -56,6 +76,14 @@ pub struct HistoryRequest {
     pub bars: u32,
     pub adjust: Adjustment,
     pub as_of: Timestamp,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ActionWindow {
+    pub symbols: Vec<Symbol>,
+    pub from: NaiveDate,
+    pub through: NaiveDate,
+    pub covered_to: Option<NaiveDate>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -95,8 +123,8 @@ impl MarketStore {
     pub async fn open(path: &Path, readers: usize) -> Result<Self> {
         let path = path.to_owned();
         let (writer, pool, calendar) = tokio::task::spawn_blocking(move || {
-            let writer = Connection::open(path)?;
-            writer.execute_batch(SCHEMA)?;
+            let mut writer = Connection::open(path)?;
+            migrate::migrate(&mut writer)?;
             write::prepare(&writer)?;
             let pool = (0..readers.max(1))
                 .map(|_| writer.try_clone())
@@ -113,6 +141,49 @@ impl MarketStore {
                 watermarks: watch::Sender::new(Watermarks::default()),
             }),
         })
+    }
+
+    pub async fn limit(&self, memory: String, threads: usize) -> Result<()> {
+        if memory.is_empty()
+            || !memory
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '.')
+        {
+            return Err(MarketError::Setting(format!("memory limit {memory:?}")));
+        }
+        self.writer
+            .run(move |connection| {
+                connection.execute_batch(&format!(
+                    "SET memory_limit = '{memory}'; SET threads = {}; \
+                     SET preserve_insertion_order = false",
+                    threads.max(1)
+                ))?;
+                Ok(())
+            })
+            .await
+    }
+
+    pub async fn export_unrecoverable(&self, directory: PathBuf) -> Result<u64> {
+        self.readers
+            .run(move |connection| {
+                let mut rows = 0;
+                for table in UNRECOVERABLE {
+                    let path = directory.join(format!("{table}.parquet"));
+                    let path = path.to_string_lossy().replace('\'', "''");
+                    rows += connection.execute(
+                        &format!("COPY (SELECT * FROM {table}) TO '{path}' (FORMAT parquet)"),
+                        [],
+                    )? as u64;
+                }
+                Ok(rows)
+            })
+            .await
+    }
+
+    pub async fn checkpoint(&self) -> Result<()> {
+        self.writer
+            .run(|connection| Ok(connection.execute_batch("CHECKPOINT")?))
+            .await
     }
 
     pub async fn load_fixture(&self, dir: &Path) -> Result<()> {
@@ -153,7 +224,13 @@ impl MarketStore {
             .collect();
         let ex_dates = actions.iter().map(|action| action.ex_date);
         if let (Some(from), Some(to)) = (ex_dates.clone().min(), ex_dates.max()) {
-            self.upsert_corporate_actions(source, actions, covered, from, to)
+            let window = ActionWindow {
+                symbols: covered,
+                from,
+                through: to,
+                covered_to: Some(to),
+            };
+            self.replace_corporate_actions(source, actions, window)
                 .await?;
         }
         let facts = fixture::rows(dir, "fundamental_facts.csv").await?;
@@ -229,18 +306,14 @@ impl MarketStore {
             .await
     }
 
-    pub async fn upsert_corporate_actions(
+    pub async fn replace_corporate_actions(
         &self,
         source: DataSource,
         actions: Vec<CorporateAction>,
-        covered: Vec<Symbol>,
-        from: NaiveDate,
-        to: NaiveDate,
+        window: ActionWindow,
     ) -> Result<WriteSummary> {
         self.writer
-            .run(move |connection| {
-                write::corporate_actions(connection, source, actions, &covered, (from, to))
-            })
+            .run(move |connection| write::corporate_actions(connection, source, actions, &window))
             .await
     }
 
@@ -302,6 +375,26 @@ impl MarketStore {
     ) -> Result<WriteSummary> {
         self.writer
             .run(move |connection| write::index_history(connection, source, history, today))
+            .await
+    }
+
+    pub async fn append_sec_filings(
+        &self,
+        source: DataSource,
+        filings: Vec<SecFiling>,
+        day: NaiveDate,
+    ) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| write::sec_filings(connection, source, filings, day))
+            .await
+    }
+
+    pub async fn latest_sec_filings(
+        &self,
+        forms: &'static [&'static str],
+    ) -> Result<BTreeMap<u32, NaiveDate>> {
+        self.readers
+            .run(move |connection| read::latest_sec_filings(connection, forms))
             .await
     }
 

@@ -1,14 +1,17 @@
+use std::collections::{BTreeMap, BTreeSet};
+
 use buizz_core::market::{AssetClass, DataSource, Dataset, Symbol};
 use buizz_core::ops::FetchStatus;
 use buizz_core::time::Timestamp;
-use chrono::TimeDelta;
+use buizz_sources::edgar::ACCEPTED_FORMS;
+use chrono::{NaiveDate, TimeDelta};
 
 use crate::fetch::{Batch, FetchKey, Work};
 use crate::reference::CALENDAR_HORIZON_DAYS;
-use crate::{Ingest, IngestError};
+use crate::{Ingest, IngestError, Priced};
 
-const COMPANIES_PER_RUN: usize = 1_000;
-const REFRESH_AFTER: TimeDelta = TimeDelta::days(7);
+const COMPANIES_PER_RUN: usize = 500;
+const SAFETY_REFRESH: TimeDelta = TimeDelta::days(90);
 pub(crate) const NO_CIK: &str = "no SEC CIK for this ticker";
 
 impl Ingest {
@@ -19,21 +22,28 @@ impl Ingest {
         if let Some(work) = self.backoff_work(now, DataSource::Edgar).await? {
             return Ok(work);
         }
-        let due = self.companies_due(now, Dataset::Fundamentals).await?;
-        if due.is_empty() {
-            return Ok(Work::noop("no company needs a refresh"));
-        }
         let map_key = FetchKey::new(DataSource::Edgar, Dataset::Fundamentals, None, None);
         let tickers = match edgar.ticker_map().await {
             Ok(tickers) => tickers,
             Err(error) => return self.source_failure(now, &map_key, &error).await,
         };
+        let (due, more) = self
+            .companies_due(now, Dataset::Fundamentals, &tickers, &ACCEPTED_FORMS)
+            .await?;
+        if due.is_empty() {
+            return Ok(Work::noop("no company has a new filing"));
+        }
         let from = self.config.history_start;
         let to = now.exchange_date() + TimeDelta::days(CALENDAR_HORIZON_DAYS);
         let calendar = self.market.calendar(from, to).await?;
         let mut batch = Batch::default();
         let mut without_cik = 0;
+        let mut more = more;
         for symbol in due {
+            if self.stopping() {
+                more = true;
+                break;
+            }
             let key = FetchKey::new(
                 DataSource::Edgar,
                 Dataset::Fundamentals,
@@ -47,11 +57,12 @@ impl Ingest {
             };
             match edgar.company_facts(&symbol, *cik, &calendar).await {
                 Ok(facts) => {
-                    self.record_fetched(now, &key, facts.len()).await?;
+                    let fetched = facts.len();
                     let summary = self
                         .market
                         .append_fundamental_facts(DataSource::Edgar, facts)
                         .await?;
+                    self.record_fetched(now, &key, fetched).await?;
                     batch.success(summary.rows);
                 }
                 Err(error) => {
@@ -61,6 +72,9 @@ impl Ingest {
                     }
                 }
             }
+        }
+        if more {
+            batch.more_remains("companies");
         }
         let mut work = batch.finish("fundamentals");
         if without_cik > 0 {
@@ -74,19 +88,32 @@ impl Ingest {
         &self,
         now: Timestamp,
         dataset: Dataset,
-    ) -> Result<Vec<Symbol>, IngestError> {
+        tickers: &BTreeMap<Symbol, u32>,
+        forms: &'static [&'static str],
+    ) -> Result<(Vec<Symbol>, bool), IngestError> {
+        let stocks: BTreeSet<Symbol> = self
+            .market
+            .instruments()
+            .await?
+            .into_iter()
+            .filter(|instrument| instrument.active && instrument.asset_class == AssetClass::Stock)
+            .map(|instrument| instrument.symbol)
+            .collect();
+        let filed = self.market.latest_sec_filings(forms).await?;
         let mut due: Vec<Symbol> = Vec::new();
-        for instrument in self.active_instruments().await? {
-            if due.len() == COMPANIES_PER_RUN {
-                break;
+        for Priced { symbol, .. } in self.priced_symbols().await? {
+            if !stocks.contains(&symbol) {
+                continue;
             }
-            if instrument.asset_class == AssetClass::Stock
-                && self.company_due(now, dataset, &instrument.symbol).await?
-            {
-                due.push(instrument.symbol);
+            if due.len() == COMPANIES_PER_RUN {
+                return Ok((due, true));
+            }
+            let last_filed = tickers.get(&symbol).and_then(|cik| filed.get(cik)).copied();
+            if self.company_due(now, dataset, &symbol, last_filed).await? {
+                due.push(symbol);
             }
         }
-        Ok(due)
+        Ok((due, false))
     }
 
     async fn company_due(
@@ -94,6 +121,7 @@ impl Ingest {
         now: Timestamp,
         dataset: Dataset,
         symbol: &Symbol,
+        last_filed: Option<NaiveDate>,
     ) -> Result<bool, IngestError> {
         let latest = self
             .state
@@ -101,8 +129,10 @@ impl Ingest {
             .await?;
         Ok(latest.first().is_none_or(|fetch| {
             let waiting = fetch.retry_after.is_some_and(|until| until > now);
-            let fresh = matches!(fetch.status, FetchStatus::Ok | FetchStatus::Empty)
-                && fetch.at + REFRESH_AFTER > now;
+            let read = matches!(fetch.status, FetchStatus::Ok | FetchStatus::Empty);
+            let fresh = read
+                && fetch.at + SAFETY_REFRESH > now
+                && last_filed.is_none_or(|filed| filed < fetch.at.exchange_date());
             !waiting && !fresh
         }))
     }

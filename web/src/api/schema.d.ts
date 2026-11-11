@@ -381,6 +381,14 @@ export interface components {
         };
         /** @enum {string} */
         AssetClass: "stock" | "etf";
+        BackfillProgress: {
+            dataset: components["schemas"]["Dataset"];
+            source: components["schemas"]["DataSource"];
+            /** Format: int32 */
+            done: number;
+            /** Format: int32 */
+            total: number;
+        };
         BotDetail: {
             summary: components["schemas"]["BotSummary"];
             manifest: components["schemas"]["BotManifest"];
@@ -463,6 +471,7 @@ export interface components {
         };
         DataHealth: {
             watermarks: components["schemas"]["Watermarks"];
+            backfill: components["schemas"]["BackfillProgress"][];
             coverage: components["schemas"]["Coverage"][];
             warnings: components["schemas"]["DataWarning"][];
             /** Format: int32 */
@@ -470,7 +479,7 @@ export interface components {
             ingest_enabled: boolean;
         };
         /** @enum {string} */
-        DataSource: "alpaca" | "alpaca_stream" | "tiingo" | "edgar" | "treasury" | "fred" | "fixture" | "wikipedia" | "interactive_brokers";
+        DataSource: "alpaca" | "alpaca_stream" | "tiingo" | "edgar" | "treasury" | "fred" | "fixture" | "wikipedia" | "interactive_brokers" | "nasdaq";
         DataWarning: (components["schemas"]["CoverageGap"] & {
             /** @enum {string} */
             type: "coverage_gap";
@@ -490,7 +499,7 @@ export interface components {
             type: "overlap_rejected";
         };
         /** @enum {string} */
-        Dataset: "instruments" | "calendar" | "bars1d" | "bars1m" | "corporate_actions" | "fundamentals" | "rates" | "companies" | "earnings_releases" | "index_membership" | "borrow" | "macro";
+        Dataset: "instruments" | "calendar" | "bars1d" | "bars1m" | "corporate_actions" | "fundamentals" | "rates" | "companies" | "earnings_releases" | "sec_filings" | "index_membership" | "borrow" | "macro";
         /** @enum {string} */
         DesiredState: "running" | "paused" | "stopped";
         EquityPoint: {
@@ -539,7 +548,7 @@ export interface components {
             feed: components["schemas"]["Feed"];
         };
         /** @enum {string} */
-        JobOutcome: "ok" | "noop" | "backoff" | "failed";
+        JobOutcome: "ok" | "partial" | "noop" | "backoff" | "failed";
         JobView: {
             name: string;
             every: string;

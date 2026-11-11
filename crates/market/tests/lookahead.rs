@@ -6,7 +6,7 @@ use buizz_core::market::{
 };
 use buizz_core::protocol::BarRow;
 use buizz_core::time::Timestamp;
-use buizz_market::{FILE_NAME, HistoryRequest, MarketStore};
+use buizz_market::{ActionWindow, FILE_NAME, HistoryRequest, MarketStore};
 use chrono::{Datelike, NaiveDate, TimeDelta};
 use rust_decimal::Decimal;
 use serde_json::Value;
@@ -240,12 +240,15 @@ async fn rewrite(store: MarketStore, symbols: Vec<Symbol>, loaded_through: Times
         }
         let split = future_split();
         store
-            .upsert_corporate_actions(
+            .replace_corporate_actions(
                 DataSource::Fixture,
                 vec![split.clone()],
-                vec![split.symbol],
-                split.ex_date,
-                split.ex_date,
+                ActionWindow {
+                    symbols: vec![split.symbol.clone()],
+                    from: split.ex_date,
+                    through: split.ex_date,
+                    covered_to: Some(split.ex_date),
+                },
             )
             .await
             .unwrap();

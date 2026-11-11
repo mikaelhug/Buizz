@@ -264,6 +264,7 @@ h2 {
 }
 
 .pill-backtesting,
+.pill-partial,
 .pill-queued,
 .pill-starting,
 .pill-working {
@@ -1273,4 +1274,19 @@ h2 {
   background: var(--surface-2);
   color: var(--muted);
   font-style: italic;
+}
+
+.backfill {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.backfill li {
+  display: grid;
+  grid-template-columns: minmax(0, 14em) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
 }

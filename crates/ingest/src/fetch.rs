@@ -23,6 +23,10 @@ impl Work {
         Self::of(JobOutcome::Ok, rows, message)
     }
 
+    pub fn partial(rows: u64, message: impl Into<String>) -> Self {
+        Self::of(JobOutcome::Partial, rows, message)
+    }
+
     pub fn noop(message: impl Into<String>) -> Self {
         Self::of(JobOutcome::Noop, 0, message)
     }
@@ -61,9 +65,14 @@ pub(crate) struct Batch {
     rows: u64,
     failures: Vec<String>,
     rate_limited: Option<String>,
+    remaining: Option<String>,
 }
 
 impl Batch {
+    pub fn more_remains(&mut self, what: impl Into<String>) {
+        self.remaining = Some(what.into());
+    }
+
     pub fn success(&mut self, rows: u64) {
         self.attempted += 1;
         self.rows += rows;
@@ -115,7 +124,12 @@ impl Batch {
         } else {
             format!(", {failed} failed: {listed}")
         };
-        if self.rows > 0 {
+        if let Some(remaining) = self.remaining {
+            Work::partial(
+                self.rows,
+                format!("{what}: {} rows, {remaining} left{note}", self.rows),
+            )
+        } else if self.rows > 0 {
             Work::ok(self.rows, format!("{what}: {} rows{note}", self.rows))
         } else {
             Work::noop(format!("{what}: nothing new{note}"))

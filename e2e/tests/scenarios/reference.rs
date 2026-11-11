@@ -66,6 +66,7 @@ fn world(mut world: World) -> World {
         ticker: "AAA".into(),
         facts: json!({"cik": 9_999_002, "entityName": "AAA", "facts": {}}),
         submissions: submissions(9_999_002, "6022", &[]),
+        older_filings: Vec::new(),
     });
     world.wikipedia = BTreeMap::from([
         (SP500_CONSTITUENTS.to_owned(), CONSTITUENTS.to_owned()),

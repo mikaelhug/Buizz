@@ -1,7 +1,9 @@
-use std::collections::{BTreeMap, HashSet};
+use std::collections::HashSet;
 
-use buizz_core::market::{CorporateAction, CorporateActionKind, DataSource, Dataset, Symbol};
+use buizz_core::market::{CorporateAction, DataSource, Dataset, Symbol};
 use buizz_core::time::Timestamp;
+use buizz_market::ActionWindow;
+use buizz_sources::alpaca::ACTIONS_SYMBOLS_PER_REQUEST;
 use chrono::{NaiveDate, TimeDelta};
 
 use crate::fetch::{Batch, FetchKey, Work};
@@ -9,16 +11,8 @@ use crate::{Ingest, IngestError};
 
 const PROCESS_DATE_SLACK: TimeDelta = TimeDelta::days(30);
 const REFRESH_WINDOW: TimeDelta = TimeDelta::days(90);
-
-type ActionKey = (Symbol, NaiveDate, bool);
-
-fn identity(action: &CorporateAction) -> ActionKey {
-    (
-        action.symbol.clone(),
-        action.ex_date,
-        matches!(action.kind, CorporateActionKind::Split { .. }),
-    )
-}
+const ANNOUNCED_HORIZON: TimeDelta = TimeDelta::days(90);
+const BACKFILL_REQUESTS_PER_RUN: usize = 40;
 
 impl Ingest {
     pub(crate) async fn corporate_actions(&self, now: Timestamp) -> Result<Work, IngestError> {
@@ -28,11 +22,17 @@ impl Ingest {
         if let Some(work) = self.backoff_work(now, DataSource::Alpaca).await? {
             return Ok(work);
         }
-        let symbols = self.priced_symbols().await?;
+        let symbols: Vec<Symbol> = self
+            .priced_symbols()
+            .await?
+            .into_iter()
+            .map(|priced| priced.symbol)
+            .collect();
         if symbols.is_empty() {
             return Ok(Work::noop("no instruments to price"));
         }
-        let to = now.exchange_date();
+        let today = now.exchange_date();
+        let through = today + ANNOUNCED_HORIZON;
         let history_start = self.config.history_start;
         let covered = self
             .symbol_coverage(Dataset::CorporateActions, DataSource::Alpaca)
@@ -43,64 +43,70 @@ impl Ingest {
                     .get(symbol)
                     .is_some_and(|coverage| coverage.first <= history_start)
             });
-        let refresh_from = (to - REFRESH_WINDOW).max(history_start);
+        let refresh_from = (today - REFRESH_WINDOW).max(history_start);
         let mut batch = Batch::default();
-        for (from, group, backfilling) in [
-            (history_start, backfill, true),
-            (refresh_from, refresh, false),
-        ] {
-            if group.is_empty() {
-                continue;
+        let mut requests: Vec<(NaiveDate, Vec<Symbol>, bool)> = Vec::new();
+        if !refresh.is_empty() {
+            requests.push((refresh_from, refresh, false));
+        }
+        let backfills = backfill.chunks(ACTIONS_SYMBOLS_PER_REQUEST);
+        requests.extend(backfills.map(|chunk| (history_start, chunk.to_vec(), true)));
+        let budget = BACKFILL_REQUESTS_PER_RUN
+            + usize::from(
+                !requests
+                    .first()
+                    .is_some_and(|(_, _, backfilling)| *backfilling),
+            );
+        for (index, (from, scope, backfilling)) in requests.into_iter().enumerate() {
+            if index == budget || self.stopping() {
+                batch.more_remains("symbols");
+                break;
             }
             let key = FetchKey::new(
                 DataSource::Alpaca,
                 Dataset::CorporateActions,
                 None,
-                Some((from, to)),
+                Some((from, through)),
             );
-            let fetched = match alpaca
-                .corporate_actions(&group, from - PROCESS_DATE_SLACK, to + PROCESS_DATE_SLACK)
-                .await
-            {
+            let (start, end) = (from - PROCESS_DATE_SLACK, through + PROCESS_DATE_SLACK);
+            let fetched = if backfilling {
+                alpaca.corporate_actions(&scope, start, end).await
+            } else {
+                alpaca.market_corporate_actions(start, end).await
+            };
+            let fetched = match fetched {
                 Ok(actions) => actions,
                 Err(error) => {
                     self.record_failure(now, &key, &error).await?;
-                    let label = format!("{} symbols from {from}", group.len());
+                    let label = format!("{} symbols from {from}", scope.len());
                     if batch.source_error(&label, &error) {
                         break;
                     }
                     continue;
                 }
             };
-            self.record_fetched(now, &key, fetched.len()).await?;
-            let members: HashSet<&Symbol> = group.iter().collect();
-            let fetched: BTreeMap<ActionKey, CorporateAction> = fetched
+            let members: HashSet<&Symbol> = scope.iter().collect();
+            let fetched: Vec<CorporateAction> = fetched
                 .into_iter()
                 .filter(|action| {
-                    (from..=to).contains(&action.ex_date) && members.contains(&action.symbol)
+                    (from..=through).contains(&action.ex_date) && members.contains(&action.symbol)
                 })
-                .map(|action| (identity(&action), action))
                 .collect();
-            let stored: BTreeMap<ActionKey, CorporateAction> = self
-                .market
-                .corporate_actions(group.clone(), from, to)
-                .await?
-                .into_iter()
-                .map(|action| (identity(&action), action))
-                .collect();
-            let changed: Vec<CorporateAction> = fetched
-                .into_iter()
-                .filter(|(key, action)| stored.get(key) != Some(action))
-                .map(|(_, action)| action)
-                .collect();
-            if changed.is_empty() && !backfilling {
-                batch.success(0);
-                continue;
-            }
+            let count = fetched.len();
             let summary = self
                 .market
-                .upsert_corporate_actions(DataSource::Alpaca, changed, group, from, to)
+                .replace_corporate_actions(
+                    DataSource::Alpaca,
+                    fetched,
+                    ActionWindow {
+                        symbols: scope,
+                        from,
+                        through,
+                        covered_to: backfilling.then_some(today),
+                    },
+                )
                 .await?;
+            self.record_fetched(now, &key, count).await?;
             batch.success(summary.rows);
         }
         Ok(batch.finish("corporate actions"))

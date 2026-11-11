@@ -3,8 +3,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use buizz_core::market::{
     Adjustment, AdjustmentFactor, AssetClass, Bar, Calendar, Company, CorporateAction,
     CorporateActionKind, Coverage, DataSource, Dataset, EarningsRelease, Feed, FundamentalMetric,
-    FundamentalPoint, IndexHistory, IndexMember, Instrument, InstrumentProfile, MacroObservation,
-    MacroPoint, MacroSeries, RiskFreeRate, SIP_DELAY, Session, StockIndex, Symbol, Timeframe,
+    FundamentalPoint, HISTORY_FLOORS, IndexHistory, IndexMember, Instrument, InstrumentProfile,
+    MacroObservation, MacroPoint, MacroSeries, RiskFreeRate, SIP_DELAY, Session, StockIndex,
+    Symbol, Timeframe,
 };
 use buizz_core::ops::{CoverageGap, DataWarning, UNEXPLAINED_MOVE_THRESHOLD};
 use buizz_core::protocol::BarRow;
@@ -533,13 +534,14 @@ pub(crate) fn top_dollar_volume(
     let mut statement = connection.prepare_cached(
         "SELECT b.symbol FROM bar_1d b LEFT JOIN instrument i ON i.symbol = b.symbol \
          WHERE b.date >= ? AND b.date < ? AND (? IS NULL OR i.asset_class = ?) \
-         GROUP BY b.symbol ORDER BY sum(CAST(b.close AS DOUBLE) * b.volume) DESC, b.symbol \
+         AND (i.last_session IS NULL OR i.last_session >= ?) \
+         GROUP BY b.symbol ORDER BY avg(CAST(b.close AS DOUBLE) * b.volume) DESC, b.symbol \
          LIMIT ?",
     )?;
     let class = asset_class.as_ref().map(crate::codec::wire_name);
     let symbols = statement
         .query_map(
-            params![first.date, before, class, class, u64::from(count)],
+            params![first.date, before, class, class, before, u64::from(count)],
             |row| Ok(row.get::<_, Sym>(0)?.0),
         )?
         .collect::<duckdb::Result<Vec<_>>>()?;
@@ -694,6 +696,26 @@ pub(crate) fn earnings_releases(
     Ok(releases)
 }
 
+pub(crate) fn latest_sec_filings(
+    connection: &Connection,
+    forms: &[&str],
+) -> Result<BTreeMap<u32, NaiveDate>> {
+    if forms.is_empty() {
+        return Ok(BTreeMap::new());
+    }
+    let sql = format!(
+        "SELECT cik, max(filed) FROM sec_filing WHERE form IN ({}) GROUP BY cik",
+        placeholders(forms.len())
+    );
+    let mut statement = connection.prepare_cached(&sql)?;
+    let latest = statement
+        .query_map(params_from_iter(forms.iter()), |row| {
+            Ok((row.get(0)?, row.get(1)?))
+        })?
+        .collect::<duckdb::Result<_>>()?;
+    Ok(latest)
+}
+
 pub(crate) fn latest_borrow(connection: &Connection) -> Result<Option<Timestamp>> {
     let mut statement =
         connection.prepare_cached("SELECT max(recorded_at) FROM borrow_availability")?;
@@ -815,16 +837,36 @@ type Listing = (Option<NaiveDate>, Option<NaiveDate>);
 
 fn listing_bounds(
     connection: &Connection,
+    calendar: &Calendar,
     symbols: &[Symbol],
 ) -> Result<BTreeMap<Symbol, Listing>> {
+    let floors: Vec<NaiveDate> = HISTORY_FLOORS
+        .iter()
+        .filter_map(|floor| {
+            calendar
+                .first_on_or_after(*floor)
+                .map(|session| session.date)
+        })
+        .collect();
     let sql = format!(
-        "WITH wanted (symbol) AS (VALUES {}) \
-         SELECT w.symbol, coalesce(i.first_session, \
-         (SELECT min(d.date) FROM bar_1d d WHERE d.symbol = w.symbol)), i.last_session \
-         FROM wanted w LEFT JOIN instrument i ON i.symbol = w.symbol",
-        vec!["(?)"; symbols.len()].join(", ")
+        "WITH wanted (symbol) AS (VALUES {}), \
+         first_bar AS (SELECT w.symbol, (SELECT min(d.date) FROM bar_1d d \
+         WHERE d.symbol = w.symbol) AS first FROM wanted w) \
+         SELECT f.symbol, coalesce(i.first_session, \
+         CASE WHEN f.first IN ({}) THEN NULL ELSE f.first END), i.last_session \
+         FROM first_bar f LEFT JOIN instrument i ON i.symbol = f.symbol",
+        vec!["(?)"; symbols.len()].join(", "),
+        placeholders(floors.len().max(1))
     );
-    let params = symbol_params(symbols);
+    let mut params = symbol_params(symbols);
+    params.extend(
+        floors
+            .iter()
+            .map(|floor| Box::new(*floor) as Box<dyn ToSql>),
+    );
+    if floors.is_empty() {
+        params.push(Box::new(NaiveDate::MIN));
+    }
     let mut statement = connection.prepare_cached(&sql)?;
     let bounds = statement
         .query_map(params_from_iter(params.iter()), |row| {
@@ -884,7 +926,7 @@ pub(crate) fn coverage_gaps(
             Ok((row.get::<_, Sym>(0)?.0, row.get::<_, NaiveDate>(1)?))
         })?
         .collect::<duckdb::Result<BTreeSet<_>>>()?;
-    let bounds = listing_bounds(connection, &symbols)?;
+    let bounds = listing_bounds(connection, calendar, &symbols)?;
     let mut gaps = Vec::new();
     for symbol in symbols {
         let (listed, delisted) = bounds.get(&symbol).copied().unwrap_or_default();

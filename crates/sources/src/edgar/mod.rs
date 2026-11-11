@@ -1,7 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
 
-use buizz_core::market::{Calendar, EarningsRelease, FundamentalFact, Symbol};
+use buizz_core::market::{Calendar, EarningsRelease, FundamentalFact, SecFiling, Symbol};
+use chrono::{Datelike, NaiveDate};
 use serde::Deserialize;
 
 use crate::http::{HttpClient, RateLimit, SourceError};
@@ -16,12 +17,15 @@ pub use normalize::normalize_company_facts;
 pub const DATA_URL: &str = "https://data.sec.gov";
 pub const WWW_URL: &str = "https://www.sec.gov";
 pub const RATE_LIMIT: RateLimit = RateLimit {
-    requests: 10,
+    requests: 5,
     per: Duration::from_secs(1),
+    cooldown: Duration::from_secs(10 * 60),
 };
 pub const ACCEPTED_FORMS: [&str; 8] = [
     "10-K", "10-K/A", "10-Q", "10-Q/A", "20-F", "20-F/A", "40-F", "40-F/A",
 ];
+pub const EARNINGS_FORMS: [&str; 2] = ["8-K", "8-K/A"];
+const MISSING_INDEX: [u16; 2] = [403, 404];
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EdgarConfig {
@@ -133,8 +137,49 @@ impl EdgarClient {
         normalize_filings_page(symbol, cik, &self.fetch(url).await?)
     }
 
+    pub async fn daily_index(&self, day: NaiveDate) -> Result<Option<Vec<SecFiling>>, SourceError> {
+        let url = format!(
+            "{}/Archives/edgar/daily-index/{}/QTR{}/master.{}.idx",
+            self.www_url,
+            day.year(),
+            day.month0() / 3 + 1,
+            day.format("%Y%m%d")
+        );
+        match self.fetch(url).await {
+            Ok(body) => Ok(Some(normalize_daily_index(&body))),
+            Err(SourceError::Status { status, .. }) if MISSING_INDEX.contains(&status) => Ok(None),
+            Err(error) => Err(error),
+        }
+    }
+
     async fn fetch(&self, url: String) -> Result<Vec<u8>, SourceError> {
         let response = self.http.send(self.http.client().get(url)).await?;
         Ok(response.bytes().await?.to_vec())
     }
+}
+
+pub fn normalize_daily_index(payload: &[u8]) -> Vec<SecFiling> {
+    let text = String::from_utf8_lossy(payload);
+    text.lines()
+        .skip_while(|line| !line.starts_with("---"))
+        .skip(1)
+        .filter_map(|line| {
+            let [cik, _, form, filed, file] = line.split('|').collect::<Vec<_>>()[..] else {
+                return None;
+            };
+            let form = form.trim();
+            if !ACCEPTED_FORMS.contains(&form) && !EARNINGS_FORMS.contains(&form) {
+                return None;
+            }
+            let accession = file.trim().rsplit('/').next()?.strip_suffix(".txt")?;
+            Some(SecFiling {
+                cik: cik.trim().parse().ok()?,
+                accession: accession.to_owned(),
+                form: form.to_owned(),
+                filed: NaiveDate::parse_from_str(filed.trim(), "%Y%m%d")
+                    .or_else(|_| NaiveDate::parse_from_str(filed.trim(), "%Y-%m-%d"))
+                    .ok()?,
+            })
+        })
+        .collect()
 }

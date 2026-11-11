@@ -4,6 +4,7 @@ pub mod edgar;
 pub mod fred;
 pub mod http;
 pub mod ibkr;
+pub mod nasdaq;
 pub mod tiingo;
 pub mod treasury;
 pub mod wikipedia;
@@ -12,6 +13,7 @@ use alpaca::AlpacaClient;
 use edgar::EdgarClient;
 use fred::FredClient;
 use ibkr::IbkrClient;
+use nasdaq::NasdaqClient;
 use tiingo::TiingoClient;
 use treasury::TreasuryClient;
 use wikipedia::WikipediaClient;
@@ -25,4 +27,5 @@ pub struct Sources {
     pub treasury: TreasuryClient,
     pub wikipedia: Option<WikipediaClient>,
     pub ibkr: Option<IbkrClient>,
+    pub nasdaq: Option<NasdaqClient>,
 }

@@ -21,13 +21,14 @@ use wire::{ActionsPage, BarsPage, Paged, WireAsset, WireCalendarDay};
 pub const DATA_URL: &str = "https://data.alpaca.markets";
 pub const TRADING_URL: &str = "https://paper-api.alpaca.markets";
 pub const RATE_LIMIT: RateLimit = RateLimit {
-    requests: 200,
+    requests: 140,
     per: Duration::from_secs(60),
+    cooldown: Duration::from_secs(60),
 };
-pub const HISTORY_START: NaiveDate = NaiveDate::from_ymd_opt(2016, 1, 1).expect("valid date");
+pub use buizz_core::market::ALPACA_HISTORY_START as HISTORY_START;
 pub const MAX_PAGE_LIMIT: u32 = 10_000;
 pub const ACTIONS_PAGE_LIMIT: u32 = 1_000;
-const ACTIONS_SYMBOLS_PER_REQUEST: usize = 100;
+pub const ACTIONS_SYMBOLS_PER_REQUEST: usize = 100;
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct AlpacaConfig {
@@ -68,6 +69,11 @@ pub struct BarsRequest {
     pub feed: Feed,
 }
 
+pub struct BarPage {
+    pub bars: Vec<Bar>,
+    pub next: Option<String>,
+}
+
 #[derive(Clone)]
 pub struct AlpacaClient {
     http: HttpClient,
@@ -87,6 +93,28 @@ impl AlpacaClient {
         request: &BarsRequest,
         calendar: &Calendar,
     ) -> Result<Vec<Bar>, SourceError> {
+        let mut bars = Vec::new();
+        let mut token = None;
+        loop {
+            let page = self.bars_page(request, calendar, token).await?;
+            bars.extend(page.bars);
+            match page.next {
+                Some(next) => token = Some(next),
+                None => return Ok(bars),
+            }
+        }
+    }
+
+    pub async fn bars_page(
+        &self,
+        request: &BarsRequest,
+        calendar: &Calendar,
+        token: Option<String>,
+    ) -> Result<BarPage, SourceError> {
+        let empty = BarPage {
+            bars: Vec::new(),
+            next: None,
+        };
         let to = match request.feed {
             Feed::Sip => {
                 let delay = TimeDelta::from_std(SIP_DELAY).expect("SIP delay fits a time delta");
@@ -95,7 +123,7 @@ impl AlpacaClient {
             Feed::Iex => request.to,
         };
         if to <= request.from || request.symbols.is_empty() {
-            return Ok(Vec::new());
+            return Ok(empty);
         }
         let (timeframe, start, end) = match request.timeframe {
             Timeframe::Day => {
@@ -104,12 +132,12 @@ impl AlpacaClient {
                 let from = request.from.exchange_date();
                 let Some(last) = closed
                     .checked_sub(1)
-                    .map(|index| sessions[index].date)
-                    .filter(|last| *last >= from)
+                    .map(|index| sessions[index])
+                    .filter(|last| last.date >= from)
                 else {
-                    return Ok(Vec::new());
+                    return Ok(empty);
                 };
-                ("1Day", from.to_string(), last.to_string())
+                ("1Day", from.to_string(), last.close.to_string())
             }
             Timeframe::Minute => ("1Min", request.from.to_string(), to.to_string()),
         };
@@ -117,7 +145,7 @@ impl AlpacaClient {
             Feed::Sip => "sip",
             Feed::Iex => "iex",
         };
-        let query = [
+        let mut query = vec![
             ("symbols", join_symbols(&request.symbols)),
             ("timeframe", timeframe.to_owned()),
             ("start", start),
@@ -127,12 +155,18 @@ impl AlpacaClient {
             ("limit", MAX_PAGE_LIMIT.to_string()),
             ("sort", "asc".to_owned()),
         ];
+        if let Some(token) = token {
+            query.push(("page_token", token));
+        }
         let url = format!("{}/v2/stocks/bars", self.config.data_url);
-        let pages = self.pages::<BarsPage>(&url, &query).await?;
-        Ok(pages
-            .into_iter()
-            .flat_map(|page| page.into_bars(request.timeframe, request.feed, calendar))
-            .collect())
+        let mut page: BarsPage = self.get(&url, &query).await?;
+        let next = page
+            .take_next_page_token()
+            .filter(|token| !token.is_empty());
+        Ok(BarPage {
+            bars: page.into_bars(request.timeframe, request.feed, calendar),
+            next,
+        })
     }
 
     pub async fn calendar(
@@ -164,25 +198,49 @@ impl AlpacaClient {
         from: NaiveDate,
         to: NaiveDate,
     ) -> Result<Vec<CorporateAction>, SourceError> {
-        let url = format!("{}/v1/corporate-actions", self.config.data_url);
         let mut actions = Vec::new();
         for chunk in symbols.chunks(ACTIONS_SYMBOLS_PER_REQUEST) {
-            let query = [
-                ("symbols", join_symbols(chunk)),
-                (
-                    "types",
-                    "forward_split,reverse_split,cash_dividend".to_owned(),
-                ),
-                ("start", from.to_string()),
-                ("end", to.to_string()),
-                ("limit", ACTIONS_PAGE_LIMIT.to_string()),
-                ("sort", "asc".to_owned()),
-            ];
-            for page in self.pages::<ActionsPage>(&url, &query).await? {
-                actions.extend(page.into_actions());
-            }
+            actions.extend(self.actions(Some(join_symbols(chunk)), from, to).await?);
         }
         Ok(sum_dividends_per_ex_date(actions))
+    }
+
+    pub async fn market_corporate_actions(
+        &self,
+        from: NaiveDate,
+        to: NaiveDate,
+    ) -> Result<Vec<CorporateAction>, SourceError> {
+        Ok(sum_dividends_per_ex_date(
+            self.actions(None, from, to).await?,
+        ))
+    }
+
+    async fn actions(
+        &self,
+        symbols: Option<String>,
+        from: NaiveDate,
+        to: NaiveDate,
+    ) -> Result<Vec<CorporateAction>, SourceError> {
+        let url = format!("{}/v1/corporate-actions", self.config.data_url);
+        let mut query = vec![
+            (
+                "types",
+                "forward_split,reverse_split,cash_dividend".to_owned(),
+            ),
+            ("start", from.to_string()),
+            ("end", to.to_string()),
+            ("limit", ACTIONS_PAGE_LIMIT.to_string()),
+            ("sort", "asc".to_owned()),
+        ];
+        if let Some(symbols) = symbols {
+            query.push(("symbols", symbols));
+        }
+        Ok(self
+            .pages::<ActionsPage>(&url, &query)
+            .await?
+            .into_iter()
+            .flat_map(ActionsPage::into_actions)
+            .collect())
     }
 
     async fn get<T: DeserializeOwned>(

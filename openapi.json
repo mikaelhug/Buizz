@@ -883,6 +883,33 @@
           "etf"
         ]
       },
+      "BackfillProgress": {
+        "type": "object",
+        "required": [
+          "dataset",
+          "source",
+          "done",
+          "total"
+        ],
+        "properties": {
+          "dataset": {
+            "$ref": "#/components/schemas/Dataset"
+          },
+          "source": {
+            "$ref": "#/components/schemas/DataSource"
+          },
+          "done": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
       "BotDetail": {
         "type": "object",
         "required": [
@@ -1176,6 +1203,7 @@
         "type": "object",
         "required": [
           "watermarks",
+          "backfill",
           "coverage",
           "warnings",
           "stale_jobs",
@@ -1184,6 +1212,12 @@
         "properties": {
           "watermarks": {
             "$ref": "#/components/schemas/Watermarks"
+          },
+          "backfill": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BackfillProgress"
+            }
           },
           "coverage": {
             "type": "array",
@@ -1218,7 +1252,8 @@
           "fred",
           "fixture",
           "wikipedia",
-          "interactive_brokers"
+          "interactive_brokers",
+          "nasdaq"
         ]
       },
       "DataWarning": {
@@ -1312,6 +1347,7 @@
           "rates",
           "companies",
           "earnings_releases",
+          "sec_filings",
           "index_membership",
           "borrow",
           "macro"
@@ -1518,6 +1554,7 @@
         "type": "string",
         "enum": [
           "ok",
+          "partial",
           "noop",
           "backoff",
           "failed"

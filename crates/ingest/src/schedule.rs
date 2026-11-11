@@ -11,6 +11,7 @@ pub(crate) const CALENDAR: &str = "calendar";
 pub(crate) const INSTRUMENTS: &str = "instruments";
 pub(crate) const BARS_1D: &str = "bars_1d";
 pub(crate) const CORPORATE_ACTIONS: &str = "corporate_actions";
+pub(crate) const SEC_INDEX: &str = "sec_index";
 pub(crate) const FUNDAMENTALS: &str = "fundamentals";
 pub(crate) const FILINGS: &str = "filings";
 pub(crate) const INDEX_MEMBERSHIP: &str = "index_membership";
@@ -18,6 +19,7 @@ pub(crate) const RATES: &str = "rates";
 pub(crate) const BORROW: &str = "borrow";
 pub(crate) const MACRO: &str = "macro";
 pub(crate) const STATE_SNAPSHOT: &str = "state_snapshot";
+pub(crate) const MARKET_SNAPSHOT: &str = "market_snapshot";
 pub(crate) const TIINGO_HISTORY: &str = "tiingo_history";
 
 const HOUR: Duration = Duration::from_secs(60 * 60);
@@ -27,7 +29,7 @@ const SHORT_RETRY: Duration = HOUR;
 const FIRST_FAILURE_RETRY: Duration = Duration::from_secs(5 * 60);
 const STALE_AFTER_INTERVALS: i32 = 3;
 
-pub(crate) const JOBS: [JobSpec; 12] = [
+pub(crate) const JOBS: [JobSpec; 14] = [
     JobSpec {
         name: CALENDAR,
         every: DAY,
@@ -47,6 +49,10 @@ pub(crate) const JOBS: [JobSpec; 12] = [
     JobSpec {
         name: CORPORATE_ACTIONS,
         every: DAY,
+    },
+    JobSpec {
+        name: SEC_INDEX,
+        every: SIX_HOURS,
     },
     JobSpec {
         name: FUNDAMENTALS,
@@ -73,6 +79,10 @@ pub(crate) const JOBS: [JobSpec; 12] = [
         every: DAY,
     },
     JobSpec {
+        name: MARKET_SNAPSHOT,
+        every: DAY,
+    },
+    JobSpec {
         name: TIINGO_HISTORY,
         every: HOUR,
     },
@@ -89,7 +99,8 @@ pub(crate) fn due_at(spec: &JobSpec, latest: Option<&JobRun>, failures: u32) -> 
         Some(JobOutcome::Failed) => {
             FIRST_FAILURE_RETRY.saturating_mul(1 << failures.saturating_sub(1).min(16))
         }
-        Some(JobOutcome::Ok) | None => spec.every,
+        Some(JobOutcome::Ok) => spec.every,
+        Some(JobOutcome::Partial) | None => Duration::ZERO,
     };
     Some(run.started_at + delta(wait.min(spec.every)))
 }
@@ -125,5 +136,26 @@ fn describe(every: Duration) -> String {
         format!("{}m", seconds / 60)
     } else {
         format!("{seconds}s")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_run_killed_before_it_finished_is_due_at_once() {
+        let started_at = Timestamp::from_nanos(1_000_000_000);
+        let killed = JobRun {
+            id: 1,
+            job: BARS_1D.to_owned(),
+            started_at,
+            finished_at: None,
+            outcome: None,
+            rows: 0,
+            message: None,
+        };
+        let bars = JOBS.iter().find(|spec| spec.name == BARS_1D).unwrap();
+        assert_eq!(due_at(bars, Some(&killed), 0), Some(started_at));
     }
 }

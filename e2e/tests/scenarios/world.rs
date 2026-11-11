@@ -48,6 +48,7 @@ pub struct Company {
     pub ticker: Symbol,
     pub facts: Value,
     pub submissions: Value,
+    pub older_filings: Vec<(String, Value)>,
 }
 
 pub struct Filing<'a> {
@@ -202,7 +203,7 @@ impl World {
         };
         let recorded: Vec<Value> =
             serde_json::from_str(&read("alpaca/calendar.json")).expect("recorded calendar");
-        let june = date("2024-06-03")
+        let june = date("2024-05-31")
             .iter_days()
             .take_while(|day| *day < date("2024-07-01"))
             .filter(|day| !matches!(day.weekday(), Weekday::Sat | Weekday::Sun));
@@ -251,12 +252,14 @@ impl World {
         for (step, session) in sessions.iter().enumerate() {
             let close = Decimal::from(200) + Decimal::from(step);
             let prices = [close, close + Decimal::ONE, close - Decimal::ONE, close];
-            daily.push(bar(
-                "SPY",
-                session.open,
-                prices.map(|p| p * Decimal::TWO),
-                1_000,
-            ));
+            if step > 1 {
+                daily.push(bar(
+                    "SPY",
+                    session.open,
+                    prices.map(|p| p * Decimal::TWO),
+                    1_000,
+                ));
+            }
             if step > 0 {
                 daily.push(bar("AAPL", session.open, prices, 1_000));
             }
@@ -278,6 +281,11 @@ impl World {
                     .expect("recorded company facts"),
                 submissions: serde_json::from_str(&read("edgar/submissions_sample.json"))
                     .expect("recorded submissions"),
+                older_filings: vec![(
+                    "CIK0000320193-submissions-001.json".to_owned(),
+                    serde_json::from_str(&read("edgar/submissions_page_sample.json"))
+                        .expect("recorded older filings"),
+                )],
             }],
             wikipedia: [
                 (SP500_CONSTITUENTS, "wikipedia/sp500_constituents.json"),
@@ -414,6 +422,7 @@ fn companies(facts: &[FundamentalFact]) -> Vec<Company> {
                     ticker: fact.symbol.clone(),
                     facts: json!({"cik": fact.cik, "entityName": fact.symbol, "facts": {}}),
                     submissions: submissions(fact.cik, "", &[]),
+                    older_filings: Vec::new(),
                 });
                 companies.len() - 1
             }

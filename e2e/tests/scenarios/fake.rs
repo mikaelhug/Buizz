@@ -90,6 +90,7 @@ impl FakeProviders {
             .route("/tiingo/daily/{symbol}/prices", get(tiingo))
             .route("/files/company_tickers.json", get(tickers))
             .route("/files/company_tickers_mf.json", get(fund_tickers))
+            .route("/dynamic/SymDir/nasdaqtraded.txt", get(symbol_directory))
             .route("/api/xbrl/companyfacts/{file}", get(company_facts))
             .route("/submissions/{file}", get(submissions))
             .route("/w/api.php", get(wikipedia))
@@ -98,6 +99,7 @@ impl FakeProviders {
                 get(treasury),
             )
             .route("/fred/series/observations", get(fred))
+            .route("/fred/series/vintagedates", get(fred_vintage_dates))
             .route("/control/release", post(release))
             .with_state(fake.clone());
         let listener = TcpListener::bind("127.0.0.1:0")
@@ -261,7 +263,7 @@ async fn bars(State(fake): State<Arc<Fake>>, Query(params): Query<Params>) -> Re
     let mut matching: Vec<&Bar> = if daily {
         let (start, end): (NaiveDate, NaiveDate) = (
             param(&params, "start").parse().expect("daily start date"),
-            param(&params, "end").parse().expect("daily end date"),
+            param(&params, "end")[..10].parse().expect("daily end date"),
         );
         world
             .daily
@@ -326,7 +328,7 @@ async fn corporate_actions(
     let matching: Vec<_> = world
         .actions
         .iter()
-        .filter(|action| wanted.contains(&action.symbol))
+        .filter(|action| wanted.is_empty() || wanted.contains(&action.symbol))
         .filter(|action| (start..=end).contains(&action.ex_date))
         .collect();
     let offset = page_offset(&params);
@@ -436,19 +438,53 @@ async fn fund_tickers(State(fake): State<Arc<Fake>>) -> Response {
     Json(json!({"fields": ["cik", "seriesId", "classId", "symbol"], "data": rows})).into_response()
 }
 
+async fn symbol_directory(State(fake): State<Arc<Fake>>) -> Response {
+    let rows: String = fake
+        .world()
+        .instruments
+        .iter()
+        .map(|instrument| {
+            let etf = if instrument.asset_class == AssetClass::Etf {
+                "Y"
+            } else {
+                "N"
+            };
+            format!(
+                "Y|{}|{}|N| |{etf}|100|N||{}|{}|N\n",
+                instrument.symbol, instrument.name, instrument.symbol, instrument.symbol
+            )
+        })
+        .collect();
+    format!(
+        "Nasdaq Traded|Symbol|Security Name|Listing Exchange|Market Category|ETF|Round Lot Size|\
+         Test Issue|Financial Status|CQS Symbol|NASDAQ Symbol|NextShares\n{rows}\
+         File Creation Time: 1111202618:02|||||\n"
+    )
+    .into_response()
+}
+
 async fn submissions(State(fake): State<Arc<Fake>>, Path(file): Path<String>) -> Response {
     if let Some(limited) = fake.answer("submissions") {
         return limited;
     }
     let world = fake.world();
-    world
+    let recent = world
         .companies
         .iter()
         .find(|company| file == format!("CIK{:010}.json", company.cik))
-        .map_or_else(
-            || StatusCode::NOT_FOUND.into_response(),
-            |company| Json(company.submissions.clone()).into_response(),
-        )
+        .map(|company| company.submissions.clone());
+    let older = || {
+        world
+            .companies
+            .iter()
+            .flat_map(|company| &company.older_filings)
+            .find(|(name, _)| *name == file)
+            .map(|(_, page)| page.clone())
+    };
+    recent.or_else(older).map_or_else(
+        || StatusCode::NOT_FOUND.into_response(),
+        |page| Json(page).into_response(),
+    )
 }
 
 async fn wikipedia(State(fake): State<Arc<Fake>>, Query(params): Query<Params>) -> Response {
@@ -554,6 +590,10 @@ async fn treasury(State(fake): State<Arc<Fake>>, Path(year): Path<i32>) -> Respo
         ));
     }
     csv.into_response()
+}
+
+async fn fred_vintage_dates() -> Response {
+    Json(json!({"vintage_dates": []})).into_response()
 }
 
 async fn fred(State(fake): State<Arc<Fake>>, Query(params): Query<Params>) -> Response {

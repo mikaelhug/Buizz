@@ -1,13 +1,14 @@
 use buizz_core::market::{Bar, DataSource, Dataset, Symbol, Timeframe};
 use buizz_core::ops::FetchStatus;
 use buizz_core::time::Timestamp;
+use buizz_market::ActionWindow;
 use buizz_sources::tiingo::{
     OverlapVerdict, REQUESTS_PER_DAY, SYMBOLS_PER_MONTH, normalize, validate_overlap,
 };
 use chrono::TimeDelta;
 
 use crate::fetch::{Batch, FetchKey, Work};
-use crate::{Ingest, IngestError, day_start};
+use crate::{Ingest, IngestError, Priced, day_start};
 
 const OVERLAP_WINDOW_DAYS: i64 = 45;
 const SYMBOLS_PER_RUN: u64 = 3;
@@ -42,17 +43,22 @@ impl Ingest {
             .saturating_sub(daily.requests)
             .min(u64::from(SYMBOLS_PER_MONTH).saturating_sub(monthly.symbols))
             .min(SYMBOLS_PER_RUN);
+        let Some(alpaca_floor) = alpaca.values().map(|coverage| coverage.first).min() else {
+            return Ok(Work::noop(
+                "Tiingo history: no Alpaca history to extend yet",
+            ));
+        };
         let mut batch = Batch::default();
         let mut remaining = room;
-        for symbol in self.priced_symbols().await? {
-            if remaining == 0 {
+        for Priced { symbol, .. } in self.priced_symbols().await? {
+            if remaining == 0 || self.stopping() {
                 break;
             }
             let Some(first) = alpaca.get(&symbol).map(|coverage| coverage.first) else {
                 continue;
             };
             let gap_end = first - DAY;
-            if calendar.between(history_start, gap_end).is_empty() {
+            if first != alpaca_floor || calendar.between(history_start, gap_end).is_empty() {
                 continue;
             }
             if self.tiingo_settled(now, &symbol).await? {
@@ -111,20 +117,24 @@ impl Ingest {
                 .into_iter()
                 .filter(|action| action.ex_date < first)
                 .collect::<Vec<_>>();
-            self.record_fetched(now, &key, bars.len()).await?;
+            let fetched = bars.len();
             let written = self
                 .market
                 .upsert_bars(DataSource::Tiingo, Timeframe::Day, bars)
                 .await?;
             self.market
-                .upsert_corporate_actions(
+                .replace_corporate_actions(
                     DataSource::Tiingo,
                     actions,
-                    vec![symbol.clone()],
-                    history_start,
-                    gap_end,
+                    ActionWindow {
+                        symbols: vec![symbol.clone()],
+                        from: history_start,
+                        through: gap_end,
+                        covered_to: Some(gap_end),
+                    },
                 )
                 .await?;
+            self.record_fetched(now, &key, fetched).await?;
             batch.success(written.rows);
         }
         Ok(batch.finish("Tiingo history"))
@@ -137,7 +147,10 @@ impl Ingest {
             .await?;
         Ok(latest.first().is_some_and(|fetch| {
             fetch.retry_after.is_some_and(|until| until > now)
-                || matches!(fetch.status, FetchStatus::Ok | FetchStatus::Empty)
+                || (matches!(fetch.status, FetchStatus::Ok | FetchStatus::Empty)
+                    && fetch
+                        .requested_from
+                        .is_some_and(|from| from <= self.config.history_start))
         }))
     }
 }

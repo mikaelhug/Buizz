@@ -1,12 +1,15 @@
+use std::collections::BTreeSet;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
+use buizz_core::market::Symbol;
 use buizz_sources::alpaca::{self, AlpacaConfig};
 use buizz_sources::alpaca_stream::{self, StreamConfig};
 use buizz_sources::edgar::{self, EdgarConfig};
 use buizz_sources::fred::{self, FredConfig};
 use buizz_sources::ibkr::{self, IbkrConfig};
+use buizz_sources::nasdaq::{self, NasdaqConfig};
 use buizz_sources::tiingo::{self, TiingoConfig};
 use buizz_sources::treasury::{self, TreasuryConfig};
 use buizz_sources::wikipedia::{self, WikipediaConfig};
@@ -28,6 +31,10 @@ pub struct Config {
     pub treasury: TreasuryConfig,
     pub wikipedia: Option<WikipediaConfig>,
     pub ibkr: IbkrConfig,
+    pub nasdaq: NasdaqConfig,
+    pub ingest_symbols: Option<BTreeSet<Symbol>>,
+    pub duckdb_memory: String,
+    pub duckdb_threads: usize,
 }
 
 const MIN_ADMIN_PASSWORD_CHARS: usize = 12;
@@ -117,6 +124,21 @@ impl Config {
             treasury: TreasuryConfig {
                 base_url: var_or("TREASURY_URL", treasury::BASE_URL),
             },
+            nasdaq: NasdaqConfig {
+                base_url: var_or(nasdaq::URL_ENV, nasdaq::BASE_URL),
+            },
+            ingest_symbols: var("BUIZZ_INGEST_SYMBOLS").map(|symbols| {
+                symbols
+                    .split(',')
+                    .map(str::trim)
+                    .filter(|symbol| !symbol.is_empty())
+                    .map(Symbol::new)
+                    .collect()
+            }),
+            duckdb_memory: var_or("BUIZZ_DUCKDB_MEMORY", "1GB"),
+            duckdb_threads: var_or("BUIZZ_DUCKDB_THREADS", "2")
+                .parse()
+                .context("BUIZZ_DUCKDB_THREADS must be a whole number")?,
         })
     }
 

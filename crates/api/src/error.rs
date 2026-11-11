@@ -72,9 +72,13 @@ fn describe_gaps(gaps: &[CoverageGap]) -> String {
             )
         })
         .collect();
-    match gaps.len().saturating_sub(LISTED_GAPS) {
+    let listed = match gaps.len().saturating_sub(LISTED_GAPS) {
         0 => listed.join(", "),
         more => format!("{} and {more} more", listed.join(", ")),
+    };
+    match gaps.iter().map(|gap| gap.to).max() {
+        Some(last) => format!("{listed}; a period starting after {last} has none"),
+        None => listed,
     }
 }
 

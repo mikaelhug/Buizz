@@ -10,6 +10,7 @@ pub const BASE_URL: &str = "https://home.treasury.gov";
 pub const RATE_LIMIT: RateLimit = RateLimit {
     requests: 1,
     per: Duration::from_secs(1),
+    cooldown: Duration::from_secs(60),
 };
 pub const URL_ENV: &str = "TREASURY_URL";
 const DATE_COLUMN: &str = "Date";

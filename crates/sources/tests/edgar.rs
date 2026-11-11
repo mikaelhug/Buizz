@@ -5,7 +5,9 @@ use buizz_core::market::{
     Calendar, FundamentalFact, FundamentalMetric, PeriodType, Session, Symbol,
 };
 use buizz_core::time::Timestamp;
-use buizz_sources::edgar::{EdgarClient, EdgarConfig, normalize_company_facts};
+use buizz_sources::edgar::{
+    EdgarClient, EdgarConfig, normalize_company_facts, normalize_daily_index,
+};
 use chrono::{Datelike, NaiveDate, NaiveTime, TimeDelta, Weekday};
 use rust_decimal::Decimal;
 
@@ -212,5 +214,29 @@ async fn submissions_give_the_sic_code_and_every_results_announcement() {
             .map(|release| release.filed)
             .collect::<Vec<_>>(),
         [date(2015, 7, 21), date(2015, 4, 27)]
+    );
+}
+
+#[test]
+fn the_daily_index_keeps_periodic_reports_and_8ks_only() {
+    let filings = normalize_daily_index(include_bytes!("../fixtures/edgar/master_sample.idx"));
+    let kept: Vec<(u32, &str, &str, NaiveDate)> = filings
+        .iter()
+        .map(|filing| {
+            (
+                filing.cik,
+                filing.form.as_str(),
+                filing.accession.as_str(),
+                filing.filed,
+            )
+        })
+        .collect();
+    assert_eq!(
+        kept,
+        [
+            (320193, "8-K", "0000320193-26-000101", date(2026, 11, 9)),
+            (320193, "10-K", "0000320193-26-000102", date(2026, 11, 9)),
+            (789019, "10-Q/A", "0000950170-26-000500", date(2026, 11, 9)),
+        ]
     );
 }

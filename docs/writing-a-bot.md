@@ -136,7 +136,7 @@ month_end = following.month != today.month
 week_end = following.isocalendar().week != today.isocalendar().week
 ```
 
-**Past universes.** `ctx.universe_at(on, n)` applies the `top_dollar_volume = n` rule as of the date `on`: the `n` symbols with the highest dollar volume over the 20 sessions before it, without those delisted before it, highest first. `asset_class="stock"` ranks stocks only, and `ctx.universe_at(on, index="sp500")` gives the S&P 500 members on `on` instead; both resolve exactly as a run's `universe` of the same form does on that date. It answers once the last session before `on` has closed, so any date up to the next session works and a later one raises `SpineError` with code `bad_query`. A model that trains on years of cross-sections asks for each formation date in its first step:
+**Past universes.** `ctx.universe_at(on, n)` applies the `top_dollar_volume = n` rule as of the date `on`: the `n` symbols with the highest average dollar volume over the 20 sessions before it, not counting those delisted before it, highest first. `asset_class="stock"` ranks stocks only, and `ctx.universe_at(on, index="sp500")` gives the S&P 500 members on `on` instead; both resolve exactly as a run's `universe` of the same form does on that date. It answers once the last session before `on` has closed, so any date up to the next session works and a later one raises `SpineError` with code `bad_query`. A model that trains on years of cross-sections asks for each formation date in its first step:
 
 ```python
 from datetime import date

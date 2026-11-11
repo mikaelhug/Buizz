@@ -9,6 +9,7 @@ use crate::time::Timestamp;
 #[serde(rename_all = "snake_case")]
 pub enum JobOutcome {
     Ok,
+    Partial,
     Noop,
     Backoff,
     Failed,

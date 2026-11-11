@@ -262,3 +262,27 @@ async fn a_state_store_from_before_financing_and_undelivered_steps_takes_both() 
     let checkpoint = store.checkpoint(run_id).await.unwrap().unwrap();
     assert_eq!(checkpoint.undelivered, Some(vec![7, 2]));
 }
+
+#[tokio::test]
+async fn a_state_store_from_a_newer_spine_is_refused_untouched() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(FILE_NAME);
+    drop(StateStore::open(&path).await.unwrap());
+    let connection = rusqlite::Connection::open(&path).unwrap();
+    let latest: i64 = connection
+        .pragma_query_value(None, "user_version", |row| row.get(0))
+        .unwrap();
+    connection
+        .pragma_update(None, "user_version", latest + 1)
+        .unwrap();
+    drop(connection);
+    assert!(matches!(
+        StateStore::open(&path).await,
+        Err(StateError::NewerSchema { .. })
+    ));
+    let version: i64 = rusqlite::Connection::open(&path)
+        .unwrap()
+        .pragma_query_value(None, "user_version", |row| row.get(0))
+        .unwrap();
+    assert_eq!(version, latest + 1);
+}

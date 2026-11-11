@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use buizz_core::market::{DataSource, Dataset, Feed, Symbol, Timeframe};
+use buizz_core::market::{Bar, DataSource, Dataset, Feed, Symbol, Timeframe};
 use buizz_core::time::Timestamp;
 use buizz_sources::alpaca::BarsRequest;
 use buizz_sources::http::SourceError;
@@ -18,6 +18,13 @@ impl Ingest {
         from: NaiveDate,
         to: NaiveDate,
     ) -> Result<(), IngestError> {
+        let gaps = self
+            .market
+            .coverage_gaps(symbols.to_vec(), Timeframe::Minute, from, to)
+            .await?;
+        if gaps.is_empty() {
+            return Ok(());
+        }
         let alpaca = self
             .sources
             .alpaca
@@ -30,10 +37,6 @@ impl Ingest {
             }
             .into());
         }
-        let gaps = self
-            .market
-            .coverage_gaps(symbols.to_vec(), Timeframe::Minute, from, to)
-            .await?;
         let calendar = self.market.calendar(from, to).await?;
         let mut grouped: BTreeMap<(NaiveDate, NaiveDate), Vec<Symbol>> = BTreeMap::new();
         for gap in gaps {
@@ -57,20 +60,45 @@ impl Ingest {
                     None,
                     Some((gap_from, gap_to)),
                 );
-                match alpaca.bars(&request, &calendar).await {
-                    Ok(bars) => {
-                        self.record_fetched(now, &key, bars.len()).await?;
-                        self.market
-                            .upsert_bars(DataSource::Alpaca, Timeframe::Minute, bars)
-                            .await?;
+                let mut carried: Vec<Bar> = Vec::new();
+                let mut token = None;
+                loop {
+                    let page = match alpaca.bars_page(&request, &calendar, token.take()).await {
+                        Ok(page) => page,
+                        Err(error) => {
+                            self.record_failure(now, &key, &error).await?;
+                            return Err(error.into());
+                        }
+                    };
+                    let fetched = page.bars.len();
+                    let mut bars = std::mem::take(&mut carried);
+                    bars.extend(page.bars);
+                    if page.next.is_some() {
+                        carried = split_last_day(&mut bars);
                     }
-                    Err(error) => {
-                        self.record_failure(now, &key, &error).await?;
-                        return Err(error.into());
+                    self.market
+                        .upsert_bars(DataSource::Alpaca, Timeframe::Minute, bars)
+                        .await?;
+                    self.record_fetched(now, &key, fetched).await?;
+                    match page.next {
+                        Some(next) => token = Some(next),
+                        None => break,
                     }
                 }
             }
         }
         Ok(())
     }
+}
+
+fn split_last_day(bars: &mut Vec<Bar>) -> Vec<Bar> {
+    let Some(last) = bars.last() else {
+        return Vec::new();
+    };
+    let (symbol, date) = (last.symbol.clone(), last.start.exchange_date());
+    let keep = bars
+        .iter()
+        .rposition(|bar| bar.symbol != symbol || bar.start.exchange_date() != date)
+        .map_or(0, |index| index + 1);
+    bars.split_off(keep)
 }

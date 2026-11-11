@@ -11,11 +11,12 @@ use buizz_ingest::{Ingest, IngestConfig};
 use buizz_market::MarketStore;
 use buizz_runner::{Runner, RunnerConfig, RunnerDeps};
 use buizz_sources::Sources;
-use buizz_sources::alpaca::{self, AlpacaClient};
+use buizz_sources::alpaca::AlpacaClient;
 use buizz_sources::alpaca_stream::SYMBOL_CAP;
 use buizz_sources::edgar::EdgarClient;
 use buizz_sources::fred::FredClient;
 use buizz_sources::ibkr::IbkrClient;
+use buizz_sources::nasdaq::NasdaqClient;
 use buizz_sources::tiingo::TiingoClient;
 use buizz_sources::treasury::TreasuryClient;
 use buizz_sources::wikipedia::WikipediaClient;
@@ -31,6 +32,7 @@ use crate::config::Config;
 
 const MARKET_READERS: usize = 4;
 const SNAPSHOTS_KEPT: usize = 14;
+const INGEST_STOP_GRACE: Duration = Duration::from_secs(20);
 const START_CASH: Decimal = Decimal::from_parts(100_000, 0, 0, false, 0);
 
 #[tokio::main]
@@ -56,6 +58,9 @@ async fn main() -> Result<()> {
         MARKET_READERS,
     )
     .await?;
+    market
+        .limit(config.duckdb_memory.clone(), config.duckdb_threads)
+        .await?;
     if let Some(fixture_dir) = &config.fixture_dir {
         market.load_fixture(fixture_dir).await?;
     }
@@ -73,6 +78,7 @@ async fn main() -> Result<()> {
             .map(WikipediaClient::new)
             .transpose()?,
         ibkr: Some(IbkrClient::new(config.ibkr.clone())),
+        nasdaq: Some(NasdaqClient::new(config.nasdaq.clone())?),
     };
     let feed = FeedManager::new(
         FeedConfig {
@@ -87,8 +93,9 @@ async fn main() -> Result<()> {
             tick: Duration::from_secs(60),
             snapshot_dir: config.data_dir.join("backups"),
             snapshot_keep: SNAPSHOTS_KEPT,
-            history_start: alpaca::HISTORY_START,
+            history_start: buizz_core::market::HISTORY_START,
             enabled: config.ingest,
+            only: config.ingest_symbols.clone(),
         },
         market.clone(),
         state.clone(),
@@ -128,10 +135,10 @@ async fn main() -> Result<()> {
             spine_ip: bound.ip(),
         }),
         runner: runner.clone(),
-        market,
+        market: market.clone(),
         state,
         feed,
-        ingest,
+        ingest: ingest.clone(),
         shutdown,
     });
     tracing::info!(addr = %bound, "spine listening");
@@ -142,11 +149,13 @@ async fn main() -> Result<()> {
     .with_graceful_shutdown(shutdown_signal(shutting_down))
     .await?;
 
-    runner.shutdown().await;
-    feed_task.abort();
+    ingest.stop(INGEST_STOP_GRACE).await;
     if let Some(task) = ingest_task {
         task.abort();
     }
+    runner.shutdown().await;
+    feed_task.abort();
+    market.checkpoint().await?;
     Ok(())
 }
 
