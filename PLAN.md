@@ -131,6 +131,7 @@ Out of v1: brokers and real money; options, crypto, FX; tick/quote simulation; e
    - G14 fundamentals before 2009: Yahoo cannot fill it (about four years, unofficial, restated). Free option for later: parse the financial statements of pre-XBRL 10-K/10-Q filings on EDGAR (filed since 1993) for the few metrics the blocked bots need; until then gbm_ranker and graham's defensive variant wait.
    - G8 VIX intraday: no free source reproduces the paper; vol_premium_etf is deferred.
    Gap PRs run as four parallel groups, each additive to the protocol and SDK: orders and costs (G6 auction orders and the pre-close wake, G9 stops, G4 margin, G18 per-share costs); bot queries (G1 calendar, G12 past universes, G15 rates and FRED series); instrument and fundamentals data (G2 asset-class filter, G3 SIC, G17 exchange, G16 new metrics, G7 earnings-release dates, G11 Wikipedia S&P 500 membership, the IB borrow recorder); bot environment (G5 dependencies, G13 shared bot code). Bots start as soon as their gaps land, five at a time, each followed by a critical review against its brief. Real-data backtests run against the cluster's spine, so deployment comes before the bots that need real history.
+   Landed: G5 (the locked bots environment in `bots/pyproject.toml`) and G13 (the shared package `bots/buizz_bots`).
 
 ## Deployment (after Wave 3, separate repo, with your go-ahead)
 

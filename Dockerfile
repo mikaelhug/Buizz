@@ -29,24 +29,27 @@ RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
 COPY web ./
 RUN npm run --silent build
 
-FROM python:3.13-slim-bookworm AS sdk-build
+FROM python:3.13-slim-bookworm AS bots-build
 COPY --from=ghcr.io/astral-sh/uv:0.9 /uv /usr/local/bin/uv
 ENV UV_PYTHON_DOWNLOADS=never \
     UV_PYTHON_PREFERENCE=only-system \
     UV_LINK_MODE=copy
-WORKDIR /app/sdk/python
-COPY sdk/python/pyproject.toml sdk/python/uv.lock ./
-COPY sdk/python/src src
+COPY sdk/python/pyproject.toml sdk/python/uv.lock /app/sdk/python/
+COPY sdk/python/src /app/sdk/python/src
+WORKDIR /app/bots
+COPY bots/pyproject.toml bots/uv.lock bots/.python-version ./
+COPY bots/buizz_bots buizz_bots
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-editable --compile-bytecode
 
 FROM python:3.13-slim-bookworm AS runtime
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends tini \
+    && apt-get install -y --no-install-recommends tini libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=ghcr.io/astral-sh/uv:0.9 /uv /usr/local/bin/uv
-COPY --from=sdk-build /app/sdk/python /app/sdk/python
+COPY --from=bots-build /app/sdk/python /app/sdk/python
 COPY bots /app/bots
+COPY --from=bots-build /app/bots/.venv /app/bots/.venv
 COPY --from=web-build /web/dist /app/web
 COPY --from=rust-build /out/buizz-spine /usr/local/bin/buizz-spine
 RUN mkdir /data && chown 10001:10001 /data

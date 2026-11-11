@@ -1,0 +1,33 @@
+[project]
+name = "buizz-bots"
+version = "0.1.0"
+description = "Python environment and shared code for the Buizz bots"
+requires-python = ">=3.13"
+dependencies = [
+    "buizz",
+    "hmmlearn>=0.3.3",
+    "lightgbm>=4.6.0",
+    "scikit-learn>=1.7.0",
+    "scipy>=1.16.0",
+]
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.414",
+]
+
+[tool.uv.sources]
+buizz = { path = "../sdk/python" }
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["buizz_bots"]
+
+[tool.pyright]
+pythonVersion = "3.13"
+typeCheckingMode = "strict"
+include = ["."]
+exclude = [".venv"]
