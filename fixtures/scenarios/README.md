@@ -43,7 +43,7 @@ Equity points `E_1..E_n` are the session closes (n = 10) and `E_0` is the start 
 | sortino | `mean(r − rf) / √(Σ min(r − rf, 0)² / 10) × √252` | 3.664590… |
 | max_drawdown | `max (peak − E) / peak` over `E_0..E_n` (100,000.00 → 99,415.52) | 0.0058448 |
 | calmar | `cagr / max_drawdown` | 20.42198… |
-| trades | closed round trips (flat → flat per symbol) | 3 |
+| trades | closed round trips (flat → flat per symbol; a fill that crosses zero closes the trip with its pro-rata share and opens the next, a split to zero shares closes it) | 3 |
 | win_rate | winning round trips / trades; pnl = Σ fill cash deltas + dividends: BBB −131.99, AAA 97.92, AAA 599.81 | 0.6667 |
 | profit_factor | Σ wins / Σ |losses| = 697.73 / 131.99 | 5.286233… |
 | exposure | mean of `gross_exposure / equity` over equity points | 0.248096… |

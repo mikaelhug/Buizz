@@ -195,18 +195,22 @@ fn round_trips(ledger: &[LedgerEntry]) -> Vec<Decimal> {
             continue;
         };
         let trip = open.entry(symbol).or_default();
-        trip.pnl += entry.kind.cash_delta();
-        match &entry.kind {
-            LedgerKind::Fill { qty, .. } | LedgerKind::Liquidation { qty, .. } => trip.qty += qty,
-            LedgerKind::Split { qty_after, .. } => trip.qty = *qty_after,
-            _ => {}
+        let cash = entry.kind.cash_delta();
+        let before = trip.qty;
+        trip.qty = match &entry.kind {
+            LedgerKind::Fill { qty, .. } | LedgerKind::Liquidation { qty, .. } => before + qty,
+            LedgerKind::Split { qty_after, .. } => *qty_after,
+            _ => before,
+        };
+        if before.signum() * trip.qty.signum() < 0 {
+            let closing =
+                cash * Decimal::from(before.abs()) / Decimal::from((trip.qty - before).abs());
+            closed.push(trip.pnl + closing);
+            trip.pnl = cash - closing;
+            continue;
         }
-        let closes_trip = trip.qty == 0
-            && matches!(
-                entry.kind,
-                LedgerKind::Fill { .. } | LedgerKind::Liquidation { .. }
-            );
-        if closes_trip {
+        trip.pnl += cash;
+        if before != 0 && trip.qty == 0 {
             closed.push(trip.pnl);
         }
         if trip.qty == 0 {
@@ -362,5 +366,43 @@ mod tests {
             risk_free: &[],
         });
         assert_eq!(metrics, Metrics::default());
+    }
+
+    #[test]
+    fn a_flip_closes_one_round_trip_and_a_split_to_zero_closes_another() {
+        let entry = |seq, kind| LedgerEntry {
+            seq,
+            at: Timestamp::from_datetime(chrono::DateTime::UNIX_EPOCH).unwrap(),
+            kind,
+        };
+        let fill = |symbol: &str, qty: i64, price: i64| LedgerKind::Fill {
+            order_id: buizz_core::order::OrderId(1),
+            symbol: Symbol::new(symbol),
+            qty,
+            price: Decimal::from(price),
+            commission: Decimal::ZERO,
+            feed: buizz_core::market::Feed::Sip,
+        };
+        let ledger = [
+            entry(1, fill("AAA", 100, 10)),
+            entry(2, fill("AAA", -150, 12)),
+            entry(3, fill("AAA", 50, 11)),
+            entry(4, fill("BBB", 3, 10)),
+            entry(
+                5,
+                LedgerKind::Split {
+                    symbol: Symbol::new("BBB"),
+                    old_rate: Decimal::from(10),
+                    new_rate: Decimal::ONE,
+                    qty_before: 3,
+                    qty_after: 0,
+                    cash_in_lieu: Decimal::from(25),
+                },
+            ),
+        ];
+        assert_eq!(
+            round_trips(&ledger),
+            [Decimal::from(200), Decimal::from(50), Decimal::from(-5)]
+        );
     }
 }
