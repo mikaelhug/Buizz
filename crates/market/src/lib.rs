@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::sync::{Arc, PoisonError, RwLock};
 
 use buizz_core::market::{
     Adjustment, Bar, Calendar, CorporateAction, Coverage, DataSource, FundamentalFact,
@@ -10,7 +11,18 @@ use buizz_core::ops::{CoverageGap, DataWarning};
 use buizz_core::protocol::BarRow;
 use buizz_core::time::Timestamp;
 use chrono::NaiveDate;
+use duckdb::Connection;
 use tokio::sync::watch;
+
+use crate::fixture::{ActionRow, DailyRow};
+use crate::lane::Lane;
+use crate::read::BarQuery;
+
+mod codec;
+mod fixture;
+mod lane;
+mod read;
+mod write;
 
 pub const SCHEMA: &str = include_str!("../schema.sql");
 pub const FILE_NAME: &str = "market.duckdb";
@@ -25,6 +37,8 @@ pub enum MarketError {
     Io(#[from] std::io::Error),
     #[error("market store has shut down")]
     Closed,
+    #[error("market store worker failed: {0}")]
+    Worker(#[from] tokio::task::JoinError),
 }
 
 pub type Result<T> = std::result::Result<T, MarketError>;
@@ -44,165 +58,316 @@ pub struct WriteSummary {
     pub rows: u64,
 }
 
-#[derive(Clone)]
-pub struct MarketStore {}
+struct Shared {
+    calendar: RwLock<Arc<Calendar>>,
+    watermarks: watch::Sender<Watermarks>,
+}
 
-impl MarketStore {
-    pub async fn open(_path: &Path, _readers: usize) -> Result<Self> {
-        unimplemented!()
+impl Shared {
+    fn calendar(&self) -> Arc<Calendar> {
+        Arc::clone(&self.calendar.read().unwrap_or_else(PoisonError::into_inner))
     }
 
-    pub async fn load_fixture(&self, _dir: &Path) -> Result<()> {
-        unimplemented!()
+    fn refresh_calendar(&self, connection: &Connection) -> Result<()> {
+        let calendar = Arc::new(read::calendar(connection)?);
+        *self
+            .calendar
+            .write()
+            .unwrap_or_else(PoisonError::into_inner) = calendar;
+        Ok(())
+    }
+}
+
+#[derive(Clone)]
+pub struct MarketStore {
+    writer: Lane,
+    readers: Lane,
+    shared: Arc<Shared>,
+}
+
+impl MarketStore {
+    pub async fn open(path: &Path, readers: usize) -> Result<Self> {
+        let path = path.to_owned();
+        let (writer, pool, calendar) = tokio::task::spawn_blocking(move || {
+            let writer = Connection::open(path)?;
+            writer.execute_batch(SCHEMA)?;
+            write::prepare(&writer)?;
+            let pool = (0..readers.max(1))
+                .map(|_| writer.try_clone())
+                .collect::<duckdb::Result<Vec<_>>>()?;
+            let calendar = read::calendar(&writer)?;
+            Ok::<_, MarketError>((writer, pool, calendar))
+        })
+        .await??;
+        Ok(Self {
+            writer: Lane::spawn("market-writer", vec![writer])?,
+            readers: Lane::spawn("market-reader", pool)?,
+            shared: Arc::new(Shared {
+                calendar: RwLock::new(Arc::new(calendar)),
+                watermarks: watch::Sender::new(Watermarks::default()),
+            }),
+        })
+    }
+
+    pub async fn load_fixture(&self, dir: &Path) -> Result<()> {
+        let source = DataSource::Fixture;
+        self.upsert_sessions(source, fixture::rows(dir, "calendar.csv").await?)
+            .await?;
+        self.upsert_instruments(source, fixture::rows(dir, "instruments.csv").await?)
+            .await?;
+        let calendar = self.shared.calendar();
+        let daily = fixture::rows::<DailyRow>(dir, "bar_1d.csv")
+            .await?
+            .into_iter()
+            .map(|row| row.into_bar(&calendar))
+            .collect::<Result<Vec<_>>>()?;
+        self.upsert_bars(source, Timeframe::Day, daily).await?;
+        let minute = fixture::rows(dir, "bar_1m.csv").await?;
+        self.upsert_bars(source, Timeframe::Minute, minute).await?;
+        let actions = fixture::rows::<ActionRow>(dir, "corporate_actions.csv")
+            .await?
+            .into_iter()
+            .map(ActionRow::into_action)
+            .collect::<Result<Vec<_>>>()?;
+        self.upsert_corporate_actions(source, actions).await?;
+        let facts = fixture::rows(dir, "fundamental_facts.csv").await?;
+        self.append_fundamental_facts(source, facts).await?;
+        self.upsert_risk_free_rates(source, fixture::rows(dir, "rates.csv").await?)
+            .await?;
+        Ok(())
     }
 
     pub async fn upsert_instruments(
         &self,
-        _source: DataSource,
-        _instruments: Vec<Instrument>,
+        source: DataSource,
+        instruments: Vec<Instrument>,
     ) -> Result<WriteSummary> {
-        unimplemented!()
+        self.writer
+            .run(move |connection| write::instruments(connection, source, instruments))
+            .await
     }
 
     pub async fn upsert_sessions(
         &self,
-        _source: DataSource,
-        _sessions: Vec<Session>,
+        source: DataSource,
+        sessions: Vec<Session>,
     ) -> Result<WriteSummary> {
-        unimplemented!()
+        let shared = Arc::clone(&self.shared);
+        self.writer
+            .run(move |connection| {
+                let summary = write::sessions(connection, source, sessions)?;
+                shared.refresh_calendar(connection)?;
+                Ok(summary)
+            })
+            .await
     }
 
     pub async fn upsert_bars(
         &self,
-        _source: DataSource,
-        _timeframe: Timeframe,
-        _bars: Vec<Bar>,
+        source: DataSource,
+        timeframe: Timeframe,
+        bars: Vec<Bar>,
     ) -> Result<WriteSummary> {
-        unimplemented!()
+        self.writer
+            .run(move |connection| match timeframe {
+                Timeframe::Day => write::daily_bars(connection, source, bars),
+                Timeframe::Minute => write::minute_bars(connection, source, bars),
+            })
+            .await
     }
 
     pub async fn upsert_corporate_actions(
         &self,
-        _source: DataSource,
-        _actions: Vec<CorporateAction>,
+        source: DataSource,
+        actions: Vec<CorporateAction>,
     ) -> Result<WriteSummary> {
-        unimplemented!()
+        self.writer
+            .run(move |connection| write::corporate_actions(connection, source, actions))
+            .await
     }
 
     pub async fn append_fundamental_facts(
         &self,
-        _source: DataSource,
-        _facts: Vec<FundamentalFact>,
+        source: DataSource,
+        facts: Vec<FundamentalFact>,
     ) -> Result<WriteSummary> {
-        unimplemented!()
+        self.writer
+            .run(move |connection| write::fundamental_facts(connection, source, facts))
+            .await
     }
 
     pub async fn upsert_risk_free_rates(
         &self,
-        _source: DataSource,
-        _rates: Vec<RiskFreeRate>,
+        source: DataSource,
+        rates: Vec<RiskFreeRate>,
     ) -> Result<WriteSummary> {
-        unimplemented!()
+        self.writer
+            .run(move |connection| write::risk_free_rates(connection, source, rates))
+            .await
     }
 
-    pub async fn advance_watermark(
-        &self,
-        _timeframe: Timeframe,
-        _through: Timestamp,
-    ) -> Result<()> {
-        unimplemented!()
+    pub async fn advance_watermark(&self, timeframe: Timeframe, through: Timestamp) -> Result<()> {
+        let shared = Arc::clone(&self.shared);
+        self.writer
+            .run(move |_| {
+                shared.watermarks.send_if_modified(|watermarks| {
+                    let slot = match timeframe {
+                        Timeframe::Day => &mut watermarks.day,
+                        Timeframe::Minute => &mut watermarks.minute,
+                    };
+                    let advanced = slot.is_none_or(|current| current < through);
+                    if advanced {
+                        *slot = Some(through);
+                    }
+                    advanced
+                });
+                Ok(())
+            })
+            .await
     }
 
     pub fn watermarks(&self) -> watch::Receiver<Watermarks> {
-        unimplemented!()
+        self.shared.watermarks.subscribe()
     }
 
-    pub async fn calendar(&self, _from: NaiveDate, _to: NaiveDate) -> Result<Calendar> {
-        unimplemented!()
+    pub async fn calendar(&self, from: NaiveDate, to: NaiveDate) -> Result<Calendar> {
+        Ok(Calendar::new(
+            self.shared.calendar().between(from, to).to_vec(),
+        ))
     }
 
     pub async fn instruments(&self) -> Result<Vec<Instrument>> {
-        unimplemented!()
+        self.readers
+            .run(|connection| read::instruments(connection))
+            .await
     }
 
     pub async fn bars_between(
         &self,
-        _timeframe: Timeframe,
-        _symbols: Vec<Symbol>,
-        _from: Timestamp,
-        _to: Timestamp,
+        timeframe: Timeframe,
+        symbols: Vec<Symbol>,
+        from: Timestamp,
+        to: Timestamp,
     ) -> Result<Vec<Bar>> {
-        unimplemented!()
+        self.readers
+            .run(move |connection| {
+                read::bars(
+                    connection,
+                    &BarQuery {
+                        timeframe,
+                        symbols: &symbols,
+                        from: Some(from),
+                        to,
+                        to_inclusive: false,
+                        latest: None,
+                    },
+                )
+            })
+            .await
     }
 
-    pub async fn history(&self, _request: HistoryRequest) -> Result<Vec<BarRow>> {
-        unimplemented!()
+    pub async fn history(&self, request: HistoryRequest) -> Result<Vec<BarRow>> {
+        let calendar = self.shared.calendar();
+        self.readers
+            .run(move |connection| read::history(connection, &calendar, &request))
+            .await
     }
 
     pub async fn fundamentals(
         &self,
-        _symbols: Vec<Symbol>,
-        _metrics: Vec<FundamentalMetric>,
-        _as_of: Timestamp,
+        symbols: Vec<Symbol>,
+        metrics: Vec<FundamentalMetric>,
+        as_of: Timestamp,
     ) -> Result<Vec<FundamentalPoint>> {
-        unimplemented!()
+        let calendar = self.shared.calendar();
+        self.readers
+            .run(move |connection| {
+                read::fundamentals(connection, &calendar, &symbols, &metrics, as_of)
+            })
+            .await
     }
 
     pub async fn corporate_actions(
         &self,
-        _symbols: Vec<Symbol>,
-        _from: NaiveDate,
-        _to: NaiveDate,
+        symbols: Vec<Symbol>,
+        from: NaiveDate,
+        to: NaiveDate,
     ) -> Result<Vec<CorporateAction>> {
-        unimplemented!()
+        self.readers
+            .run(move |connection| read::corporate_actions(connection, &symbols, from, to))
+            .await
     }
 
     pub async fn average_daily_volume(
         &self,
-        _symbols: Vec<Symbol>,
-        _before: NaiveDate,
-        _sessions: u32,
+        symbols: Vec<Symbol>,
+        before: NaiveDate,
+        sessions: u32,
     ) -> Result<BTreeMap<Symbol, u64>> {
-        unimplemented!()
+        let calendar = self.shared.calendar();
+        self.readers
+            .run(move |connection| {
+                read::average_daily_volume(connection, &calendar, &symbols, before, sessions)
+            })
+            .await
     }
 
     pub async fn top_dollar_volume(
         &self,
-        _count: u32,
-        _before: NaiveDate,
-        _sessions: u32,
+        count: u32,
+        before: NaiveDate,
+        sessions: u32,
     ) -> Result<Vec<Symbol>> {
-        unimplemented!()
+        let calendar = self.shared.calendar();
+        self.readers
+            .run(move |connection| {
+                read::top_dollar_volume(connection, &calendar, count, before, sessions)
+            })
+            .await
     }
 
     pub async fn risk_free_rates(
         &self,
-        _from: NaiveDate,
-        _to: NaiveDate,
+        from: NaiveDate,
+        to: NaiveDate,
     ) -> Result<Vec<RiskFreeRate>> {
-        unimplemented!()
+        self.readers
+            .run(move |connection| read::risk_free_rates(connection, from, to))
+            .await
     }
 
     pub async fn coverage(&self) -> Result<Vec<Coverage>> {
-        unimplemented!()
+        self.readers
+            .run(|connection| read::coverage(connection))
+            .await
     }
 
     pub async fn coverage_gaps(
         &self,
-        _symbols: Vec<Symbol>,
-        _timeframe: Timeframe,
-        _from: NaiveDate,
-        _to: NaiveDate,
+        symbols: Vec<Symbol>,
+        timeframe: Timeframe,
+        from: NaiveDate,
+        to: NaiveDate,
     ) -> Result<Vec<CoverageGap>> {
-        unimplemented!()
+        let calendar = self.shared.calendar();
+        self.readers
+            .run(move |connection| {
+                read::coverage_gaps(connection, &calendar, &symbols, timeframe, from, to)
+            })
+            .await
     }
 
     pub async fn unexplained_moves(
         &self,
-        _symbols: Vec<Symbol>,
-        _from: NaiveDate,
-        _to: NaiveDate,
+        symbols: Vec<Symbol>,
+        from: NaiveDate,
+        to: NaiveDate,
     ) -> Result<Vec<DataWarning>> {
-        unimplemented!()
+        let calendar = self.shared.calendar();
+        self.readers
+            .run(move |connection| {
+                read::unexplained_moves(connection, &calendar, &symbols, from, to)
+            })
+            .await
     }
 }
