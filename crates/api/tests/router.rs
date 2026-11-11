@@ -48,6 +48,8 @@ async fn spine() -> Spine {
             base_url: treasury::BASE_URL.to_owned(),
         })
         .expect("treasury client"),
+        wikipedia: None,
+        ibkr: None,
     };
     let feed = FeedManager::new(
         FeedConfig {

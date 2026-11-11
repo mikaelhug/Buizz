@@ -5,8 +5,10 @@ use anyhow::{Context, Result};
 use buizz_sources::alpaca::{self, AlpacaConfig};
 use buizz_sources::alpaca_stream::{self, StreamConfig};
 use buizz_sources::edgar::{self, EdgarConfig};
+use buizz_sources::ibkr::{self, IbkrConfig};
 use buizz_sources::tiingo::{self, TiingoConfig};
 use buizz_sources::treasury::{self, TreasuryConfig};
+use buizz_sources::wikipedia::{self, WikipediaConfig};
 
 pub struct Config {
     pub bind: SocketAddr,
@@ -22,6 +24,8 @@ pub struct Config {
     pub tiingo: Option<TiingoConfig>,
     pub edgar: Option<EdgarConfig>,
     pub treasury: TreasuryConfig,
+    pub wikipedia: Option<WikipediaConfig>,
+    pub ibkr: IbkrConfig,
 }
 
 const MIN_ADMIN_PASSWORD_CHARS: usize = 12;
@@ -92,11 +96,18 @@ impl Config {
                 base_url: var_or("TIINGO_URL", tiingo::BASE_URL),
                 ..TiingoConfig::new(api_key)
             }),
+            wikipedia: var("SEC_USER_AGENT").map(|contact| WikipediaConfig {
+                user_agent: format!("buizz/{} ({contact})", env!("CARGO_PKG_VERSION")),
+                base_url: var_or("WIKIPEDIA_URL", wikipedia::BASE_URL),
+            }),
             edgar: var("SEC_USER_AGENT").map(|user_agent| EdgarConfig {
                 data_url: var_or("SEC_DATA_URL", edgar::DATA_URL),
                 www_url: var_or("SEC_WWW_URL", edgar::WWW_URL),
                 ..EdgarConfig::new(user_agent)
             }),
+            ibkr: IbkrConfig {
+                address: var_or("IBKR_FTP_ADDRESS", ibkr::ADDRESS),
+            },
             treasury: TreasuryConfig {
                 base_url: var_or("TREASURY_URL", treasury::BASE_URL),
             },

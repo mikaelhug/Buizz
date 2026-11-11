@@ -31,6 +31,7 @@ const ACTIONS_PAGE_2: &str =
     include_str!("../../sources/fixtures/alpaca/corporate_actions_page2.json");
 const TICKERS: &str = include_str!("../../sources/fixtures/edgar/company_tickers.json");
 const FUND_TICKERS: &str = include_str!("../../sources/fixtures/edgar/company_tickers_mf.json");
+const SUBMISSIONS: &str = include_str!("../../sources/fixtures/edgar/submissions_sample.json");
 const COMPANY_FACTS: &str = include_str!("../../sources/fixtures/edgar/companyfacts_sample.json");
 const YIELDS: &str = include_str!("../../sources/fixtures/treasury/par_yield_2025.csv");
 
@@ -212,6 +213,10 @@ async fn serve_fakes(fake: Arc<Fake>) -> String {
         )
         .route("/api/xbrl/companyfacts/{file}", get(company_facts))
         .route(
+            "/submissions/CIK0000320193.json",
+            get(|| async { json(SUBMISSIONS.to_owned()) }),
+        )
+        .route(
             "/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv/{year}/all",
             get(yields),
         )
@@ -239,6 +244,8 @@ fn sources(url: &str) -> Sources {
             base_url: url.to_owned(),
         })
         .unwrap(),
+        wikipedia: None,
+        ibkr: None,
     }
 }
 
@@ -332,10 +339,13 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
         vec![
             ("calendar", JobOutcome::Ok),
             ("instruments", JobOutcome::Ok),
+            ("index_membership", JobOutcome::Noop),
             ("bars_1d", JobOutcome::Ok),
             ("corporate_actions", JobOutcome::Ok),
             ("fundamentals", JobOutcome::Ok),
+            ("filings", JobOutcome::Ok),
             ("rates", JobOutcome::Ok),
+            ("borrow", JobOutcome::Noop),
             ("state_snapshot", JobOutcome::Ok),
             ("tiingo_history", JobOutcome::Failed),
         ]
@@ -407,10 +417,13 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
         vec![
             ("calendar", JobOutcome::Noop),
             ("instruments", JobOutcome::Noop),
+            ("index_membership", JobOutcome::Noop),
             ("bars_1d", JobOutcome::Noop),
             ("corporate_actions", JobOutcome::Noop),
             ("fundamentals", JobOutcome::Noop),
+            ("filings", JobOutcome::Noop),
             ("rates", JobOutcome::Noop),
+            ("borrow", JobOutcome::Noop),
             ("state_snapshot", JobOutcome::Ok),
             ("tiingo_history", JobOutcome::Noop),
         ]

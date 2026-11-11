@@ -1,20 +1,23 @@
 mod actions;
 mod bars;
+mod borrow;
 mod facts;
 mod fetch;
+mod filings;
+mod index;
 mod minute;
 mod reference;
 mod schedule;
 mod snapshot;
 mod tiingo;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
 use buizz_core::api::{JobView, SpineEvent};
-use buizz_core::market::{Coverage, DataSource, Dataset, Instrument, Symbol};
+use buizz_core::market::{Coverage, DataSource, Dataset, Instrument, StockIndex, Symbol};
 use buizz_core::ops::JobOutcome;
 use buizz_core::time::Timestamp;
 use buizz_market::{MarketError, MarketStore};
@@ -183,7 +186,10 @@ impl Ingest {
             schedule::BARS_1D => self.daily_bars(now).await,
             schedule::CORPORATE_ACTIONS => self.corporate_actions(now).await,
             schedule::FUNDAMENTALS => self.fundamentals(now).await,
+            schedule::FILINGS => self.filings(now).await,
+            schedule::INDEX_MEMBERSHIP => self.index_membership(now).await,
             schedule::RATES => self.rates(now).await,
+            schedule::BORROW => self.borrow(now).await,
             schedule::STATE_SNAPSHOT => self.state_snapshot(now).await,
             schedule::TIINGO_HISTORY => self.tiingo_history(now).await,
             other => unreachable!("unscheduled job {other}"),
@@ -198,11 +204,25 @@ impl Ingest {
             .collect())
     }
 
-    async fn active_symbols(&self) -> Result<Vec<Symbol>, IngestError> {
+    async fn priced_symbols(&self) -> Result<Vec<Symbol>, IngestError> {
+        let members: BTreeSet<Symbol> = self
+            .market
+            .index_history(StockIndex::Sp500)
+            .await?
+            .map(|history| {
+                history
+                    .members
+                    .into_iter()
+                    .map(|member| member.symbol)
+                    .collect()
+            })
+            .unwrap_or_default();
         Ok(self
-            .active_instruments()
+            .market
+            .instruments()
             .await?
             .into_iter()
+            .filter(|instrument| instrument.active || members.contains(&instrument.symbol))
             .map(|instrument| instrument.symbol)
             .collect())
     }

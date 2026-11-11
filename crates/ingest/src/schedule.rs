@@ -12,7 +12,10 @@ pub(crate) const INSTRUMENTS: &str = "instruments";
 pub(crate) const BARS_1D: &str = "bars_1d";
 pub(crate) const CORPORATE_ACTIONS: &str = "corporate_actions";
 pub(crate) const FUNDAMENTALS: &str = "fundamentals";
+pub(crate) const FILINGS: &str = "filings";
+pub(crate) const INDEX_MEMBERSHIP: &str = "index_membership";
 pub(crate) const RATES: &str = "rates";
+pub(crate) const BORROW: &str = "borrow";
 pub(crate) const STATE_SNAPSHOT: &str = "state_snapshot";
 pub(crate) const TIINGO_HISTORY: &str = "tiingo_history";
 
@@ -23,13 +26,17 @@ const SHORT_RETRY: Duration = HOUR;
 const FIRST_FAILURE_RETRY: Duration = Duration::from_secs(5 * 60);
 const STALE_AFTER_INTERVALS: i32 = 3;
 
-pub(crate) const JOBS: [JobSpec; 8] = [
+pub(crate) const JOBS: [JobSpec; 11] = [
     JobSpec {
         name: CALENDAR,
         every: DAY,
     },
     JobSpec {
         name: INSTRUMENTS,
+        every: DAY,
+    },
+    JobSpec {
+        name: INDEX_MEMBERSHIP,
         every: DAY,
     },
     JobSpec {
@@ -45,7 +52,15 @@ pub(crate) const JOBS: [JobSpec; 8] = [
         every: SIX_HOURS,
     },
     JobSpec {
+        name: FILINGS,
+        every: SIX_HOURS,
+    },
+    JobSpec {
         name: RATES,
+        every: DAY,
+    },
+    JobSpec {
+        name: BORROW,
         every: DAY,
     },
     JobSpec {

@@ -13,6 +13,8 @@ const USER_AGENT_VALUE: &str = "buizz-test contact@example.test";
 const COMPANY_FACTS: &str = include_str!("../fixtures/edgar/companyfacts_sample.json");
 const TICKERS: &str = include_str!("../fixtures/edgar/company_tickers.json");
 const FUND_TICKERS: &str = include_str!("../fixtures/edgar/company_tickers_mf.json");
+const SUBMISSIONS: &str = include_str!("../fixtures/edgar/submissions_sample.json");
+const SUBMISSIONS_PAGE: &str = include_str!("../fixtures/edgar/submissions_page_sample.json");
 
 fn date(year: i32, month: u32, day: u32) -> NaiveDate {
     NaiveDate::from_ymd_opt(year, month, day).unwrap()
@@ -59,6 +61,11 @@ async fn serve_sec() -> String {
         .route(
             "/api/xbrl/companyfacts/CIK0000320193.json",
             get(guarded(COMPANY_FACTS)),
+        )
+        .route("/submissions/CIK0000320193.json", get(guarded(SUBMISSIONS)))
+        .route(
+            "/submissions/CIK0000320193-submissions-001.json",
+            get(guarded(SUBMISSIONS_PAGE)),
         );
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}", listener.local_addr().unwrap());
@@ -165,4 +172,45 @@ fn a_later_filing_in_a_preferred_concept_keeps_the_original_filing() {
     assert_eq!(fy2017[0].concept, "SalesRevenueNet");
     assert_eq!(fy2017[0].filed, date(2018, 2, 20));
     assert_eq!(facts.len(), 2);
+}
+
+#[tokio::test]
+async fn submissions_give_the_sic_code_and_every_results_announcement() {
+    let url = serve_sec().await;
+    let client = EdgarClient::new(EdgarConfig {
+        user_agent: USER_AGENT_VALUE.to_owned(),
+        data_url: url.clone(),
+        www_url: url,
+    })
+    .unwrap();
+    let apple = Symbol::new("AAPL");
+
+    let submissions = client.submissions(&apple, 320193).await.unwrap();
+    assert_eq!(submissions.company.sic, Some(3571));
+    assert_eq!(
+        submissions.company.sic_description.as_deref(),
+        Some("Electronic Computers")
+    );
+    let accepted: Vec<String> = submissions
+        .releases
+        .iter()
+        .map(|release| release.accepted_at.to_string())
+        .collect();
+    assert_eq!(
+        accepted,
+        ["2026-11-02T21:30:23Z", "2026-07-30T20:30:28Z"],
+        "only 8-Ks with Item 2.02, not the 8.01 or 5.02 ones or the 10-Qs"
+    );
+    assert_eq!(submissions.releases[0].report_date, Some(date(2026, 11, 2)));
+
+    let page = &submissions.older_pages[0];
+    assert_eq!(page.filing_to, date(2015, 10, 5));
+    let older = client.filings_page(&apple, 320193, page).await.unwrap();
+    assert_eq!(
+        older
+            .iter()
+            .map(|release| release.filed)
+            .collect::<Vec<_>>(),
+        [date(2015, 7, 21), date(2015, 4, 27)]
+    );
 }

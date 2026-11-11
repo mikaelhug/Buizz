@@ -24,6 +24,8 @@ pub enum SourceError {
     Decode(String),
     #[error("stream: {0}")]
     Stream(String),
+    #[error("ftp: {0}")]
+    Ftp(String),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

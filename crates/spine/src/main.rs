@@ -15,8 +15,10 @@ use buizz_sources::Sources;
 use buizz_sources::alpaca::{self, AlpacaClient};
 use buizz_sources::alpaca_stream::SYMBOL_CAP;
 use buizz_sources::edgar::EdgarClient;
+use buizz_sources::ibkr::IbkrClient;
 use buizz_sources::tiingo::TiingoClient;
 use buizz_sources::treasury::TreasuryClient;
+use buizz_sources::wikipedia::WikipediaClient;
 use buizz_state::StateStore;
 use buizz_supervisor::{Supervisor, SupervisorConfig};
 use rust_decimal::Decimal;
@@ -64,6 +66,12 @@ async fn main() -> Result<()> {
         tiingo: config.tiingo.clone().map(TiingoClient::new).transpose()?,
         edgar: config.edgar.clone().map(EdgarClient::new).transpose()?,
         treasury: TreasuryClient::new(config.treasury.clone())?,
+        wikipedia: config
+            .wikipedia
+            .clone()
+            .map(WikipediaClient::new)
+            .transpose()?,
+        ibkr: Some(IbkrClient::new(config.ibkr.clone())),
     };
     let feed = FeedManager::new(
         FeedConfig {
