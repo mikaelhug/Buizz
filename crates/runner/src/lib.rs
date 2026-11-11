@@ -429,7 +429,26 @@ impl Runner {
         let defaults = &self.inner.config;
         let manifest = &spec.manifest;
         let mut params = manifest.params.clone();
-        params.extend(request.params.unwrap_or_default());
+        let requested = request.params.unwrap_or_default();
+        let unknown: Vec<&str> = requested
+            .keys()
+            .filter(|name| !params.contains_key(*name))
+            .map(String::as_str)
+            .collect();
+        if !unknown.is_empty() {
+            let known: Vec<&str> = params.keys().map(String::as_str).collect();
+            return Err(RunnerError::InvalidRequest(format!(
+                "bot {} has no params {}; its params are {}",
+                spec.name,
+                unknown.join(", "),
+                if known.is_empty() {
+                    "none".to_owned()
+                } else {
+                    known.join(", ")
+                }
+            )));
+        }
+        params.extend(requested);
         let start_cash = request.start_cash.unwrap_or(defaults.start_cash);
         if start_cash <= Decimal::ZERO || start_cash.normalize().scale() > CASH_DECIMALS {
             return Err(RunnerError::InvalidRequest(

@@ -1058,7 +1058,8 @@
             "type": "string",
             "default": "0.015"
           }
-        }
+        },
+        "additionalProperties": false
       },
       "Coverage": {
         "type": "object",
@@ -2823,7 +2824,8 @@
           "allow_holdout": {
             "type": "boolean"
           }
-        }
+        },
+        "additionalProperties": false
       },
       "StockIndex": {
         "type": "string",

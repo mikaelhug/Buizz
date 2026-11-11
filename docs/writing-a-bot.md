@@ -64,7 +64,7 @@ if __name__ == "__main__":
 | `timeframe` | yes | `"1d"` or `"1m"`: the bar size the bot is stepped on |
 | `wake` | no, default `"bar"` | When the bot is called, see below |
 | `universe` | yes | `{ symbols = ["SPY", "QQQ"] }` (not empty), `{ top_dollar_volume = 500 }` (positive, optionally with `asset_class = "stock"` or `"etf"`) or `{ index = "sp500" }` |
-| `params` | no | Default parameters, available as `ctx.params` |
+| `params` | no | Default parameters, available as `ctx.params`. A backtest request may override them but not add others: an unknown name is refused, as are unknown request and cost fields |
 | `benchmark` | no, default `"SPY"` | Symbol the equity curve is compared with |
 | `[risk]` | no | Risk limits for live runs and the default for backtests, see [Risk limits](#risk-limits) |
 

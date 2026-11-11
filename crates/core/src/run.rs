@@ -169,7 +169,7 @@ impl<'de> Deserialize<'de> for Wake {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct CostModel {
     pub commission_per_share: Decimal,
     pub commission_min: Decimal,

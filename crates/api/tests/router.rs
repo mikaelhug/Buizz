@@ -245,7 +245,7 @@ async fn the_bot_socket_refuses_peers_outside_the_spine_host() {
 }
 
 #[tokio::test]
-async fn backtest_requests_with_impossible_costs_are_refused() {
+async fn backtest_requests_with_impossible_costs_or_unknown_fields_are_refused() {
     let spine = spine().await;
     let cookie = session_cookie(&spine).await;
     let bot = spine.data.path().join("bots/still");
@@ -260,6 +260,9 @@ async fn backtest_requests_with_impossible_costs_are_refused() {
         r#"{"adv_participation": "1.5"}"#,
         r#"{"adv_sessions": 0}"#,
         r#"{"commission_tiers": [{"above": 10, "per_share": "-0.001"}]}"#,
+        r#"{"slipage_bps": "10"}"#,
+        r#"{}, "allow_holdot": true"#,
+        r#"{}, "params": {"wieght": 0.5}"#,
     ] {
         let body = format!(
             r#"{{"period": {{"from": "2020-01-02", "to": "2020-01-03"}}, "cost": {cost}}}"#
@@ -270,10 +273,13 @@ async fn backtest_requests_with_impossible_costs_are_refused() {
             .body(Body::from(body))
             .expect("request");
         let reply = send(&spine, request).await;
-        assert_eq!(
+        assert!(
+            matches!(
+                reply.status,
+                StatusCode::BAD_REQUEST | StatusCode::UNPROCESSABLE_ENTITY
+            ),
+            "{cost}: {} {}",
             reply.status,
-            StatusCode::BAD_REQUEST,
-            "{cost}: {}",
             reply.body
         );
     }
