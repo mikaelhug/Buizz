@@ -42,6 +42,7 @@ async fn cli_backtest(spine: &Spine, config: &RunConfig) -> (RunId, Vec<String>)
 fn printed_metric(name: &str, value: &Value) -> String {
     match value.as_f64() {
         Some(number) if value.is_f64() => format!("{name:<16} {number:.4}"),
+        None if value.is_null() => format!("{name:<16} -"),
         _ => format!("{name:<16} {value}"),
     }
 }

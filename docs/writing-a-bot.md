@@ -151,7 +151,7 @@ A run can carry `max_position_weight`, `max_gross_exposure` and `max_drawdown` (
 
 ## Holdout and honest data
 
-- The last 12 months before today are a locked holdout. A backtest whose end date falls inside them is refused with a 409 unless the request sets `allow_holdout` or uses the `holdout` preset. Holdout runs carry a `holdout` badge and are counted per bot. `buizz backtest` has no flag for it: use the UI or the API.
+- The last 12 months before today are a locked holdout. A backtest whose end date falls inside them is refused with a 409 unless the request sets `allow_holdout` (`buizz backtest --allow-holdout`) or uses the `holdout` preset. Holdout runs carry a `holdout` badge and are counted per bot.
 - The presets `1y`, `3y`, `5y` and `10y` end the day before the holdout starts.
 - The data gate refuses a backtest when a symbol has gaps in its daily coverage. An overnight move above 40% with no corporate action does not block the run; it is recorded as a data warning and the run gets the `data_warnings` badge.
 - Runs with a fixed `symbols` universe always carry the `survivorship_biased` badge, because the list was picked with hindsight. A `top_dollar_volume` universe carries it until the store holds delisted instruments.
@@ -168,4 +168,4 @@ uv run --frozen buizz backtest ../../bots/red_green --from 2024-11-20 --to 2024-
 uv run --frozen buizz backtest ../../bots/sma_cross --from 2020-01-01 --to 2024-12-31 --param fast=20 --param slow=100
 ```
 
-It queues the run, prints the clock and equity while it runs, then the metrics (`total_return`, `cagr`, `volatility`, `sharpe`, `sortino`, `max_drawdown`, `calmar`, `win_rate`, `profit_factor`, `exposure`, `turnover`, `alpha`, `beta`, `trades`, `sessions`) and the orders by status with net shares per symbol. The exit code is 1 when the run fails or is cancelled. The same run is in the UI with the equity curve against the benchmark, the orders with their reasons, positions and the bot log. Bot output and tracebacks are in `data/logs/<run_id>.log`.
+It queues the run, prints the clock and equity while it runs, then the metrics (`total_return`, `cagr`, `volatility`, `sharpe`, `sortino`, `max_drawdown`, `calmar`, `win_rate`, `profit_factor`, `exposure`, `turnover`, `alpha`, `beta`, `trades`, `sessions`; `-` when a metric is undefined for the run) and the orders by status with the net shares held per symbol after splits. The exit code is 1 when the run fails or is cancelled. The same run is in the UI with the equity curve against the benchmark, the orders with their reasons, positions and the bot log. Bot output and tracebacks are in `data/logs/<run_id>.log`.

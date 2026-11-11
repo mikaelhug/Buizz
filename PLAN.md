@@ -121,7 +121,6 @@ Out of v1: brokers and real money; options, crypto, FX; tick/quote simulation; e
    - A repeated `client_id` is silently ignored, but `docs/protocol.md` says it is rejected and `RejectReason::DuplicateClientId` is never produced.
    - Bot logs go to `data/logs` relative to the working directory in the supervisor and the API, ignoring `BUIZZ_DATA_DIR`.
    - Runs get no default risk limits, and the UI and CLI cannot set any; a drawdown breach in a backtest reads as a pause with reason `risk_limit`.
-   - `buizz backtest` has no holdout option, and its per-symbol net shares ignore splits; metrics that are absent may print as `None`.
    - The ADV volume cap treats a missing average daily volume as zero, so the order never fills.
    - The spine has no health route; cluster probes need a cheap unauthenticated `/healthz`.
    - Live runs can never have risk limits: `go_live` uses the spine defaults (none) and neither `bot.toml` nor the UI can set them, so the drawdown kill switch only works for API-started backtests. Needs a decision on where live risk limits are configured.
