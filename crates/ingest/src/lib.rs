@@ -290,6 +290,7 @@ impl Ingest {
                     .is_some_and(|row| row.first <= history_start)
             })),
         );
+        let priced_set: BTreeSet<&Symbol> = priced.iter().map(|p| &p.symbol).collect();
         let stocks: BTreeSet<Symbol> = self
             .market
             .instruments()
@@ -297,6 +298,7 @@ impl Ingest {
             .into_iter()
             .filter(|instrument| instrument.active && instrument.asset_class == AssetClass::Stock)
             .map(|instrument| instrument.symbol)
+            .filter(|symbol| priced_set.contains(symbol))
             .collect();
         for dataset in [Dataset::Fundamentals, Dataset::Companies] {
             let read = self
