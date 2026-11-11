@@ -234,6 +234,7 @@ Papers that trade "at the close" compute their signal on the close they trade. A
 - The session is matched against its daily bar after the close, as in any daily run, so the step's portfolio reflects the session's corporate actions, priced at the last minute, but not its fills yet: market, limit and stop orders that fill during the session, and market-on-open orders, appear at the next step. A cancel for one of them takes effect at the close, after the session was matched, so you can't use the minutes you saw to undo a fill that already happened.
 - Market, limit and stop orders placed at the step belong to the next session; a market-on-open fills at the next official open.
 - The minute bars of the universe and holdings must be in the store: a backtest backfills them for its period like a `1m` backtest, and a live run leases stream slots for them like a `1m` run.
+- `buizz_bots.preclose` holds what such bots share: `session_so_far(ctx, symbol)` returns the bar only when it covers today's session, and `ProxyLog` remembers each pre-close decision in the state and logs it at the next step when the official close would have decided otherwise, so the cost of deciding at 15:50 can be counted (`bots/rsi2_pullback`, `bots/ibs_reversion`).
 
 ```toml
 timeframe = "1d"

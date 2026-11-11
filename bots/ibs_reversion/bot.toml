@@ -1,0 +1,6 @@
+description = "Pagonidis's IBS effect: each U.S. index ETF held long for the next session after a close in the bottom fifth of its day's range and short after one in the top fifth, traded in the closing auction"
+command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
+timeframe = "1d"
+wake = "before_close:10m"
+universe = { symbols = ["SPY", "QQQ", "IWM"] }
+params = { long_ibs = 0.2, short_ibs = 0.8 }
