@@ -16,13 +16,9 @@ RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS rust-build
 COPY --from=planner /src/recipe.json recipe.json
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/src/target,id=buizz-target \
-    cargo chef cook --release --locked --recipe-path recipe.json -p buizz-spine
+RUN cargo chef cook --release --locked --recipe-path recipe.json -p buizz-spine
 COPY --from=workspace /src ./
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/src/target,id=buizz-target \
-    cargo build --release --locked -p buizz-spine \
+RUN cargo build --release --locked -p buizz-spine \
     && install -D target/release/buizz-spine /out/buizz-spine \
     && strip /out/buizz-spine
 
