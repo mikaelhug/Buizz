@@ -21,7 +21,12 @@ impl Ingest {
         if let Some(work) = self.backoff_work(now, DataSource::Alpaca).await? {
             return Ok(work);
         }
-        let symbols = self.priced_symbols().await?;
+        let symbols: Vec<Symbol> = self
+            .priced_symbols()
+            .await?
+            .into_iter()
+            .map(|priced| priced.symbol)
+            .collect();
         if symbols.is_empty() {
             return Ok(Work::noop("no instruments to price"));
         }

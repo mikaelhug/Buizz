@@ -69,6 +69,11 @@ pub struct BarsRequest {
     pub feed: Feed,
 }
 
+pub struct BarPage {
+    pub bars: Vec<Bar>,
+    pub next: Option<String>,
+}
+
 #[derive(Clone)]
 pub struct AlpacaClient {
     http: HttpClient,
@@ -88,6 +93,28 @@ impl AlpacaClient {
         request: &BarsRequest,
         calendar: &Calendar,
     ) -> Result<Vec<Bar>, SourceError> {
+        let mut bars = Vec::new();
+        let mut token = None;
+        loop {
+            let page = self.bars_page(request, calendar, token).await?;
+            bars.extend(page.bars);
+            match page.next {
+                Some(next) => token = Some(next),
+                None => return Ok(bars),
+            }
+        }
+    }
+
+    pub async fn bars_page(
+        &self,
+        request: &BarsRequest,
+        calendar: &Calendar,
+        token: Option<String>,
+    ) -> Result<BarPage, SourceError> {
+        let empty = BarPage {
+            bars: Vec::new(),
+            next: None,
+        };
         let to = match request.feed {
             Feed::Sip => {
                 let delay = TimeDelta::from_std(SIP_DELAY).expect("SIP delay fits a time delta");
@@ -96,7 +123,7 @@ impl AlpacaClient {
             Feed::Iex => request.to,
         };
         if to <= request.from || request.symbols.is_empty() {
-            return Ok(Vec::new());
+            return Ok(empty);
         }
         let (timeframe, start, end) = match request.timeframe {
             Timeframe::Day => {
@@ -108,7 +135,7 @@ impl AlpacaClient {
                     .map(|index| sessions[index].date)
                     .filter(|last| *last >= from)
                 else {
-                    return Ok(Vec::new());
+                    return Ok(empty);
                 };
                 ("1Day", from.to_string(), last.to_string())
             }
@@ -118,7 +145,7 @@ impl AlpacaClient {
             Feed::Sip => "sip",
             Feed::Iex => "iex",
         };
-        let query = [
+        let mut query = vec![
             ("symbols", join_symbols(&request.symbols)),
             ("timeframe", timeframe.to_owned()),
             ("start", start),
@@ -128,12 +155,18 @@ impl AlpacaClient {
             ("limit", MAX_PAGE_LIMIT.to_string()),
             ("sort", "asc".to_owned()),
         ];
+        if let Some(token) = token {
+            query.push(("page_token", token));
+        }
         let url = format!("{}/v2/stocks/bars", self.config.data_url);
-        let pages = self.pages::<BarsPage>(&url, &query).await?;
-        Ok(pages
-            .into_iter()
-            .flat_map(|page| page.into_bars(request.timeframe, request.feed, calendar))
-            .collect())
+        let mut page: BarsPage = self.get(&url, &query).await?;
+        let next = page
+            .take_next_page_token()
+            .filter(|token| !token.is_empty());
+        Ok(BarPage {
+            bars: page.into_bars(request.timeframe, request.feed, calendar),
+            next,
+        })
     }
 
     pub async fn calendar(

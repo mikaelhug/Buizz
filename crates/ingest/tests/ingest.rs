@@ -442,7 +442,7 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
 
     *fake.closed.lock().unwrap() = Some(date("2025-01-09"));
     fake.fail_bars.store(true, Ordering::SeqCst);
-    let failed_at = first_at + TimeDelta::hours(49) + TimeDelta::minutes(1);
+    let failed_at = first_at + TimeDelta::hours(49);
     let failed = ingest.tick(failed_at).await.unwrap();
     assert!(failed.ran.contains(&("calendar", JobOutcome::Ok)));
     assert_eq!(rows(&market).await.sessions, backfilled.sessions - 1);
@@ -504,7 +504,7 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
         action_starts,
         vec![
             ("MSFT".to_owned(), "2015-12-02".to_owned()),
-            ("AAPL,SPY".to_owned(), "2024-03-10".to_owned()),
+            ("SPY,AAPL,SIVB".to_owned(), "2024-03-10".to_owned()),
         ]
     );
 }

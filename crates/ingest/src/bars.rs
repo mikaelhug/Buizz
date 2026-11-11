@@ -1,15 +1,16 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use buizz_core::market::{Bar, DataSource, Dataset, Feed, Symbol, Timeframe};
+use buizz_core::market::{DataSource, Dataset, Feed, Symbol, Timeframe};
 use buizz_core::ops::FetchStatus;
 use buizz_core::time::Timestamp;
 use buizz_sources::alpaca::{BarsRequest, HISTORY_START, SIP_DELAY};
 use chrono::{NaiveDate, TimeDelta};
 
 use crate::fetch::{Batch, FetchKey, Work};
-use crate::{Ingest, IngestError, day_start};
+use crate::{Ingest, IngestError, Priced, day_start};
 
-const SYMBOLS_PER_REQUEST: usize = 100;
+const SYMBOLS_PER_REQUEST: usize = 1_000;
+const REQUESTS_PER_RUN: usize = 600;
 const SETTLE_MARGIN: TimeDelta = TimeDelta::minutes(15);
 const REVISED_SESSIONS: usize = 2;
 const MAX_LAG_SESSIONS: usize = 20;
@@ -49,11 +50,11 @@ impl Ingest {
         let floor = self.config.history_start.max(HISTORY_START);
         let mut groups: BTreeMap<NaiveDate, Vec<Symbol>> = BTreeMap::new();
         let mut dormant: BTreeSet<Symbol> = BTreeSet::new();
-        for symbol in symbols {
+        for Priced { symbol, active, .. } in symbols {
             let last = covered.get(&symbol).map(|coverage| coverage.last);
             let from = match last {
                 Some(last) if last >= dormant_before => revised_from.min(last + TimeDelta::days(1)),
-                _ if self.dormant_checked(now, &symbol).await? => continue,
+                _ if self.dormant_checked(now, &symbol, active).await? => continue,
                 _ => {
                     dormant.insert(symbol.clone());
                     last.map_or(floor, |last| last + TimeDelta::days(1))
@@ -61,9 +62,13 @@ impl Ingest {
             };
             groups.entry(from).or_default().push(symbol);
         }
+        let mut groups: Vec<(NaiveDate, Vec<Symbol>)> = groups.into_iter().collect();
+        groups.sort_by_key(|(from, _)| (*from != revised_from, *from));
         let mut batch = Batch::default();
+        let mut requests = 0;
+        let mut current = true;
         'groups: for (from, group) in groups {
-            for chunk in group.chunks(SYMBOLS_PER_REQUEST) {
+            'chunks: for chunk in group.chunks(SYMBOLS_PER_REQUEST) {
                 let request = BarsRequest {
                     symbols: chunk.to_vec(),
                     timeframe: Timeframe::Day,
@@ -77,41 +82,57 @@ impl Ingest {
                     None,
                     Some((from, target.date)),
                 );
-                let label = format!("{} symbols from {from}", chunk.len());
-                match alpaca.bars(&request, &calendar).await {
-                    Ok(bars) => {
-                        self.record_fetched(now, &key, bars.len()).await?;
-                        for symbol in chunk.iter().filter(|symbol| dormant.contains(*symbol)) {
-                            let rows = bars.iter().filter(|bar| bar.symbol == *symbol).count();
-                            let key = FetchKey::new(
-                                DataSource::Alpaca,
-                                Dataset::Bars1d,
-                                Some(symbol),
-                                Some((from, target.date)),
-                            );
-                            self.record_fetched(now, &key, rows).await?;
-                        }
-                        let changed = self.changed_daily_bars(chunk, from, bars).await?;
-                        let rows = if changed.is_empty() {
-                            0
-                        } else {
-                            self.market
-                                .upsert_bars(DataSource::Alpaca, Timeframe::Day, changed)
-                                .await?
-                                .rows
-                        };
-                        batch.success(rows);
+                let mut received: BTreeMap<Symbol, usize> = BTreeMap::new();
+                let mut token = None;
+                loop {
+                    if requests == REQUESTS_PER_RUN {
+                        batch.more_remains("symbols");
+                        current &= from != revised_from;
+                        break 'groups;
                     }
-                    Err(error) => {
-                        self.record_failure(now, &key, &error).await?;
-                        if batch.source_error(&label, &error) {
-                            break 'groups;
+                    requests += 1;
+                    match alpaca.bars_page(&request, &calendar, token.take()).await {
+                        Ok(page) => {
+                            let fetched = page.bars.len();
+                            for bar in &page.bars {
+                                *received.entry(bar.symbol.clone()).or_default() += 1;
+                            }
+                            let rows = self
+                                .market
+                                .upsert_bars(DataSource::Alpaca, Timeframe::Day, page.bars)
+                                .await?
+                                .rows;
+                            self.record_fetched(now, &key, fetched).await?;
+                            batch.success(rows);
+                            match page.next {
+                                Some(next) => token = Some(next),
+                                None => break,
+                            }
+                        }
+                        Err(error) => {
+                            self.record_failure(now, &key, &error).await?;
+                            let label = format!("{} symbols from {from}", chunk.len());
+                            if batch.source_error(&label, &error) {
+                                break 'groups;
+                            }
+                            current &= from != revised_from;
+                            continue 'chunks;
                         }
                     }
                 }
+                for symbol in chunk.iter().filter(|symbol| dormant.contains(*symbol)) {
+                    let key = FetchKey::new(
+                        DataSource::Alpaca,
+                        Dataset::Bars1d,
+                        Some(symbol),
+                        Some((from, target.date)),
+                    );
+                    let rows = received.get(symbol).copied().unwrap_or_default();
+                    self.record_fetched(now, &key, rows).await?;
+                }
             }
         }
-        if batch.clean() {
+        if current && batch.clean() {
             self.market
                 .advance_watermark(Timeframe::Day, target.close)
                 .await?;
@@ -119,42 +140,20 @@ impl Ingest {
         Ok(batch.finish("daily bars"))
     }
 
-    async fn dormant_checked(&self, now: Timestamp, symbol: &Symbol) -> Result<bool, IngestError> {
+    async fn dormant_checked(
+        &self,
+        now: Timestamp,
+        symbol: &Symbol,
+        active: bool,
+    ) -> Result<bool, IngestError> {
         let latest = self
             .state
             .recent_fetches(DataSource::Alpaca, Dataset::Bars1d, Some(symbol.clone()), 1)
             .await?;
         Ok(latest.first().is_some_and(|fetch| {
             matches!(fetch.status, FetchStatus::Ok | FetchStatus::Empty)
-                && fetch.at + DORMANT_RETRY > now
+                && (!active || fetch.at + DORMANT_RETRY > now)
         }))
-    }
-
-    async fn changed_daily_bars(
-        &self,
-        symbols: &[Symbol],
-        from: NaiveDate,
-        bars: Vec<Bar>,
-    ) -> Result<Vec<Bar>, IngestError> {
-        let Some(last) = bars.iter().map(|bar| bar.start.exchange_date()).max() else {
-            return Ok(bars);
-        };
-        let stored: BTreeMap<(Symbol, Timestamp), Bar> = self
-            .market
-            .bars_between(
-                Timeframe::Day,
-                symbols.to_vec(),
-                day_start(from),
-                day_start(last + TimeDelta::days(1)),
-            )
-            .await?
-            .into_iter()
-            .map(|bar| ((bar.symbol.clone(), bar.start), bar))
-            .collect();
-        Ok(bars
-            .into_iter()
-            .filter(|bar| stored.get(&(bar.symbol.clone(), bar.start)) != Some(bar))
-            .collect())
     }
 
     pub(crate) async fn restore_daily_watermark(&self) -> Result<(), IngestError> {

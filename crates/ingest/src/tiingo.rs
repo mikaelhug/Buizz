@@ -8,7 +8,7 @@ use buizz_sources::tiingo::{
 use chrono::TimeDelta;
 
 use crate::fetch::{Batch, FetchKey, Work};
-use crate::{Ingest, IngestError, day_start};
+use crate::{Ingest, IngestError, Priced, day_start};
 
 const OVERLAP_WINDOW_DAYS: i64 = 45;
 const SYMBOLS_PER_RUN: u64 = 3;
@@ -45,7 +45,7 @@ impl Ingest {
             .min(SYMBOLS_PER_RUN);
         let mut batch = Batch::default();
         let mut remaining = room;
-        for symbol in self.priced_symbols().await? {
+        for Priced { symbol, .. } in self.priced_symbols().await? {
             if remaining == 0 {
                 break;
             }

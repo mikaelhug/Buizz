@@ -33,6 +33,20 @@ use crate::fetch::Work;
 use crate::schedule::{JOBS, due_at};
 
 const EVENT_CAPACITY: usize = 64;
+const OTC: &str = "OTC";
+const CORE_ETFS: [&str; 40] = [
+    "SPY", "QQQ", "IWM", "DIA", "IVV", "VOO", "VTI", "MDY", "IJR", "EFA", "EEM", "VEU", "VWO",
+    "AGG", "BND", "TLT", "IEF", "SHY", "SHV", "BIL", "LQD", "HYG", "TIP", "GLD", "SLV", "DBC",
+    "GSG", "USO", "VNQ", "XLB", "XLC", "XLE", "XLF", "XLI", "XLK", "XLP", "XLRE", "XLU", "XLV",
+    "XLY",
+];
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Priced {
+    pub symbol: Symbol,
+    pub rank: usize,
+    pub active: bool,
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum IngestError {
@@ -98,25 +112,25 @@ impl Ingest {
     pub async fn tick(&self, now: Timestamp) -> Result<TickReport, IngestError> {
         let _serial = self.gate.lock().await;
         let started = tokio::time::Instant::now();
-        let at = || now + TimeDelta::from_std(started.elapsed()).unwrap_or_default();
+        let finished_at = || now + TimeDelta::from_std(started.elapsed()).unwrap_or_default();
         let latest = self.state.latest_jobs().await?;
         let failures = self.state.failure_streaks().await?;
         let mut report = TickReport::default();
         for spec in JOBS {
             let previous = latest.iter().find(|run| run.job == spec.name);
             let streak = failures.get(spec.name).copied().unwrap_or(0);
-            if due_at(&spec, previous, streak).is_some_and(|due| due > at()) {
+            if due_at(&spec, previous, streak).is_some_and(|due| due > now) {
                 continue;
             }
-            let run_id = self.state.start_job(spec.name, at()).await?;
-            let work = match self.run(spec.name, at()).await {
+            let run_id = self.state.start_job(spec.name, now).await?;
+            let work = match self.run(spec.name, now).await {
                 Ok(work) => work,
                 Err(error) => Work::failed(error.to_string()),
             };
             if work.outcome == JobOutcome::Failed {
                 tracing::error!(job = spec.name, message = %work.message, "ingest job failed");
             }
-            let finished = at();
+            let finished = finished_at();
             self.state
                 .finish_job(
                     run_id,
@@ -206,27 +220,52 @@ impl Ingest {
             .collect())
     }
 
-    async fn priced_symbols(&self) -> Result<Vec<Symbol>, IngestError> {
-        let members: BTreeSet<Symbol> = self
+    async fn priced_symbols(&self) -> Result<Vec<Priced>, IngestError> {
+        let members: BTreeMap<Symbol, bool> = self
             .market
             .index_history(StockIndex::Sp500)
             .await?
-            .map(|history| {
-                history
-                    .members
-                    .into_iter()
-                    .map(|member| member.symbol)
-                    .collect()
-            })
-            .unwrap_or_default();
-        Ok(self
+            .map(|history| history.members)
+            .unwrap_or_default()
+            .into_iter()
+            .fold(BTreeMap::new(), |mut members, member| {
+                *members.entry(member.symbol).or_default() |= member.end.is_none();
+                members
+            });
+        let instruments: BTreeMap<Symbol, Instrument> = self
             .market
             .instruments()
             .await?
             .into_iter()
-            .filter(|instrument| instrument.active || members.contains(&instrument.symbol))
-            .map(|instrument| instrument.symbol)
-            .collect())
+            .filter(|instrument| instrument.exchange != OTC)
+            .map(|instrument| (instrument.symbol.clone(), instrument))
+            .collect();
+        let symbols: BTreeSet<&Symbol> = instruments.keys().chain(members.keys()).collect();
+        let mut priced: Vec<Priced> = symbols
+            .into_iter()
+            .map(|symbol| {
+                let instrument = instruments.get(symbol);
+                let rank = match (
+                    CORE_ETFS.iter().position(|core| *core == symbol.as_str()),
+                    members.get(symbol),
+                ) {
+                    (Some(core), _) => core,
+                    (None, Some(true)) => CORE_ETFS.len(),
+                    (None, Some(false)) => CORE_ETFS.len() + 1,
+                    (None, None) if instrument.is_some_and(|known| known.active) => {
+                        CORE_ETFS.len() + 2
+                    }
+                    (None, None) => CORE_ETFS.len() + 3,
+                };
+                Priced {
+                    symbol: symbol.clone(),
+                    rank,
+                    active: instrument.is_some_and(|known| known.active),
+                }
+            })
+            .collect();
+        priced.sort_by(|a, b| (a.rank, &a.symbol).cmp(&(b.rank, &b.symbol)));
+        Ok(priced)
     }
 
     async fn symbol_coverage(
