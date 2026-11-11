@@ -1,16 +1,11 @@
 import json
-from datetime import datetime
 
 from buizz import Bot, Context, run
 
 
-def iso(moment: datetime) -> str:
-    return moment.strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
 class Probe(Bot):
     def on_step(self, ctx: Context) -> None:
-        clock = iso(ctx.clock)
+        clock = f"{ctx.clock:%Y-%m-%dT%H:%M:%SZ}"
         history: list[dict[str, object]] = []
         for query in ctx.params.get("queries", []):
             for symbol, rows in ctx.history(ctx.universe, query["tf"], query["bars"], query["adjust"]).items():
