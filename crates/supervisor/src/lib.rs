@@ -114,6 +114,7 @@ fn load(name: String, dir: PathBuf) -> Result<BotSpec, SupervisorError> {
 }
 
 const SHARED_BOT_CODE: [&str; 3] = ["buizz_bots", "pyproject.toml", "uv.lock"];
+const SDK_SOURCE: &str = "sdk/python/src";
 
 pub fn bot_hash(dir: &Path) -> Result<String, SupervisorError> {
     let mut hasher = blake3::Hasher::new();
@@ -126,6 +127,11 @@ pub fn bot_hash(dir: &Path) -> Result<String, SupervisorError> {
             } else if shared.is_file() {
                 hash_file(&shared, Path::new(name), &mut hasher)?;
             }
+        }
+        if let Some(root) = bots_dir.parent()
+            && root.join(SDK_SOURCE).is_dir()
+        {
+            hash_tree(root, Path::new(SDK_SOURCE), &mut hasher)?;
         }
     }
     Ok(hasher.finalize().to_hex().to_string())

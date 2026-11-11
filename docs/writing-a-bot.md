@@ -18,7 +18,7 @@ Bots run in one shared uv project, `bots/pyproject.toml` (package `buizz-bots`),
 
 Code that more than one bot needs lives in the package `bots/buizz_bots/` and is imported as `from buizz_bots.<module> import ...`, for example a bot reusing the signal functions of another. Move the functions into a module there, import them from both bots, and do not copy them. The folder has no `bot.toml`, so it is not a bot. It is installed into the bots environment: editable locally, copied into the image. Shared modules follow the same lint and strict type checks as bots (`just lint`) and must not import a bot's `bot.py`.
 
-The content hash of a run covers the bot folder plus the shared package `bots/buizz_bots/`, `bots/pyproject.toml` and `bots/uv.lock`, so editing shared code or dependencies changes the hash of every bot, and a live or resumed run whose code changed is stopped instead of continuing under the old hash.
+The content hash of a run covers the bot folder plus the shared package `bots/buizz_bots/`, `bots/pyproject.toml`, `bots/uv.lock` and the SDK source `sdk/python/src/` beside the bots folder (where the repository and the image both keep it), so editing shared code, the SDK or dependencies changes the hash of every bot, and a live or resumed run whose code changed is stopped instead of continuing under the old hash.
 
 ## Walkthrough: `red_green`
 

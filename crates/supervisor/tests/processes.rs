@@ -55,6 +55,14 @@ async fn process_groups_logs_and_restarts() {
     fs::write(bots.join("buizz_bots/signals.py"), "WINDOW = 20\n").unwrap();
     assert_ne!(bot_hash(&steady.dir).unwrap(), steady.content_hash);
     fs::remove_dir_all(bots.join("buizz_bots")).unwrap();
+    fs::create_dir_all(temp.path().join("sdk/python/src/buizz")).unwrap();
+    fs::write(
+        temp.path().join("sdk/python/src/buizz/context.py"),
+        "LIMIT = 1\n",
+    )
+    .unwrap();
+    assert_ne!(bot_hash(&steady.dir).unwrap(), steady.content_hash);
+    fs::remove_dir_all(temp.path().join("sdk")).unwrap();
 
     let supervisor = Supervisor::new(SupervisorConfig {
         spine_url: "ws://127.0.0.1:1".into(),
