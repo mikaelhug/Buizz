@@ -11,10 +11,12 @@ use buizz_core::api::{RunSummary, SpineEvent, StartBacktest};
 use buizz_core::market::{Adjustment, Symbol, Timeframe};
 use buizz_core::protocol::BOT_PATH;
 use buizz_core::run::{Period, RunConfig, RunStatus};
-use buizz_feed::FeedManager;
-use buizz_ingest::Ingest;
+use buizz_feed::{FeedConfig, FeedManager};
+use buizz_ingest::{Ingest, IngestConfig};
 use buizz_market::{HistoryRequest, MarketStore};
 use buizz_runner::{Runner, RunnerConfig, RunnerDeps};
+use buizz_sources::Sources;
+use buizz_sources::treasury::{TreasuryClient, TreasuryConfig};
 use buizz_state::StateStore;
 use buizz_supervisor::{Backoff, Supervisor, SupervisorConfig};
 use chrono::NaiveDate;
@@ -210,8 +212,30 @@ async fn red_green_backtest_through_a_real_bot_matches_the_hand_computation() {
                 },
                 kill_grace: Duration::from_secs(5),
             }),
-            feed: FeedManager {},
-            ingest: Ingest {},
+            feed: FeedManager::new(
+                FeedConfig {
+                    cap: 30,
+                    stream: None,
+                },
+                market.clone(),
+                None,
+            ),
+            ingest: Ingest::new(
+                IngestConfig {
+                    tick: Duration::from_secs(60),
+                    snapshot_dir: workdir.path().join("backups"),
+                    snapshot_keep: 1,
+                    history_start: config.start,
+                },
+                market.clone(),
+                state.clone(),
+                Sources {
+                    alpaca: None,
+                    tiingo: None,
+                    edgar: None,
+                    treasury: TreasuryClient::new(TreasuryConfig::from_env()).unwrap(),
+                },
+            ),
         },
     );
     let app = Router::new()

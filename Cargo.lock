@@ -577,6 +577,7 @@ dependencies = [
  "buizz-ingest",
  "buizz-market",
  "buizz-metrics",
+ "buizz-sources",
  "buizz-state",
  "buizz-supervisor",
  "chrono",
