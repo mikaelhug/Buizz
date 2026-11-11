@@ -746,9 +746,13 @@ impl Driver {
     }
 
     async fn cycle(&mut self, point: &Point) -> Flow<()> {
-        if self.session.map(|session| session.date) != Some(point.session.date) {
+        let entering = self.session.map(|session| session.date) != Some(point.session.date);
+        if entering || self.timeline.session().date != Some(point.session.date) {
             if self.live() {
                 self.timeline.refresh().await?;
+                if entering {
+                    self.timeline.leave_session();
+                }
             }
             let held = self.held();
             self.timeline.enter(&point.session, &held).await?;

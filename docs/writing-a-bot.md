@@ -270,7 +270,7 @@ The spine starts every run with 100,000 start cash and this cost model, whose fi
 | `slippage_per_share` | `0` | A further amount per share against you on the same fills, e.g. `0.001` |
 | `adv_participation`, `adv_sessions` | `0.05`, `20` | Volume cap: that fraction of the average daily volume of the last sessions, per symbol and session; the rest of the order stays working. A symbol with no average daily volume fills uncapped and the run gets one data warning event for it |
 | `borrow_rate` | `0.02` | Per year on short positions, charged at each session close |
-| `financing_spread` | `0.015` | Added to the T-bill rate of the session (the US Treasury series, as of that date) for the financing of negative cash |
+| `financing_spread` | `0.015` | Added to the T-bill rate for the financing of negative cash: the US Treasury 3-month rate last published before the session (within 31 days). Without one the spread alone is charged and the run gets a data warning |
 
 Shorting is allowed for instruments flagged shortable.
 

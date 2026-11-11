@@ -11,15 +11,15 @@ use buizz_core::order::{
 };
 use buizz_core::protocol::{Holdings, StepEvent};
 use buizz_core::run::{
-    CostModel, DRAWDOWN_STOP, EquityPoint, MOC_CUTOFF_MINUTES, Mode, RiskLimit, RiskLimits,
-    RunConfig,
+    CostModel, DRAWDOWN_STOP, EquityPoint, MOC_CUTOFF_MINUTES, Mode, RATE_LOOKBACK_DAYS, RiskLimit,
+    RiskLimits, RunConfig,
 };
 use buizz_core::time::Timestamp;
 use chrono::{Datelike, NaiveDate, TimeDelta};
 use rust_decimal::{Decimal, RoundingStrategy};
 use serde::{Deserialize, Serialize};
 
-pub const ENGINE_VERSION: u32 = 4;
+pub const ENGINE_VERSION: u32 = 5;
 
 #[derive(Debug, thiserror::Error)]
 pub enum EngineError {
@@ -40,7 +40,7 @@ pub struct Cycle<'a> {
     pub actions: &'a [CorporateAction],
     pub average_daily_volume: &'a BTreeMap<Symbol, u64>,
     pub delisted: &'a [Symbol],
-    pub risk_free_rate: Decimal,
+    pub risk_free_rate: Option<Decimal>,
 }
 
 pub struct Decision<'a> {
@@ -94,6 +94,7 @@ struct State {
     session: Option<Session>,
     session_filled: BTreeMap<Symbol, u64>,
     volume_unknown: BTreeSet<Symbol>,
+    rate_missing: bool,
     breached: Vec<RiskLimit>,
     stopped_at: Option<Timestamp>,
     chain: [u8; 32],
@@ -706,7 +707,19 @@ impl Engine {
                 }
             }
             let balance = self.state.portfolio.cash;
-            let rate = self.cost.financing_rate(cycle.risk_free_rate);
+            if cycle.risk_free_rate.is_some() {
+                self.state.rate_missing = false;
+            } else if balance < Decimal::ZERO
+                && !std::mem::replace(&mut self.state.rate_missing, true)
+            {
+                self.outbox.warnings.push(format!(
+                    "no risk-free rate was published in the {RATE_LOOKBACK_DAYS} days before {}, so negative cash is financed at the spread alone until one is",
+                    cycle.session.date
+                ));
+            }
+            let rate = self
+                .cost
+                .financing_rate(cycle.risk_free_rate.unwrap_or_default());
             let amount = self.cost.financing_fee(balance, rate);
             if !amount.is_zero() {
                 self.post(
@@ -1030,7 +1043,7 @@ mod tests {
             actions: &[],
             average_daily_volume: &average_daily_volume,
             delisted: &[],
-            risk_free_rate: Decimal::ZERO,
+            risk_free_rate: None,
         });
     }
 
@@ -1197,7 +1210,7 @@ mod tests {
             actions: &[split],
             average_daily_volume: &BTreeMap::new(),
             delisted: &[],
-            risk_free_rate: Decimal::ZERO,
+            risk_free_rate: None,
         });
         let expired = &engine.drain().orders[0];
         assert_eq!(expired.status, OrderStatus::Expired);
