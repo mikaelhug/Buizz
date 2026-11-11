@@ -1,11 +1,14 @@
+use std::collections::BTreeMap;
 use std::fmt;
 use std::time::Duration;
 
 use buizz_core::market::{
-    Bar, Calendar, CorporateAction, Feed, Instrument, Session, Symbol, Timeframe,
+    Bar, Calendar, CorporateAction, CorporateActionKind, Feed, Instrument, Session, Symbol,
+    Timeframe,
 };
 use buizz_core::time::Timestamp;
 use chrono::{NaiveDate, TimeDelta};
+use rust_decimal::Decimal;
 use serde::de::DeserializeOwned;
 
 use crate::http::{HttpClient, REDACTED, RateLimit, SourceError};
@@ -171,7 +174,7 @@ impl AlpacaClient {
                 actions.extend(page.into_actions());
             }
         }
-        Ok(actions)
+        Ok(sum_dividends_per_ex_date(actions))
     }
 
     async fn get<T: DeserializeOwned>(
@@ -210,6 +213,29 @@ impl AlpacaClient {
             query.push(("page_token", token));
         }
     }
+}
+
+fn sum_dividends_per_ex_date(actions: Vec<CorporateAction>) -> Vec<CorporateAction> {
+    let mut dividends: BTreeMap<(Symbol, NaiveDate), Decimal> = BTreeMap::new();
+    let mut merged = Vec::with_capacity(actions.len());
+    for action in actions {
+        match action.kind {
+            CorporateActionKind::CashDividend { rate } => {
+                *dividends.entry((action.symbol, action.ex_date)).or_default() += rate;
+            }
+            CorporateActionKind::Split { .. } => merged.push(action),
+        }
+    }
+    merged.extend(
+        dividends
+            .into_iter()
+            .map(|((symbol, ex_date), rate)| CorporateAction {
+                symbol,
+                ex_date,
+                kind: CorporateActionKind::CashDividend { rate },
+            }),
+    );
+    merged
 }
 
 fn join_symbols(symbols: &[Symbol]) -> String {

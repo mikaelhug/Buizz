@@ -253,6 +253,13 @@ async fn alpaca_client_pages_filters_and_normalizes_against_fixtures() {
         }
     )));
     assert!(kinds.contains(&(
+        "AAPL",
+        date("2024-05-10"),
+        CorporateActionKind::CashDividend {
+            rate: decimal("0.35")
+        }
+    )));
+    assert!(kinds.contains(&(
         "SPY",
         date("2024-06-21"),
         CorporateActionKind::CashDividend {
