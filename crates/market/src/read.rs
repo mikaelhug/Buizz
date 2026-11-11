@@ -533,13 +533,14 @@ pub(crate) fn top_dollar_volume(
     let mut statement = connection.prepare_cached(
         "SELECT b.symbol FROM bar_1d b LEFT JOIN instrument i ON i.symbol = b.symbol \
          WHERE b.date >= ? AND b.date < ? AND (? IS NULL OR i.asset_class = ?) \
-         GROUP BY b.symbol ORDER BY sum(CAST(b.close AS DOUBLE) * b.volume) DESC, b.symbol \
+         AND (i.last_session IS NULL OR i.last_session >= ?) \
+         GROUP BY b.symbol ORDER BY avg(CAST(b.close AS DOUBLE) * b.volume) DESC, b.symbol \
          LIMIT ?",
     )?;
     let class = asset_class.as_ref().map(crate::codec::wire_name);
     let symbols = statement
         .query_map(
-            params![first.date, before, class, class, u64::from(count)],
+            params![first.date, before, class, class, before, u64::from(count)],
             |row| Ok(row.get::<_, Sym>(0)?.0),
         )?
         .collect::<duckdb::Result<Vec<_>>>()?;
