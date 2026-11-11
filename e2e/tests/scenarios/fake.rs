@@ -468,14 +468,23 @@ async fn submissions(State(fake): State<Arc<Fake>>, Path(file): Path<String>) ->
         return limited;
     }
     let world = fake.world();
-    world
+    let recent = world
         .companies
         .iter()
         .find(|company| file == format!("CIK{:010}.json", company.cik))
-        .map_or_else(
-            || StatusCode::NOT_FOUND.into_response(),
-            |company| Json(company.submissions.clone()).into_response(),
-        )
+        .map(|company| company.submissions.clone());
+    let older = || {
+        world
+            .companies
+            .iter()
+            .flat_map(|company| &company.older_filings)
+            .find(|(name, _)| *name == file)
+            .map(|(_, page)| page.clone())
+    };
+    recent.or_else(older).map_or_else(
+        || StatusCode::NOT_FOUND.into_response(),
+        |page| Json(page).into_response(),
+    )
 }
 
 async fn wikipedia(State(fake): State<Arc<Fake>>, Query(params): Query<Params>) -> Response {

@@ -69,7 +69,7 @@ async fn an_empty_spine_backfills_backs_off_rejects_a_bad_tiingo_tail_and_restar
         "{}",
         message(&jobs, "index_membership")
     );
-    assert_eq!(message(&jobs, "filings"), "filings: 3 rows");
+    assert_eq!(message(&jobs, "filings"), "filings: 5 rows");
     assert_eq!(
         message(&jobs, "borrow"),
         "borrow: 6 tickers as of 2026-11-11T20:10:41Z"

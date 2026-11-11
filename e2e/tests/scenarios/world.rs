@@ -48,6 +48,7 @@ pub struct Company {
     pub ticker: Symbol,
     pub facts: Value,
     pub submissions: Value,
+    pub older_filings: Vec<(String, Value)>,
 }
 
 pub struct Filing<'a> {
@@ -280,6 +281,11 @@ impl World {
                     .expect("recorded company facts"),
                 submissions: serde_json::from_str(&read("edgar/submissions_sample.json"))
                     .expect("recorded submissions"),
+                older_filings: vec![(
+                    "CIK0000320193-submissions-001.json".to_owned(),
+                    serde_json::from_str(&read("edgar/submissions_page_sample.json"))
+                        .expect("recorded older filings"),
+                )],
             }],
             wikipedia: [
                 (SP500_CONSTITUENTS, "wikipedia/sp500_constituents.json"),
@@ -416,6 +422,7 @@ fn companies(facts: &[FundamentalFact]) -> Vec<Company> {
                     ticker: fact.symbol.clone(),
                     facts: json!({"cik": fact.cik, "entityName": fact.symbol, "facts": {}}),
                     submissions: submissions(fact.cik, "", &[]),
+                    older_filings: Vec::new(),
                 });
                 companies.len() - 1
             }
