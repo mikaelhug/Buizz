@@ -1,0 +1,6 @@
+description = "Long-only 50/200-day SMA crossover on SPY."
+command = ["uv", "run", "--frozen", "--project", "../../sdk/python", "python", "bot.py"]
+timeframe = "1d"
+wake = "bar"
+universe = { symbols = ["SPY"] }
+params = { fast = 50, slow = 200, weight = 0.95 }

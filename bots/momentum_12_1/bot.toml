@@ -1,0 +1,6 @@
+description = "Monthly equal-weight top decile by 12-month return, skipping the last month."
+command = ["uv", "run", "--frozen", "--project", "../../sdk/python", "python", "bot.py"]
+timeframe = "1d"
+wake = "bar"
+universe = { top_dollar_volume = 500 }
+params = { lookback = 252, skip = 21, top_fraction = 0.1, gross = 0.95 }
