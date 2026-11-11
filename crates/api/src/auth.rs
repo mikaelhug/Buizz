@@ -1,5 +1,5 @@
 use std::collections::{HashMap, VecDeque};
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
@@ -20,6 +20,10 @@ use crate::error::Failure;
 const SESSION_TTL: Duration = Duration::from_secs(7 * 24 * 60 * 60);
 const FAILURE_WINDOW: Duration = Duration::from_secs(60);
 const MAX_FAILURES: usize = 5;
+const GLOBAL_WINDOW: Duration = Duration::from_secs(15 * 60);
+const GLOBAL_BUDGET: usize = 100;
+const GLOBAL_PACE: Duration = Duration::from_secs(1);
+const IPV6_PREFIX_BITS: u32 = 64;
 
 struct Session {
     expires: Instant,
@@ -50,7 +54,73 @@ pub(crate) struct Auth {
     password: String,
     secure_cookies: bool,
     sessions: Mutex<HashMap<String, Session>>,
-    failures: Mutex<HashMap<IpAddr, VecDeque<Instant>>>,
+    failures: Mutex<Failures>,
+}
+
+#[derive(Default)]
+struct Failures {
+    by_client: HashMap<IpAddr, VecDeque<Instant>>,
+    global: VecDeque<Instant>,
+    next_paced_check: Option<Instant>,
+}
+
+fn forget(history: &mut VecDeque<Instant>, now: Instant, window: Duration) {
+    while history
+        .front()
+        .is_some_and(|failed| now.duration_since(*failed) >= window)
+    {
+        history.pop_front();
+    }
+}
+
+impl Failures {
+    fn forget_before(&mut self, now: Instant) {
+        for history in self.by_client.values_mut() {
+            forget(history, now, FAILURE_WINDOW);
+        }
+        self.by_client.retain(|_, history| !history.is_empty());
+        forget(&mut self.global, now, GLOBAL_WINDOW);
+    }
+
+    fn admit(&mut self, client: IpAddr, now: Instant) -> Result<(), Refused> {
+        if let Some(history) = self.by_client.get(&client)
+            && history.len() >= MAX_FAILURES
+            && let Some(oldest) = history.front()
+        {
+            return Err(Refused::Locked {
+                retry_after: FAILURE_WINDOW.saturating_sub(now.duration_since(*oldest)),
+            });
+        }
+        if self.global.len() < GLOBAL_BUDGET {
+            return Ok(());
+        }
+        match self.next_paced_check {
+            Some(next) if next > now => Err(Refused::Locked {
+                retry_after: next - now,
+            }),
+            _ => {
+                self.next_paced_check = Some(now + GLOBAL_PACE);
+                Ok(())
+            }
+        }
+    }
+
+    fn record(&mut self, client: IpAddr, now: Instant) {
+        self.by_client.entry(client).or_default().push_back(now);
+        self.global.push_back(now);
+    }
+}
+
+fn client_key(address: IpAddr) -> IpAddr {
+    match address {
+        IpAddr::V4(_) => address,
+        IpAddr::V6(v6) => match v6.to_ipv4_mapped() {
+            Some(v4) => IpAddr::V4(v4),
+            None => IpAddr::V6(Ipv6Addr::from_bits(
+                v6.to_bits() & (u128::MAX << (128 - IPV6_PREFIX_BITS)),
+            )),
+        },
+    }
 }
 
 fn locked<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -75,26 +145,11 @@ impl Auth {
     fn login(&self, client: IpAddr, password: &str) -> Result<String, Refused> {
         let now = Instant::now();
         {
-            let mut clients = locked(&self.failures);
-            for history in clients.values_mut() {
-                while history
-                    .front()
-                    .is_some_and(|failed| now.duration_since(*failed) >= FAILURE_WINDOW)
-                {
-                    history.pop_front();
-                }
-            }
-            clients.retain(|_, history| !history.is_empty());
-            let failures = clients.entry(client).or_default();
-            if failures.len() >= MAX_FAILURES
-                && let Some(oldest) = failures.front()
-            {
-                return Err(Refused::Locked {
-                    retry_after: FAILURE_WINDOW.saturating_sub(now.duration_since(*oldest)),
-                });
-            }
+            let mut failures = locked(&self.failures);
+            failures.forget_before(now);
+            failures.admit(client_key(client), now)?;
             if !bool::from(password.as_bytes().ct_eq(self.password.as_bytes())) {
-                failures.push_back(now);
+                failures.record(client_key(client), now);
                 return Err(Refused::WrongPassword);
             }
         }
@@ -258,6 +313,46 @@ mod tests {
             Err(Refused::Locked { .. })
         ));
         assert!(auth.login(owner, "secret").is_ok());
+    }
+
+    #[test]
+    fn addresses_in_one_ipv6_slash_64_share_a_lockout() {
+        let auth = auth();
+        let network = 0x2001_0db8_0000_0001_u128 << 64;
+        for host in 0..MAX_FAILURES {
+            let address = IpAddr::V6(Ipv6Addr::from_bits(network | (host as u128 + 1)));
+            assert!(matches!(
+                auth.login(address, "guess"),
+                Err(Refused::WrongPassword)
+            ));
+        }
+        let fresh_host = IpAddr::V6(Ipv6Addr::from_bits(network | 0xffff));
+        assert!(matches!(
+            auth.login(fresh_host, "secret"),
+            Err(Refused::Locked { .. })
+        ));
+    }
+
+    #[test]
+    fn many_addresses_guessing_slow_everyone_to_one_check_per_pace() {
+        let auth = auth();
+        for attacker in 0..GLOBAL_BUDGET {
+            let address = IpAddr::V4(Ipv4Addr::from_bits(0x0a00_0000 + attacker as u32));
+            assert!(matches!(
+                auth.login(address, "guess"),
+                Err(Refused::WrongPassword)
+            ));
+        }
+        let owner = IpAddr::V4(Ipv4Addr::new(198, 51, 100, 2));
+        let another = IpAddr::V4(Ipv4Addr::new(198, 51, 100, 3));
+        assert!(matches!(
+            auth.login(another, "guess"),
+            Err(Refused::WrongPassword)
+        ));
+        assert!(matches!(
+            auth.login(owner, "secret"),
+            Err(Refused::Locked { retry_after }) if retry_after <= GLOBAL_PACE
+        ));
     }
 
     #[test]
