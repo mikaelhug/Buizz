@@ -1,0 +1,9 @@
+description = "Zarattini–Aziz–Barbon noise-area momentum on SPY: follow half-hourly breaks of the 14-day noise area, trail at the band or VWAP, size to 2% daily volatility up to 4x, flat at the close."
+command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
+timeframe = "1m"
+wake = "every:10m"
+universe = { symbols = ["SPY"] }
+params = { lookback = 14, vol_multiplier = 1.0, target_daily_vol = 0.02, max_leverage = 4.0, vol_window = 14 }
+
+[risk]
+max_gross_exposure = 4.5
