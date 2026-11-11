@@ -382,6 +382,29 @@ fn main() {
 
     write(
         &dir,
+        "query_universe",
+        &BotMessage::Query(Query {
+            id: 5,
+            request: QueryRequest::Universe {
+                date: date("2024-11-22"),
+                top_dollar_volume: 2,
+            },
+        }),
+    );
+
+    write(
+        &dir,
+        "data_universe",
+        &SpineMessage::Data(Data {
+            id: 5,
+            result: DataResult::Universe {
+                symbols: vec![Symbol::new("SPY"), aaa.clone()],
+            },
+        }),
+    );
+
+    write(
+        &dir,
         "ack_backtest",
         &BotMessage::Ack(Ack {
             seq: 1,

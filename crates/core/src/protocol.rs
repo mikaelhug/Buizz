@@ -106,6 +106,10 @@ pub enum QueryRequest {
         from: NaiveDate,
         to: NaiveDate,
     },
+    Universe {
+        date: NaiveDate,
+        top_dollar_volume: u32,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -120,6 +124,7 @@ pub enum DataResult {
     History { bars: BarBuffer },
     Fundamentals { points: Vec<FundamentalPoint> },
     Calendar { sessions: Vec<Session> },
+    Universe { symbols: Vec<Symbol> },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

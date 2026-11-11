@@ -178,7 +178,11 @@ class CalendarResult(msgspec.Struct, frozen=True, tag_field="kind", tag="calenda
     sessions: list[SessionFrame]
 
 
-type Result = HistoryResult | FundamentalsResult | CalendarResult
+class UniverseResult(msgspec.Struct, frozen=True, tag_field="kind", tag="universe"):
+    symbols: list[str]
+
+
+type Result = HistoryResult | FundamentalsResult | CalendarResult | UniverseResult
 
 
 class Data(msgspec.Struct, frozen=True, tag_field="type", tag="data"):
@@ -219,7 +223,12 @@ class CalendarRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="calend
     end: date = msgspec.field(name="to")
 
 
-type Request = HistoryRequest | FundamentalsRequest | CalendarRequest
+class UniverseRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="universe"):
+    date: date
+    top_dollar_volume: int
+
+
+type Request = HistoryRequest | FundamentalsRequest | CalendarRequest | UniverseRequest
 
 
 class Query(msgspec.Struct, frozen=True, tag_field="type", tag="query"):

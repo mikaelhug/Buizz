@@ -209,6 +209,22 @@ async fn a_probe_asking_for_everything_never_sees_past_the_clock() {
         let days = case["days"].as_str().expect("days");
         assert_eq!(step.report["calendar"][days], case["sessions"], "{case}");
     }
+    for (day, symbols) in daily["universe"].as_object().expect("past universes") {
+        let known = sessions
+            .iter()
+            .filter(|session| session.date < date(day))
+            .map(|session| session.close)
+            .max()
+            .unwrap_or(Timestamp::MIN);
+        for step in probe {
+            let answer = &step.report["universe"][day];
+            if known <= step.clock {
+                assert_eq!(answer, symbols, "universe of {day} at {}", step.clock);
+            } else {
+                assert_eq!(answer, "bad_query", "universe of {day} at {}", step.clock);
+            }
+        }
+    }
     assert_filled_at(&spine.orders(runs["probe"].id).await, &daily["fills"]);
 
     for (wake, count) in minute["step_counts"].as_object().expect("step counts") {

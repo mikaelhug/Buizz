@@ -11,6 +11,7 @@ use buizz_market::{HistoryRequest, MarketStore};
 
 pub(crate) const ACK_TIMEOUT: Duration = Duration::from_secs(60);
 const MAX_HISTORY_BARS: u32 = 10_000;
+const MAX_UNIVERSE_SYMBOLS: u32 = 10_000;
 
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum LinkError {
@@ -53,13 +54,14 @@ impl BotLink {
         &mut self,
         step: Step,
         market: &MarketStore,
+        adv_sessions: u32,
     ) -> Result<Ack, LinkError> {
         let (seq, clock) = (step.seq, step.clock);
         self.send(&SpineMessage::Step(Box::new(step))).await?;
         loop {
             match self.receive().await? {
                 BotMessage::Query(Query { id, request }) => {
-                    let answer = match answer(market, request, clock).await {
+                    let answer = match answer(market, request, clock, adv_sessions).await {
                         Ok(result) => SpineMessage::Data(Data { id, result }),
                         Err(message) => SpineMessage::Error(ProtocolError {
                             id: Some(id),
@@ -145,6 +147,7 @@ async fn answer(
     market: &MarketStore,
     request: QueryRequest,
     clock: Timestamp,
+    adv_sessions: u32,
 ) -> Result<DataResult, String> {
     match request {
         QueryRequest::History {
@@ -188,6 +191,25 @@ async fn answer(
             }
             let sessions = market.published_sessions(from, to, clock);
             Ok(DataResult::Calendar { sessions })
+        }
+        QueryRequest::Universe {
+            date,
+            top_dollar_volume,
+        } => {
+            if !(1..=MAX_UNIVERSE_SYMBOLS).contains(&top_dollar_volume) {
+                return Err(format!(
+                    "top_dollar_volume must be between 1 and {MAX_UNIVERSE_SYMBOLS}"
+                ));
+            }
+            let known = market.universe_visible_at(date);
+            if known > clock {
+                return Err(format!("the universe of {date} is known from {known}"));
+            }
+            let symbols = market
+                .listed_top_dollar_volume(top_dollar_volume, date, adv_sessions)
+                .await
+                .map_err(|error| error.to_string())?;
+            Ok(DataResult::Universe { symbols })
         }
     }
 }

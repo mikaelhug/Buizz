@@ -10,7 +10,7 @@ use buizz_core::market::{
 use buizz_core::ops::{CoverageGap, DataWarning};
 use buizz_core::protocol::BarRow;
 use buizz_core::time::Timestamp;
-use buizz_core::visibility::{bar_visible_at, published_sessions};
+use buizz_core::visibility::{bar_visible_at, published_sessions, universe_visible_at};
 use chrono::{NaiveDate, TimeDelta};
 use duckdb::Connection;
 use tokio::sync::watch;
@@ -299,6 +299,10 @@ impl MarketStore {
         published_sessions(&self.shared.calendar(), from, to, as_of)
     }
 
+    pub fn universe_visible_at(&self, date: NaiveDate) -> Timestamp {
+        universe_visible_at(date, &self.shared.calendar())
+    }
+
     pub async fn instruments(&self) -> Result<Vec<Instrument>> {
         self.readers
             .run(|connection| read::instruments(connection))
@@ -382,6 +386,28 @@ impl MarketStore {
         self.readers
             .run(move |connection| {
                 read::top_dollar_volume(connection, &calendar, count, before, sessions)
+            })
+            .await
+    }
+
+    pub async fn listed_top_dollar_volume(
+        &self,
+        count: u32,
+        date: NaiveDate,
+        sessions: u32,
+    ) -> Result<Vec<Symbol>> {
+        let calendar = self.shared.calendar();
+        self.readers
+            .run(move |connection| {
+                let delisted: BTreeSet<Symbol> = read::instruments(connection)?
+                    .into_iter()
+                    .filter(|instrument| instrument.last_session.is_some_and(|last| last < date))
+                    .map(|instrument| instrument.symbol)
+                    .collect();
+                let mut symbols =
+                    read::top_dollar_volume(connection, &calendar, count, date, sessions)?;
+                symbols.retain(|symbol| !delisted.contains(symbol));
+                Ok(symbols)
             })
             .await
     }

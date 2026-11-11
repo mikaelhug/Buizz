@@ -37,6 +37,8 @@ from buizz.wire import (
     SessionFrame,
     Step,
     Timeframe,
+    UniverseRequest,
+    UniverseResult,
     WeightSize,
     WorkingOrder,
 )
@@ -49,6 +51,7 @@ type QueryFn = Callable[[Request], Result]
 EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 INTRADAY_STAMP = "%Y-%m-%dT%H:%M"
 MAX_HISTORY_BARS = 10_000
+MAX_UNIVERSE_SYMBOLS = 10_000
 SHARE_LIMIT = 2**63
 DECIMAL_MAX = Decimal(2**96 - 1)
 DECIMAL_MIN = Decimal("1e-28")
@@ -334,6 +337,16 @@ class Context:
         if not isinstance(result, CalendarResult):
             raise ProtocolError(f"calendar query answered with {type(result).__name__}")
         return [session_of(frame) for frame in result.sessions]
+
+    def universe_at(self, on: date, top_dollar_volume: int | np.integer[Any]) -> list[str]:
+        self._current("ctx.universe_at")
+        count = integer("top_dollar_volume", top_dollar_volume)
+        if not 1 <= count <= MAX_UNIVERSE_SYMBOLS:
+            raise ValueError(f"top_dollar_volume must be between 1 and {MAX_UNIVERSE_SYMBOLS}, got {count}")
+        result = self._query(UniverseRequest(day("on", on), count))
+        if not isinstance(result, UniverseResult):
+            raise ProtocolError(f"universe query answered with {type(result).__name__}")
+        return result.symbols
 
     def order(
         self,

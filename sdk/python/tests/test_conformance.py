@@ -45,6 +45,7 @@ class RedGreen(Bot):
             ctx.history(["ZZZ"], "1d", 1)
         observed["error"] = raised.value.code
         observed["calendar"] = ctx.calendar(date(2024, 11, 28), date(2024, 12, 2))
+        observed["universe_at"] = ctx.universe_at(date(2024, 11, 22), 2)
         ctx.order_target_weight("AAA", ctx.params["weight"], reason="red day")
         ctx.order("BBB", -100, reason="take profit", limit_price=Decimal("49.60"), client_id="BBB-limit-1")
         ctx.cancel("BBB-limit-0")
@@ -83,6 +84,8 @@ def play_spine(connection: ServerConnection, received: list[bytes]) -> None:
     connection.send(golden("error"))
     expect()
     connection.send(golden("data_calendar"))
+    expect()
+    connection.send(golden("data_universe"))
     expect()
     connection.send(golden("step_live"))
     expect()
@@ -125,7 +128,9 @@ def play(
 def test_bot_replies_match_the_golden_frames(monkeypatch: pytest.MonkeyPatch) -> None:
     received = play(monkeypatch, play_spine, RedGreen)
 
-    hello, query_history, query_fundamentals, failing_query, query_calendar, ack_first, ack_second = received
+    hello, query_history, query_fundamentals, failing_query, query_calendar, query_universe, ack_first, ack_second = (
+        received
+    )
     sent_hello = msgspec.msgpack.decode(hello)
     expected_hello = msgspec.msgpack.decode(golden("hello"))
     assert sent_hello["protocol"] == expected_hello["protocol"]
@@ -134,6 +139,7 @@ def test_bot_replies_match_the_golden_frames(monkeypatch: pytest.MonkeyPatch) ->
     assert query_fundamentals == golden("query_fundamentals")
     assert msgspec.msgpack.decode(failing_query)["request"]["symbols"] == ["ZZZ"]
     assert query_calendar == golden("query_calendar")
+    assert query_universe == golden("query_universe")
     assert ack_first == golden("ack_backtest")
     assert ack_second == golden("ack_live")
 
@@ -147,6 +153,7 @@ def test_bot_replies_match_the_golden_frames(monkeypatch: pytest.MonkeyPatch) ->
     assert observed["history"].close.tolist() == [98.0, 97.0]
     assert observed["fundamentals"][0].value == Decimal(410000000)
     assert [(s.date, s.close.hour) for s in observed["calendar"]] == [(date(2024, 11, 29), 18), (date(2024, 12, 2), 21)]
+    assert observed["universe_at"] == ["SPY", "AAA"]
     assert len(observed["live_bars"]) == 2
     assert observed["live_events"][0].symbol == "AAA"
 

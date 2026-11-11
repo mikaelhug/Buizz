@@ -1,5 +1,5 @@
 import json
-from datetime import timedelta
+from datetime import date, timedelta
 
 from buizz import Bot, Context, SpineError, run
 
@@ -30,7 +30,19 @@ class Probe(Bot):
                 calendar[str(days)] = [[session.date.isoformat(), f"{session.close:{STAMP}}"] for session in sessions]
             except SpineError as error:
                 calendar[str(days)] = error.code
-        report = {"clock": clock, "history": history, "fundamentals": fundamentals, "calendar": calendar}
+        universes: dict[str, object] = {}
+        for day in ctx.params.get("universe_dates", []):
+            try:
+                universes[day] = ctx.universe_at(date.fromisoformat(day), ctx.params["universe_top"])
+            except SpineError as error:
+                universes[day] = error.code
+        report = {
+            "clock": clock,
+            "history": history,
+            "fundamentals": fundamentals,
+            "calendar": calendar,
+            "universe": universes,
+        }
         ctx.log(json.dumps(report))
         if clock in ctx.params.get("order_at", []):
             ctx.order("AAA", 1, reason=f"probe order decided at {clock}")

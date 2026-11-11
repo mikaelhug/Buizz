@@ -43,6 +43,7 @@ spine -> end {reason, message?}
 - `history {symbols, timeframe, bars, adjust}`: the last `bars` (1..10000) bars per symbol visible at `clock`, as a bar buffer. `adjust` is `raw`, `split` or `all` (splits and dividends), using only corporate actions whose ex-date session has opened by `clock`.
 - `fundamentals {symbols, metrics}`: every fact visible at `clock` for those canonical metrics (the latest filing per period wins), as `points`.
 - `calendar {from, to}`: the exchange `sessions` (`date`, `open`, `close`) dated `from` to `to`, as the calendar was published at `clock`. Future sessions are allowed because the exchange publishes its holidays and early closes years ahead, but `to` may be at most 366 days after the clock's exchange date. A closure decided after that, which the stored calendar already omits (the national days of mourning on 2018-12-05 and 2025-01-09, the first Juneteenth closure on 2022-06-20), is answered as the regular 09:30–16:00 session it was scheduled as until the open of the first session after its announcement. Sessions hold no price data.
+- `universe {date, top_dollar_volume}`: the `symbols` a `top_dollar_volume` universe holds on `date`: the `top_dollar_volume` (1..10000) symbols with the highest dollar volume over the 20 sessions before `date`, minus those delisted before it, highest first. Answered once the last session before `date` has closed by `clock`; a later `date` is a `bad_query`.
 
 ## Ack
 

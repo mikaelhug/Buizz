@@ -15,4 +15,6 @@ queries = [
 fundamentals = ["BBB"]
 metrics = ["net_income"]
 calendar_days = [7, 366, 367]
+universe_dates = ["2024-11-20", "2024-11-22", "2024-11-26"]
+universe_top = 3
 order_at = ["2024-11-20T21:00:00Z", "2024-11-27T21:00:00Z"]

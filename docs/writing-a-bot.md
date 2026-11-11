@@ -96,6 +96,7 @@ Outside `on_step` only `params`, `universe`, `state`, `portfolio` and `position`
 | `ctx.position(symbol)` | The `Position`, with `qty == 0` when flat |
 | `ctx.history(symbols, tf="1d", bars=1, adjust="raw")` | The last `bars` (1 to 10000) bars per symbol visible at the clock, as numpy arrays (`start` in ns, `open`, `high`, `low`, `close`, `volume`). Each call is a round trip to the spine |
 | `ctx.fundamentals(symbols, metrics)` | Every fundamental fact visible at the clock for the given metrics (`Metric` names, below) |
+| `ctx.universe_at(on, top_dollar_volume)` | The symbols a `top_dollar_volume` universe of that size held on the date `on`, see below |
 | `ctx.calendar(start, end)` | The exchange sessions (`Session(date, open, close)`) dated `start` to `end`, as the calendar was published at the clock, see below |
 | `ctx.state` | A dict that survives restarts, see below |
 
@@ -112,6 +113,15 @@ today = ctx.session.date
 following = ctx.calendar(today, today + timedelta(days=10))[1].date
 month_end = following.month != today.month
 week_end = following.isocalendar().week != today.isocalendar().week
+```
+
+**Past universes.** `ctx.universe_at(on, n)` applies the `top_dollar_volume = n` rule as of the date `on`: the `n` symbols with the highest dollar volume over the 20 sessions before it, without those delisted before it, highest first. It answers once the last session before `on` has closed, so any date up to the next session works and a later one raises `SpineError` with code `bad_query`. A model that trains on years of cross-sections asks for each formation date in its first step:
+
+```python
+from datetime import date
+
+months = [date(year, month, 1) for year in range(2017, 2024) for month in range(1, 13)]
+training = {month: ctx.universe_at(month, 1000) for month in months}
 ```
 
 `to_ns(moment)` turns a timezone-aware `datetime` into the nanoseconds of `History.start`, for example `history.start >= to_ns(ctx.session.open)`.
