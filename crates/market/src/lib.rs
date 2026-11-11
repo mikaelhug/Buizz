@@ -41,6 +41,8 @@ pub enum MarketError {
     Closed,
     #[error("market store worker failed: {0}")]
     Worker(#[from] tokio::task::JoinError),
+    #[error("market store job panicked: {0}")]
+    Panicked(String),
 }
 
 pub type Result<T> = std::result::Result<T, MarketError>;
