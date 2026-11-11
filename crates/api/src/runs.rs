@@ -304,14 +304,10 @@ pub(crate) async fn leaderboard(
             None => groups.push((period, vec![row])),
         }
     }
-    let (period, mut rows) = groups
+    let (period, rows) = groups
         .into_iter()
         .max_by_key(|(period, rows)| (rows.len(), period.to))
         .unwrap_or_else(|| (query.preset.resolve(exchange_today()), Vec::new()));
-    rows.sort_by(|a, b| {
-        let sharpe = |row: &LeaderboardRow| row.metrics.sharpe.unwrap_or(f64::NEG_INFINITY);
-        sharpe(b).total_cmp(&sharpe(a))
-    });
     Ok(Json(Leaderboard {
         preset: query.preset,
         period,
