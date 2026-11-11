@@ -741,7 +741,7 @@ impl Engine {
                     cycle.visible_at,
                     LedgerKind::Financing {
                         balance,
-                        rate,
+                        rate: rate.normalize(),
                         amount,
                     },
                 );
@@ -1109,25 +1109,36 @@ mod tests {
 
     #[test]
     fn identical_runs_hash_the_same_whatever_the_decimal_scale() {
-        let hash = |start_cash, commission_min| {
+        let hash = |start_cash, commission_min, financing_spread: &str| {
             let (first, second) = (session(20), session(21));
-            let mut engine = Engine::new(&config(start_cash, commission_min), first.open);
+            let config = RunConfig {
+                cost: CostModel {
+                    financing_spread: financing_spread.parse().unwrap(),
+                    ..config(start_cash, commission_min).cost
+                },
+                ..config(start_cash, commission_min)
+            };
+            let mut engine = Engine::new(&config, first.open);
             step(
                 &mut engine,
                 &first,
                 &[bar(&first, "100", "99", "100")],
                 &[("AAA", 1_000_000)],
             );
-            submit(&mut engine, &first, vec![buy("AAA-1", 100)]);
+            submit(&mut engine, &first, vec![buy("AAA-1", 1500)]);
             step(
                 &mut engine,
                 &second,
                 &[bar(&second, "101", "100", "102")],
                 &[("AAA", 1_000_000)],
             );
+            assert!(engine.portfolio().cash < Decimal::ZERO);
             engine.result_hash()
         };
-        assert_eq!(hash("100000", "1"), hash("100000.00", "1.00"));
+        assert_eq!(
+            hash("100000", "1", "0.015"),
+            hash("100000.00", "1.00", "0.01500")
+        );
     }
 
     #[test]
