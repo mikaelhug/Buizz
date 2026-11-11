@@ -945,12 +945,13 @@ impl Driver {
         };
         let sent_universe = universe_changed.then(|| universe.clone());
         let market = self.inner.market.clone();
+        let adv_sessions = self.run.config.cost.adv_sessions;
         let asked = self.visible_through();
         let Some(link) = self.link.as_mut() else {
             return Ok(());
         };
         let answered = {
-            let mut answer = std::pin::pin!(link.step(step, &market));
+            let mut answer = std::pin::pin!(link.step(step, &market, adv_sessions));
             loop {
                 tokio::select! {
                     answered = &mut answer => break Some(answered),

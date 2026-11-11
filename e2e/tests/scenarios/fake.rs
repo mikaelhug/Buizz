@@ -97,6 +97,7 @@ impl FakeProviders {
                 "/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv/{year}/all",
                 get(treasury),
             )
+            .route("/fred/series/observations", get(fred))
             .route("/control/release", post(release))
             .with_state(fake.clone());
         let listener = TcpListener::bind("127.0.0.1:0")
@@ -553,6 +554,34 @@ async fn treasury(State(fake): State<Arc<Fake>>, Path(year): Path<i32>) -> Respo
         ));
     }
     csv.into_response()
+}
+
+async fn fred(State(fake): State<Arc<Fake>>, Query(params): Query<Params>) -> Response {
+    if let Some(limited) = fake.answer("fred") {
+        return limited;
+    }
+    let series = param(&params, "series_id");
+    let offset: usize = param(&params, "offset").parse().unwrap_or(0);
+    let world = fake.world();
+    let vintages: Vec<Value> = world
+        .macro_vintages
+        .iter()
+        .filter(|vintage| vintage.series.fred_id() == Some(series))
+        .map(|vintage| {
+            json!({
+                "realtime_start": vintage.published,
+                "realtime_end": "9999-12-31",
+                "date": vintage.date,
+                "value": vintage.value.map_or_else(|| ".".to_owned(), |value| value.to_string()),
+            })
+        })
+        .collect();
+    Json(json!({
+        "count": vintages.len(),
+        "offset": offset,
+        "observations": vintages.iter().skip(offset).take(PAGE_ROWS).collect::<Vec<_>>(),
+    }))
+    .into_response()
 }
 
 async fn release(State(fake): State<Arc<Fake>>, Json(request): Json<Value>) -> Response {

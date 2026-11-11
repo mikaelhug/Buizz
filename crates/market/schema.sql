@@ -93,6 +93,16 @@ CREATE TABLE IF NOT EXISTS rate_daily (
     batch_id BIGINT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS macro_observation (
+    series VARCHAR NOT NULL,
+    date DATE NOT NULL,
+    published DATE NOT NULL,
+    value DECIMAL(18, 6),
+    source VARCHAR NOT NULL,
+    batch_id BIGINT NOT NULL,
+    PRIMARY KEY (series, date, published)
+);
+
 CREATE TABLE IF NOT EXISTS coverage (
     dataset VARCHAR NOT NULL,
     symbol VARCHAR NOT NULL,

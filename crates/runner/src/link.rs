@@ -5,11 +5,14 @@ use buizz_core::protocol::{
     self, Ack, BarBuffer, BotMessage, Data, DataResult, End, EndReason, ErrorCode, Hello,
     PROTOCOL_VERSION, ProtocolError, Query, QueryRequest, Ready, SpineMessage, Step,
 };
+use buizz_core::run::UniverseSpec;
 use buizz_core::time::Timestamp;
+use buizz_core::visibility::calendar_known_through;
 use buizz_market::{HistoryRequest, MarketStore};
 
 pub(crate) const ACK_TIMEOUT: Duration = Duration::from_secs(60);
 const MAX_HISTORY_BARS: u32 = 10_000;
+const MAX_UNIVERSE_SYMBOLS: u32 = 10_000;
 
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum LinkError {
@@ -52,13 +55,14 @@ impl BotLink {
         &mut self,
         step: Step,
         market: &MarketStore,
+        adv_sessions: u32,
     ) -> Result<Ack, LinkError> {
         let (seq, clock) = (step.seq, step.clock);
         self.send(&SpineMessage::Step(Box::new(step))).await?;
         loop {
             match self.receive().await? {
                 BotMessage::Query(Query { id, request }) => {
-                    let answer = match answer(market, request, clock).await {
+                    let answer = match answer(market, request, clock, adv_sessions).await {
                         Ok(result) => SpineMessage::Data(Data { id, result }),
                         Err(message) => SpineMessage::Error(ProtocolError {
                             id: Some(id),
@@ -144,6 +148,7 @@ async fn answer(
     market: &MarketStore,
     request: QueryRequest,
     clock: Timestamp,
+    adv_sessions: u32,
 ) -> Result<DataResult, String> {
     match request {
         QueryRequest::History {
@@ -175,6 +180,43 @@ async fn answer(
                 .map_err(|error| error.to_string())?;
             Ok(DataResult::Fundamentals { points })
         }
+        QueryRequest::Calendar { from, to } => {
+            if from > to {
+                return Err(format!("calendar from {from} is after to {to}"));
+            }
+            let through = calendar_known_through(clock);
+            if to > through {
+                return Err(format!(
+                    "the calendar is published through {through} at the clock, not through {to}"
+                ));
+            }
+            let sessions = market.published_sessions(from, to, clock);
+            Ok(DataResult::Calendar { sessions })
+        }
+        QueryRequest::Universe { date, universe } => {
+            match &universe {
+                UniverseSpec::Symbols { .. } => {
+                    return Err("a past universe is a top_dollar_volume or an index".to_owned());
+                }
+                UniverseSpec::TopDollarVolume {
+                    top_dollar_volume, ..
+                } if !(1..=MAX_UNIVERSE_SYMBOLS).contains(top_dollar_volume) => {
+                    return Err(format!(
+                        "top_dollar_volume must be between 1 and {MAX_UNIVERSE_SYMBOLS}"
+                    ));
+                }
+                _ => {}
+            }
+            let known = market.universe_visible_at(date);
+            if known > clock {
+                return Err(format!("the universe of {date} is known from {known}"));
+            }
+            let symbols = market
+                .universe(&universe, date, adv_sessions)
+                .await
+                .map_err(|error| error.to_string())?;
+            Ok(DataResult::Universe { symbols })
+        }
         QueryRequest::Instruments { symbols } => {
             let instruments = market
                 .instrument_profiles(symbols)
@@ -188,6 +230,16 @@ async fn answer(
                 .await
                 .map_err(|error| error.to_string())?;
             Ok(DataResult::Earnings { releases })
+        }
+        QueryRequest::Macro { series, from, to } => {
+            if from > to {
+                return Err(format!("macro from {from} is after to {to}"));
+            }
+            let points = market
+                .macro_points(series, from, to, clock)
+                .await
+                .map_err(|error| error.to_string())?;
+            Ok(DataResult::Macro { points })
         }
     }
 }

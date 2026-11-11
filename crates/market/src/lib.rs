@@ -5,14 +5,14 @@ use std::sync::{Arc, PoisonError, RwLock};
 use buizz_core::market::{
     Adjustment, Bar, BorrowAvailability, Calendar, Company, CorporateAction, Coverage, DataSource,
     EarningsRelease, FundamentalFact, FundamentalMetric, FundamentalPoint, IndexHistory,
-    Instrument, InstrumentProfile, RiskFreeRate, Session, StockIndex, Symbol, Timeframe,
-    Watermarks,
+    Instrument, InstrumentProfile, MacroObservation, MacroPoint, MacroSeries, RiskFreeRate,
+    Session, StockIndex, Symbol, Timeframe, Watermarks,
 };
 use buizz_core::ops::{CoverageGap, DataWarning};
 use buizz_core::protocol::BarRow;
 use buizz_core::run::UniverseSpec;
 use buizz_core::time::Timestamp;
-use buizz_core::visibility::bar_visible_at;
+use buizz_core::visibility::{bar_visible_at, published_sessions, universe_visible_at};
 use chrono::{NaiveDate, TimeDelta};
 use duckdb::Connection;
 use tokio::sync::watch;
@@ -160,6 +160,8 @@ impl MarketStore {
         self.append_fundamental_facts(source, facts).await?;
         self.upsert_risk_free_rates(source, fixture::rows(dir, "rates.csv").await?)
             .await?;
+        self.upsert_macro_observations(source, fixture::rows(dir, "macro.csv").await?)
+            .await?;
         for (timeframe, through) in loaded {
             if let Some(through) = through {
                 self.advance_watermark(timeframe, through).await?;
@@ -262,6 +264,16 @@ impl MarketStore {
             .await
     }
 
+    pub async fn upsert_macro_observations(
+        &self,
+        source: DataSource,
+        observations: Vec<MacroObservation>,
+    ) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| write::macro_observations(connection, source, observations))
+            .await
+    }
+
     pub async fn upsert_companies(
         &self,
         source: DataSource,
@@ -331,6 +343,19 @@ impl MarketStore {
         Ok(Calendar::new(
             self.shared.calendar().between(from, to).to_vec(),
         ))
+    }
+
+    pub fn published_sessions(
+        &self,
+        from: NaiveDate,
+        to: NaiveDate,
+        as_of: Timestamp,
+    ) -> Vec<Session> {
+        published_sessions(&self.shared.calendar(), from, to, as_of)
+    }
+
+    pub fn universe_visible_at(&self, date: NaiveDate) -> Timestamp {
+        universe_visible_at(date, &self.shared.calendar())
     }
 
     pub async fn instruments(&self) -> Result<Vec<Instrument>> {
@@ -409,28 +434,37 @@ impl MarketStore {
     pub async fn universe(
         &self,
         spec: &UniverseSpec,
-        before: NaiveDate,
+        date: NaiveDate,
         sessions: u32,
     ) -> Result<Vec<Symbol>> {
         let spec = spec.clone();
         let calendar = self.shared.calendar();
         self.readers
-            .run(move |connection| match spec {
-                UniverseSpec::Symbols { symbols } => Ok(symbols),
-                UniverseSpec::TopDollarVolume {
-                    top_dollar_volume,
-                    asset_class,
-                } => read::top_dollar_volume(
-                    connection,
-                    &calendar,
-                    top_dollar_volume,
-                    asset_class,
-                    before,
-                    sessions,
-                ),
-                UniverseSpec::Index { index } => {
-                    read::index_universe(connection, &calendar, index, before, sessions)
-                }
+            .run(move |connection| {
+                let mut symbols = match spec {
+                    UniverseSpec::Symbols { symbols } => return Ok(symbols),
+                    UniverseSpec::TopDollarVolume {
+                        top_dollar_volume,
+                        asset_class,
+                    } => read::top_dollar_volume(
+                        connection,
+                        &calendar,
+                        top_dollar_volume,
+                        asset_class,
+                        date,
+                        sessions,
+                    )?,
+                    UniverseSpec::Index { index } => {
+                        read::index_universe(connection, &calendar, index, date, sessions)?
+                    }
+                };
+                let delisted: BTreeSet<Symbol> = read::instruments(connection)?
+                    .into_iter()
+                    .filter(|instrument| instrument.last_session.is_some_and(|last| last < date))
+                    .map(|instrument| instrument.symbol)
+                    .collect();
+                symbols.retain(|symbol| !delisted.contains(symbol));
+                Ok(symbols)
             })
             .await
     }
@@ -479,6 +513,27 @@ impl MarketStore {
     ) -> Result<Vec<RiskFreeRate>> {
         self.readers
             .run(move |connection| read::risk_free_rates(connection, from, to))
+            .await
+    }
+
+    pub async fn macro_observations(&self, series: MacroSeries) -> Result<Vec<MacroObservation>> {
+        self.readers
+            .run(move |connection| read::macro_observations(connection, series))
+            .await
+    }
+
+    pub async fn macro_points(
+        &self,
+        series: Vec<MacroSeries>,
+        from: NaiveDate,
+        to: NaiveDate,
+        as_of: Timestamp,
+    ) -> Result<Vec<MacroPoint>> {
+        let calendar = self.shared.calendar();
+        self.readers
+            .run(move |connection| {
+                read::macro_points(connection, &calendar, &series, from, to, as_of)
+            })
             .await
     }
 

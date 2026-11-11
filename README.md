@@ -4,7 +4,7 @@ Buizz tests trading strategies against historic and live US stock and ETF data, 
 
 ## Quick start (macOS)
 
-Requires Rust (version pinned in `rust-toolchain.toml`), `just`, `uv` and Node.
+Requires Rust (version pinned in `rust-toolchain.toml`), `just`, `uv` and Node. Bots using LightGBM also need OpenMP on macOS (`brew install libomp`).
 
 ```sh
 just setup
@@ -27,7 +27,7 @@ The other bots in `bots/` need real data: set the provider keys below and start 
 
 | Command | What it does |
 |---|---|
-| `just setup` | Install web and end-to-end browser dependencies (`npm ci`) and the Python SDK environment (`uv sync --frozen`) |
+| `just setup` | Install web and end-to-end browser dependencies (`npm ci`) and the Python SDK and bots environments (`uv sync --frozen`) |
 | `just dev` | Run the spine and the Vite dev server with the fixture data |
 | `just check` | Everything a merge needs: `lint`, `test`, `build`, `drift`, `e2e` (the default recipe) |
 | `just e2e` | The end-to-end scenarios against the real spine binary and fake providers; the browser steps need Google Chrome installed |
@@ -67,6 +67,8 @@ The spine (`cargo run -p buizz-spine`) reads these environment variables. Empty 
 | `TREASURY_URL` | `https://home.treasury.gov` | US Treasury rates endpoint |
 | `WIKIPEDIA_URL` | `https://en.wikipedia.org` | MediaWiki endpoint for S&P 500 membership |
 | `IBKR_FTP_ADDRESS` | `ftp2.interactivebrokers.com:21` | Interactive Brokers' public short stock FTP server, read daily by the `borrow` job |
+| `FRED_API_KEY` | unset | Enables the FRED macro series for bots (`ctx.macro`); a free key from fred.stlouisfed.org. Without it the `macro` job reports that FRED is not configured |
+| `FRED_URL` | `https://api.stlouisfed.org` | FRED endpoint |
 | `RUST_LOG` | `info` | Log filter |
 
 `just dev` sets `BUIZZ_ADMIN_PASSWORD=buizz-dev-admin`, `BUIZZ_SECURE_COOKIES=false`, `BUIZZ_INGEST=false`, `BUIZZ_BIND=127.0.0.1:8080` and `BUIZZ_FIXTURE_DIR=fixtures/market`.

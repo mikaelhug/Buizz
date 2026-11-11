@@ -1137,6 +1137,7 @@
           "tiingo",
           "edgar",
           "treasury",
+          "fred",
           "fixture",
           "wikipedia",
           "interactive_brokers"
@@ -1234,7 +1235,8 @@
           "companies",
           "earnings_releases",
           "index_membership",
-          "borrow"
+          "borrow",
+          "macro"
         ]
       },
       "DesiredState": {

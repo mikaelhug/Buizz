@@ -16,6 +16,7 @@ pub(crate) const FILINGS: &str = "filings";
 pub(crate) const INDEX_MEMBERSHIP: &str = "index_membership";
 pub(crate) const RATES: &str = "rates";
 pub(crate) const BORROW: &str = "borrow";
+pub(crate) const MACRO: &str = "macro";
 pub(crate) const STATE_SNAPSHOT: &str = "state_snapshot";
 pub(crate) const TIINGO_HISTORY: &str = "tiingo_history";
 
@@ -26,7 +27,7 @@ const SHORT_RETRY: Duration = HOUR;
 const FIRST_FAILURE_RETRY: Duration = Duration::from_secs(5 * 60);
 const STALE_AFTER_INTERVALS: i32 = 3;
 
-pub(crate) const JOBS: [JobSpec; 11] = [
+pub(crate) const JOBS: [JobSpec; 12] = [
     JobSpec {
         name: CALENDAR,
         every: DAY,
@@ -61,6 +62,10 @@ pub(crate) const JOBS: [JobSpec; 11] = [
     },
     JobSpec {
         name: BORROW,
+        every: DAY,
+    },
+    JobSpec {
+        name: MACRO,
         every: DAY,
     },
     JobSpec {

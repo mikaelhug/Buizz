@@ -51,6 +51,10 @@ async fn process_groups_logs_and_restarts() {
     fs::create_dir_all(steady.dir.join("__pycache__")).unwrap();
     fs::write(steady.dir.join("__pycache__/x.pyc"), "cache").unwrap();
     assert_eq!(bot_hash(&steady.dir).unwrap(), steady.content_hash);
+    fs::create_dir_all(bots.join("buizz_bots")).unwrap();
+    fs::write(bots.join("buizz_bots/signals.py"), "WINDOW = 20\n").unwrap();
+    assert_ne!(bot_hash(&steady.dir).unwrap(), steady.content_hash);
+    fs::remove_dir_all(bots.join("buizz_bots")).unwrap();
 
     let supervisor = Supervisor::new(SupervisorConfig {
         spine_url: "ws://127.0.0.1:1".into(),

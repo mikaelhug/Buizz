@@ -58,7 +58,7 @@ if __name__ == "__main__":
     run(RedGreen)
 ```
 
-Also on `Context`: `history(symbols, tf, bars, adjust)`, `fundamentals(symbols, metrics)`, `universe`, `portfolio`, `events`, `clock`, `session`, `state`, `order`, `cancel`, `log`.
+Also on `Context`: `history(symbols, tf, bars, adjust)`, `fundamentals(symbols, metrics)`, `calendar(start, end)`, `universe_at(on, n)`, `macro(series, start, end)`, `universe`, `portfolio`, `events`, `clock`, `session`, `state`, `order`, `cancel`, `log`.
 
 ## Data
 
@@ -69,7 +69,8 @@ Also on `Context`: `history(symbols, tf, bars, adjust)`, `fundamentals(symbols, 
 | Wikipedia | Point-in-time S&P 500 membership | Rebuilt from the constituents and change-log articles (CC BY-SA) |
 | Interactive Brokers | Short availability, recorded daily | Public FTP file; not used by runs yet |
 | SEC EDGAR | Point-in-time fundamentals, SIC codes, earnings-release times | Raw XBRL facts plus canonical metrics; submissions |
-| US Treasury | Risk-free rate for Sharpe | |
+| US Treasury | Risk-free rate for Sharpe and bots | |
+| FRED | Macro series for bots (T-bill, 10-year, Moody's Aaa/Baa, CPI-U) with every ALFRED vintage | Free API key |
 
 Verified limits: Alpaca Basic 200 calls/min, history since 2016 minus the latest 15 minutes, 30 IEX stream symbols, minute bars include extended hours (filter to the session); Tiingo free 50 req/h, 1000/day, 500 symbols/month; EDGAR 10 req/s with a contact User-Agent. EODHD is dropped (its free tier adds nothing here).
 
@@ -81,7 +82,7 @@ Reuse from HUG (port the logic, cite the file in the slice brief):
 - EDGAR companyfacts parsing, FY/Q classification, share-scale fix, concept map — `../HUG/backend/adapters/edgar/{client,adapter,concept_map}.py`
 - UI primitives and rules — `../HUG/frontend/src/components/ui/{Dialog,Toaster}.tsx`, `../HUG/CLAUDE.md:66-83`
 
-Tables. DuckDB: `instrument`, `calendar`, `bar_1d`, `bar_1m`, `corporate_action`, `fundamental_fact`, `rate_daily`, `company`, `earnings_release`, `index_member`, `index_history`, `borrow_availability`, `coverage`, `ingest_batch`. SQLite: `run`, `run_order`, `ledger_entry`, `equity_point`, `run_event`, `job_run`, `source_fetch`. No `bot` table (scan `bots/`), no `position` table (fold the ledger). `bar_1m` and `fundamental_fact` have no primary key (DuckDB index memory): writers replace bars per symbol-session and dedupe facts on their identity fields. `equity_point` is written at session close only, plus the moment a drawdown stop leaves an intraday run flat; intraday marks go out over SSE.
+Tables. DuckDB: `instrument`, `calendar`, `bar_1d`, `bar_1m`, `corporate_action`, `fundamental_fact`, `rate_daily`, `macro_observation`, `company`, `earnings_release`, `index_member`, `index_history`, `borrow_availability`, `coverage`, `ingest_batch`. SQLite: `run`, `run_order`, `ledger_entry`, `equity_point`, `run_event`, `job_run`, `source_fetch`. No `bot` table (scan `bots/`), no `position` table (fold the ledger). `bar_1m` and `fundamental_fact` have no primary key (DuckDB index memory): writers replace bars per symbol-session and dedupe facts on their identity fields. `equity_point` is written at session close only, plus the moment a drawdown stop leaves an intraday run flat; intraday marks go out over SSE.
 
 Known parity gap, stated honestly: live minute bars are IEX (partial volume), backtests use SIP history. Live fills are tagged `feed=iex`; the volume cap is ADV-based so it is identical in both modes. Daily live runs use the official daily bar and no stream slots.
 
@@ -125,16 +126,25 @@ Out of v1: brokers and real money; options, crypto, FX; tick/quote simulation; e
    - `StepCommit` cannot carry undelivered step events, so a live crash between wakes holds back the checkpoint; add the field so the clock and equity never lag.
    - The "Drawdown stop" badge is inferred in the web UI from the failed status and message; store it as a run badge in the state store instead.
 4. Implement the bot backlog in `bots/BRIEFS.md`, one Opus 5.5 agent per bot, each followed by a critical review of that implementation against its brief. Contract gaps (G1–G13) land as their own PRs before the bots they block.
+   Landed: G1 calendar lookahead (`ctx.calendar`), G12 past universes (`ctx.universe_at`), G15 rates and FRED series (`ctx.macro`; the Welch–Goyal `dp`, `ep`, `bm` and `ntis` have no free point-in-time source and still block gbm_ranker).
    Gap decisions (free sources first; nothing is ever derived or modelled in place of data):
    - Landed: G2 (`universe.asset_class`), G3 (current SIC codes; EDGAR keeps no history, a documented caveat), G7 (`ctx.earnings`), G11 (`universe.index = "sp500"`, reliable from 2011, `thin_index_history` badge before), G16 (15 new EDGAR metrics; employees refused, only about 50 filers tag it), G17 (current listing exchange; no free history, a documented caveat), and the G10 recorder (the `borrow` job; not exposed to runs, so the G10 bots stay paused).
    - Free and official: G3 SIC codes and G7 earnings-release dates (8-K Item 2.02 filing times) from EDGAR submissions; G15 rates and macro series from FRED (free API key) and the Treasury feed already ingested; G16 extra metrics from EDGAR XBRL concepts.
    - G11 index membership: rebuild point-in-time S&P 500 membership from Wikipedia's current-constituents and changes tables (MediaWiki API, CC BY-SA), joined with Alpaca's inactive assets for delisted prices; results keep a caveat where the change log is thin.
-   - G10 borrow: start recording Interactive Brokers' public short-availability file (borrow fee and shares available per symbol) daily now, so real point-in-time borrow history accumulates; the bots it blocks stay paused until that history covers what they need.
+   - G10 borrow: a daily ingest job records Interactive Brokers' public short-availability file (borrow fee and shares available per symbol). It collects wherever ingest runs, which is the cluster's spine (local `just dev` runs with ingest off), so real point-in-time borrow history accumulates there; the bots it blocks stay paused until that history covers what they need.
    - G14 fundamentals before 2009: Yahoo cannot fill it (about four years, unofficial, restated). Free option for later: parse the financial statements of pre-XBRL 10-K/10-Q filings on EDGAR (filed since 1993) for the few metrics the blocked bots need; until then gbm_ranker and graham's defensive variant wait.
    - G8 VIX intraday: no free source reproduces the paper; vol_premium_etf is deferred.
-   Gap PRs run as four parallel groups, each additive to the protocol and SDK: orders and costs (G6 auction orders and the pre-close wake, G9 stops, G4 margin, G18 per-share costs); bot queries (G1 calendar, G12 past universes, G15 rates and FRED series); instrument and fundamentals data (G2 asset-class filter, G3 SIC, G17 exchange, G16 new metrics, G7 earnings-release dates, G11 Wikipedia S&P 500 membership, the daily IB borrow recorder); bot environment (G5 dependencies, G13 shared bot code). Bots start as soon as their gaps land, five at a time, each followed by a critical review against its brief. Real-data backtests need Alpaca, Tiingo and SEC credentials in the local environment.
+   Gap PRs run as four parallel groups, each additive to the protocol and SDK: orders and costs (G6 auction orders and the pre-close wake, G9 stops, G4 margin, G18 per-share costs); bot queries (G1 calendar, G12 past universes, G15 rates and FRED series); instrument and fundamentals data (G2 asset-class filter, G3 SIC, G17 exchange, G16 new metrics, G7 earnings-release dates, G11 Wikipedia S&P 500 membership, the IB borrow recorder); bot environment (G5 dependencies, G13 shared bot code). Bots start as soon as their gaps land, five at a time, each followed by a critical review against its brief. Real-data backtests run against the cluster's spine, so deployment comes before the bots that need real history.
+   Landed: G5 (the locked bots environment in `bots/pyproject.toml`) and G13 (the shared package `bots/buizz_bots`).
 
 ## Deployment (after Wave 3, separate repo, with your go-ahead)
+
+Order before deploying, so the data spine never has to be wiped and rebuilt:
+1. Merge the four gap groups.
+2. Review the data spine for durability: versioned schema migrations for both stores (no change may ever require deleting data), point-in-time completeness of every stored dataset, idempotent and resumable backfills, backup and restore of `state.db`, and a short real-data smoke test against the live providers with a handful of symbols.
+3. Fix what the review finds, then deploy. Secrets are encrypted with SOPS using the age key on this laptop; provider keys are read from a local file outside the repo and never printed.
+
+The cluster's spine is the data spine: it runs ingest (including the borrow recorder) and builds the real market history. Once it is reachable on the local network, local development and the bot backlog's 10-year backtests run against it (`BUIZZ_URL`) instead of ingesting on the laptop.
 
 Follows `~/akrell/akrell-apps` conventions (pattern: `apps/base/bande-logs/`, guide: `~/Private/Kubit/docs/apps-repository.md`, workflow: `~/Private/mappr/.github/workflows/release.yaml`):
 - `apps/base/buizz/`: namespace, `buizz-data` PVC (Longhorn, RWO), single-replica `Recreate` Deployment (non-root, read-only root, emptyDir `/tmp`, 60s grace), Service, HTTPRoute `buizz.mikaelhug.se`, ImageRepository.
@@ -146,4 +156,5 @@ Follows `~/akrell/akrell-apps` conventions (pattern: `apps/base/bande-logs/`, gu
 ## Needed from you
 
 - A free Alpaca account (paper API key + secret).
+- A free FRED API key for the macro series bots ask for.
 - Confirm the Tiingo key and SEC user-agent from HUG may be reused.

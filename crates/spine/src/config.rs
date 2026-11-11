@@ -5,6 +5,7 @@ use anyhow::{Context, Result};
 use buizz_sources::alpaca::{self, AlpacaConfig};
 use buizz_sources::alpaca_stream::{self, StreamConfig};
 use buizz_sources::edgar::{self, EdgarConfig};
+use buizz_sources::fred::{self, FredConfig};
 use buizz_sources::ibkr::{self, IbkrConfig};
 use buizz_sources::tiingo::{self, TiingoConfig};
 use buizz_sources::treasury::{self, TreasuryConfig};
@@ -23,6 +24,7 @@ pub struct Config {
     pub stream_url: String,
     pub tiingo: Option<TiingoConfig>,
     pub edgar: Option<EdgarConfig>,
+    pub fred: Option<FredConfig>,
     pub treasury: TreasuryConfig,
     pub wikipedia: Option<WikipediaConfig>,
     pub ibkr: IbkrConfig,
@@ -108,6 +110,10 @@ impl Config {
             ibkr: IbkrConfig {
                 address: var_or("IBKR_FTP_ADDRESS", ibkr::ADDRESS),
             },
+            fred: var(fred::KEY_ENV).map(|api_key| FredConfig {
+                base_url: var_or(fred::URL_ENV, fred::BASE_URL),
+                ..FredConfig::new(api_key)
+            }),
             treasury: TreasuryConfig {
                 base_url: var_or("TREASURY_URL", treasury::BASE_URL),
             },

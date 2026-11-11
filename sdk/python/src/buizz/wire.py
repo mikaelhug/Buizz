@@ -11,8 +11,11 @@ STATE_LIMIT = 64 * 1024
 
 type Timeframe = Literal["1d", "1m"]
 type Adjust = Literal["raw", "split", "all"]
+type AssetClass = Literal["stock", "etf"]
+type StockIndex = Literal["sp500"]
 type LogLevel = Literal["debug", "info", "warn", "error"]
 type EndReason = Literal["completed", "paused", "stopped", "risk_limit", "failed", "disconnected"]
+type MacroSeries = Literal["treasury_3m", "tb3ms", "gs10", "aaa", "baa", "cpiaucns"]
 type Metric = Literal[
     "revenue",
     "cost_of_revenue",
@@ -193,7 +196,7 @@ class InstrumentProfile(msgspec.Struct, frozen=True):
     symbol: str
     name: str
     exchange: str
-    asset_class: Literal["stock", "etf"]
+    asset_class: AssetClass
     sic: int | None
     sic_description: str | None
 
@@ -216,12 +219,40 @@ class EarningsResult(msgspec.Struct, frozen=True, tag_field="kind", tag="earning
     releases: list[EarningsReleaseFrame]
 
 
-type QueryResult = HistoryResult | FundamentalsResult | InstrumentsResult | EarningsResult
+class CalendarResult(msgspec.Struct, frozen=True, tag_field="kind", tag="calendar"):
+    sessions: list[SessionFrame]
+
+
+class UniverseResult(msgspec.Struct, frozen=True, tag_field="kind", tag="universe"):
+    symbols: list[str]
+
+
+class MacroFact(msgspec.Struct, frozen=True):
+    series: MacroSeries
+    date: date
+    value: Decimal
+    published: date
+    available_at: int
+
+
+class MacroResult(msgspec.Struct, frozen=True, tag_field="kind", tag="macro"):
+    points: list[MacroFact]
+
+
+type Result = (
+    HistoryResult
+    | FundamentalsResult
+    | CalendarResult
+    | UniverseResult
+    | MacroResult
+    | InstrumentsResult
+    | EarningsResult
+)
 
 
 class Data(msgspec.Struct, frozen=True, tag_field="type", tag="data"):
     id: int
-    result: QueryResult
+    result: Result
 
 
 class Error(msgspec.Struct, frozen=True, tag_field="type", tag="error"):
@@ -260,12 +291,36 @@ class EarningsRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="earnin
     symbols: list[str]
 
 
-type QueryRequest = HistoryRequest | FundamentalsRequest | InstrumentsRequest | EarningsRequest
+class CalendarRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="calendar"):
+    start: date = msgspec.field(name="from")
+    end: date = msgspec.field(name="to")
+
+
+class UniverseRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="universe"):
+    date: date
+    universe: dict[str, str | int]
+
+
+class MacroRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="macro"):
+    series: list[MacroSeries]
+    start: date = msgspec.field(name="from")
+    end: date = msgspec.field(name="to")
+
+
+type Request = (
+    HistoryRequest
+    | FundamentalsRequest
+    | CalendarRequest
+    | UniverseRequest
+    | MacroRequest
+    | InstrumentsRequest
+    | EarningsRequest
+)
 
 
 class Query(msgspec.Struct, frozen=True, tag_field="type", tag="query"):
     id: int
-    request: QueryRequest
+    request: Request
 
 
 class QtySize(msgspec.Struct, frozen=True, tag_field="by", tag="qty"):

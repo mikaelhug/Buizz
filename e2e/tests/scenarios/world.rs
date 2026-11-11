@@ -3,11 +3,12 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use buizz_core::market::{
-    AssetClass, Bar, CorporateAction, Feed, FundamentalFact, Instrument, RiskFreeRate, Session,
-    Symbol, Timeframe,
+    AssetClass, Bar, CorporateAction, Feed, FundamentalFact, Instrument, MacroObservation,
+    MacroSeries, RiskFreeRate, Session, Symbol, Timeframe,
 };
 use buizz_core::time::Timestamp;
 use buizz_market::MarketStore;
+use buizz_sources::fred::{WireObservation, normalize};
 use buizz_sources::treasury::parse_par_yield_csv;
 use buizz_sources::wikipedia::{SP500_CHANGES, SP500_CONSTITUENTS};
 use chrono::{Datelike, NaiveDate, NaiveTime, TimeDelta, Weekday};
@@ -85,6 +86,7 @@ pub struct World {
     pub actions: Vec<CorporateAction>,
     pub companies: Vec<Company>,
     pub rates: Vec<RiskFreeRate>,
+    pub macro_vintages: Vec<MacroObservation>,
     pub tiingo: Vec<Bar>,
     pub wikipedia: BTreeMap<String, String>,
     pub borrow: Option<Vec<u8>>,
@@ -133,6 +135,7 @@ impl World {
                 .await
                 .expect("corporate actions"),
             rates: store.risk_free_rates(from, to).await.expect("rates"),
+            macro_vintages: macro_vintages(&store).await,
             companies: companies(&facts),
             instruments,
             ..Self::default()
@@ -290,6 +293,14 @@ impl World {
             borrow: Some(read("ibkr/usa.txt").into_bytes()),
             rates: parse_par_yield_csv(&read("treasury/par_yield_2025.csv"))
                 .expect("recorded yields"),
+            macro_vintages: {
+                let recorded: Value = serde_json::from_str(&read("fred/cpiaucns_vintages.json"))
+                    .expect("recorded vintages");
+                let observations: Vec<WireObservation> =
+                    serde_json::from_value(recorded["observations"].clone())
+                        .expect("FRED observations");
+                normalize(MacroSeries::Cpiaucns, observations).expect("vintages normalize")
+            },
             ..Self::default()
         }
     }
@@ -320,6 +331,19 @@ impl World {
             .collect();
         self.minute.extend(mirrored);
     }
+}
+
+async fn macro_vintages(store: &MarketStore) -> Vec<MacroObservation> {
+    let mut vintages = Vec::new();
+    for series in MacroSeries::FRED {
+        vintages.extend(
+            store
+                .macro_observations(series)
+                .await
+                .expect("macro vintages"),
+        );
+    }
+    vintages
 }
 
 fn instrument(symbol: &str, etf: bool, active: bool) -> Instrument {

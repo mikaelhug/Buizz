@@ -12,13 +12,21 @@ bots/red_green/
 
 The spine rescans `bots/` on every request, so a new or edited bot shows up without a restart. A folder is a bot when it holds a `bot.toml`; folders starting with `.` are ignored. Each run records a content hash of the folder and never continues under different code: when a backtest is (re)started after a restart, or a live run is started or resumed, with edited bot code, the backtest fails and the live run pauses with the reason. Stop it and start a new run.
 
+## Python environment and shared code
+
+Bots run in one shared uv project, `bots/pyproject.toml` (package `buizz-bots`), selected by `--project ..` in each `command`. It depends on the SDK and on `hmmlearn`, `lightgbm`, `scikit-learn` and `scipy`, all pinned in `bots/uv.lock`; the SDK project itself stays lean (`msgspec`, `numpy`, `websockets`). To add a dependency, put it in `bots/pyproject.toml` and run `cd bots && uv lock`; `just setup` installs the environment with `uv sync --frozen`. The Docker image builds the same locked environment at image build time (non-editable, bytecode compiled, `libgomp1` for LightGBM), so a bot starts offline from a read-only filesystem. On macOS LightGBM needs OpenMP: `brew install libomp`.
+
+Code that more than one bot needs lives in the package `bots/buizz_bots/` and is imported as `from buizz_bots.<module> import ...`, for example a bot reusing the signal functions of another. Move the functions into a module there, import them from both bots, and do not copy them. The folder has no `bot.toml`, so it is not a bot. It is installed into the bots environment: editable locally, copied into the image. Shared modules follow the same lint and strict type checks as bots (`just lint`) and must not import a bot's `bot.py`.
+
+The content hash of a run covers the bot folder plus the shared package `bots/buizz_bots/`, `bots/pyproject.toml` and `bots/uv.lock`, so editing shared code or dependencies changes the hash of every bot, and a live or resumed run whose code changed is stopped instead of continuing under the old hash.
+
 ## Walkthrough: `red_green`
 
 `bots/red_green/bot.toml`:
 
 ```toml
 description = "Buys after a red day, exits after a green day."
-command = ["uv", "run", "--frozen", "--project", "../../sdk/python", "python", "bot.py"]
+command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
 timeframe = "1d"
 wake = "bar"
 universe = { symbols = ["AAA", "BBB"] }
@@ -100,6 +108,9 @@ Outside `on_step` only `params`, `universe`, `state`, `portfolio` and `position`
 | `ctx.fundamentals(symbols, metrics)` | Every fundamental fact visible at the clock for the given metrics (`Metric` names, below) |
 | `ctx.instruments(symbols)` | `dict[symbol, InstrumentProfile]` (`name`, `exchange`, `asset_class`, `sic`, `sic_description`) for the known symbols. Current values, see below |
 | `ctx.earnings(symbols)` | `list[EarningsRelease]` (`symbol`, `cik`, `accession`, `form`, `filed`, `report_date`, `accepted_at`): every earnings release accepted by EDGAR at or before the clock |
+| `ctx.universe_at(on, top_dollar_volume, *, asset_class=None, index=None)` | The symbols a `top_dollar_volume` universe of that size (optionally of one `asset_class`), or the `index` universe, held on the date `on`, see below |
+| `ctx.macro(series, start, end)` | The rate and macro observations dated `start` to `end` as known at the clock (`MacroPoint`: `series`, `date`, `value`, `published`, `available_at`), see below |
+| `ctx.calendar(start, end)` | The exchange sessions (`Session(date, open, close)`) dated `start` to `end`, as the calendar was published at the clock, see below |
 | `ctx.state` | A dict that survives restarts, see below |
 
 `tf`, `bars` and `adjust` are checked before the query is sent: a wrong value raises `ValueError` or `TypeError` in the step. `adjust` is `raw`, `split` or `all` (splits and dividends). Adjustment only uses corporate actions whose ex-date session has opened by the clock, so history never reflects a split that has not happened yet. Fills always use raw prices.
@@ -111,6 +122,47 @@ Each metric is one reported XBRL concept or a list of concepts with the same mea
 `ctx.instruments` answers with today's values, not the values as of the clock. `exchange` is Alpaca's current listing exchange (`NYSE`, `NASDAQ`, `ARCA`, `AMEX`, `BATS`); `sic` is the four-digit Standard Industrial Classification code from the company's EDGAR submissions, `None` for funds and for tickers without a CIK. Neither source keeps a history: EDGAR shows only a company's current SIC code and Alpaca only the current exchange, so a company that moved from NASDAQ to NYSE, or changed industry, carries its current value back in time. Both change rarely; a bot sorting on them should say so in its results.
 
 An earnings release is an 8-K (or 8-K/A) whose items include 2.02, *Results of Operations and Financial Condition*, the filing companies make when they publish quarterly results. It is visible from its EDGAR acceptance time, to the second, which is when it became public on EDGAR; a release accepted after the close is therefore visible on the next step. `report_date` is the event date the filer gave, usually the day of the announcement. Funds and tickers without a CIK have none.
+
+**Calendar.** The exchange publishes its holidays and early closes years ahead, so `ctx.calendar` answers future sessions too, up to 366 days after the clock's date; a later `end` raises `SpineError` with code `bad_query`. A closure decided at short notice (the national days of mourning on 2018-12-05 and 2025-01-09, the first Juneteenth closure on 2022-06-20) stays the regular session it was scheduled as until the open of the first session after its announcement, so a backtest never knows about it earlier than the market did. A daily bot finds the last session of the month or week from the next session:
+
+```python
+from datetime import timedelta
+
+today = ctx.session.date
+following = ctx.calendar(today, today + timedelta(days=10))[1].date
+month_end = following.month != today.month
+week_end = following.isocalendar().week != today.isocalendar().week
+```
+
+**Past universes.** `ctx.universe_at(on, n)` applies the `top_dollar_volume = n` rule as of the date `on`: the `n` symbols with the highest dollar volume over the 20 sessions before it, without those delisted before it, highest first. `asset_class="stock"` ranks stocks only, and `ctx.universe_at(on, index="sp500")` gives the S&P 500 members on `on` instead; both resolve exactly as a run's `universe` of the same form does on that date. It answers once the last session before `on` has closed, so any date up to the next session works and a later one raises `SpineError` with code `bad_query`. A model that trains on years of cross-sections asks for each formation date in its first step:
+
+```python
+from datetime import date
+
+months = [date(year, month, 1) for year in range(2017, 2024) for month in range(1, 13)]
+training = {month: ctx.universe_at(month, 1000) for month in months}
+```
+
+**Rates and macro series.** `ctx.macro(series, start, end)` returns the observations of `MacroSeries` dated `start` to `end`, each as the latest vintage published before the current session, so revisions arrive when they were published and never earlier. `available_at` is the open of the first session after `published`. Values are `Decimal` percent, except the CPI index.
+
+| Series | Meaning | Frequency |
+|---|---|---|
+| `treasury_3m` | US Treasury 3-month par yield, the rate the metrics use; published the evening of its date | daily |
+| `tb3ms` | 3-month T-bill, secondary market (FRED `TB3MS`), Welch–Goyal `tbl` | monthly average, dated the 1st |
+| `gs10` | 10-year Treasury, constant maturity (FRED `GS10`) | monthly average |
+| `aaa`, `baa` | Moody's seasoned Aaa and Baa corporate bond yields (FRED `AAA`, `BAA`), Graham's AAA rule and Welch–Goyal `dfy = baa − aaa` | monthly average |
+| `cpiaucns` | CPI-U, all items, not seasonally adjusted, 1982–84 = 100 (FRED `CPIAUCNS`) | monthly |
+
+The FRED series need `FRED_API_KEY` on the spine; without it they are empty. Graham's CPI-scaled size floor:
+
+```python
+from datetime import date
+
+year = ctx.session.date.year - 1
+cpi = ctx.macro(["cpiaucns"], date(year, 1, 1), date(year, 12, 1))
+if len(cpi) == 12:
+    floor = 100_000_000 * float(sum(point.value for point in cpi) / 12) / 41.8
+```
 
 `to_ns(moment)` turns a timezone-aware `datetime` into the nanoseconds of `History.start`, for example `history.start >= to_ns(ctx.session.open)`.
 

@@ -3,19 +3,23 @@ use std::collections::{BTreeMap, BTreeSet};
 use buizz_core::market::{
     Adjustment, AdjustmentFactor, AssetClass, Bar, Calendar, Company, CorporateAction,
     CorporateActionKind, Coverage, DataSource, Dataset, EarningsRelease, Feed, FundamentalMetric,
-    FundamentalPoint, IndexHistory, IndexMember, Instrument, InstrumentProfile, RiskFreeRate,
-    SIP_DELAY, Session, StockIndex, Symbol, Timeframe,
+    FundamentalPoint, IndexHistory, IndexMember, Instrument, InstrumentProfile, MacroObservation,
+    MacroPoint, MacroSeries, RiskFreeRate, SIP_DELAY, Session, StockIndex, Symbol, Timeframe,
 };
 use buizz_core::ops::{CoverageGap, DataWarning, UNEXPLAINED_MOVE_THRESHOLD};
 use buizz_core::protocol::BarRow;
 use buizz_core::time::Timestamp;
-use buizz_core::visibility::{bar_visible_at, corporate_action_visible_at};
+use buizz_core::visibility::{
+    bar_visible_at, corporate_action_visible_at, published_before, published_visible_at,
+};
 use chrono::NaiveDate;
 use duckdb::{Connection, ToSql, params, params_from_iter};
 use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
 
-use crate::codec::{Dec, Params, Sym, Ts, Wire, action_kind, placeholders, symbol_params};
+use crate::codec::{
+    Dec, Params, Sym, Ts, Wire, action_kind, placeholders, symbol_params, wire_name,
+};
 use crate::{HistoryRequest, Result};
 
 const MINUTES_PER_SESSION: usize = 390;
@@ -714,6 +718,76 @@ pub(crate) fn risk_free_rates(
         })?
         .collect::<duckdb::Result<Vec<_>>>()?;
     Ok(rates)
+}
+
+pub(crate) fn macro_observations(
+    connection: &Connection,
+    series: MacroSeries,
+) -> Result<Vec<MacroObservation>> {
+    let mut statement = connection.prepare_cached(
+        "SELECT date, published, value FROM macro_observation WHERE series = ? \
+         ORDER BY date, published",
+    )?;
+    let observations = statement
+        .query_map(params![wire_name(&series)], |row| {
+            Ok(MacroObservation {
+                series,
+                date: row.get(0)?,
+                published: row.get(1)?,
+                value: row.get::<_, Option<Dec>>(2)?.map(|value| value.0),
+            })
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    Ok(observations)
+}
+
+pub(crate) fn macro_points(
+    connection: &Connection,
+    calendar: &Calendar,
+    series: &[MacroSeries],
+    from: NaiveDate,
+    to: NaiveDate,
+    as_of: Timestamp,
+) -> Result<Vec<MacroPoint>> {
+    let Some(cutoff) = published_before(as_of, calendar) else {
+        return Ok(Vec::new());
+    };
+    let mut known: Vec<(MacroSeries, NaiveDate, NaiveDate, Decimal)> = Vec::new();
+    let wanted: BTreeSet<MacroSeries> = series.iter().copied().collect();
+    if wanted.contains(&MacroSeries::Treasury3m) {
+        known.extend(
+            risk_free_rates(connection, from, to)?
+                .into_iter()
+                .filter(|rate| rate.date < cutoff)
+                .map(|rate| (MacroSeries::Treasury3m, rate.date, rate.date, rate.percent)),
+        );
+    }
+    let mut statement = connection.prepare_cached(
+        "SELECT date, published, value FROM (SELECT date, published, value, \
+         row_number() OVER (PARTITION BY date ORDER BY published DESC) AS vintage \
+         FROM macro_observation WHERE series = ? AND date BETWEEN ? AND ? AND published < ?) \
+         WHERE vintage = 1 AND value IS NOT NULL ORDER BY date",
+    )?;
+    for id in wanted.iter().filter(|id| id.fred_id().is_some()) {
+        let rows = statement
+            .query_map(params![wire_name(id), from, to, cutoff], |row| {
+                Ok((*id, row.get(0)?, row.get(1)?, row.get::<_, Dec>(2)?.0))
+            })?
+            .collect::<duckdb::Result<Vec<_>>>()?;
+        known.extend(rows);
+    }
+    Ok(known
+        .into_iter()
+        .filter_map(|(series, date, published, value)| {
+            Some(MacroPoint {
+                series,
+                date,
+                value,
+                published,
+                available_at: published_visible_at(published, calendar)?,
+            })
+        })
+        .collect())
 }
 
 pub(crate) fn coverage(connection: &Connection) -> Result<Vec<Coverage>> {
