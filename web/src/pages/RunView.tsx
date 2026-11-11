@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, must, type Schemas } from "../api/client";
 import { useSpineEvents } from "../api/stream";
 import { ABSENT, fmt, label, tone } from "../lib/format";
@@ -97,6 +97,7 @@ export function RunView({ runId }: { runId: number }) {
         <Events events={events} />
       </div>
       <Orders orders={orders} />
+      <ProcessLog key={runId} runId={runId} failed={run.data.status === "failed"} />
     </>
   );
 }
@@ -379,5 +380,48 @@ function Events({ events }: { events: Paged<Schemas["RunEvent"]> }) {
       )}
       <LoadMore onClick={events.loadMore} />
     </section>
+  );
+}
+
+function ProcessLog({ runId, failed }: { runId: number; failed: boolean }) {
+  const [open, setOpen] = useState(failed);
+  return (
+    <details className="panel process-log" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
+      <summary>
+        <h2>Bot output</h2>
+      </summary>
+      {open && <LogTail runId={runId} />}
+    </details>
+  );
+}
+
+function LogTail({ runId }: { runId: number }) {
+  const log = useResource(() => must(api.GET("/api/runs/{id}/logs", { params: { path: { id: runId } }, parseAs: "text" })), [runId]);
+  const text = useRef<HTMLPreElement>(null);
+
+  useSpineEvents((event) => {
+    if (event.type === "run_status" && event.run_id === runId) {
+      log.reload();
+    }
+  });
+
+  useEffect(() => {
+    text.current?.scrollTo({ top: text.current.scrollHeight });
+  }, [log.data]);
+
+  if (log.data === undefined) {
+    return log.error ? <Failure message={log.error} onRetry={log.reload} /> : <Loading />;
+  }
+  return (
+    <>
+      <StaleFailure resource={log} />
+      {log.data === "" ? (
+        <p className="empty">No output</p>
+      ) : (
+        <pre ref={text} className="process-log-text">
+          {log.data}
+        </pre>
+      )}
+    </>
   );
 }

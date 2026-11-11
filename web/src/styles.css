@@ -896,6 +896,28 @@ h2 {
   font-size: 12px;
 }
 
+.process-log > summary {
+  cursor: pointer;
+}
+
+.process-log > summary > h2 {
+  display: inline;
+}
+
+.process-log[open] > summary {
+  margin-bottom: 8px;
+}
+
+.process-log-text {
+  max-height: 360px;
+  margin: 0;
+  overflow: auto;
+  font-family: var(--mono);
+  font-size: 11px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .event {
   display: grid;
   grid-template-columns: auto auto minmax(0, 1fr);
