@@ -1,6 +1,6 @@
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 
-use axum::extract::{ConnectInfo, Request};
+use axum::extract::{ConnectInfo, Request, State};
 use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, header};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
@@ -42,12 +42,19 @@ pub(crate) async fn reject_cross_site(request: Request, next: Next) -> Response 
     }
 }
 
-pub(crate) async fn loopback_only(request: Request, next: Next) -> Response {
-    let loopback = request
+pub(crate) async fn spine_host_only(
+    State(spine_ip): State<IpAddr>,
+    request: Request,
+    next: Next,
+) -> Response {
+    let from_spine_host = request
         .extensions()
         .get::<ConnectInfo<SocketAddr>>()
-        .is_some_and(|ConnectInfo(peer)| peer.ip().to_canonical().is_loopback());
-    if loopback {
+        .is_some_and(|ConnectInfo(peer)| {
+            let peer = peer.ip().to_canonical();
+            peer.is_loopback() || peer == spine_ip.to_canonical()
+        });
+    if from_spine_host {
         next.run(request).await
     } else {
         Failure::new(

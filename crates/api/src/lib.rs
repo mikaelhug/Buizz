@@ -9,6 +9,7 @@ mod routes;
 mod runs;
 mod time;
 
+use std::net::IpAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -31,13 +32,14 @@ use utoipa_axum::router::OpenApiRouter;
 
 use crate::auth::{Auth, require_session};
 use crate::error::Failure;
-use crate::guard::{loopback_only, reject_cross_site, security_headers};
+use crate::guard::{reject_cross_site, security_headers, spine_host_only};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ApiConfig {
     pub admin_password: String,
     pub web_dir: Option<PathBuf>,
     pub secure_cookies: bool,
+    pub spine_ip: IpAddr,
 }
 
 #[derive(Clone)]
@@ -88,7 +90,8 @@ pub fn router(app: AppState) -> Router {
         .merge(public)
         .route(
             BOT_PATH,
-            get(bot_socket).route_layer(from_fn(loopback_only)),
+            get(bot_socket)
+                .route_layer(from_fn_with_state(api.app.config.spine_ip, spine_host_only)),
         )
         .route("/api", any(unknown_api_route))
         .route("/api/{*rest}", any(unknown_api_route))

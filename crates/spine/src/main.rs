@@ -117,6 +117,7 @@ async fn main() -> Result<()> {
             admin_password: config.admin_password.clone(),
             web_dir: config.web_dir.clone(),
             secure_cookies: config.secure_cookies,
+            spine_ip: bound.ip(),
         }),
         runner: runner.clone(),
         market,
