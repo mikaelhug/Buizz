@@ -1,0 +1,11 @@
+{
+  "corporate_actions": {
+    "reverse_splits": [
+      {"id": "913de862-c02c-46dc-a89c-fc8779a50d30", "symbol": "MNTS", "old_cusip": "60879E101", "new_cusip": "60879E200", "old_rate": 50, "new_rate": 1, "ex_date": "2024-06-24", "record_date": "2024-06-24", "process_date": "2024-06-24"}
+    ],
+    "cash_dividends": [
+      {"id": "5a3d6c0e-0f64-4d3e-8a36-0c2c7c8d1a11", "symbol": "SPY", "cusip": "78462F103", "rate": 1.5395, "special": false, "foreign": false, "ex_date": "2024-06-21", "record_date": "2024-06-21", "payable_date": "2024-07-31", "process_date": "2024-07-31"}
+    ]
+  },
+  "next_page_token": null
+}
