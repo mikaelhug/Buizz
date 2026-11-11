@@ -326,7 +326,7 @@ async fn corporate_actions(
     let matching: Vec<_> = world
         .actions
         .iter()
-        .filter(|action| wanted.contains(&action.symbol))
+        .filter(|action| wanted.is_empty() || wanted.contains(&action.symbol))
         .filter(|action| (start..=end).contains(&action.ex_date))
         .collect();
     let offset = page_offset(&params);

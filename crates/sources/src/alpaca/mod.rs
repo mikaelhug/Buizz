@@ -198,25 +198,49 @@ impl AlpacaClient {
         from: NaiveDate,
         to: NaiveDate,
     ) -> Result<Vec<CorporateAction>, SourceError> {
-        let url = format!("{}/v1/corporate-actions", self.config.data_url);
         let mut actions = Vec::new();
         for chunk in symbols.chunks(ACTIONS_SYMBOLS_PER_REQUEST) {
-            let query = [
-                ("symbols", join_symbols(chunk)),
-                (
-                    "types",
-                    "forward_split,reverse_split,cash_dividend".to_owned(),
-                ),
-                ("start", from.to_string()),
-                ("end", to.to_string()),
-                ("limit", ACTIONS_PAGE_LIMIT.to_string()),
-                ("sort", "asc".to_owned()),
-            ];
-            for page in self.pages::<ActionsPage>(&url, &query).await? {
-                actions.extend(page.into_actions());
-            }
+            actions.extend(self.actions(Some(join_symbols(chunk)), from, to).await?);
         }
         Ok(sum_dividends_per_ex_date(actions))
+    }
+
+    pub async fn market_corporate_actions(
+        &self,
+        from: NaiveDate,
+        to: NaiveDate,
+    ) -> Result<Vec<CorporateAction>, SourceError> {
+        Ok(sum_dividends_per_ex_date(
+            self.actions(None, from, to).await?,
+        ))
+    }
+
+    async fn actions(
+        &self,
+        symbols: Option<String>,
+        from: NaiveDate,
+        to: NaiveDate,
+    ) -> Result<Vec<CorporateAction>, SourceError> {
+        let url = format!("{}/v1/corporate-actions", self.config.data_url);
+        let mut query = vec![
+            (
+                "types",
+                "forward_split,reverse_split,cash_dividend".to_owned(),
+            ),
+            ("start", from.to_string()),
+            ("end", to.to_string()),
+            ("limit", ACTIONS_PAGE_LIMIT.to_string()),
+            ("sort", "asc".to_owned()),
+        ];
+        if let Some(symbols) = symbols {
+            query.push(("symbols", symbols));
+        }
+        Ok(self
+            .pages::<ActionsPage>(&url, &query)
+            .await?
+            .into_iter()
+            .flat_map(ActionsPage::into_actions)
+            .collect())
     }
 
     async fn get<T: DeserializeOwned>(

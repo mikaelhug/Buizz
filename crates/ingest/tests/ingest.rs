@@ -498,13 +498,16 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
         .unwrap()
         .iter()
         .filter(|params| !params.contains_key("page_token"))
-        .map(|params| (params["symbols"].clone(), params["start"].clone()))
+        .map(|params| {
+            let symbols = params.get("symbols").cloned().unwrap_or_default();
+            (symbols, params["start"].clone())
+        })
         .collect();
     assert_eq!(
         action_starts,
         vec![
+            (String::new(), "2024-03-10".to_owned()),
             ("MSFT".to_owned(), "2015-12-02".to_owned()),
-            ("SPY,AAPL,SIVB".to_owned(), "2024-03-10".to_owned()),
         ]
     );
 }

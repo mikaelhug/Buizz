@@ -7,12 +7,10 @@ use buizz_core::market::{
 };
 use buizz_core::time::Timestamp;
 use chrono::NaiveDate;
-use duckdb::{Appender, Connection, Transaction, params, params_from_iter};
+use duckdb::{Appender, Connection, Transaction, params};
 use rust_decimal::Decimal;
 
-use crate::codec::{
-    Dec, Params, Ts, action_columns, feed_name, placeholders, symbol_params, wire_name,
-};
+use crate::codec::{Dec, Ts, action_columns, feed_name, wire_name};
 use crate::{ActionWindow, Result, WriteSummary};
 
 const STAGED: [&str; 9] = [
@@ -33,8 +31,10 @@ pub(crate) fn prepare(connection: &Connection) -> Result<()> {
             "CREATE TEMP TABLE stage_{table} AS SELECT * FROM main.{table} LIMIT 0"
         ))?;
     }
-    connection
-        .execute_batch("CREATE TEMP TABLE bar_span (symbol VARCHAR, lo TIMESTAMP, hi TIMESTAMP)")?;
+    connection.execute_batch(
+        "CREATE TEMP TABLE bar_span (symbol VARCHAR, lo TIMESTAMP, hi TIMESTAMP); \
+         CREATE TEMP TABLE action_scope (symbol VARCHAR)",
+    )?;
     Ok(())
 }
 
@@ -409,32 +409,26 @@ pub(crate) fn corporate_actions(
                     ])
                 },
             )?;
-            if !covered.is_empty() {
-                let withdrawn = format!(
-                    "FROM main.corporate_action c WHERE c.source = ? AND c.ex_date BETWEEN ? AND ? \
-                     AND c.symbol IN ({}) AND NOT EXISTS (SELECT 1 FROM stage_corporate_action s \
-                     WHERE s.symbol = c.symbol AND s.ex_date = c.ex_date AND s.kind = c.kind)",
-                    placeholders(covered.len())
-                );
-                let window = || {
-                    let mut params: Params =
-                        vec![Box::new(source_name.clone()), Box::new(from), Box::new(to)];
-                    params.extend(symbol_params(covered));
-                    params
-                };
-                let mut archive: Params = vec![Box::new(batch_id)];
-                archive.extend(window());
-                transaction.execute(
-                    &format!(
-                        "INSERT INTO main.corporate_action_revision SELECT c.*, ? {withdrawn}"
-                    ),
-                    params_from_iter(archive.iter()),
-                )?;
-                transaction.execute(
-                    &format!("DELETE {withdrawn}"),
-                    params_from_iter(window().iter()),
-                )?;
+            transaction.execute("DELETE FROM action_scope", [])?;
+            let mut appender =
+                transaction.appender_to_catalog_and_db("action_scope", "temp", "main")?;
+            for symbol in covered {
+                appender.append_row(params![symbol.as_str()])?;
             }
+            appender.flush()?;
+            drop(appender);
+            let withdrawn = "FROM main.corporate_action c WHERE c.source = ? \
+                 AND c.ex_date BETWEEN ? AND ? AND c.symbol IN (SELECT symbol FROM action_scope) \
+                 AND NOT EXISTS (SELECT 1 FROM stage_corporate_action s \
+                 WHERE s.symbol = c.symbol AND s.ex_date = c.ex_date AND s.kind = c.kind)";
+            transaction.execute(
+                &format!("INSERT INTO main.corporate_action_revision SELECT c.*, ? {withdrawn}"),
+                params![batch_id, source_name, from, to],
+            )?;
+            transaction.execute(
+                &format!("DELETE {withdrawn}"),
+                params![source_name, from, to],
+            )?;
             replace_staged(transaction, "corporate_action", batch_id)
         },
     )
