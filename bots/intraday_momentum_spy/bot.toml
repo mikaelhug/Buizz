@@ -4,7 +4,3 @@ timeframe = "1m"
 wake = "at:15:30"
 universe = { symbols = ["SPY"] }
 params = { use_r12 = false, size = 1.0 }
-
-[risk]
-max_position_weight = 1.0
-max_gross_exposure = 1.0
