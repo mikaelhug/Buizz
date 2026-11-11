@@ -255,7 +255,7 @@ impl Runner {
             holdout,
             request,
         )?;
-        let symbols = self.gate_symbols(&config).await?;
+        let symbols = gate_symbols(&self.inner.market, &config).await?;
         let market = &self.inner.market;
         let gaps = market
             .coverage_gaps(symbols.clone(), Timeframe::Day, period.from, period.to)
@@ -455,28 +455,8 @@ impl Runner {
         })
     }
 
-    async fn universe_at(&self, config: &RunConfig) -> Result<Vec<Symbol>, RunnerError> {
-        Ok(match &config.universe {
-            UniverseSpec::Symbols { symbols } => symbols.clone(),
-            UniverseSpec::TopDollarVolume { top_dollar_volume } => {
-                self.inner
-                    .market
-                    .top_dollar_volume(*top_dollar_volume, config.start, config.cost.adv_sessions)
-                    .await?
-            }
-        })
-    }
-
-    async fn gate_symbols(&self, config: &RunConfig) -> Result<Vec<Symbol>, RunnerError> {
-        let mut symbols = self.universe_at(config).await?;
-        symbols.push(config.benchmark.clone());
-        symbols.sort();
-        symbols.dedup();
-        Ok(symbols)
-    }
-
     async fn lease(&self, run: &RunSummary) -> Result<FeedLease, RunnerError> {
-        let symbols = self.universe_at(&run.config).await?;
+        let symbols = universe_at(&self.inner.market, &run.config).await?;
         Ok(self.inner.feed.acquire(run.id, &run.bot, symbols).await?)
     }
 
@@ -594,6 +574,28 @@ impl Runner {
             },
         );
     }
+}
+
+async fn universe_at(market: &MarketStore, config: &RunConfig) -> Result<Vec<Symbol>, MarketError> {
+    match &config.universe {
+        UniverseSpec::Symbols { symbols } => Ok(symbols.clone()),
+        UniverseSpec::TopDollarVolume { top_dollar_volume } => {
+            market
+                .top_dollar_volume(*top_dollar_volume, config.start, config.cost.adv_sessions)
+                .await
+        }
+    }
+}
+
+pub(crate) async fn gate_symbols(
+    market: &MarketStore,
+    config: &RunConfig,
+) -> Result<Vec<Symbol>, MarketError> {
+    let mut symbols = universe_at(market, config).await?;
+    symbols.push(config.benchmark.clone());
+    symbols.sort();
+    symbols.dedup();
+    Ok(symbols)
 }
 
 pub(crate) fn now() -> Timestamp {

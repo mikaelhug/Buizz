@@ -1,14 +1,15 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 use std::time::Duration;
 
 use axum::extract::ws::WebSocket;
 use buizz_core::api::{RunSummary, SpineEvent};
 use buizz_core::ledger::LedgerEntry;
-use buizz_core::market::{Session, Symbol, Timeframe, Watermarks};
+use buizz_core::market::{Bar, Session, Symbol, Timeframe, Watermarks};
 use buizz_core::order::{Order, OrderRequest, OrderSize, OrderUpdate, RejectReason};
 use buizz_core::protocol::{
-    Ack, BarBuffer, BarRow, EndReason, ErrorCode, Holdings, MAX_STATE_BYTES, Ready, Step, StepEvent,
+    Ack, BarBuffer, BarBufferError, EndReason, ErrorCode, Holdings, MAX_STATE_BYTES, Ready, Step,
+    StepEvent,
 };
 use buizz_core::run::{
     DesiredState, EquityPoint, LogLevel, Mode, RiskLimit, RunEvent, RunEventKind, RunId, RunStatus,
@@ -23,13 +24,14 @@ use buizz_state::{RunOutcome, StateError, StepCommit};
 use buizz_supervisor::{
     BotProcess, BotSpec, LiveProcess, OutputStream, ProcessEvent, SupervisorError,
 };
+use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
 use tokio::sync::{mpsc, watch};
 
 use crate::commit::Committer;
 use crate::link::{ACK_TIMEOUT, BotLink, LinkError};
 use crate::timeline::{Point, Timeline};
-use crate::{Inner, now, report};
+use crate::{Inner, gate_symbols, now, report};
 
 const EXIT_GRACE: Duration = Duration::from_secs(5);
 const IDLE_RECHECK: Duration = Duration::from_secs(60);
@@ -123,7 +125,8 @@ struct Pending {
 
 #[derive(Default)]
 struct Frame {
-    bars: Vec<BarRow>,
+    bars: BarBuffer,
+    columns: HashMap<Symbol, u16>,
     events: Vec<StepEvent>,
     due: bool,
     holdings: Option<Holdings>,
@@ -131,8 +134,36 @@ struct Frame {
 }
 
 impl Frame {
+    fn push(&mut self, bar: &Bar) -> Flow<()> {
+        let buffer = &mut self.bars;
+        let index = match self.columns.get(&bar.symbol) {
+            Some(index) => *index,
+            None => {
+                let index = u16::try_from(buffer.symbols.len())
+                    .map_err(|_| Exit::Failed(BarBufferError::TooManySymbols.to_string()))?;
+                buffer.symbols.push(bar.symbol.clone());
+                self.columns.insert(bar.symbol.clone(), index);
+                index
+            }
+        };
+        let float = |value: Decimal| value.to_f64().unwrap_or(f64::NAN).to_le_bytes();
+        buffer.symbol_index.extend_from_slice(&index.to_le_bytes());
+        buffer
+            .start
+            .extend_from_slice(&bar.start.nanos().to_le_bytes());
+        buffer.open.extend_from_slice(&float(bar.open));
+        buffer.high.extend_from_slice(&float(bar.high));
+        buffer.low.extend_from_slice(&float(bar.low));
+        buffer.close.extend_from_slice(&float(bar.close));
+        buffer
+            .volume
+            .extend_from_slice(&(bar.volume as f64).to_le_bytes());
+        Ok(())
+    }
+
     fn discard(&mut self) {
-        self.bars.clear();
+        self.bars = BarBuffer::default();
+        self.columns.clear();
         self.events.clear();
         self.due = false;
     }
@@ -185,16 +216,7 @@ async fn prepare(
     if run.config.timeframe == Timeframe::Minute {
         let config = &run.config;
         let end = config.end.unwrap_or(config.start);
-        let mut symbols: Vec<Symbol> = match &config.universe {
-            buizz_core::run::UniverseSpec::Symbols { symbols } => symbols.clone(),
-            buizz_core::run::UniverseSpec::TopDollarVolume { top_dollar_volume } => {
-                inner
-                    .market
-                    .top_dollar_volume(*top_dollar_volume, config.start, config.cost.adv_sessions)
-                    .await?
-            }
-        };
-        symbols.push(config.benchmark.clone());
+        let symbols = gate_symbols(&inner.market, config).await?;
         tokio::select! {
             ensured = inner.ingest.ensure_minute_coverage(&symbols, config.start, end) => ensured?,
             exit = interrupted(control) => return Err(exit),
@@ -426,7 +448,7 @@ impl Driver {
                     if self.frame.due {
                         self.publish_equity();
                     }
-                    self.commit().await?;
+                    self.commit(true).await?;
                     if next.is_none() {
                         self.timeline.refresh().await?;
                     }
@@ -512,19 +534,18 @@ impl Driver {
     }
 
     async fn cycle(&mut self, point: &Point) -> Flow<()> {
-        let held = self.held();
         if self.session.map(|session| session.date) != Some(point.session.date) {
             if self.live() {
                 self.timeline.refresh().await?;
             }
+            let held = self.held();
             self.timeline.enter(&point.session, &held).await?;
         }
-        let tracked = self.timeline.tracked(&held);
         let visible_through = self
             .live()
             .then(|| self.watermarks.borrow().get(self.run.config.timeframe))
             .flatten();
-        let bars = self.timeline.bars(point, &tracked, visible_through).await?;
+        let bars = self.timeline.bars(point, visible_through).await?;
         let data = self.timeline.session();
         self.engine.run_cycle(&Cycle {
             session: &point.session,
@@ -538,15 +559,9 @@ impl Driver {
         self.after = point.visible_at;
         self.clock = Some(point.visible_at);
         self.session = Some(point.session);
-        self.frame.bars.extend(bars.iter().map(|bar| BarRow {
-            symbol: bar.symbol.clone(),
-            start: bar.start,
-            open: bar.open.to_f64().unwrap_or(f64::NAN),
-            high: bar.high.to_f64().unwrap_or(f64::NAN),
-            low: bar.low.to_f64().unwrap_or(f64::NAN),
-            close: bar.close.to_f64().unwrap_or(f64::NAN),
-            volume: bar.volume as f64,
-        }));
+        for bar in &bars {
+            self.frame.push(bar)?;
+        }
         if self
             .run
             .config
@@ -558,8 +573,8 @@ impl Driver {
         if let Some(breach) = self.absorb() {
             let message = format!(
                 "drawdown {:.2}% breached the {:.2}% limit; the bot is paused",
-                breach.0 * rust_decimal::Decimal::ONE_HUNDRED,
-                breach.1 * rust_decimal::Decimal::ONE_HUNDRED
+                breach.0 * Decimal::ONE_HUNDRED,
+                breach.1 * Decimal::ONE_HUNDRED
             );
             self.pause(EndReason::RiskLimit, Some(message)).await?;
         }
@@ -576,7 +591,7 @@ impl Driver {
             .collect()
     }
 
-    fn absorb(&mut self) -> Option<(rust_decimal::Decimal, rust_decimal::Decimal)> {
+    fn absorb(&mut self) -> Option<(Decimal, Decimal)> {
         let Outbox {
             ledger,
             orders,
@@ -631,7 +646,7 @@ impl Driver {
         }
         if self.paused {
             self.frame.discard();
-            return self.commit().await;
+            return self.commit(false).await;
         }
         if self.link.is_none() {
             if self.live() {
@@ -747,21 +762,20 @@ impl Driver {
         let holdings = self.engine.holdings();
         let universe = &self.timeline.session().universe;
         let portfolio = self.engine.portfolio();
-        let bars = BarBuffer::from_rows(&self.frame.bars)
-            .map_err(|error| Exit::Failed(error.to_string()))?;
+        let universe_changed = self.frame.universe.as_ref() != Some(universe);
         self.step_seq += 1;
         let step = Step {
             seq: self.step_seq,
             clock,
             session,
-            universe: (self.frame.universe.as_ref() != Some(universe)).then(|| universe.clone()),
-            bars,
+            universe: universe_changed.then(|| universe.clone()),
+            bars: self.frame.bars.clone(),
             events: self.frame.events.clone(),
             cash: portfolio.cash,
             equity: portfolio.equity(),
             holdings: (self.frame.holdings.as_ref() != Some(&holdings)).then(|| holdings.clone()),
         };
-        let sent_universe = universe.clone();
+        let sent_universe = universe_changed.then(|| universe.clone());
         let market = self.inner.market.clone();
         let Some(link) = self.link.as_mut() else {
             return Ok(());
@@ -775,7 +789,9 @@ impl Driver {
             Some(Ok(ack)) => {
                 self.frame.discard();
                 self.frame.holdings = Some(holdings);
-                self.frame.universe = Some(sent_universe);
+                if sent_universe.is_some() {
+                    self.frame.universe = sent_universe;
+                }
                 self.accept(ack).await
             }
             Some(Err(LinkError::Closed)) => {
@@ -851,9 +867,14 @@ impl Driver {
             .or(self.session.as_ref())
             .map(|session| session.date)
             .unwrap_or_else(|| clock.exchange_date());
+        let ordered = !accepted.is_empty();
         self.engine.accept(clock, session, accepted, cancels);
         self.absorb();
-        self.commit().await
+        if ordered {
+            let held = self.held();
+            self.timeline.track(held);
+        }
+        self.commit(false).await
     }
 
     fn screen(&self, order: &OrderRequest) -> Option<RejectReason> {
@@ -882,8 +903,8 @@ impl Driver {
         short.then_some(RejectReason::NotShortable)
     }
 
-    async fn commit(&mut self) -> Flow<()> {
-        if !self.pending.dirty {
+    async fn commit(&mut self, force: bool) -> Flow<()> {
+        if !self.pending.dirty || !(force || self.committer.idle()) {
             return Ok(());
         }
         let Some(clock) = self.clock else {
@@ -1037,7 +1058,7 @@ impl Driver {
             process.stop().await;
         }
         let mut message = message.or_else(|| self.halted.clone());
-        let flushed = match self.commit().await {
+        let flushed = match self.commit(true).await {
             Ok(()) => self
                 .committer
                 .finish()

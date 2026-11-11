@@ -6,6 +6,7 @@ use buizz_core::time::Timestamp;
 use buizz_core::visibility::bar_visible_at;
 use buizz_market::{MarketError, MarketStore};
 use chrono::{NaiveDate, TimeDelta};
+use tokio::task::JoinHandle;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Point {
@@ -22,6 +23,15 @@ pub(crate) struct SessionData {
     pub average_daily_volume: BTreeMap<Symbol, u64>,
     pub delisted: Vec<Symbol>,
 }
+
+struct Fetched {
+    universe: Vec<Symbol>,
+    tracked: BTreeSet<Symbol>,
+    actions: Vec<CorporateAction>,
+    average_daily_volume: BTreeMap<Symbol, u64>,
+}
+
+type Upcoming = (NaiveDate, JoinHandle<Result<Fetched, MarketError>>);
 
 #[derive(Default)]
 struct Loaded {
@@ -41,7 +51,10 @@ pub(crate) struct Timeline {
     calendar: Calendar,
     instruments: BTreeMap<Symbol, Instrument>,
     session: SessionData,
+    upcoming: Option<Upcoming>,
+    tracked: BTreeSet<Symbol>,
     loaded: Loaded,
+    prefetch: Option<JoinHandle<Result<Loaded, MarketError>>>,
 }
 
 impl Timeline {
@@ -56,7 +69,10 @@ impl Timeline {
             calendar: Calendar::default(),
             instruments: BTreeMap::new(),
             session: SessionData::default(),
+            upcoming: None,
+            tracked: BTreeSet::new(),
             loaded: Loaded::default(),
+            prefetch: None,
         };
         timeline.refresh().await?;
         Ok(timeline)
@@ -116,90 +132,109 @@ impl Timeline {
         if self.session.date == Some(session.date) {
             return Ok(());
         }
+        let upcoming = match self.upcoming.take() {
+            Some((date, task)) if date == session.date => Some(task.await??),
+            _ => None,
+        };
+        let fetched = match upcoming.filter(|fetched| held.is_subset(&fetched.tracked)) {
+            Some(fetched) => fetched,
+            None => self.fetch(session.date, held.clone()).await?,
+        };
         let listed = |symbol: &Symbol| {
             self.instruments
                 .get(symbol)
                 .and_then(|instrument| instrument.last_session)
                 .is_none_or(|last| last >= session.date)
         };
-        let universe: Vec<Symbol> = match &self.universe {
-            UniverseSpec::Symbols { symbols } => symbols.clone(),
-            UniverseSpec::TopDollarVolume { top_dollar_volume } => {
-                self.market
-                    .top_dollar_volume(*top_dollar_volume, session.date, self.adv_sessions)
-                    .await?
-            }
-        };
-        let universe: Vec<Symbol> = universe
-            .into_iter()
-            .filter(|symbol| listed(symbol))
-            .collect();
-        let tracked: Vec<Symbol> = universe
-            .iter()
-            .chain(held)
-            .cloned()
-            .collect::<BTreeSet<_>>()
-            .into_iter()
-            .collect();
-        let delisted = tracked
-            .iter()
-            .filter(|symbol| !listed(symbol))
-            .cloned()
-            .collect();
-        let actions_from = self
-            .calendar
-            .previous_before(session.date)
-            .and_then(|previous| previous.date.succ_opt())
-            .unwrap_or(session.date);
-        let actions = self
-            .market
-            .corporate_actions(tracked.clone(), actions_from, session.date)
-            .await?;
-        let average_daily_volume = self
-            .market
-            .average_daily_volume(tracked, session.date, self.adv_sessions)
-            .await?;
         self.session = SessionData {
             date: Some(session.date),
-            universe,
-            actions,
-            average_daily_volume,
-            delisted,
+            universe: fetched
+                .universe
+                .into_iter()
+                .filter(|symbol| listed(symbol))
+                .collect(),
+            actions: fetched.actions,
+            average_daily_volume: fetched.average_daily_volume,
+            delisted: fetched
+                .tracked
+                .iter()
+                .filter(|symbol| !listed(symbol))
+                .cloned()
+                .collect(),
         };
+        self.tracked = fetched.tracked;
+        if let Some(next) = self.calendar.next_after(session.date)
+            && self.end.is_none_or(|end| next.date <= end)
+        {
+            let fetch = self.fetch(next.date, self.tracked.clone());
+            self.upcoming = Some((next.date, tokio::spawn(fetch)));
+        }
         Ok(())
     }
 
-    pub(crate) fn tracked(&self, held: &BTreeSet<Symbol>) -> BTreeSet<Symbol> {
-        self.session.universe.iter().chain(held).cloned().collect()
+    fn fetch(
+        &self,
+        date: NaiveDate,
+        held: BTreeSet<Symbol>,
+    ) -> impl Future<Output = Result<Fetched, MarketError>> + Send + 'static {
+        let market = self.market.clone();
+        let universe = self.universe.clone();
+        let adv_sessions = self.adv_sessions;
+        let actions_from = self
+            .calendar
+            .previous_before(date)
+            .and_then(|previous| previous.date.succ_opt())
+            .unwrap_or(date);
+        async move {
+            let universe = match universe {
+                UniverseSpec::Symbols { symbols } => symbols,
+                UniverseSpec::TopDollarVolume { top_dollar_volume } => {
+                    market
+                        .top_dollar_volume(top_dollar_volume, date, adv_sessions)
+                        .await?
+                }
+            };
+            let tracked: BTreeSet<Symbol> = universe.iter().cloned().chain(held).collect();
+            let symbols: Vec<Symbol> = tracked.iter().cloned().collect();
+            let actions = market
+                .corporate_actions(symbols.clone(), actions_from, date)
+                .await?;
+            let average_daily_volume = market
+                .average_daily_volume(symbols, date, adv_sessions)
+                .await?;
+            Ok(Fetched {
+                universe,
+                tracked,
+                actions,
+                average_daily_volume,
+            })
+        }
+    }
+
+    pub(crate) fn track(&mut self, held: BTreeSet<Symbol>) {
+        self.tracked.extend(held);
     }
 
     pub(crate) async fn bars(
         &mut self,
         point: &Point,
-        tracked: &BTreeSet<Symbol>,
         visible_through: Option<Timestamp>,
     ) -> Result<Vec<Bar>, MarketError> {
-        let loaded = &self.loaded;
-        let covers = loaded.from <= point.start
-            && point.start < loaded.to
-            && tracked.is_subset(&loaded.symbols);
-        if !covers {
-            let to = self.chunk_end(point, visible_through);
-            let bars = self
-                .market
-                .bars_between(
-                    self.timeframe,
-                    tracked.iter().cloned().collect(),
-                    point.start,
-                    to,
-                )
-                .await?;
-            self.loaded = Loaded {
-                symbols: tracked.clone(),
-                from: point.start,
-                to,
-                bars: bars.into(),
+        if !self.covers(&self.loaded, point) {
+            let prefetched = match self.prefetch.take() {
+                Some(task) => Some(task.await??),
+                None => None,
             };
+            self.loaded = match prefetched.filter(|loaded| self.covers(loaded, point)) {
+                Some(loaded) => loaded,
+                None => {
+                    let to = self.chunk_end(&point.session, visible_through);
+                    load(&self.market, self.timeframe, &self.tracked, point.start, to).await?
+                }
+            };
+            if visible_through.is_none() {
+                self.prefetch_after(self.loaded.to);
+            }
         }
         let queue = &mut self.loaded.bars;
         while queue.front().is_some_and(|bar| bar.start < point.start) {
@@ -209,16 +244,39 @@ impl Timeline {
             .iter()
             .take_while(|bar| bar.start == point.start)
             .count();
-        let bars = queue
+        let tracked = &self.tracked;
+        Ok(queue
             .drain(..current)
             .filter(|bar| tracked.contains(&bar.symbol))
-            .collect();
-        Ok(bars)
+            .collect())
     }
 
-    fn chunk_end(&self, point: &Point, visible_through: Option<Timestamp>) -> Timestamp {
+    fn covers(&self, loaded: &Loaded, point: &Point) -> bool {
+        loaded.from <= point.start
+            && point.start < loaded.to
+            && self.tracked.is_subset(&loaded.symbols)
+    }
+
+    fn prefetch_after(&mut self, from: Timestamp) {
         let sessions = self.calendar.sessions();
-        let first = sessions.partition_point(|session| session.date < point.session.date);
+        let Some(next) = sessions.get(sessions.partition_point(|session| session.open < from))
+        else {
+            return;
+        };
+        if self.end.is_some_and(|end| next.date > end) {
+            return;
+        }
+        let to = self.chunk_end(next, None);
+        let (market, timeframe, tracked) =
+            (self.market.clone(), self.timeframe, self.tracked.clone());
+        self.prefetch = Some(tokio::spawn(async move {
+            load(&market, timeframe, &tracked, from, to).await
+        }));
+    }
+
+    fn chunk_end(&self, session: &Session, visible_through: Option<Timestamp>) -> Timestamp {
+        let sessions = self.calendar.sessions();
+        let first = sessions.partition_point(|candidate| candidate.date < session.date);
         let chunk = match self.timeframe {
             Timeframe::Day => 250,
             Timeframe::Minute => 2,
@@ -227,22 +285,40 @@ impl Timeline {
         if let Some(end) = self.end {
             last = last.min(
                 sessions
-                    .partition_point(|session| session.date <= end)
+                    .partition_point(|candidate| candidate.date <= end)
                     .saturating_sub(1),
             );
         }
         let mut to = sessions
             .get(last.max(first))
-            .map_or(point.session.close, |session| session.close);
+            .map_or(session.close, |last| last.close);
         if let Some(through) = visible_through {
             let bound = match self.timeframe {
                 Timeframe::Minute => through - TimeDelta::seconds(60) + TimeDelta::nanoseconds(1),
                 Timeframe::Day => sessions
-                    .get(sessions.partition_point(|session| session.close <= through))
-                    .map_or(Timestamp::MAX, |session| session.open),
+                    .get(sessions.partition_point(|candidate| candidate.close <= through))
+                    .map_or(Timestamp::MAX, |candidate| candidate.open),
             };
             to = to.min(bound);
         }
         to
     }
+}
+
+async fn load(
+    market: &MarketStore,
+    timeframe: Timeframe,
+    tracked: &BTreeSet<Symbol>,
+    from: Timestamp,
+    to: Timestamp,
+) -> Result<Loaded, MarketError> {
+    let bars = market
+        .bars_between(timeframe, tracked.iter().cloned().collect(), from, to)
+        .await?;
+    Ok(Loaded {
+        symbols: tracked.clone(),
+        from,
+        to,
+        bars: bars.into(),
+    })
 }
