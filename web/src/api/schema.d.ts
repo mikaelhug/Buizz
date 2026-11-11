@@ -401,16 +401,27 @@ export interface components {
             per_share: string;
         };
         CostModel: {
+            /** @default 0.005 */
             commission_per_share: string;
+            /** @default 1 */
             commission_min: string;
-            commission_tiers?: components["schemas"]["CommissionTier"][];
+            /** @default [] */
+            commission_tiers: components["schemas"]["CommissionTier"][];
+            /** @default 5 */
             slippage_bps: string;
-            slippage_per_share?: string;
+            /** @default 0 */
+            slippage_per_share: string;
+            /** @default 0.05 */
             adv_participation: string;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @default 20
+             */
             adv_sessions: number;
+            /** @default 0.02 */
             borrow_rate: string;
-            financing_spread?: string;
+            /** @default 0.015 */
+            financing_spread: string;
         };
         Coverage: {
             dataset: components["schemas"]["Dataset"];

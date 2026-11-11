@@ -1,5 +1,5 @@
 use buizz_core::api::{EquitySeries, PositionView, RunSummary, SpineEvent};
-use buizz_core::run::{RiskLimits, RunConfig, RunId};
+use buizz_core::run::{CostModel, RiskLimits, RunConfig, RunId};
 use reqwest::StatusCode;
 use serde_json::{Value, json};
 use tokio::process::Command;
@@ -18,7 +18,12 @@ async fn cli_backtest(spine: &Spine, config: &RunConfig) -> (RunId, Vec<String>)
         .arg(config.start.to_string())
         .arg("--to")
         .arg(config.end.expect("a backtest end").to_string())
-        .args(["--risk", "max_drawdown=0.9"])
+        .args([
+            "--risk",
+            "max_drawdown=0.9",
+            "--cost",
+            "slippage_per_share=0",
+        ])
         .env("BUIZZ_URL", &spine.base)
         .env("BUIZZ_ADMIN_PASSWORD", &spine.password)
         .output()
@@ -190,6 +195,11 @@ async fn red_green_backtest_matches_the_hand_computation_from_the_cli_the_api_an
     assert_eq!(
         from_cli.config.risk, overridden,
         "the CLI adds a drawdown stop and keeps the bot's other limits"
+    );
+    assert_eq!(
+        from_cli.config.cost,
+        CostModel::default(),
+        "a cost field the CLI sets leaves the others at their defaults"
     );
     let cli_observed = observed(&spine, &from_cli).await;
     assert_same(

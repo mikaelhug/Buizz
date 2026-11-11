@@ -1009,46 +1009,47 @@
       },
       "CostModel": {
         "type": "object",
-        "required": [
-          "commission_per_share",
-          "commission_min",
-          "slippage_bps",
-          "adv_participation",
-          "adv_sessions",
-          "borrow_rate"
-        ],
         "properties": {
           "commission_per_share": {
-            "type": "string"
+            "type": "string",
+            "default": "0.005"
           },
           "commission_min": {
-            "type": "string"
+            "type": "string",
+            "default": "1"
           },
           "commission_tiers": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/CommissionTier"
-            }
+            },
+            "default": []
           },
           "slippage_bps": {
-            "type": "string"
+            "type": "string",
+            "default": "5"
           },
           "slippage_per_share": {
-            "type": "string"
+            "type": "string",
+            "default": "0"
           },
           "adv_participation": {
-            "type": "string"
+            "type": "string",
+            "default": "0.05"
           },
           "adv_sessions": {
             "type": "integer",
             "format": "int32",
+            "default": 20,
             "minimum": 0
           },
           "borrow_rate": {
-            "type": "string"
+            "type": "string",
+            "default": "0.02"
           },
           "financing_spread": {
-            "type": "string"
+            "type": "string",
+            "default": "0.015"
           }
         }
       },

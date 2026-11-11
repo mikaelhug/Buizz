@@ -198,17 +198,17 @@ ctx.order_target_weight("SPY", 0, at="open", reason="flat for the session")
 
 ## Costs
 
-The spine starts every run with 100,000 start cash and this cost model, which the `cost` field of a backtest request replaces for that run (the fields marked optional may be left out):
+The spine starts every run with 100,000 start cash and this cost model, whose fields the `cost` field of a backtest request or `buizz backtest --cost commission_per_share=0.0035 --cost 'commission_tiers=[{"above": 300000, "per_share": "0.002"}]'` set for that run; the fields left out keep these defaults:
 
 | Field | Default | Meaning |
 |---|---|---|
 | `commission_per_share`, `commission_min` | `0.005`, `1.00` | Commission per share, at least the minimum per fill |
-| `commission_tiers` (optional) | none | Volume tiers, e.g. `[{"above": 300000, "per_share": "0.002"}]`: a fill pays the rate of the highest tier whose `above` the run's shares traded so far this calendar month have reached, like IBKR's tiered pricing |
+| `commission_tiers` | none | Volume tiers, e.g. `[{"above": 300000, "per_share": "0.002"}]`: a fill pays the rate of the highest tier whose `above` the run's shares traded so far this calendar month have reached, like IBKR's tiered pricing |
 | `slippage_bps` | `5` | Basis points against you on market, stop and auction fills and on limit orders already marketable at the open |
-| `slippage_per_share` (optional) | `0` | A further amount per share against you on the same fills, e.g. `0.001` |
+| `slippage_per_share` | `0` | A further amount per share against you on the same fills, e.g. `0.001` |
 | `adv_participation`, `adv_sessions` | `0.05`, `20` | Volume cap: that fraction of the average daily volume of the last sessions, per symbol and session; the rest of the order stays working. A symbol with no average daily volume fills uncapped and the run gets one data warning event for it |
 | `borrow_rate` | `0.02` | Per year on short positions, charged at each session close |
-| `financing_spread` (optional) | `0.015` | Added to the T-bill rate of the session (the US Treasury series, as of that date) for the financing of negative cash |
+| `financing_spread` | `0.015` | Added to the T-bill rate of the session (the US Treasury series, as of that date) for the financing of negative cash |
 
 Shorting is allowed for instruments flagged shortable.
 

@@ -160,18 +160,16 @@ impl<'de> Deserialize<'de> for Wake {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(default)]
 pub struct CostModel {
     pub commission_per_share: Decimal,
     pub commission_min: Decimal,
-    #[serde(default)]
     pub commission_tiers: Vec<CommissionTier>,
     pub slippage_bps: Decimal,
-    #[serde(default)]
     pub slippage_per_share: Decimal,
     pub adv_participation: Decimal,
     pub adv_sessions: u32,
     pub borrow_rate: Decimal,
-    #[serde(default = "CostModel::default_financing_spread")]
     pub financing_spread: Decimal,
 }
 
@@ -192,17 +190,13 @@ impl Default for CostModel {
             adv_participation: Decimal::new(5, 2),
             adv_sessions: 20,
             borrow_rate: Decimal::new(2, 2),
-            financing_spread: Self::default_financing_spread(),
+            financing_spread: Decimal::new(15, 3),
         }
     }
 }
 
 impl CostModel {
     pub const TRADING_DAYS_PER_YEAR: u32 = 252;
-
-    fn default_financing_spread() -> Decimal {
-        Decimal::new(15, 3)
-    }
 
     pub fn market_fill_price(&self, side: Side, price: Decimal) -> Decimal {
         let slip = self.slippage_bps / Decimal::new(10_000, 0);

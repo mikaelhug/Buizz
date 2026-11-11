@@ -264,7 +264,6 @@ impl Engine {
                 });
                 self.size(&mut order, session, admitted)
             };
-
             if let Err(reason) = sized {
                 order.status = OrderStatus::Rejected;
                 order.reject_reason = Some(reason);
