@@ -72,7 +72,7 @@ export function RunView({ runId }: { runId: number }) {
           curve.data.points.length > 0 ? (
             <EquityChart runId={runId} points={curve.data.points} benchmark={curve.data.benchmark} />
           ) : (
-            <p className="empty chart-empty">No equity yet</p>
+            <p className="empty chart-empty">{awaitingData(run.data) ? "Waiting for market data" : "No equity yet"}</p>
           )
         ) : curve.error ? (
           <Failure message={curve.error} onRetry={curve.reload} />
@@ -90,6 +90,10 @@ export function RunView({ runId }: { runId: number }) {
       <Orders orders={orders} />
     </>
   );
+}
+
+function awaitingData(run: Run): boolean {
+  return run.mode === "live" && !run.clock && (run.status === "starting" || run.status === "running");
 }
 
 function universe(spec: Schemas["UniverseSpec"]): string {
@@ -144,7 +148,15 @@ function RunHeader({ run }: { run: Run }) {
         </div>
         <div>
           <dt>Clock</dt>
-          <dd>{fmt.market(run.clock)}</dd>
+          <dd>
+            {awaitingData(run) ? (
+              <span className="muted" title="Waiting for market data since the run started (local time)">
+                waiting since {fmt.local(run.started_at ?? run.created_at)}
+              </span>
+            ) : (
+              fmt.market(run.clock)
+            )}
+          </dd>
         </div>
         <div>
           <dt>Start cash</dt>
