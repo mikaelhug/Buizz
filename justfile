@@ -4,11 +4,12 @@ default: check
 
 setup:
     cd web && npm ci --no-audit --no-fund
+    cd e2e/browser && npm ci --no-audit --no-fund
     cd sdk/python && uv sync --frozen
 
 fmt:
     cargo fmt --all
-    cd sdk/python && uv run --frozen ruff check --fix && uv run --frozen ruff format
+    cd sdk/python && uv run --frozen ruff check --fix . ../../bots ../../e2e/bots && uv run --frozen ruff format . ../../bots ../../e2e/bots
 
 gen:
     #!/usr/bin/env bash
@@ -37,21 +38,27 @@ _generate out:
     cd web && npx --no-install openapi-typescript "{{out}}/openapi.json" --output "{{out}}/schema.d.ts" --silent
 
 test:
-    cargo test --workspace --locked
+    cargo test --workspace --locked --exclude buizz-e2e
     if [ -d sdk/python/tests ]; then cd sdk/python && uv run --frozen pytest; fi
 
 lint:
     cargo fmt --all --check
     cargo clippy --workspace --all-targets --locked -- -D warnings
-    cd sdk/python && uv run --frozen ruff format --check . ../../bots && uv run --frozen ruff check . ../../bots && uv run --frozen pyright . ../../bots
+    cd sdk/python && uv run --frozen ruff format --check . ../../bots ../../e2e/bots && uv run --frozen ruff check . ../../bots ../../e2e/bots && uv run --frozen pyright . ../../bots ../../e2e/bots
     cd web && npm run --silent typecheck
+    cd e2e/browser && npm run --silent typecheck
     uv run --no-project --python 3.13 python scripts/no_comments.py
 
 build:
     cargo build --workspace --locked
     cd web && npm run --silent build
 
-check: lint test build drift
+e2e:
+    cargo build --locked -p buizz-spine
+    cd web && npm run --silent build
+    cargo test --locked -p buizz-e2e
+
+check: lint test build drift e2e
 
 dev:
     #!/usr/bin/env bash

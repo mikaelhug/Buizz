@@ -1,0 +1,6 @@
+description = "Buys red minutes, sells green ones and keeps a resting bid far below the market"
+command = ["uv", "run", "--frozen", "--quiet", "--project", "../../../sdk/python", "python", "bot.py"]
+timeframe = "1m"
+wake = "bar"
+universe = { symbols = ["AAA", "BBB"] }
+params = { weight = 0.2 }

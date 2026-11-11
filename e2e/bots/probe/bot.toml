@@ -1,0 +1,17 @@
+description = "Lookahead probe: asks for every history and fundamentals view on each daily step"
+command = ["uv", "run", "--frozen", "--quiet", "--project", "../../../sdk/python", "python", "bot.py"]
+timeframe = "1d"
+universe = { symbols = ["AAA", "BBB"] }
+
+[params]
+queries = [
+    { tf = "1d", bars = 10, adjust = "raw" },
+    { tf = "1d", bars = 10, adjust = "split" },
+    { tf = "1d", bars = 10, adjust = "all" },
+    { tf = "1d", bars = 2, adjust = "raw" },
+    { tf = "1d", bars = 2, adjust = "split" },
+    { tf = "1d", bars = 2, adjust = "all" },
+]
+fundamentals = ["BBB"]
+metrics = ["net_income"]
+order_at = ["2024-11-20T21:00:00Z", "2024-11-27T21:00:00Z"]

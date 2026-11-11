@@ -1,0 +1,6 @@
+description = "Places a limit bid the tape touches and one it never reaches on the half day"
+command = ["uv", "run", "--frozen", "--quiet", "--project", "../../../sdk/python", "python", "bot.py"]
+timeframe = "1m"
+wake = "every:30m"
+universe = { symbols = ["AAA"] }
+params = { touch_at = "2024-11-29T16:00:00Z", touch_below = 0.30, expire_at = "2024-11-29T17:00:00Z" }
