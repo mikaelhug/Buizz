@@ -1,0 +1,6 @@
+description = "SPY from the last close of October to the last close of April, T-bills (BIL) the other six months"
+command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
+timeframe = "1d"
+wake = "bar"
+universe = { symbols = ["SPY", "BIL"] }
+params = { risk_on = "SPY", risk_off = "BIL", enter_month = 11, exit_month = 5 }
