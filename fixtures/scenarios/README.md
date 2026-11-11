@@ -32,7 +32,7 @@ Orders 1, 6, 7, 9 and 12 are zero-quantity rejections on green days without a po
 
 ## Metric definitions
 
-Equity points `E_1..E_n` are the session closes (n = 10) and `E_0` is the start cash, so the first session counts: returns `r_t = E_t / E_{t-1} − 1` for t = 1..n (10 returns). Benchmark returns `b_t` come from the benchmark equity curve (SPY closes scaled to start cash at the first close, rounded to cents), so they start at t = 2 and pair with `r_2..r_n`. `rf = percent / 100 / 252` from `rates.csv` (4.50%).
+Equity points `E_1..E_n` are the session closes (n = 10) and `E_0` is the start cash, so the first session counts: returns `r_t = E_t / E_{t-1} − 1` for t = 1..n (10 returns). Benchmark returns `b_t` come from the benchmark equity curve (SPY closes scaled to start cash at the close before the first session, rounded to cents), so they start at t = 1. The fixture has no SPY bar before 11-20, so the curve is scaled at the first close instead and `b_t` start at t = 2, pairing with `r_2..r_n`. `rf = percent / 100 / 252` from `rates.csv` (4.50%).
 
 | Metric | Definition | Value |
 |---|---|---|

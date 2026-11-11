@@ -257,7 +257,7 @@ fn alpha_beta(input: &MetricsInput<'_>, returns: &[f64]) -> Option<(f64, f64)> {
     if variance <= MIN_SPREAD * MIN_SPREAD {
         return None;
     }
-    let returns = returns.get(1..)?;
+    let returns = returns.get(returns.len().checked_sub(benchmark.len())?..)?;
     let beta = sample_covariance(returns, &benchmark)? / variance;
     let alpha = (mean(returns) - beta * mean(&benchmark)) * TRADING_DAYS;
     Some((alpha, beta))
@@ -269,10 +269,20 @@ fn benchmark_returns(input: &MetricsInput<'_>) -> Option<Vec<f64>> {
         .iter()
         .map(|point| (point.at, point.equity.to_f64().unwrap_or(f64::NAN)))
         .collect();
-    let values: Vec<f64> = input
-        .equity
-        .iter()
-        .map(|point| by_time.get(&point.at).copied())
+    let first = input.equity.first()?;
+    let base = by_time
+        .range(..first.at)
+        .next_back()
+        .map(|(_, value)| *value);
+    let values: Vec<f64> = base
+        .map(Some)
+        .into_iter()
+        .chain(
+            input
+                .equity
+                .iter()
+                .map(|point| by_time.get(&point.at).copied()),
+        )
         .collect::<Option<_>>()?;
     simple_returns(&values)
 }
