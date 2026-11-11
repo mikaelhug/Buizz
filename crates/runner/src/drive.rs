@@ -209,10 +209,6 @@ async fn prepare(
     if run.mode == Mode::Live {
         return Ok(None);
     }
-    let slot = tokio::select! {
-        slot = inner.supervisor.backtest_slot() => slot,
-        exit = interrupted(control) => return Err(exit),
-    };
     if run.config.timeframe == Timeframe::Minute {
         let config = &run.config;
         let end = config.end.unwrap_or(config.start);
@@ -235,7 +231,10 @@ async fn prepare(
             )));
         }
     }
-    Ok(Some(slot))
+    tokio::select! {
+        slot = inner.supervisor.backtest_slot() => Ok(Some(slot)),
+        exit = interrupted(control) => Err(exit),
+    }
 }
 
 async fn interrupted(control: &mut watch::Receiver<Control>) -> Exit {
