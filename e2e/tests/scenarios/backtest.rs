@@ -1,5 +1,5 @@
 use buizz_core::api::{EquitySeries, PositionView, RunSummary, SpineEvent};
-use buizz_core::run::{RunConfig, RunId};
+use buizz_core::run::{CostModel, RiskLimits, RunConfig, RunId};
 use reqwest::StatusCode;
 use serde_json::{Value, json};
 use tokio::process::Command;
@@ -8,7 +8,7 @@ use crate::browser;
 use crate::expect::{assert_same, scenario};
 use crate::fake::FakeProviders;
 use crate::spine::{Options, Spine};
-use crate::world::{World, repository};
+use crate::world::{World, decimal, repository};
 
 async fn cli_backtest(spine: &Spine, config: &RunConfig) -> (RunId, Vec<String>) {
     let output = Command::new("uv")
@@ -18,6 +18,12 @@ async fn cli_backtest(spine: &Spine, config: &RunConfig) -> (RunId, Vec<String>)
         .arg(config.start.to_string())
         .arg("--to")
         .arg(config.end.expect("a backtest end").to_string())
+        .args([
+            "--risk",
+            "max_drawdown=0.9",
+            "--cost",
+            "slippage_per_share=0",
+        ])
         .env("BUIZZ_URL", &spine.base)
         .env("BUIZZ_ADMIN_PASSWORD", &spine.password)
         .output()
@@ -181,6 +187,20 @@ async fn red_green_backtest_matches_the_hand_computation_from_the_cli_the_api_an
     assert!(first.result_hash.is_some());
     assert_eq!(second.result_hash, first.result_hash);
     let from_cli = spine.finished(cli_run).await;
+    let overridden = RiskLimits {
+        max_position_weight: Some(decimal("0.3")),
+        max_gross_exposure: Some(decimal("1.0")),
+        max_drawdown: Some(decimal("0.9")),
+    };
+    assert_eq!(
+        from_cli.config.risk, overridden,
+        "the CLI adds a drawdown stop and keeps the bot's other limits"
+    );
+    assert_eq!(
+        from_cli.config.cost,
+        CostModel::default(),
+        "a cost field the CLI sets leaves the others at their defaults"
+    );
     let cli_observed = observed(&spine, &from_cli).await;
     assert_same(
         &actual["equity"],
@@ -203,6 +223,7 @@ async fn red_green_backtest_matches_the_hand_computation_from_the_cli_the_api_an
         (from_ui.config.start, from_ui.config.end),
         (config.start, config.end)
     );
+    assert_eq!(from_ui.config.risk, overridden, "the dialog does the same");
     let ui_observed = observed(&spine, &from_ui).await;
     for key in ["equity", "benchmark"] {
         assert_same(&cli_observed[key], &ui_observed[key], 0.0, "the UI run");

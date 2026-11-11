@@ -1,6 +1,7 @@
 use buizz_core::api::{ApiError, FeedSlots, PositionView, RunSummary};
 use buizz_core::order::{OrderStatus, RejectReason, Side};
-use buizz_core::run::{RiskLimit, RunEventKind, RunStatus};
+use buizz_core::run::{RiskLimit, RunBadge, RunEventKind, RunStatus};
+
 use reqwest::{Method, StatusCode};
 use serde_json::json;
 
@@ -51,6 +52,7 @@ async fn a_full_stream_refuses_a_run_an_oversized_order_is_rejected_and_a_drawdo
     let breached_at = stamp("2024-11-22T21:00:00Z");
     assert_eq!(run.status, RunStatus::Failed);
     assert_eq!(run.message.as_deref(), Some("stopped by drawdown limit"));
+    assert!(run.badges.contains(&RunBadge::DrawdownStop));
     assert_eq!(run.clock, Some(stamp("2024-11-25T21:00:00Z")));
     assert!(run.metrics.is_some(), "the stopped run is measured");
 

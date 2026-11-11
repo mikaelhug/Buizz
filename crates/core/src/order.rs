@@ -38,7 +38,46 @@ impl Side {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum OrderType {
     Market,
-    Limit { limit_price: Decimal },
+    Limit {
+        limit_price: Decimal,
+    },
+    Stop {
+        stop_price: Decimal,
+    },
+    TrailingStop {
+        trail: Trail,
+        #[serde(default)]
+        stop_price: Option<Decimal>,
+    },
+    MarketOnOpen,
+    MarketOnClose,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(tag = "by", rename_all = "snake_case")]
+pub enum Trail {
+    Amount { amount: Decimal },
+    Percent { percent: Decimal },
+}
+
+impl Trail {
+    pub fn stop_from(self, side: Side, best: Decimal) -> Decimal {
+        let distance = match self {
+            Self::Amount { amount } => amount,
+            Self::Percent { percent } => best * percent,
+        };
+        match side {
+            Side::Sell => best - distance,
+            Side::Buy => best + distance,
+        }
+    }
+
+    pub fn is_valid(self) -> bool {
+        match self {
+            Self::Amount { amount } => amount > Decimal::ZERO,
+            Self::Percent { percent } => percent > Decimal::ZERO && percent < Decimal::ONE,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
@@ -46,6 +85,7 @@ pub enum OrderType {
 pub enum TimeInForce {
     #[default]
     Day,
+    Gtc,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
@@ -95,6 +135,9 @@ pub enum RejectReason {
     MaxGrossExposure,
     InvalidSize,
     NoStreamSlot,
+    InvalidStopPrice,
+    AuctionClosed,
+    AuctionUnavailable,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]

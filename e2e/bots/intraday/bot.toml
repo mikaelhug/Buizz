@@ -1,6 +1,6 @@
-description = "Places a limit bid the tape touches and one it never reaches on the half day"
+description = "Places a limit bid the tape touches and one it never reaches on the half day, then sells the close"
 command = ["uv", "run", "--frozen", "--quiet", "--project", "../../../sdk/python", "python", "bot.py"]
 timeframe = "1m"
 wake = "every:30m"
 universe = { symbols = ["AAA"] }
-params = { touch_at = "2024-11-29T16:00:00Z", touch_below = 0.30, expire_at = "2024-11-29T17:00:00Z" }
+params = { touch_at = "2024-11-29T16:00:00Z", touch_below = 0.30, expire_at = "2024-11-29T17:00:00Z", sell_close_at = "2024-12-02T20:30:00Z" }

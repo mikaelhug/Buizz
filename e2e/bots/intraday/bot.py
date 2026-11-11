@@ -12,6 +12,8 @@ class Intraday(Bot):
         elif clock == ctx.params["expire_at"]:
             limit = round(bar.close / 2, 2)
             ctx.order("AAA", 10, limit_price=limit, reason=f"bid {limit:.2f} far below the market")
+        elif clock == ctx.params["sell_close_at"]:
+            ctx.order_target_weight("AAA", 0, at="close", reason="flat at the official close")
 
 
 if __name__ == "__main__":

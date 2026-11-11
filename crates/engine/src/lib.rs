@@ -1,22 +1,25 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use buizz_core::ledger::{LedgerEntry, LedgerKind, Portfolio, split_qty};
-use buizz_core::market::{Bar, CorporateAction, CorporateActionKind, Instrument, Session, Symbol};
+use buizz_core::market::{
+    Bar, CorporateAction, CorporateActionKind, Feed, Instrument, Session, Symbol, Timeframe,
+};
 use buizz_core::money::{round_cash, round_price, round_price_with};
 use buizz_core::order::{
     Fill, Order, OrderId, OrderRequest, OrderSize, OrderStatus, OrderType, OrderUpdate,
-    RejectReason, Side, TimeInForce, target_weight_qty,
+    RejectReason, Side, TimeInForce, Trail, target_weight_qty,
 };
 use buizz_core::protocol::{Holdings, StepEvent};
 use buizz_core::run::{
-    CostModel, DRAWDOWN_STOP, EquityPoint, Mode, RiskLimit, RiskLimits, RunConfig,
+    CostModel, DRAWDOWN_STOP, EquityPoint, MOC_CUTOFF_MINUTES, Mode, RiskLimit, RiskLimits,
+    RunConfig,
 };
 use buizz_core::time::Timestamp;
-use chrono::NaiveDate;
+use chrono::{Datelike, NaiveDate, TimeDelta};
 use rust_decimal::{Decimal, RoundingStrategy};
 use serde::{Deserialize, Serialize};
 
-pub const ENGINE_VERSION: u32 = 3;
+pub const ENGINE_VERSION: u32 = 4;
 
 #[derive(Debug, thiserror::Error)]
 pub enum EngineError {
@@ -33,9 +36,24 @@ pub struct Cycle<'a> {
     pub start: Timestamp,
     pub visible_at: Timestamp,
     pub bars: &'a [Bar],
+    pub official: &'a [Bar],
     pub actions: &'a [CorporateAction],
     pub average_daily_volume: &'a BTreeMap<Symbol, u64>,
     pub delisted: &'a [Symbol],
+    pub risk_free_rate: Decimal,
+}
+
+pub struct Decision<'a> {
+    pub at: Timestamp,
+    pub session: &'a Session,
+    pub on_open: &'a Session,
+    pub on_close: &'a Session,
+}
+
+impl Decision<'_> {
+    fn auction_closed(&self) -> bool {
+        self.at > self.on_close.close - TimeDelta::minutes(MOC_CUTOFF_MINUTES)
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -79,6 +97,10 @@ struct State {
     breached: Vec<RiskLimit>,
     stopped_at: Option<Timestamp>,
     chain: [u8; 32],
+    month: Option<(i32, u32)>,
+    month_shares: u64,
+    unmatched: Option<NaiveDate>,
+    deferred_cancels: Vec<OrderId>,
 }
 
 #[derive(Serialize)]
@@ -105,6 +127,7 @@ struct CheckpointIn {
 }
 
 pub struct Engine {
+    timeframe: Timeframe,
     cost: CostModel,
     risk: RiskLimits,
     state: State,
@@ -116,7 +139,8 @@ impl Engine {
     pub fn new(config: &RunConfig, start: Timestamp) -> Self {
         let start_cash = round_cash(config.start_cash);
         let mut engine = Self {
-            cost: config.cost,
+            timeframe: config.timeframe,
+            cost: config.cost.clone(),
             risk: config.risk,
             state: State {
                 peak_equity: start_cash,
@@ -142,7 +166,8 @@ impl Engine {
         }
         let CheckpointIn { state } = rmp_serde::from_slice(checkpoint)?;
         Ok(Self {
-            cost: config.cost,
+            timeframe: config.timeframe,
+            cost: config.cost.clone(),
             risk: config.risk,
             state,
             outbox: Outbox::default(),
@@ -158,18 +183,27 @@ impl Engine {
         .expect("engine state encodes as MessagePack")
     }
 
+    pub fn pre_close(&mut self, cycle: &Cycle<'_>) {
+        self.enter_session(cycle);
+        for bar in cycle.bars {
+            self.state.last_close.insert(bar.symbol.clone(), bar.close);
+            self.state.portfolio.mark(&bar.symbol, bar.close);
+        }
+        self.state.unmatched = Some(cycle.session.date);
+    }
+
     pub fn run_cycle(&mut self, cycle: &Cycle<'_>) {
         let bars: BTreeMap<&Symbol, &Bar> =
             cycle.bars.iter().map(|bar| (&bar.symbol, bar)).collect();
-        if self.state.session.map(|session| session.date) != Some(cycle.session.date) {
-            self.expire(cycle);
-            self.apply_actions(cycle);
-            self.delist(cycle);
-            self.state.session = Some(*cycle.session);
-            self.state.session_filled.clear();
-        }
+        self.enter_session(cycle);
         self.close_positions(cycle);
         self.fill(cycle, &bars);
+        self.state.unmatched = None;
+        for id in std::mem::take(&mut self.state.deferred_cancels) {
+            self.close_where(cycle.visible_at, OrderStatus::Cancelled, |order| {
+                order.id == id
+            });
+        }
         let session_closed = self.mark(cycle, &bars);
         self.check_limits(cycle.visible_at);
         if !session_closed && self.drawdown_stop() == Some(DrawdownStop::Flat) {
@@ -187,20 +221,23 @@ impl Engine {
 
     pub fn accept<'a>(
         &mut self,
-        decided_at: Timestamp,
-        session: NaiveDate,
+        decision: &Decision<'_>,
         orders: Vec<OrderRequest>,
         cancels: Vec<String>,
         instrument: impl Fn(&Symbol) -> Result<&'a Instrument, RejectReason>,
     ) {
+        let decided_at = decision.at;
         for client_id in &cancels {
-            self.close_where(decided_at, OrderStatus::Cancelled, |order| {
-                order.client_id == *client_id
-            });
+            self.cancel(decision, client_id);
         }
         for request in orders {
             let duplicate = !self.state.client_ids.insert(request.client_id.clone());
             let known = instrument(&request.symbol);
+            let session = match request.order_type {
+                OrderType::MarketOnOpen => decision.on_open.date,
+                OrderType::MarketOnClose => decision.on_close.date,
+                _ => decision.session.date,
+            };
             self.state.orders_issued += 1;
             let mut order = Order {
                 id: OrderId(self.state.orders_issued),
@@ -222,7 +259,10 @@ impl Engine {
             let sized = if duplicate {
                 Err(RejectReason::DuplicateClientId)
             } else {
-                self.size(&mut order, session, known)
+                let admitted = known.and_then(|instrument| {
+                    self.admit(order.order_type, decision).map(|()| instrument)
+                });
+                self.size(&mut order, session, admitted)
             };
             if let Err(reason) = sized {
                 order.status = OrderStatus::Rejected;
@@ -244,6 +284,20 @@ impl Engine {
         outbox
     }
 
+    pub fn closing_auction(&self, session: NaiveDate) -> Vec<Symbol> {
+        let symbols: BTreeSet<&Symbol> = self
+            .state
+            .working
+            .values()
+            .filter(|order| {
+                order.order_type == OrderType::MarketOnClose
+                    && order.session.is_some_and(|due| due <= session)
+            })
+            .map(|order| &order.symbol)
+            .collect();
+        symbols.into_iter().cloned().collect()
+    }
+
     pub fn portfolio(&self) -> &Portfolio {
         &self.state.portfolio
     }
@@ -256,6 +310,71 @@ impl Engine {
         blake3::Hash::from_bytes(self.state.chain)
             .to_hex()
             .to_string()
+    }
+
+    fn enter_session(&mut self, cycle: &Cycle<'_>) {
+        if self.state.session.map(|session| session.date) == Some(cycle.session.date) {
+            return;
+        }
+        self.expire(cycle);
+        self.apply_actions(cycle);
+        self.delist(cycle);
+        self.state.session = Some(*cycle.session);
+        self.state.session_filled.clear();
+        let month = (cycle.session.date.year(), cycle.session.date.month());
+        if self.state.month != Some(month) {
+            self.state.month = Some(month);
+            self.state.month_shares = 0;
+        }
+    }
+
+    fn cancel(&mut self, decision: &Decision<'_>, client_id: &str) {
+        let Some(order) = self
+            .state
+            .working
+            .values()
+            .find(|order| order.client_id == client_id)
+        else {
+            return;
+        };
+        let id = order.id;
+        if order.order_type == OrderType::MarketOnClose {
+            let locked = order.session == Some(decision.on_close.date) && decision.auction_closed();
+            if !locked {
+                self.close_where(decision.at, OrderStatus::Cancelled, |order| order.id == id);
+            }
+            return;
+        }
+        let matched_later = self
+            .state
+            .unmatched
+            .is_some_and(|unmatched| order.session.is_none_or(|due| due <= unmatched));
+        if !matched_later {
+            self.close_where(decision.at, OrderStatus::Cancelled, |order| order.id == id);
+        } else if !self.state.deferred_cancels.contains(&id) {
+            self.state.deferred_cancels.push(id);
+        }
+    }
+
+    fn admit(&self, order_type: OrderType, decision: &Decision<'_>) -> Result<(), RejectReason> {
+        match order_type {
+            OrderType::MarketOnOpen if self.timeframe == Timeframe::Minute => {
+                Err(RejectReason::AuctionUnavailable)
+            }
+            OrderType::MarketOnClose if decision.auction_closed() => {
+                Err(RejectReason::AuctionClosed)
+            }
+            OrderType::Limit { limit_price } if limit_price <= Decimal::ZERO => {
+                Err(RejectReason::InvalidLimitPrice)
+            }
+            OrderType::Stop { stop_price } if stop_price <= Decimal::ZERO => {
+                Err(RejectReason::InvalidStopPrice)
+            }
+            OrderType::TrailingStop { trail, .. } if !trail.is_valid() => {
+                Err(RejectReason::InvalidStopPrice)
+            }
+            _ => Ok(()),
+        }
     }
 
     fn apply_actions(&mut self, cycle: &Cycle<'_>) {
@@ -325,8 +444,17 @@ impl Engine {
         for mut order in affected {
             order.qty = shares(order.qty);
             order.filled_qty = shares(order.filled_qty);
-            if let OrderType::Limit { limit_price } = &mut order.order_type {
-                *limit_price = rescale(*limit_price);
+            match &mut order.order_type {
+                OrderType::Limit { limit_price: price } | OrderType::Stop { stop_price: price } => {
+                    *price = rescale(*price);
+                }
+                OrderType::TrailingStop { trail, stop_price } => {
+                    *stop_price = stop_price.map(rescale);
+                    if let Trail::Amount { amount } = trail {
+                        *amount = rescale(*amount);
+                    }
+                }
+                OrderType::Market | OrderType::MarketOnOpen | OrderType::MarketOnClose => {}
             }
             order.updated_at = at;
             self.record(order);
@@ -358,9 +486,10 @@ impl Engine {
             .session
             .map_or(cycle.start, |previous| previous.close);
         self.close_where(at, OrderStatus::Expired, |order| {
-            order
-                .session
-                .is_none_or(|session| session < cycle.session.date)
+            order.tif == TimeInForce::Day
+                && order
+                    .session
+                    .is_none_or(|session| session < cycle.session.date)
         });
     }
 
@@ -409,24 +538,64 @@ impl Engine {
     }
 
     fn fill(&mut self, cycle: &Cycle<'_>, bars: &BTreeMap<&Symbol, &Bar>) {
-        let due: Vec<Order> = self
-            .state
-            .working
-            .values()
-            .filter(|order| {
-                order.session == Some(cycle.session.date) && bars.contains_key(&order.symbol)
-            })
-            .cloned()
+        let official: BTreeMap<&Symbol, &Bar> = cycle
+            .official
+            .iter()
+            .map(|bar| (&bar.symbol, bar))
             .collect();
-        for mut order in due {
-            let bar = bars[&order.symbol];
+        if cycle.start == cycle.session.open {
+            let opening = self.priced(cycle, |order| match order.order_type {
+                OrderType::MarketOnOpen => official
+                    .get(&order.symbol)
+                    .map(|bar| (self.cost.market_fill_price(order.side, bar.open), bar.feed)),
+                _ => None,
+            });
+            self.execute(cycle, cycle.session.open, opening);
+        }
+        let continuous = self.priced(cycle, |order| {
+            let bar = bars.get(&order.symbol)?;
             let price = match order.order_type {
                 OrderType::Market => Some(self.cost.market_fill_price(order.side, bar.open)),
                 OrderType::Limit { limit_price } => {
                     self.cost.limit_fill_price(order.side, limit_price, bar)
                 }
+                OrderType::Stop { stop_price }
+                | OrderType::TrailingStop {
+                    stop_price: Some(stop_price),
+                    ..
+                } => self.cost.stop_fill_price(order.side, stop_price, bar),
+                _ => None,
             };
-            let Some(price) = price else { continue };
+            price.map(|price| (price, bar.feed))
+        });
+        self.execute(cycle, cycle.start, continuous);
+        self.trail(cycle, bars);
+        if cycle.visible_at >= cycle.session.close {
+            let closing = self.priced(cycle, |order| match order.order_type {
+                OrderType::MarketOnClose => official
+                    .get(&order.symbol)
+                    .map(|bar| (self.cost.market_fill_price(order.side, bar.close), bar.feed)),
+                _ => None,
+            });
+            self.execute(cycle, cycle.session.close, closing);
+        }
+    }
+
+    fn priced(
+        &self,
+        cycle: &Cycle<'_>,
+        price: impl Fn(&Order) -> Option<(Decimal, Feed)>,
+    ) -> Vec<(Order, Decimal, Feed)> {
+        self.state
+            .working
+            .values()
+            .filter(|order| order.session.is_some_and(|due| due <= cycle.session.date))
+            .filter_map(|order| price(order).map(|(price, feed)| (order.clone(), price, feed)))
+            .collect()
+    }
+
+    fn execute(&mut self, cycle: &Cycle<'_>, at: Timestamp, due: Vec<(Order, Decimal, Feed)>) {
+        for (mut order, price, feed) in due {
             let average_daily_volume = cycle.average_daily_volume.get(&order.symbol).copied();
             if average_daily_volume.is_none()
                 && self.state.volume_unknown.insert(order.symbol.clone())
@@ -449,18 +618,20 @@ impl Engine {
                 continue;
             }
             *used += qty;
+            let commission = self.cost.commission(qty, self.state.month_shares);
+            self.state.month_shares = self.state.month_shares.saturating_add(qty);
             let fill = Fill {
                 order_id: order.id,
                 client_id: order.client_id.clone(),
                 symbol: order.symbol.clone(),
-                at: cycle.start,
+                at,
                 qty: order.side.signed(qty),
                 price,
-                commission: self.cost.commission(qty),
-                feed: bar.feed,
+                commission,
+                feed,
             };
             self.post(
-                cycle.start,
+                at,
                 LedgerKind::Fill {
                     order_id: fill.order_id,
                     symbol: fill.symbol.clone(),
@@ -476,11 +647,37 @@ impl Engine {
             if order.remaining() == 0 {
                 order.status = OrderStatus::Filled;
             }
-            order.updated_at = cycle.start;
+            order.updated_at = at;
             self.record(order);
         }
     }
 
+    fn trail(&mut self, cycle: &Cycle<'_>, bars: &BTreeMap<&Symbol, &Bar>) {
+        for order in self.state.working.values_mut() {
+            let OrderType::TrailingStop {
+                trail,
+                stop_price: Some(stop),
+            } = &mut order.order_type
+            else {
+                continue;
+            };
+            let Some(bar) = bars.get(&order.symbol) else {
+                continue;
+            };
+            if order.session.is_none_or(|due| due > cycle.session.date) {
+                continue;
+            }
+            let (best, tighter): (Decimal, fn(&Decimal, &Decimal) -> bool) = match order.side {
+                Side::Sell => (bar.high, Decimal::gt),
+                Side::Buy => (bar.low, Decimal::lt),
+            };
+            let candidate = round_price(trail.stop_from(order.side, best));
+            if tighter(&candidate, stop) {
+                *stop = candidate;
+                self.changed_orders.insert(order.id, order.clone());
+            }
+        }
+    }
     fn mark(&mut self, cycle: &Cycle<'_>, bars: &BTreeMap<&Symbol, &Bar>) -> bool {
         for (symbol, bar) in bars {
             self.state.last_close.insert((*symbol).clone(), bar.close);
@@ -507,6 +704,19 @@ impl Engine {
                         },
                     );
                 }
+            }
+            let balance = self.state.portfolio.cash;
+            let rate = self.cost.financing_rate(cycle.risk_free_rate);
+            let amount = self.cost.financing_fee(balance, rate);
+            if !amount.is_zero() {
+                self.post(
+                    cycle.visible_at,
+                    LedgerKind::Financing {
+                        balance,
+                        rate,
+                        amount,
+                    },
+                );
             }
         }
         self.state.peak_equity = self.state.peak_equity.max(self.state.portfolio.equity());
@@ -593,11 +803,6 @@ impl Engine {
         instrument: Result<&Instrument, RejectReason>,
     ) -> Result<(), RejectReason> {
         let instrument = instrument?;
-        if let OrderType::Limit { limit_price } = order.order_type
-            && limit_price <= Decimal::ZERO
-        {
-            return Err(RejectReason::InvalidLimitPrice);
-        }
         let price = self
             .state
             .last_close
@@ -612,7 +817,11 @@ impl Engine {
             .map(|(symbol, position)| (symbol, position.qty))
             .collect();
         for working in self.state.working.values() {
-            if working.session == Some(session) {
+            let contingent = matches!(
+                working.order_type,
+                OrderType::Stop { .. } | OrderType::TrailingStop { .. }
+            );
+            if !contingent && working.session.is_some_and(|due| due <= session) {
                 let held = projected.entry(&working.symbol).or_default();
                 *held = held
                     .checked_add(working.signed_remaining())
@@ -631,15 +840,31 @@ impl Engine {
         if delta == 0 {
             return Err(RejectReason::ZeroQuantity);
         }
-        if let OrderType::Limit { limit_price } = &mut order.order_type {
-            let away_from_the_market = match order.side {
-                Side::Buy => RoundingStrategy::ToNegativeInfinity,
-                Side::Sell => RoundingStrategy::ToPositiveInfinity,
-            };
-            *limit_price = round_price_with(*limit_price, away_from_the_market);
-            if *limit_price <= Decimal::ZERO {
-                return Err(RejectReason::InvalidLimitPrice);
+        match &mut order.order_type {
+            OrderType::Limit { limit_price } => {
+                let away_from_the_market = match order.side {
+                    Side::Buy => RoundingStrategy::ToNegativeInfinity,
+                    Side::Sell => RoundingStrategy::ToPositiveInfinity,
+                };
+                *limit_price = round_price_with(*limit_price, away_from_the_market);
+                if *limit_price <= Decimal::ZERO {
+                    return Err(RejectReason::InvalidLimitPrice);
+                }
             }
+            OrderType::Stop { stop_price } => {
+                *stop_price = round_price(*stop_price);
+                if *stop_price <= Decimal::ZERO {
+                    return Err(RejectReason::InvalidStopPrice);
+                }
+            }
+            OrderType::TrailingStop { trail, stop_price } => {
+                let stop = round_price(trail.stop_from(order.side, price));
+                if stop <= Decimal::ZERO {
+                    return Err(RejectReason::InvalidStopPrice);
+                }
+                *stop_price = Some(stop);
+            }
+            OrderType::Market | OrderType::MarketOnOpen | OrderType::MarketOnClose => {}
         }
         let after = before.checked_add(delta).ok_or(RejectReason::InvalidSize)?;
         if delta < 0 && after < 0 && !instrument.shortable {
@@ -801,9 +1026,11 @@ mod tests {
             start: session.open,
             visible_at: session.close,
             bars,
+            official: bars,
             actions: &[],
             average_daily_volume: &average_daily_volume,
             delisted: &[],
+            risk_free_rate: Decimal::ZERO,
         });
     }
 
@@ -838,13 +1065,14 @@ mod tests {
                 .then_some(&instrument)
                 .ok_or(RejectReason::UnknownSymbol)
         };
-        engine.accept(
-            session.close,
-            session.date.succ_opt().unwrap(),
-            orders,
-            Vec::new(),
-            known,
-        );
+        let next = self::session(session.date.day() + 1);
+        let decision = Decision {
+            at: session.close,
+            session: &next,
+            on_open: &next,
+            on_close: &next,
+        };
+        engine.accept(&decision, orders, Vec::new(), known);
         engine.drain().orders
     }
 
@@ -965,9 +1193,11 @@ mod tests {
             start: third.open,
             visible_at: third.close,
             bars: &[bar(&third, "50", "49", "50")],
+            official: &[],
             actions: &[split],
             average_daily_volume: &BTreeMap::new(),
             delisted: &[],
+            risk_free_rate: Decimal::ZERO,
         });
         let expired = &engine.drain().orders[0];
         assert_eq!(expired.status, OrderStatus::Expired);
@@ -1063,13 +1293,16 @@ mod tests {
             &[("AAA", 1_000_000)],
         );
         submit(&mut engine, &first, vec![buy("AAA-1", 10)]);
-        engine.accept(
-            first.close,
-            first.date.succ_opt().unwrap(),
-            vec![buy("AAA-1", 10)],
-            Vec::new(),
-            |_| Err(RejectReason::UnknownSymbol),
-        );
+        let next = session(21);
+        let decision = Decision {
+            at: first.close,
+            session: &next,
+            on_open: &next,
+            on_close: &next,
+        };
+        engine.accept(&decision, vec![buy("AAA-1", 10)], Vec::new(), |_| {
+            Err(RejectReason::UnknownSymbol)
+        });
         let rejected = &engine.drain().rejections[0];
         assert_eq!(
             rejected.reject_reason,

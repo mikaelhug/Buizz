@@ -12,23 +12,21 @@ const BADGES: Record<Schemas["RunBadge"], { text: string; title: string }> = {
   },
   holdout: { text: "Holdout", title: "Ran on the locked last 12 months" },
   data_warnings: { text: "Data warnings", title: "The run saw data warnings; see its events" },
+  drawdown_stop: {
+    text: "Drawdown stop",
+    title: "Equity fell by the max drawdown limit from its peak; every position was closed and the run ended",
+  },
   thin_index_history: {
     text: "Thin index history",
     title: "The run starts before the index change log is complete enough to rebuild membership reliably",
   },
 };
 
-const DRAWDOWN_STOP = "stopped by drawdown limit";
-
 export function RunBadges({ run }: { run: Schemas["RunSummary"] }) {
   return (
     <>
-      {run.status === "failed" && run.message === DRAWDOWN_STOP && (
-        <span className="badge badge-drawdown_stop help" title="Equity fell by the max drawdown limit from its peak; every position was closed and the run ended">
-          Drawdown stop
-        </span>
-      )}
-      {run.badges.map((badge) => (
+      {run.badges.map
+((badge) => (
         <span key={badge} className={`badge badge-${badge} help`} title={BADGES[badge].title}>
           {BADGES[badge].text}
         </span>

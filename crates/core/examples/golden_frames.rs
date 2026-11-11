@@ -7,6 +7,7 @@ use buizz_core::market::{
 };
 use buizz_core::order::{
     Fill, OrderId, OrderRequest, OrderSize, OrderStatus, OrderType, OrderUpdate, Side, TimeInForce,
+    Trail,
 };
 use buizz_core::protocol::{
     Ack, BarBuffer, BarRow, BotMessage, Data, DataResult, End, EndReason, ErrorCode, Hello,
@@ -486,7 +487,41 @@ fn main() {
         "ack_live",
         &BotMessage::Ack(Ack {
             seq: 318,
-            orders: Vec::new(),
+            orders: vec![
+                OrderRequest {
+                    client_id: "AAA-2024-12-02".to_owned(),
+                    symbol: aaa.clone(),
+                    size: OrderSize::TargetWeight {
+                        weight: money("0.5"),
+                    },
+                    order_type: OrderType::MarketOnClose,
+                    tif: TimeInForce::Day,
+                    reason: "trade the close".to_owned(),
+                },
+                OrderRequest {
+                    client_id: "AAA-trail".to_owned(),
+                    symbol: aaa.clone(),
+                    size: OrderSize::Qty { qty: -10 },
+                    order_type: OrderType::TrailingStop {
+                        trail: Trail::Percent {
+                            percent: money("0.05"),
+                        },
+                        stop_price: None,
+                    },
+                    tif: TimeInForce::Gtc,
+                    reason: "protect the gain".to_owned(),
+                },
+                OrderRequest {
+                    client_id: "BBB-breakout".to_owned(),
+                    symbol: bbb.clone(),
+                    size: OrderSize::Qty { qty: 20 },
+                    order_type: OrderType::Stop {
+                        stop_price: money("50.25"),
+                    },
+                    tif: TimeInForce::Gtc,
+                    reason: "breakout".to_owned(),
+                },
+            ],
             cancels: Vec::new(),
             state: None,
             logs: Vec::new(),

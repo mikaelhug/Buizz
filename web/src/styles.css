@@ -1121,7 +1121,8 @@ h2 {
   align-self: stretch;
 }
 
-.period-range label {
+.period-range label,
+.risk-limits label {
   display: flex;
   flex: 1;
   flex-direction: column;
@@ -1130,9 +1131,20 @@ h2 {
   font-size: 12px;
 }
 
-.period-range .input {
+.period-range .input,
+.risk-limits .input {
   width: 100%;
   min-width: 0;
+}
+
+.risk-limits {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  align-self: stretch;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
 .toggle {

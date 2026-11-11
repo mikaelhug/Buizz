@@ -271,7 +271,7 @@ impl Runner {
             if run.desired != DesiredState::Paused {
                 return Err(RunnerError::AlreadyLive(bot.to_owned()));
             }
-            if run.config.timeframe == Timeframe::Minute {
+            if run.config.needs_minute_bars() {
                 let portfolio = self.inner.state.portfolio(run.id).await?;
                 let held = portfolio.open_positions().map(|(symbol, _)| symbol.clone());
                 let universe = universe_at(&self.inner.market, &run.config, today).await?;
@@ -301,13 +301,12 @@ impl Runner {
                 allow_holdout: false,
             },
         )?;
-        let streamed = match config.timeframe {
-            Timeframe::Minute => {
-                let universe = universe_at(&self.inner.market, &config, today).await?;
-                self.inner.feed.admits(universe.clone())?;
-                Some(universe)
-            }
-            Timeframe::Day => None,
+        let streamed = if config.needs_minute_bars() {
+            let universe = universe_at(&self.inner.market, &config, today).await?;
+            self.inner.feed.admits(universe.clone())?;
+            Some(universe)
+        } else {
+            None
         };
         let run = match self
             .create(config, &spec, RunStatus::Starting, Vec::new())
@@ -447,6 +446,12 @@ impl Runner {
             Some(seed) => seed,
             None => rand::random_range(0..SEED_LIMIT),
         };
+        let risk = request.risk.unwrap_or(manifest.risk);
+        if !risk.are_positive() {
+            return Err(RunnerError::InvalidRequest(
+                "risk limits must be positive".to_owned(),
+            ));
+        }
         Ok(RunConfig {
             bot: spec.name.clone(),
             mode,
@@ -457,8 +462,8 @@ impl Runner {
             start,
             end,
             start_cash,
-            cost: request.cost.unwrap_or(defaults.cost),
-            risk: request.risk.unwrap_or(manifest.risk),
+            cost: request.cost.unwrap_or_else(|| defaults.cost.clone()),
+            risk,
             seed,
             benchmark: manifest.benchmark.clone(),
             holdout,
@@ -555,7 +560,7 @@ impl Runner {
         status: RunStatus,
         message: Option<String>,
     ) -> Result<(), RunnerError> {
-        drive::conclude(&self.inner, run_id, status, message, None).await?;
+        drive::conclude(&self.inner, run_id, status, message, None, None).await?;
         Ok(())
     }
 

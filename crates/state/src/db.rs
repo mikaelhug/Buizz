@@ -10,6 +10,11 @@ use tokio::sync::oneshot;
 use crate::{Result, SCHEMA, StateError};
 
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
+const MIGRATIONS: [&str; 3] = [
+    include_str!("../migrations/1_financing.sql"),
+    include_str!("../migrations/2_undelivered.sql"),
+    include_str!("../migrations/3_drawdown_badge.sql"),
+];
 
 type WriteJob = Box<dyn FnOnce(&mut Connection) + Send>;
 
@@ -23,12 +28,12 @@ impl Db {
     pub async fn open(path: &Path) -> Result<Self> {
         let path = path.to_path_buf();
         tokio::task::spawn_blocking(move || {
-            let connection = Connection::open(&path)?;
+            let mut connection = Connection::open(&path)?;
             connection.busy_timeout(BUSY_TIMEOUT)?;
             connection.pragma_update(None, "journal_mode", "WAL")?;
             connection.pragma_update(None, "synchronous", "FULL")?;
             connection.pragma_update(None, "foreign_keys", true)?;
-            connection.execute_batch(SCHEMA)?;
+            migrate(&mut connection)?;
             let (writer, jobs) = mpsc::channel::<WriteJob>();
             thread::Builder::new()
                 .name("state-writer".into())
@@ -92,6 +97,31 @@ impl Db {
         .await
         .map_err(|_| StateError::Closed)?
     }
+}
+
+fn migrate(connection: &mut Connection) -> Result<()> {
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let fresh: bool = transaction.query_row(
+        "SELECT NOT EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'run')",
+        [],
+        |row| row.get(0),
+    )?;
+    transaction.execute_batch(SCHEMA)?;
+    let latest = MIGRATIONS.len() as i64;
+    let applied: i64 = if fresh {
+        latest
+    } else {
+        transaction.pragma_query_value(None, "user_version", |row| row.get(0))?
+    };
+    for migration in MIGRATIONS
+        .iter()
+        .skip(usize::try_from(applied).unwrap_or(0))
+    {
+        transaction.execute_batch(migration)?;
+    }
+    transaction.pragma_update(None, "user_version", latest)?;
+    transaction.commit()?;
+    Ok(())
 }
 
 fn open_reader(path: &Path) -> Result<Connection> {

@@ -1,3 +1,4 @@
+mod auctions;
 mod backtest;
 mod browser;
 mod expect;

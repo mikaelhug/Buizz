@@ -997,36 +997,66 @@
           }
         }
       },
-      "CostModel": {
+      "CommissionTier": {
         "type": "object",
         "required": [
-          "commission_per_share",
-          "commission_min",
-          "slippage_bps",
-          "adv_participation",
-          "adv_sessions",
-          "borrow_rate"
+          "above",
+          "per_share"
         ],
         "properties": {
-          "commission_per_share": {
+          "above": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "per_share": {
             "type": "string"
+          }
+        }
+      },
+      "CostModel": {
+        "type": "object",
+        "properties": {
+          "commission_per_share": {
+            "type": "string",
+            "default": "0.005"
           },
           "commission_min": {
-            "type": "string"
+            "type": "string",
+            "default": "1"
+          },
+          "commission_tiers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommissionTier"
+            },
+            "default": []
           },
           "slippage_bps": {
-            "type": "string"
+            "type": "string",
+            "default": "5"
+          },
+          "slippage_per_share": {
+            "type": "string",
+            "default": "0"
           },
           "adv_participation": {
-            "type": "string"
+            "type": "string",
+            "default": "0.05"
           },
           "adv_sessions": {
             "type": "integer",
             "format": "int32",
+            "default": 20,
             "minimum": 0
           },
           "borrow_rate": {
-            "type": "string"
+            "type": "string",
+            "default": "0.02"
+          },
+          "financing_spread": {
+            "type": "string",
+            "default": "0.015"
           }
         }
       },
@@ -1851,6 +1881,76 @@
                 ]
               }
             }
+          },
+          {
+            "type": "object",
+            "required": [
+              "stop_price",
+              "type"
+            ],
+            "properties": {
+              "stop_price": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "stop"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "trail",
+              "type"
+            ],
+            "properties": {
+              "trail": {
+                "$ref": "#/components/schemas/Trail"
+              },
+              "stop_price": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "trailing_stop"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "market_on_open"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "market_on_close"
+                ]
+              }
+            }
           }
         ]
       },
@@ -2016,7 +2116,10 @@
           "max_position_weight",
           "max_gross_exposure",
           "invalid_size",
-          "no_stream_slot"
+          "no_stream_slot",
+          "invalid_stop_price",
+          "auction_closed",
+          "auction_unavailable"
         ]
       },
       "Reproducibility": {
@@ -2088,6 +2191,7 @@
           "survivorship_biased",
           "holdout",
           "data_warnings",
+          "drawdown_stop",
           "thin_index_history"
         ]
       },
@@ -2734,7 +2838,8 @@
       "TimeInForce": {
         "type": "string",
         "enum": [
-          "day"
+          "day",
+          "gtc"
         ]
       },
       "Timeframe": {
@@ -2747,6 +2852,46 @@
       "Timestamp": {
         "type": "string",
         "format": "date-time"
+      },
+      "Trail": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "amount",
+              "by"
+            ],
+            "properties": {
+              "amount": {
+                "type": "string"
+              },
+              "by": {
+                "type": "string",
+                "enum": [
+                  "amount"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "percent",
+              "by"
+            ],
+            "properties": {
+              "percent": {
+                "type": "string"
+              },
+              "by": {
+                "type": "string",
+                "enum": [
+                  "percent"
+                ]
+              }
+            }
+          }
+        ]
       },
       "UniverseSpec": {
         "oneOf": [
@@ -2805,9 +2950,10 @@
         "examples": [
           "bar",
           "every:30m",
-          "at:15:55"
+          "at:15:55",
+          "before_close:10m"
         ],
-        "pattern": "^(bar|every:[0-9]+[mh]|at:[0-2][0-9]:[0-5][0-9])$"
+        "pattern": "^(bar|every:[0-9]+[mh]|at:[0-2][0-9]:[0-5][0-9]|before_close:[0-9]+m)$"
       },
       "Watermarks": {
         "type": "object",

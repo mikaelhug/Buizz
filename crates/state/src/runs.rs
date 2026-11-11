@@ -173,15 +173,18 @@ pub fn set_desired(connection: &Connection, run_id: RunId, desired: DesiredState
 
 pub fn finish(connection: &Connection, run_id: RunId, outcome: &RunOutcome) -> Result<()> {
     let metrics = outcome.metrics.as_ref().map(json_text).transpose()?;
+    let badge = outcome.badge.as_ref().map(enum_text).transpose()?;
     let changed = connection.execute(
-        "UPDATE run SET status = ?, finished_at = ?, result_hash = ?, metrics = ?, message = ? \
-         WHERE id = ?",
+        "UPDATE run SET status = ?1, finished_at = ?2, result_hash = ?3, metrics = ?4, message = ?5, \
+         badges = CASE WHEN ?6 IS NULL THEN badges ELSE json_insert(badges, '$[#]', ?6) END \
+         WHERE id = ?7",
         params![
             enum_text(&outcome.status)?,
             outcome.finished_at.nanos(),
             outcome.result_hash,
             metrics,
             outcome.message,
+            badge,
             run_id.0,
         ],
     )?;
@@ -194,14 +197,7 @@ fn insert_ledger(connection: &Connection, run_id: RunId, entries: &[LedgerEntry]
          VALUES (?, ?, ?, ?, ?, ?, ?)",
     )?;
     for entry in entries {
-        let symbol = match &entry.kind {
-            LedgerKind::Deposit { .. } => None,
-            LedgerKind::Fill { symbol, .. }
-            | LedgerKind::Dividend { symbol, .. }
-            | LedgerKind::Split { symbol, .. }
-            | LedgerKind::BorrowFee { symbol, .. }
-            | LedgerKind::Liquidation { symbol, .. } => Some(symbol.as_str()),
-        };
+        let symbol = entry.kind.symbol().map(|symbol| symbol.as_str());
         statement.execute(params![
             run_id.0,
             int(entry.seq)?,
@@ -292,13 +288,14 @@ pub fn commit_step(connection: &Connection, commit: &StepCommit) -> Result<()> {
     insert_events(connection, commit.run_id, &commit.events)?;
     connection.execute(
         "UPDATE run SET step_seq = ?, clock = ?, equity = ?, checkpoint = ?, \
-         bot_state = COALESCE(?, bot_state) WHERE id = ?",
+         bot_state = COALESCE(?, bot_state), undelivered = ? WHERE id = ?",
         params![
             int(commit.step_seq)?,
             commit.clock.nanos(),
             commit.equity.to_string(),
             commit.engine_checkpoint,
             commit.bot_state,
+            commit.undelivered,
             commit.run_id.0,
         ],
     )?;
@@ -308,7 +305,7 @@ pub fn commit_step(connection: &Connection, commit: &StepCommit) -> Result<()> {
 pub fn checkpoint(connection: &Connection, run_id: RunId) -> Result<Option<Checkpoint>> {
     let found = connection
         .query_row(
-            "SELECT step_seq, clock, checkpoint, bot_state FROM run \
+            "SELECT step_seq, clock, checkpoint, bot_state, undelivered FROM run \
              WHERE id = ? AND checkpoint IS NOT NULL",
             [run_id.0],
             |row| {
@@ -317,6 +314,7 @@ pub fn checkpoint(connection: &Connection, run_id: RunId) -> Result<Option<Check
                     clock: read_timestamp(row, 1)?,
                     engine_checkpoint: row.get(2)?,
                     bot_state: row.get(3)?,
+                    undelivered: row.get(4)?,
                 })
             },
         )

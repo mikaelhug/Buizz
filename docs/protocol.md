@@ -34,6 +34,7 @@ spine -> end {reason, message?}
   - `symbols`: the strings referenced by `symbol_index`.
   - `symbol_index`: little-endian `uint16` per row; `start`: little-endian `int64` ns per row (bar start); `open`, `high`, `low`, `close`, `volume`: little-endian `float64` per row.
   - In numpy: `np.frombuffer(bars["close"], "<f8")`.
+  - A `1d` run that wakes `before_close` gets at that step one row per symbol with the session so far, `start` the session open: aggregated from the minute bars visible at `clock` (first open, highest high, lowest low, last close, summed volume). The session's daily bar follows in the next step's `bars`.
 - `events`: what happened since the previous step: `fill`, `order` (status changes incl. `rejected` with `reject_reason`, `expired`, `cancelled`) and `corporate_action` (applied at the ex-date open).
 - `cash`, `equity`: always present. `holdings` (`positions` with `qty` and `avg_cost`, `working` orders) is sent on the first step and whenever it changed, otherwise `null`; the bot keeps its last copy and prices positions with the bars.
 - `universe`: present when the universe changed (`top_dollar_volume` and `index` universes are recomputed as-of each session).
@@ -50,7 +51,13 @@ spine -> end {reason, message?}
 
 ## Ack
 
-- `orders`: `{client_id, symbol, size, order_type, tif, reason}`. `size` is `{by: "qty", qty}` (signed: negative sells) or `{by: "target_weight", weight}` (sized against equity and the last close at `clock`). `order_type` is `{type: "market"}` or `{type: "limit", limit_price}`; the spine rounds `limit_price` to 4 decimals away from the market (down for a buy, up for a sell), so a limit never fills worse than the bot asked. `tif` is `day`. `client_id` must be unique per run; a repeat is rejected with `duplicate_client_id` and leaves the first order alone, which makes acks safe to replay after a crash.
+- `orders`: `{client_id, symbol, size, order_type, tif, reason}`. `size` is `{by: "qty", qty}` (signed: negative sells) or `{by: "target_weight", weight}` (sized against equity and the last close at `clock`). `order_type` is one of:
+  - `{type: "market"}`;
+  - `{type: "limit", limit_price}`: the spine rounds `limit_price` to 4 decimals away from the market (down for a buy, up for a sell), so a limit never fills worse than the bot asked;
+  - `{type: "stop", stop_price}`;
+  - `{type: "trailing_stop", trail, stop_price}` with `trail` `{by: "amount", amount}` or `{by: "percent", percent}` (a fraction); the bot sends `stop_price: null` and the spine sets it from the last close and moves it, which the holdings show;
+  - `{type: "market_on_open"}` and `{type: "market_on_close"}`: the next official open, and the official close of the first session not yet closed; a market-on-close decided less than 10 minutes before that close is rejected with `auction_closed`, and a market-on-open in a `1m` run with `auction_unavailable`.
+- `tif` is `day` (expires when its session closes) or `gtc` (until filled or cancelled). `client_id` must be unique per run; a repeat is rejected with `duplicate_client_id` and leaves the first order alone, which makes acks safe to replay after a crash.
 - `cancels`: client ids of working orders.
 - `state`: opaque bytes ≤ 64 KiB persisted with the step checkpoint and returned in `ready`; `null` keeps the previous state.
 - `logs`: `{level, message}` lines for the run log.
@@ -58,9 +65,10 @@ spine -> end {reason, message?}
 ## Time rules
 
 - Visibility: a 1m bar at `start + 60 s`; a daily bar at the session close; a fundamental fact at the open of the first session after its `filed` date; an earnings release at its EDGAR acceptance time; a corporate action at the open of its ex-date session; a calendar change at the open of the first session after its announcement; a macro value at the open of the first session after its `published` date.
-- Each bar runs one cycle: order expiry, corporate actions, fills (at the bar's start), mark, risk limits, wake the bot, accept orders (at the bar's visible time). A bar's cycle finishes before the next bar's begins, so an order accepted on bar N fills no earlier than bar N+1's open.
+- Each bar runs one cycle: order expiry, corporate actions, fills (at the bar's start, the auctions at the official open and close), mark, risk limits, wake the bot, accept orders (at the bar's visible time). A bar's cycle finishes before the next bar's begins, so an order accepted on bar N fills no earlier than bar N+1's open.
 - A day order belongs to the session of the first bar starting at or after its decision and expires at that session's close.
-- `wake`: `bar` wakes on every bar; `every:30m` when `clock − session open` is a positive multiple of 30 minutes, up to the close; `at:15:55` when the exchange-local clock reads 15:55. Bars visible between wakes still arrive, coalesced, at the next step.
+- `wake`: `bar` wakes on every bar; `every:30m` when `clock − session open` is a positive multiple of 30 minutes, up to the close; `at:15:55` when the exchange-local clock reads 15:55; `before_close:10m` when `clock` is 10 minutes before the session close. Bars visible between wakes still arrive, coalesced, at the next step. A `1d` run with `before_close` is stepped there instead of at the close, before the session is matched: its step's portfolio has the session's corporate actions but none of its fills, and cancels of orders the session still matches take effect after the close.
+
 
 ## Throughput
 

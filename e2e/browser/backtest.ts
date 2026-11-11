@@ -7,17 +7,20 @@ async function customPeriodBacktest(page: Page): Promise<{ run: number }> {
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("radio", { name: "custom" }).click();
   await dialog.getByLabel("From").fill(env("PERIOD_FROM"));
-  await dialog.getByLabel("To").fill(env("PERIOD_TO"));
+  await dialog.getByLabel("To", { exact: true }).fill(env("PERIOD_TO"));
+  await dialog.getByLabel("Drawdown stop %").fill("90");
+  const shown = page.url();
   await dialog.getByRole("button", { name: "Run", exact: true }).click();
 
-  const head = page.locator(".run-head");
-  await pill(head, "completed").waitFor();
-  const heading = await head.getByRole("heading").textContent();
-  const run = Number(heading?.replace(/\D/g, ""));
+  await page.waitForFunction((before) => location.href !== before, shown);
+  const run = Number(/\/runs\/(\d+)$/.exec(page.url())?.[1]);
   if (!Number.isInteger(run)) {
-    throw new Error(`the run heading names no run: ${heading}`);
+    throw new Error(`the page names no run: ${page.url()}`);
   }
+  const head = page.locator(".run-head").filter({ has: page.getByRole("heading", { name: `Run #${run}`, exact: true }) });
+  await pill(head, "completed").waitFor();
   return { run };
+
 }
 
 await signedIn(customPeriodBacktest);

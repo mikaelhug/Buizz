@@ -17,6 +17,8 @@ DEFAULT_URL = "http://127.0.0.1:8080"
 FINISHED = {"completed", "failed", "cancelled"}
 POLL_SECONDS = 1.0
 ORDERS_PAGE = 1000
+COUNTED_COSTS = frozenset({"adv_sessions"})
+RISK_LIMITS = ("max_position_weight", "max_gross_exposure", "max_drawdown")
 
 
 class CliError(Exception):
@@ -56,6 +58,35 @@ def parse_param(text: str) -> tuple[str, Any]:
         return key, value
 
 
+def parse_risk(text: str) -> tuple[str, str | None]:
+    key, separator, value = text.partition("=")
+    if not separator or key not in RISK_LIMITS:
+        raise argparse.ArgumentTypeError(f"expected one of {', '.join(RISK_LIMITS)}=VALUE, got {text!r}")
+    if value == "none":
+        return key, None
+    try:
+        float(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"{key} must be a number or none, got {value!r}") from None
+    return key, value
+
+
+def parse_cost(text: str) -> tuple[str, Any]:
+    key, separator, value = text.partition("=")
+    if not separator or not key:
+        raise argparse.ArgumentTypeError(f"expected key=value, got {text!r}")
+    if key in COUNTED_COSTS:
+        if not value.isdigit():
+            raise argparse.ArgumentTypeError(f"{key} must be a whole number, got {value!r}")
+        return key, int(value)
+    if value.startswith(("[", "{")):
+        try:
+            return key, json.loads(value)
+        except ValueError:
+            raise argparse.ArgumentTypeError(f"{key} is not valid JSON: {value!r}") from None
+    return key, value
+
+
 def format_value(value: Any) -> str:
     if value is None:
         return "-"
@@ -90,6 +121,11 @@ def backtest(api: Api, args: argparse.Namespace) -> int:
     body: dict[str, Any] = {"period": {"from": args.start, "to": args.end}, "allow_holdout": args.allow_holdout}
     if args.param:
         body["params"] = dict(args.param)
+    if args.cost:
+        body["cost"] = dict(args.cost)
+    if args.risk:
+        manifest = api.call("GET", f"/api/bots/{bot}")["manifest"]
+        body["risk"] = {**dict.fromkeys(RISK_LIMITS), **manifest.get("risk", {}), **dict(args.risk)}
     run = api.call("POST", f"/api/bots/{bot}/backtests", body)
     print(f"run {run['id']} queued for {bot} {args.start}..{args.end}")
     last_clock = None
@@ -120,6 +156,23 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--from", dest="start", required=True, metavar="YYYY-MM-DD")
     run.add_argument("--to", dest="end", required=True, metavar="YYYY-MM-DD")
     run.add_argument("--param", action="append", default=[], type=parse_param, metavar="KEY=VALUE")
+    run.add_argument(
+        "--risk",
+        action="append",
+        default=[],
+        type=parse_risk,
+        metavar="LIMIT=VALUE",
+        help="override one of the bot's risk limits for this run, or remove it with none",
+    )
+    run.add_argument(
+        "--cost",
+        action="append",
+        default=[],
+        type=parse_cost,
+        metavar="FIELD=VALUE",
+        help="set one field of the cost model for this run; the others keep their defaults",
+    )
+
     run.add_argument("--allow-holdout", action="store_true", help="allow an end date inside the locked holdout")
     return parser
 

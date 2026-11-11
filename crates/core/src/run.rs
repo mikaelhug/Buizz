@@ -60,9 +60,20 @@ pub enum Wake {
     At {
         time: NaiveTime,
     },
+    BeforeClose {
+        minutes: u32,
+    },
 }
 
 impl Wake {
+    pub fn before_close(&self, session: &Session) -> Option<Timestamp> {
+        let Self::BeforeClose { minutes } = *self else {
+            return None;
+        };
+        let at = session.close - TimeDelta::minutes(i64::from(minutes));
+        (at > session.open).then_some(at)
+    }
+
     pub fn is_due(&self, clock: Timestamp, session: &Session) -> bool {
         match *self {
             Self::Bar => true,
@@ -74,6 +85,7 @@ impl Wake {
                     && elapsed % i64::from(minutes) == 0
             }
             Self::At { time } => clock <= session.close && clock.exchange_time() == time,
+            Self::BeforeClose { .. } => self.before_close(session) == Some(clock),
         }
     }
 }
@@ -85,12 +97,13 @@ impl fmt::Display for Wake {
             Self::Every { minutes } if minutes % 60 == 0 => write!(f, "every:{}h", minutes / 60),
             Self::Every { minutes } => write!(f, "every:{minutes}m"),
             Self::At { time } => write!(f, "at:{}", time.format("%H:%M")),
+            Self::BeforeClose { minutes } => write!(f, "before_close:{minutes}m"),
         }
     }
 }
 
 #[derive(Debug, thiserror::Error)]
-#[error("invalid wake {0:?}, expected bar, every:<n>m, every:<n>h or at:HH:MM")]
+#[error("invalid wake {0:?}, expected bar, every:<n>m, every:<n>h, at:HH:MM or before_close:<n>m")]
 pub struct ParseWakeError(String);
 
 impl FromStr for Wake {
@@ -112,6 +125,14 @@ impl FromStr for Wake {
                 _ => Err(invalid()),
             };
         }
+        if let Some(before) = text.strip_prefix("before_close:") {
+            let minutes: u32 = before
+                .strip_suffix('m')
+                .and_then(|minutes| minutes.parse().ok())
+                .filter(|minutes| *minutes > 0)
+                .ok_or_else(invalid)?;
+            return Ok(Self::BeforeClose { minutes });
+        }
         if let Some(at) = text.strip_prefix("at:") {
             let time = NaiveTime::parse_from_str(at, "%H:%M").map_err(|_| invalid())?;
             return Ok(Self::At { time });
@@ -130,8 +151,10 @@ impl PartialSchema for Wake {
     fn schema() -> RefOr<Schema> {
         ObjectBuilder::new()
             .schema_type(Type::String)
-            .pattern(Some(r"^(bar|every:[0-9]+[mh]|at:[0-2][0-9]:[0-5][0-9])$"))
-            .examples(["bar", "every:30m", "at:15:55"])
+            .pattern(Some(
+                r"^(bar|every:[0-9]+[mh]|at:[0-2][0-9]:[0-5][0-9]|before_close:[0-9]+m)$",
+            ))
+            .examples(["bar", "every:30m", "at:15:55", "before_close:10m"])
             .into()
     }
 }
@@ -145,14 +168,24 @@ impl<'de> Deserialize<'de> for Wake {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(default)]
 pub struct CostModel {
     pub commission_per_share: Decimal,
     pub commission_min: Decimal,
+    pub commission_tiers: Vec<CommissionTier>,
     pub slippage_bps: Decimal,
+    pub slippage_per_share: Decimal,
     pub adv_participation: Decimal,
     pub adv_sessions: u32,
     pub borrow_rate: Decimal,
+    pub financing_spread: Decimal,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct CommissionTier {
+    pub above: u64,
+    pub per_share: Decimal,
 }
 
 impl Default for CostModel {
@@ -160,10 +193,13 @@ impl Default for CostModel {
         Self {
             commission_per_share: Decimal::new(5, 3),
             commission_min: Decimal::ONE,
+            commission_tiers: Vec::new(),
             slippage_bps: Decimal::new(5, 0),
+            slippage_per_share: Decimal::ZERO,
             adv_participation: Decimal::new(5, 2),
             adv_sessions: 20,
             borrow_rate: Decimal::new(2, 2),
+            financing_spread: Decimal::new(15, 3),
         }
     }
 }
@@ -171,13 +207,23 @@ impl Default for CostModel {
 impl CostModel {
     pub const TRADING_DAYS_PER_YEAR: u32 = 252;
 
-    pub fn market_fill_price(&self, side: Side, open: Decimal) -> Decimal {
+    pub fn market_fill_price(&self, side: Side, price: Decimal) -> Decimal {
         let slip = self.slippage_bps / Decimal::new(10_000, 0);
-        let factor = match side {
-            Side::Buy => Decimal::ONE + slip,
-            Side::Sell => Decimal::ONE - slip,
+        let moved = match side {
+            Side::Buy => price * (Decimal::ONE + slip) + self.slippage_per_share,
+            Side::Sell => price * (Decimal::ONE - slip) - self.slippage_per_share,
         };
-        round_price(open * factor)
+        round_price(moved)
+    }
+
+    pub fn stop_fill_price(&self, side: Side, stop: Decimal, bar: &Bar) -> Option<Decimal> {
+        match side {
+            Side::Sell if bar.open <= stop => Some(self.market_fill_price(side, bar.open)),
+            Side::Sell if bar.low <= stop => Some(self.market_fill_price(side, stop)),
+            Side::Buy if bar.open >= stop => Some(self.market_fill_price(side, bar.open)),
+            Side::Buy if bar.high >= stop => Some(self.market_fill_price(side, stop)),
+            _ => None,
+        }
     }
 
     pub fn limit_fill_price(&self, side: Side, limit: Decimal, bar: &Bar) -> Option<Decimal> {
@@ -191,11 +237,17 @@ impl CostModel {
         }
     }
 
-    pub fn commission(&self, qty: u64) -> Decimal {
+    pub fn commission(&self, qty: u64, shares_this_month: u64) -> Decimal {
         if qty == 0 {
             return Decimal::ZERO;
         }
-        round_cash((self.commission_per_share * Decimal::from(qty)).max(self.commission_min))
+        let per_share = self
+            .commission_tiers
+            .iter()
+            .filter(|tier| shares_this_month >= tier.above)
+            .max_by_key(|tier| tier.above)
+            .map_or(self.commission_per_share, |tier| tier.per_share);
+        round_cash((per_share * Decimal::from(qty)).max(self.commission_min))
     }
 
     pub fn participation_cap(&self, average_daily_volume: Option<u64>) -> Option<u64> {
@@ -213,7 +265,20 @@ impl CostModel {
                 / Decimal::from(Self::TRADING_DAYS_PER_YEAR),
         )
     }
+
+    pub fn financing_rate(&self, risk_free_rate: Decimal) -> Decimal {
+        risk_free_rate + self.financing_spread
+    }
+
+    pub fn financing_fee(&self, cash: Decimal, rate: Decimal) -> Decimal {
+        if cash >= Decimal::ZERO {
+            return Decimal::ZERO;
+        }
+        round_cash(-cash * rate / Decimal::from(Self::TRADING_DAYS_PER_YEAR))
+    }
 }
+
+pub const MOC_CUTOFF_MINUTES: i64 = 10;
 
 pub const DRAWDOWN_STOP: &str = "stopped by drawdown limit";
 
@@ -226,6 +291,17 @@ pub struct RiskLimits {
 }
 
 impl RiskLimits {
+    pub fn are_positive(&self) -> bool {
+        [
+            self.max_position_weight,
+            self.max_gross_exposure,
+            self.max_drawdown,
+        ]
+        .into_iter()
+        .flatten()
+        .all(|limit| limit > Decimal::ZERO)
+    }
+
     pub fn check_order(
         &self,
         equity: Decimal,
@@ -277,6 +353,12 @@ pub struct RunConfig {
     pub seed: u64,
     pub benchmark: Symbol,
     pub holdout: bool,
+}
+
+impl RunConfig {
+    pub fn needs_minute_bars(&self) -> bool {
+        self.timeframe == Timeframe::Minute || matches!(self.wake, Wake::BeforeClose { .. })
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]
@@ -441,6 +523,7 @@ pub enum RunBadge {
     SurvivorshipBiased,
     Holdout,
     DataWarnings,
+    DrawdownStop,
     ThinIndexHistory,
 }
 
@@ -482,22 +565,17 @@ impl BotManifest {
         if manifest.command.is_empty() {
             return Err(ManifestError::Invalid("command must not be empty"));
         }
-        if manifest.timeframe == Timeframe::Day && manifest.wake != Wake::Bar {
-            return Err(ManifestError::Invalid("daily bots must use wake = \"bar\""));
-        }
-        let risk = manifest.risk;
-        let limits = [
-            risk.max_position_weight,
-            risk.max_gross_exposure,
-            risk.max_drawdown,
-        ];
-        if limits
-            .into_iter()
-            .flatten()
-            .any(|limit| limit <= Decimal::ZERO)
+        if manifest.timeframe == Timeframe::Day
+            && !matches!(manifest.wake, Wake::Bar | Wake::BeforeClose { .. })
         {
+            return Err(ManifestError::Invalid(
+                "daily bots must use wake = \"bar\" or \"before_close:<n>m\"",
+            ));
+        }
+        if !manifest.risk.are_positive() {
             return Err(ManifestError::Invalid("risk limits must be positive"));
         }
+
         match &manifest.universe {
             UniverseSpec::Symbols { symbols } if symbols.is_empty() => {
                 Err(ManifestError::Invalid("universe.symbols must not be empty"))

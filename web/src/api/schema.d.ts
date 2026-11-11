@@ -397,14 +397,33 @@ export interface components {
             holdout_runs: number;
             last_run_at?: components["schemas"]["Timestamp"] | null;
         };
+        CommissionTier: {
+            /** Format: int64 */
+            above: number;
+            per_share: string;
+        };
         CostModel: {
+            /** @default 0.005 */
             commission_per_share: string;
+            /** @default 1 */
             commission_min: string;
+            /** @default [] */
+            commission_tiers: components["schemas"]["CommissionTier"][];
+            /** @default 5 */
             slippage_bps: string;
+            /** @default 0 */
+            slippage_per_share: string;
+            /** @default 0.05 */
             adv_participation: string;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @default 20
+             */
             adv_sessions: number;
+            /** @default 0.02 */
             borrow_rate: string;
+            /** @default 0.015 */
+            financing_spread: string;
         };
         Coverage: {
             dataset: components["schemas"]["Dataset"];
@@ -603,6 +622,21 @@ export interface components {
             limit_price: string;
             /** @enum {string} */
             type: "limit";
+        } | {
+            stop_price: string;
+            /** @enum {string} */
+            type: "stop";
+        } | {
+            trail: components["schemas"]["Trail"];
+            stop_price?: string | null;
+            /** @enum {string} */
+            type: "trailing_stop";
+        } | {
+            /** @enum {string} */
+            type: "market_on_open";
+        } | {
+            /** @enum {string} */
+            type: "market_on_close";
         };
         OrderUpdate: {
             order_id: components["schemas"]["OrderId"];
@@ -642,7 +676,7 @@ export interface components {
             weight: string;
         };
         /** @enum {string} */
-        RejectReason: "unknown_symbol" | "duplicate_client_id" | "zero_quantity" | "invalid_limit_price" | "no_price" | "not_shortable" | "max_position_weight" | "max_gross_exposure" | "invalid_size" | "no_stream_slot";
+        RejectReason: "unknown_symbol" | "duplicate_client_id" | "zero_quantity" | "invalid_limit_price" | "no_price" | "not_shortable" | "max_position_weight" | "max_gross_exposure" | "invalid_size" | "no_stream_slot" | "invalid_stop_price" | "auction_closed" | "auction_unavailable";
         Reproducibility: {
             bot_hash: string;
             engine_version: string;
@@ -658,7 +692,7 @@ export interface components {
             max_drawdown?: string | null;
         };
         /** @enum {string} */
-        RunBadge: "survivorship_biased" | "holdout" | "data_warnings" | "thin_index_history";
+        RunBadge: "survivorship_biased" | "holdout" | "data_warnings" | "drawdown_stop" | "thin_index_history";
         RunConfig: {
             bot: string;
             mode: components["schemas"]["Mode"];
@@ -801,11 +835,20 @@ export interface components {
         /** @example AAPL */
         Symbol: string;
         /** @enum {string} */
-        TimeInForce: "day";
+        TimeInForce: "day" | "gtc";
         /** @enum {string} */
         Timeframe: "1d" | "1m";
         /** Format: date-time */
         Timestamp: string;
+        Trail: {
+            amount: string;
+            /** @enum {string} */
+            by: "amount";
+        } | {
+            percent: string;
+            /** @enum {string} */
+            by: "percent";
+        };
         UniverseSpec: {
             symbols: components["schemas"]["Symbol"][];
         } | {
@@ -819,6 +862,7 @@ export interface components {
          * @example bar
          * @example every:30m
          * @example at:15:55
+         * @example before_close:10m
          */
         Wake: string;
         Watermarks: {

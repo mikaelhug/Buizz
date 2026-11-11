@@ -1,0 +1,5 @@
+description = "Sends a market-on-close order five minutes before the close, after the exchange cutoff"
+command = ["uv", "run", "--frozen", "--quiet", "--project", "../../../sdk/python", "python", "bot.py"]
+timeframe = "1d"
+wake = "before_close:5m"
+universe = { symbols = ["AAA"] }

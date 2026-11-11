@@ -12,12 +12,12 @@ use buizz_core::protocol::{
     StepEvent,
 };
 use buizz_core::run::{
-    DRAWDOWN_STOP, DesiredState, EquityPoint, LogLevel, Mode, RunEvent, RunEventKind, RunId,
-    RunStatus,
+    DRAWDOWN_STOP, DesiredState, EquityPoint, LogLevel, Mode, RunBadge, RunEvent, RunEventKind,
+    RunId, RunStatus,
 };
 use buizz_core::time::Timestamp;
-use buizz_core::visibility::order_session;
-use buizz_engine::{Cycle, DrawdownStop, Engine, EngineError, Outbox};
+use buizz_core::visibility::{close_auction_session, open_auction_session, order_session};
+use buizz_engine::{Cycle, Decision, DrawdownStop, Engine, EngineError, Outbox};
 use buizz_feed::FeedLease;
 use buizz_ingest::IngestError;
 use buizz_market::MarketError;
@@ -27,6 +27,7 @@ use buizz_supervisor::{
 };
 use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
+use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, watch};
 
 use crate::commit::Committer;
@@ -170,6 +171,55 @@ impl Frame {
         self.events.clear();
         self.due = false;
     }
+
+    fn undelivered(&self) -> Option<Vec<u8>> {
+        let empty = self.bars.symbol_index.is_empty() && self.events.is_empty() && !self.due;
+        (!empty).then(|| {
+            rmp_serde::to_vec_named(&Undelivered {
+                bars: &self.bars,
+                events: &self.events,
+                due: self.due,
+            })
+            .expect("undelivered steps encode as MessagePack")
+        })
+    }
+
+    fn restore(saved: Option<&[u8]>) -> Flow<Self> {
+        let Some(saved) = saved else {
+            return Ok(Self::default());
+        };
+        let restored: Restored = rmp_serde::from_slice(saved)
+            .map_err(|error| Exit::Failed(format!("the saved step is unreadable: {error}")))?;
+        let columns = restored
+            .bars
+            .symbols
+            .iter()
+            .zip(0..)
+            .map(|(symbol, index)| (symbol.clone(), index))
+            .collect();
+        Ok(Self {
+            bars: restored.bars,
+            columns,
+            events: restored.events,
+            due: restored.due,
+            holdings: None,
+            universe: None,
+        })
+    }
+}
+
+#[derive(Serialize)]
+struct Undelivered<'a> {
+    bars: &'a BarBuffer,
+    events: &'a [StepEvent],
+    due: bool,
+}
+
+#[derive(Deserialize)]
+struct Restored {
+    bars: BarBuffer,
+    events: Vec<StepEvent>,
+    due: bool,
 }
 
 pub(crate) async fn run(mut launch: Launch) {
@@ -197,12 +247,13 @@ pub(crate) async fn run(mut launch: Launch) {
             EndReason::RiskLimit,
         ),
     };
+    let badge = (reason == EndReason::RiskLimit).then_some(RunBadge::DrawdownStop);
     let (message, result_hash) = match closing {
         Some((driver, _slot)) => driver.close(status, reason, message).await,
         None => (message, None),
     };
     if let Some(status) = status
-        && let Err(error) = conclude(&inner, run_id, status, message, result_hash).await
+        && let Err(error) = conclude(&inner, run_id, status, message, result_hash, badge).await
     {
         tracing::error!(run = %run_id, %error, "cannot record the end of a run");
     }
@@ -217,7 +268,7 @@ async fn prepare(
     if run.mode == Mode::Live {
         return Ok(None);
     }
-    if run.config.timeframe == Timeframe::Minute {
+    if run.config.needs_minute_bars() {
         let config = &run.config;
         let end = config.end.unwrap_or(config.start);
         let symbols = gate_symbols(&inner.market, config).await?;
@@ -266,6 +317,7 @@ pub(crate) async fn conclude(
     status: RunStatus,
     message: Option<String>,
     result_hash: Option<String>,
+    badge: Option<RunBadge>,
 ) -> Result<(), StateError> {
     let Some(run) = inner.state.run(run_id).await? else {
         return Err(StateError::UnknownRun(run_id));
@@ -291,6 +343,7 @@ pub(crate) async fn conclude(
                 result_hash,
                 metrics,
                 message: message.clone(),
+                badge,
             },
         )
         .await?;
@@ -372,13 +425,14 @@ impl Driver {
         let config = &run.config;
         let timeline = Timeline::open(inner.market.clone(), config).await?;
         let checkpoint = inner.state.checkpoint(run.id).await?;
-        let (engine, after, clock, last_step, bot_state) = match checkpoint {
+        let (engine, after, clock, last_step, bot_state, frame) = match checkpoint {
             Some(checkpoint) => (
                 Engine::restore(config, &checkpoint.engine_checkpoint)?,
                 checkpoint.clock,
                 Some(checkpoint.clock),
                 checkpoint.step_seq,
                 checkpoint.bot_state,
+                Frame::restore(checkpoint.undelivered.as_deref())?,
             ),
             None => {
                 let (after, start) = match run.mode {
@@ -390,7 +444,14 @@ impl Driver {
                     ),
                     Mode::Live => (run.created_at, run.created_at),
                 };
-                (Engine::new(config, start), after, None, 0, None)
+                (
+                    Engine::new(config, start),
+                    after,
+                    None,
+                    0,
+                    None,
+                    Frame::default(),
+                )
             }
         };
         Ok(Self {
@@ -404,7 +465,7 @@ impl Driver {
             timeline,
             committer: Committer::spawn(inner.state.clone(), last_step),
             pending: Pending::default(),
-            frame: Frame::default(),
+            frame,
             after,
             clock,
             session: None,
@@ -433,7 +494,7 @@ impl Driver {
     }
 
     fn streams(&self) -> bool {
-        self.live() && self.run.config.timeframe == Timeframe::Minute
+        self.live() && self.run.config.needs_minute_bars()
     }
 
     fn wanted(&self) -> BTreeSet<Symbol> {
@@ -562,7 +623,7 @@ impl Driver {
                     if self.frame.due {
                         self.publish_equity();
                     }
-                    self.checkpoint().await?;
+                    self.commit(true).await?;
                     if next.is_none() {
                         self.timeline.refresh().await?;
                     }
@@ -585,10 +646,18 @@ impl Driver {
     }
 
     fn processable(&mut self, point: &Point) -> bool {
-        self.watermarks
-            .borrow_and_update()
-            .get(self.run.config.timeframe)
-            .is_some_and(|through| point.visible_at <= through)
+        let marks = *self.watermarks.borrow_and_update();
+        let timeframe = if point.pre_close {
+            Timeframe::Minute
+        } else {
+            self.run.config.timeframe
+        };
+        let visible = |timeframe, at| marks.get(timeframe).is_some_and(|through| at <= through);
+        let awaits_auction = self.run.config.timeframe == Timeframe::Minute
+            && point.closes_session()
+            && !self.engine.closing_auction(point.session.date).is_empty();
+        visible(timeframe, point.visible_at)
+            && (!awaits_auction || visible(Timeframe::Day, point.session.close))
     }
 
     async fn reconcile(&mut self) -> Flow<()> {
@@ -685,18 +754,42 @@ impl Driver {
             self.timeline.enter(&point.session, &held).await?;
             self.lease_stream().await?;
         }
-        let visible_through = self.live().then(|| self.visible_through()).flatten();
-        let bars = self.timeline.bars(point, visible_through).await?;
+        let bars = if point.pre_close {
+            self.timeline.session_so_far(point).await?
+        } else {
+            let visible_through = self.live().then(|| self.visible_through()).flatten();
+            self.timeline.bars(point, visible_through).await?
+        };
+        let auction = match self.run.config.timeframe {
+            Timeframe::Minute if point.closes_session() => {
+                let symbols = self.engine.closing_auction(point.session.date);
+                match symbols.is_empty() {
+                    true => Vec::new(),
+                    false => self.timeline.official(&point.session, symbols).await?,
+                }
+            }
+            _ => Vec::new(),
+        };
         let data = self.timeline.session();
-        self.engine.run_cycle(&Cycle {
+        let cycle = Cycle {
             session: &point.session,
             start: point.start,
             visible_at: point.visible_at,
             bars: &bars,
+            official: match self.run.config.timeframe {
+                Timeframe::Day => &bars,
+                Timeframe::Minute => &auction,
+            },
             actions: &data.actions,
             average_daily_volume: &data.average_daily_volume,
             delisted: &data.delisted,
-        });
+            risk_free_rate: data.risk_free_rate,
+        };
+        if point.pre_close {
+            self.engine.pre_close(&cycle);
+        } else {
+            self.engine.run_cycle(&cycle);
+        }
         self.after = point.visible_at;
         self.clock = Some(point.visible_at);
         self.session = Some(point.session);
@@ -1027,20 +1120,30 @@ impl Driver {
         }
         let unleased = self.lease_orders(&orders);
         let clock = self.after;
-        let session = order_session(self.run.config.timeframe, clock, self.timeline.calendar())
-            .or(self.session.as_ref())
-            .map(|session| session.date)
-            .unwrap_or_else(|| clock.exchange_date());
+        let calendar = self.timeline.calendar();
+        let Some(current) = self.session else {
+            return Ok(());
+        };
+        let next = |found: Option<&Session>| found.copied().unwrap_or(current);
+        let session = next(order_session(self.run.config.timeframe, clock, calendar));
+        let on_open = next(open_auction_session(clock, calendar));
+        let on_close = next(close_auction_session(clock, calendar));
+        let decision = Decision {
+            at: clock,
+            session: &session,
+            on_open: &on_open,
+            on_close: &on_close,
+        };
         let ordered = !orders.is_empty();
         let timeline = &self.timeline;
-        self.engine
-            .accept(clock, session, orders, cancels, |symbol| {
-                match timeline.instrument(symbol) {
-                    None => Err(RejectReason::UnknownSymbol),
-                    Some(_) if unleased.contains(symbol) => Err(RejectReason::NoStreamSlot),
-                    Some(instrument) => Ok(instrument),
-                }
-            });
+        self.engine.accept(&decision, orders, cancels, |symbol| {
+            match timeline.instrument(symbol) {
+                None => Err(RejectReason::UnknownSymbol),
+                Some(_) if unleased.contains(symbol) => Err(RejectReason::NoStreamSlot),
+                Some(instrument) => Ok(instrument),
+            }
+        });
+
         self.absorb();
         if ordered {
             let held = self.held();
@@ -1048,17 +1151,6 @@ impl Driver {
         }
         self.lease_stream().await?;
         self.commit(false).await
-    }
-
-    async fn checkpoint(&mut self) -> Flow<()> {
-        if self.benched() || self.frame.events.is_empty() {
-            return self.commit(true).await;
-        }
-        let events = std::mem::take(&mut self.pending.events);
-        if !events.is_empty() {
-            self.inner.state.append_events(self.run.id, events).await?;
-        }
-        Ok(())
     }
 
     async fn commit(&mut self, force: bool) -> Flow<()> {
@@ -1085,6 +1177,7 @@ impl Driver {
                 events: pending.events,
                 engine_checkpoint: self.engine.checkpoint(),
                 bot_state: pending.bot_state,
+                undelivered: self.frame.undelivered(),
             })
             .await?;
         Ok(())
@@ -1218,7 +1311,7 @@ impl Driver {
         self.show_backtest_equity(true);
         let persisted = match status {
             Some(_) => self.commit(true).await,
-            None => self.checkpoint().await,
+            None => self.commit(true).await,
         };
         let flushed = match persisted {
             Ok(()) => self
