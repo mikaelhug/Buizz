@@ -111,6 +111,7 @@ fn step(run_id: buizz_core::run::RunId, n: u64, orders: Vec<Order>) -> StepCommi
         }],
         engine_checkpoint: vec![n as u8; 4],
         bot_state: Some(vec![9, n as u8]),
+        undelivered: Some(vec![7, n as u8]),
     }
 }
 
@@ -158,6 +159,7 @@ async fn steps_survive_reopen_and_failed_commit_leaves_nothing() {
     assert_eq!(before.2.len(), 2);
     assert_eq!(before.3.as_ref().unwrap().step_seq, 2);
     assert_eq!(before.3.as_ref().unwrap().bot_state, Some(vec![9, 2]));
+    assert_eq!(before.3.as_ref().unwrap().undelivered, Some(vec![7, 2]));
     assert_eq!(before.1.qty(&Symbol::new("AAPL")), 10);
     assert_eq!(before.6.len(), 1);
     assert_eq!(before.6[0].client_id, "b");
@@ -198,4 +200,65 @@ async fn a_bot_has_one_live_run() {
         .await
         .unwrap();
     store.create_run(new_run(Mode::Live)).await.unwrap();
+}
+
+#[tokio::test]
+async fn a_state_store_from_before_financing_and_undelivered_steps_takes_both() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(FILE_NAME);
+    rusqlite::Connection::open(&path)
+        .unwrap()
+        .execute_batch(
+            "CREATE TABLE run (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                bot TEXT NOT NULL,
+                mode TEXT NOT NULL CHECK (mode IN ('backtest', 'live')),
+                status TEXT NOT NULL,
+                desired TEXT NOT NULL,
+                config TEXT NOT NULL,
+                holdout INTEGER NOT NULL CHECK (holdout IN (0, 1)),
+                bot_hash TEXT NOT NULL,
+                engine_version TEXT NOT NULL,
+                seed INTEGER NOT NULL,
+                data_watermark INTEGER,
+                created_at INTEGER NOT NULL,
+                started_at INTEGER,
+                finished_at INTEGER,
+                step_seq INTEGER NOT NULL DEFAULT 0,
+                clock INTEGER,
+                equity TEXT,
+                checkpoint BLOB,
+                bot_state BLOB,
+                result_hash TEXT,
+                metrics TEXT,
+                badges TEXT NOT NULL DEFAULT '[]',
+                message TEXT
+            ) STRICT;
+            CREATE TABLE ledger_entry (
+                run_id INTEGER NOT NULL REFERENCES run (id) ON DELETE CASCADE,
+                seq INTEGER NOT NULL,
+                at INTEGER NOT NULL,
+                kind TEXT NOT NULL CHECK (kind IN ('deposit', 'fill', 'dividend', 'split', 'borrow_fee', 'liquidation')),
+                symbol TEXT,
+                cash_delta TEXT NOT NULL,
+                body TEXT NOT NULL,
+                PRIMARY KEY (run_id, seq)
+            ) STRICT;",
+        )
+        .unwrap();
+    let store = StateStore::open(&path).await.unwrap();
+    let run_id = store.create_run(new_run(Mode::Live)).await.unwrap();
+    store.commit_step(step(run_id, 1, vec![])).await.unwrap();
+    let mut financed = step(run_id, 2, vec![]);
+    financed.ledger[0].kind = LedgerKind::Financing {
+        balance: d("-5000"),
+        rate: d("0.06"),
+        amount: d("1.19"),
+    };
+    store.commit_step(financed).await.unwrap();
+
+    let portfolio = store.portfolio(run_id).await.unwrap();
+    assert_eq!(portfolio.cash, d("99998.81"));
+    let checkpoint = store.checkpoint(run_id).await.unwrap().unwrap();
+    assert_eq!(checkpoint.undelivered, Some(vec![7, 2]));
 }

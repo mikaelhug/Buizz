@@ -121,7 +121,6 @@ Out of v1: brokers and real money; options, crypto, FX; tick/quote simulation; e
    - The UI and CLI cannot override a bot's risk limits for one backtest.
    - No time seam: the runner, feed, ingest, API and supervisor call the wall clock directly, so the live e2e scenarios must sleep between 23:28 and 00:11 ET. Add one `now()` in `buizz_core::time` with a test offset.
    - The e2e fake does not serve SEC `company_tickers_mf.json`, so fund classification is untested and the instruments job reports a 404 in e2e.
-   - `StepCommit` cannot carry undelivered step events, so a live crash between wakes holds back the checkpoint; add the field so the clock and equity never lag.
    - The "Drawdown stop" badge is inferred in the web UI from the failed status and message; store it as a run badge in the state store instead.
 4. Implement the bot backlog in `bots/BRIEFS.md`, one Opus 5.5 agent per bot, each followed by a critical review of that implementation against its brief. Contract gaps (G1–G13) land as their own PRs before the bots they block.
    Gap decisions (free sources first; nothing is ever derived or modelled in place of data):

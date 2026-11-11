@@ -285,13 +285,14 @@ pub fn commit_step(connection: &Connection, commit: &StepCommit) -> Result<()> {
     insert_events(connection, commit.run_id, &commit.events)?;
     connection.execute(
         "UPDATE run SET step_seq = ?, clock = ?, equity = ?, checkpoint = ?, \
-         bot_state = COALESCE(?, bot_state) WHERE id = ?",
+         bot_state = COALESCE(?, bot_state), undelivered = ? WHERE id = ?",
         params![
             int(commit.step_seq)?,
             commit.clock.nanos(),
             commit.equity.to_string(),
             commit.engine_checkpoint,
             commit.bot_state,
+            commit.undelivered,
             commit.run_id.0,
         ],
     )?;
@@ -301,7 +302,7 @@ pub fn commit_step(connection: &Connection, commit: &StepCommit) -> Result<()> {
 pub fn checkpoint(connection: &Connection, run_id: RunId) -> Result<Option<Checkpoint>> {
     let found = connection
         .query_row(
-            "SELECT step_seq, clock, checkpoint, bot_state FROM run \
+            "SELECT step_seq, clock, checkpoint, bot_state, undelivered FROM run \
              WHERE id = ? AND checkpoint IS NOT NULL",
             [run_id.0],
             |row| {
@@ -310,6 +311,7 @@ pub fn checkpoint(connection: &Connection, run_id: RunId) -> Result<Option<Check
                     clock: read_timestamp(row, 1)?,
                     engine_checkpoint: row.get(2)?,
                     bot_state: row.get(3)?,
+                    undelivered: row.get(4)?,
                 })
             },
         )

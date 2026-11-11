@@ -604,6 +604,7 @@ dependencies = [
  "rand 0.10.3",
  "rmp-serde",
  "rust_decimal",
+ "serde",
  "serde_json",
  "thiserror",
  "tokio",

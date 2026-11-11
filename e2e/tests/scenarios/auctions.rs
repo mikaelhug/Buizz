@@ -8,7 +8,8 @@ use crate::spine::{Options, Spine};
 use crate::world::{World, date, decimal, stamp};
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_daily_bot_trades_the_official_close_and_open_and_a_stop_fills_on_its_breakout() {
+async fn a_daily_bot_trades_the_official_close_and_open_on_margin_and_a_stop_fills_on_its_breakout()
+{
     let spine = Spine::start(
         FakeProviders::serve(World::fixture_market().await).await,
         Options {
@@ -22,7 +23,7 @@ async fn a_daily_bot_trades_the_official_close_and_open_and_a_stop_fills_on_its_
     let queued: RunSummary = spine
         .post(
             "/api/bots/auction/backtests",
-            json!({"period": {"from": "2024-11-29", "to": "2024-12-02"}}),
+            json!({"period": {"from": "2024-11-29", "to": "2024-12-02"}, "start_cash": "500"}),
         )
         .await;
     let run = spine.finished(queued.id).await;
@@ -88,8 +89,9 @@ async fn a_daily_bot_trades_the_official_close_and_open_and_a_stop_fills_on_its_
     assert_eq!(positions[0].qty, 10);
     assert_eq!(
         run.equity,
-        Some(decimal("99999.75")),
-        "100000 - 1001.50 for the close + 1003.50 for the open - 496.25 for the stop + 494.00 of BBB"
+        Some(decimal("499.63")),
+        "500 - 1001.50 for the close - 0.12 to finance the 501.50 overdraft overnight at 4.5% + 1.5% / 252 \
+         + 1003.50 for the open - 496.25 for the stop + 494.00 of BBB"
     );
 
     let queued: RunSummary = spine

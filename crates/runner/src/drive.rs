@@ -27,6 +27,7 @@ use buizz_supervisor::{
 };
 use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
+use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, watch};
 
 use crate::commit::Committer;
@@ -170,6 +171,55 @@ impl Frame {
         self.events.clear();
         self.due = false;
     }
+
+    fn undelivered(&self) -> Option<Vec<u8>> {
+        let empty = self.bars.symbol_index.is_empty() && self.events.is_empty() && !self.due;
+        (!empty).then(|| {
+            rmp_serde::to_vec_named(&Undelivered {
+                bars: &self.bars,
+                events: &self.events,
+                due: self.due,
+            })
+            .expect("undelivered steps encode as MessagePack")
+        })
+    }
+
+    fn restore(saved: Option<&[u8]>) -> Flow<Self> {
+        let Some(saved) = saved else {
+            return Ok(Self::default());
+        };
+        let restored: Restored = rmp_serde::from_slice(saved)
+            .map_err(|error| Exit::Failed(format!("the saved step is unreadable: {error}")))?;
+        let columns = restored
+            .bars
+            .symbols
+            .iter()
+            .zip(0..)
+            .map(|(symbol, index)| (symbol.clone(), index))
+            .collect();
+        Ok(Self {
+            bars: restored.bars,
+            columns,
+            events: restored.events,
+            due: restored.due,
+            holdings: None,
+            universe: None,
+        })
+    }
+}
+
+#[derive(Serialize)]
+struct Undelivered<'a> {
+    bars: &'a BarBuffer,
+    events: &'a [StepEvent],
+    due: bool,
+}
+
+#[derive(Deserialize)]
+struct Restored {
+    bars: BarBuffer,
+    events: Vec<StepEvent>,
+    due: bool,
 }
 
 pub(crate) async fn run(mut launch: Launch) {
@@ -372,13 +422,14 @@ impl Driver {
         let config = &run.config;
         let timeline = Timeline::open(inner.market.clone(), config).await?;
         let checkpoint = inner.state.checkpoint(run.id).await?;
-        let (engine, after, clock, last_step, bot_state) = match checkpoint {
+        let (engine, after, clock, last_step, bot_state, frame) = match checkpoint {
             Some(checkpoint) => (
                 Engine::restore(config, &checkpoint.engine_checkpoint)?,
                 checkpoint.clock,
                 Some(checkpoint.clock),
                 checkpoint.step_seq,
                 checkpoint.bot_state,
+                Frame::restore(checkpoint.undelivered.as_deref())?,
             ),
             None => {
                 let (after, start) = match run.mode {
@@ -390,7 +441,14 @@ impl Driver {
                     ),
                     Mode::Live => (run.created_at, run.created_at),
                 };
-                (Engine::new(config, start), after, None, 0, None)
+                (
+                    Engine::new(config, start),
+                    after,
+                    None,
+                    0,
+                    None,
+                    Frame::default(),
+                )
             }
         };
         Ok(Self {
@@ -404,7 +462,7 @@ impl Driver {
             timeline,
             committer: Committer::spawn(inner.state.clone(), last_step),
             pending: Pending::default(),
-            frame: Frame::default(),
+            frame,
             after,
             clock,
             session: None,
@@ -562,7 +620,7 @@ impl Driver {
                     if self.frame.due {
                         self.publish_equity();
                     }
-                    self.checkpoint().await?;
+                    self.commit(true).await?;
                     if next.is_none() {
                         self.timeline.refresh().await?;
                     }
@@ -1091,17 +1149,6 @@ impl Driver {
         self.commit(false).await
     }
 
-    async fn checkpoint(&mut self) -> Flow<()> {
-        if self.benched() || self.frame.events.is_empty() {
-            return self.commit(true).await;
-        }
-        let events = std::mem::take(&mut self.pending.events);
-        if !events.is_empty() {
-            self.inner.state.append_events(self.run.id, events).await?;
-        }
-        Ok(())
-    }
-
     async fn commit(&mut self, force: bool) -> Flow<()> {
         if !self.pending.dirty || !(force || self.committer.idle()) {
             return Ok(());
@@ -1126,6 +1173,7 @@ impl Driver {
                 events: pending.events,
                 engine_checkpoint: self.engine.checkpoint(),
                 bot_state: pending.bot_state,
+                undelivered: self.frame.undelivered(),
             })
             .await?;
         Ok(())
@@ -1259,7 +1307,7 @@ impl Driver {
         self.show_backtest_equity(true);
         let persisted = match status {
             Some(_) => self.commit(true).await,
-            None => self.checkpoint().await,
+            None => self.commit(true).await,
         };
         let flushed = match persisted {
             Ok(()) => self

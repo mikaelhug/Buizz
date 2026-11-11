@@ -83,6 +83,7 @@ pub struct StepCommit {
     pub events: Vec<RunEvent>,
     pub engine_checkpoint: Vec<u8>,
     pub bot_state: Option<Vec<u8>>,
+    pub undelivered: Option<Vec<u8>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -91,6 +92,7 @@ pub struct Checkpoint {
     pub clock: Timestamp,
     pub engine_checkpoint: Vec<u8>,
     pub bot_state: Option<Vec<u8>>,
+    pub undelivered: Option<Vec<u8>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
