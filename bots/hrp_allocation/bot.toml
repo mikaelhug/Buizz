@@ -1,0 +1,9 @@
+description = "Hierarchical risk parity across ten asset-class ETFs, re-estimated every 22 sessions on 260 sessions of returns"
+command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
+timeframe = "1d"
+wake = "bar"
+universe = { symbols = ["SPY", "EFA", "EEM", "TLT", "IEF", "LQD", "HYG", "GLD", "DBC", "VNQ"] }
+params = { lookback = 260, rebalance_sessions = 22, method = "hrp", target_vol = 0.0 }
+
+[risk]
+max_gross_exposure = 1.0
