@@ -17,7 +17,7 @@ use buizz_sources::edgar::EdgarClient;
 use buizz_sources::tiingo::TiingoClient;
 use buizz_sources::treasury::TreasuryClient;
 use buizz_state::StateStore;
-use buizz_supervisor::{Backoff, Supervisor, SupervisorConfig};
+use buizz_supervisor::{Supervisor, SupervisorConfig};
 use rust_decimal::Decimal;
 use tokio::net::TcpListener;
 use tracing_subscriber::EnvFilter;
@@ -78,10 +78,7 @@ async fn main() -> Result<()> {
     let supervisor = Supervisor::new(SupervisorConfig {
         spine_url: config.spine_url(),
         max_parallel_backtests: std::thread::available_parallelism().map_or(1, usize::from),
-        restart: Backoff {
-            initial: Duration::from_secs(1),
-            max: Duration::from_secs(300),
-        },
+        restart_delay: Duration::from_secs(1),
         kill_grace: Duration::from_secs(10),
     });
     let runner = Runner::new(

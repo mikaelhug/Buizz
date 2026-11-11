@@ -140,24 +140,11 @@ fn hash_tree(
     Ok(())
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Backoff {
-    pub initial: Duration,
-    pub max: Duration,
-}
-
-impl Backoff {
-    pub fn delay(&self, attempt: u32) -> Duration {
-        let doublings = 2u32.saturating_pow(attempt.saturating_sub(1));
-        self.initial.saturating_mul(doublings).min(self.max)
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SupervisorConfig {
     pub spine_url: String,
     pub max_parallel_backtests: usize,
-    pub restart: Backoff,
+    pub restart_delay: Duration,
     pub kill_grace: Duration,
 }
 
@@ -436,7 +423,10 @@ impl Supervisor {
             }
             restarts.push_back(now);
             let attempt = restarts.len() as u32;
-            let delay = self.config.restart.delay(attempt);
+            let delay = self
+                .config
+                .restart_delay
+                .saturating_mul(2u32.saturating_pow(attempt - 1));
             let _ = events
                 .send(ProcessEvent::Restarting { attempt, delay })
                 .await;

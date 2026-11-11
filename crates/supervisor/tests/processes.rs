@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use buizz_core::run::{BotManifest, RunId};
 use buizz_supervisor::{
-    Backoff, BotSpec, Launch, ProcessEvent, Supervisor, SupervisorConfig, bot_hash, scan_bots,
+    BotSpec, Launch, ProcessEvent, Supervisor, SupervisorConfig, bot_hash, scan_bots,
 };
 use nix::errno::Errno;
 use nix::sys::signal::killpg;
@@ -55,10 +55,7 @@ async fn process_groups_logs_and_restarts() {
     let supervisor = Supervisor::new(SupervisorConfig {
         spine_url: "ws://127.0.0.1:1".into(),
         max_parallel_backtests: 2,
-        restart: Backoff {
-            initial: Duration::from_millis(10),
-            max: Duration::from_millis(40),
-        },
+        restart_delay: Duration::from_millis(10),
         kill_grace: Duration::from_secs(2),
     });
 
@@ -107,7 +104,7 @@ async fn process_groups_logs_and_restarts() {
         }
     }
     assert_eq!(exits, 6);
-    let expected: Vec<_> = [10, 20, 40, 40, 40]
+    let expected: Vec<_> = [10, 20, 40, 80, 160]
         .iter()
         .zip(1u32..)
         .map(|(ms, attempt)| (attempt, Duration::from_millis(*ms)))

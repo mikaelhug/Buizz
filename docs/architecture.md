@@ -40,7 +40,7 @@ flowchart LR
 | State store | `crates/state` | SQLite in WAL mode (`state.db`): runs, orders, ledger, equity points, run events, job runs, fetch records, step checkpoints |
 | Engine | `crates/engine` | Pure, deterministic order matching and portfolio ledger. Takes a bar cycle and the bot's orders, returns fills, ledger entries, equity points and risk breaches |
 | Runner | `crates/runner` | Drives runs: replays bars in lockstep with the bot, calls the engine, commits each step and its checkpoint to the state store, applies the data gate and holdout rule, recovers runs after a restart |
-| Supervisor | `crates/supervisor` | Scans `bots/`, starts one child process per run (own process group, killed as a group), captures its output, restarts live bots with backoff, runs backtests in parallel up to the core count |
+| Supervisor | `crates/supervisor` | Scans `bots/`, starts one child process per run (own process group, killed as a group), captures its output, restarts a crashed live bot after 1, 2, 4, 8 and 16 s and pauses the run after 5 crashes in 10 minutes, runs backtests in parallel up to the core count |
 | Feed manager | `crates/feed` | Holds the Alpaca real-time stream subscriptions for live 1m runs. Ref-counted, capped at 30 symbols, refuses over the cap naming the holders, backfills gaps and writes bars to the market store |
 | Ingest | `crates/ingest` | Scheduled jobs that fill the market store (see below), a lazy 1m backfill for minute backtests, a daily `state.db` snapshot |
 | Sources | `crates/sources` | Clients for Alpaca (REST and stream), Tiingo, SEC EDGAR and US Treasury with rate limits and backoff |
