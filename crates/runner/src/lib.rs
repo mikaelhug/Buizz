@@ -446,6 +446,10 @@ impl Runner {
             Some(seed) => seed,
             None => rand::random_range(0..SEED_LIMIT),
         };
+        let cost = request.cost.unwrap_or_else(|| defaults.cost.clone());
+        if let Some(problem) = cost.invalid() {
+            return Err(RunnerError::InvalidRequest(problem.to_owned()));
+        }
         let risk = request.risk.unwrap_or(manifest.risk);
         if !risk.are_positive() {
             return Err(RunnerError::InvalidRequest(
@@ -462,7 +466,7 @@ impl Runner {
             start,
             end,
             start_cash,
-            cost: request.cost.unwrap_or_else(|| defaults.cost.clone()),
+            cost,
             risk,
             seed,
             benchmark: manifest.benchmark.clone(),

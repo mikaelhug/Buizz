@@ -272,7 +272,7 @@ The spine starts every run with 100,000 start cash and this cost model, whose fi
 | `borrow_rate` | `0.02` | Per year on short positions, charged at each session close |
 | `financing_spread` | `0.015` | Added to the T-bill rate for the financing of negative cash: the US Treasury 3-month rate last published before the session (within 31 days). Without one the spread alone is charged and the run gets a data warning |
 
-Shorting is allowed for instruments flagged shortable.
+A cost model with a negative cost or tier price, an `adv_participation` outside 0 (excluded) to 1, or `adv_sessions` below 1 is refused, and slippage never moves a fill price below 0.0001. Shorting is allowed for instruments flagged shortable.
 
 **Leverage.** Buying for more than the cash makes the cash negative, and selling short adds the proceeds to it. Each session close charges a `financing` ledger entry of negative cash × (T-bill rate + `financing_spread`) / 252, the same way borrow is charged on shorts, so a book that is flat before the close pays neither. Gross exposure is limited only by `max_gross_exposure` (below); set it to the book the strategy means, for example `4.0` for two dollars long and two short per dollar of equity. There are no margin calls: the drawdown stop is the only forced exit.
 

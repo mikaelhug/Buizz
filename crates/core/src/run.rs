@@ -11,7 +11,7 @@ use utoipa::openapi::{RefOr, Schema};
 use utoipa::{PartialSchema, ToSchema};
 
 use crate::market::{AssetClass, Bar, Session, StockIndex, Symbol, Timeframe};
-use crate::money::{round_cash, round_price};
+use crate::money::{PRICE_DECIMALS, round_cash, round_price};
 use crate::order::{RejectReason, Side};
 use crate::time::Timestamp;
 
@@ -207,13 +207,41 @@ impl Default for CostModel {
 impl CostModel {
     pub const TRADING_DAYS_PER_YEAR: u32 = 252;
 
+    pub fn invalid(&self) -> Option<&'static str> {
+        let amounts = [
+            self.commission_per_share,
+            self.commission_min,
+            self.slippage_bps,
+            self.slippage_per_share,
+            self.borrow_rate,
+            self.financing_spread,
+        ];
+        if amounts.iter().any(|amount| *amount < Decimal::ZERO) {
+            return Some("costs must not be negative");
+        }
+        if self
+            .commission_tiers
+            .iter()
+            .any(|tier| tier.per_share < Decimal::ZERO)
+        {
+            return Some("commission tier prices must not be negative");
+        }
+        if self.adv_participation <= Decimal::ZERO || self.adv_participation > Decimal::ONE {
+            return Some("adv_participation must be above 0 and at most 1");
+        }
+        if self.adv_sessions == 0 {
+            return Some("adv_sessions must be at least 1");
+        }
+        None
+    }
+
     pub fn market_fill_price(&self, side: Side, price: Decimal) -> Decimal {
         let slip = self.slippage_bps / Decimal::new(10_000, 0);
         let moved = match side {
             Side::Buy => price * (Decimal::ONE + slip) + self.slippage_per_share,
             Side::Sell => price * (Decimal::ONE - slip) - self.slippage_per_share,
         };
-        round_price(moved)
+        round_price(moved).max(Decimal::new(1, PRICE_DECIMALS))
     }
 
     pub fn stop_fill_price(&self, side: Side, stop: Decimal, bar: &Bar) -> Option<Decimal> {

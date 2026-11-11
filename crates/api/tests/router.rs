@@ -26,7 +26,7 @@ const SPINE_IP: [u8; 4] = [10, 42, 0, 9];
 
 struct Spine {
     router: Router,
-    _data: TempDir,
+    data: TempDir,
 }
 
 async fn spine() -> Spine {
@@ -107,10 +107,7 @@ async fn spine() -> Spine {
         ingest,
         shutdown: tokio::sync::watch::channel(false).1,
     });
-    Spine {
-        router,
-        _data: data,
-    }
+    Spine { router, data }
 }
 
 struct Reply {
@@ -247,4 +244,39 @@ async fn the_bot_socket_refuses_peers_outside_the_spine_host() {
     assert_ne!(local.status, StatusCode::FORBIDDEN);
     let bound = send(&spine, bot_dial(SPINE_IP)).await;
     assert_ne!(bound.status, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn backtest_requests_with_impossible_costs_are_refused() {
+    let spine = spine().await;
+    let cookie = session_cookie(&spine).await;
+    let bot = spine.data.path().join("bots/still");
+    std::fs::create_dir_all(&bot).expect("bot dir");
+    std::fs::write(
+        bot.join("bot.toml"),
+        "command = [\"true\"]\ntimeframe = \"1d\"\nuniverse = { symbols = [\"SPY\"] }\n",
+    )
+    .expect("manifest");
+    for cost in [
+        r#"{"slippage_per_share": "-0.01"}"#,
+        r#"{"adv_participation": "1.5"}"#,
+        r#"{"adv_sessions": 0}"#,
+        r#"{"commission_tiers": [{"above": 10, "per_share": "-0.001"}]}"#,
+    ] {
+        let body = format!(
+            r#"{{"period": {{"from": "2020-01-02", "to": "2020-01-03"}}, "cost": {cost}}}"#
+        );
+        let request = Request::post("/api/bots/still/backtests")
+            .header(header::COOKIE, &cookie)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(body))
+            .expect("request");
+        let reply = send(&spine, request).await;
+        assert_eq!(
+            reply.status,
+            StatusCode::BAD_REQUEST,
+            "{cost}: {}",
+            reply.body
+        );
+    }
 }
