@@ -242,6 +242,9 @@ impl AdjustmentFactor {
         let (price, volume) = match (&action.kind, adjustment) {
             (_, Adjustment::Raw) => return None,
             (CorporateActionKind::Split { old_rate, new_rate }, _) => {
+                if *old_rate <= Decimal::ZERO || *new_rate <= Decimal::ZERO {
+                    return None;
+                }
                 (*old_rate / *new_rate, *new_rate / *old_rate)
             }
             (CorporateActionKind::CashDividend { .. }, Adjustment::Split) => return None,

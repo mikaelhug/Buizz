@@ -1,12 +1,14 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use buizz_core::market::{
-    Bar, BorrowAvailability, Company, CorporateAction, DataSource, Dataset, EarningsRelease,
-    FundamentalFact, IndexHistory, Instrument, MacroObservation, RiskFreeRate, Session, Symbol,
+    Bar, BorrowAvailability, Company, CorporateAction, CorporateActionKind, DataSource, Dataset,
+    EarningsRelease, FundamentalFact, IndexHistory, Instrument, MacroObservation, RiskFreeRate,
+    Session, Symbol,
 };
 use buizz_core::time::Timestamp;
 use chrono::NaiveDate;
 use duckdb::{Appender, Connection, Transaction, params};
+use rust_decimal::Decimal;
 
 use crate::codec::{Dec, Ts, action_columns, feed_name, wire_name};
 use crate::{Result, WriteSummary};
@@ -353,6 +355,15 @@ pub(crate) fn corporate_actions(
 ) -> Result<WriteSummary> {
     let unique: BTreeMap<(Symbol, NaiveDate, &'static str), CorporateAction> = actions
         .into_iter()
+        .filter(|action| match action.kind {
+            CorporateActionKind::Split { old_rate, new_rate }
+                if old_rate <= Decimal::ZERO || new_rate <= Decimal::ZERO =>
+            {
+                tracing::warn!(symbol = %action.symbol, ex_date = %action.ex_date, %old_rate, %new_rate, "refused a split without positive rates");
+                false
+            }
+            _ => true,
+        })
         .map(|action| {
             let kind = action_columns(&action.kind).kind;
             ((action.symbol.clone(), action.ex_date, kind), action)
@@ -723,7 +734,7 @@ pub(crate) fn borrow_availability(
 
 #[cfg(test)]
 mod tests {
-    use buizz_core::market::AssetClass;
+    use buizz_core::market::{Adjustment, AdjustmentFactor, AssetClass};
     use chrono::NaiveTime;
 
     use super::*;
@@ -804,6 +815,36 @@ mod tests {
                 "SELECT CAST(date AS VARCHAR) FROM calendar_revision"
             ),
             ["2024-07-02"]
+        );
+    }
+
+    #[test]
+    fn a_split_without_positive_rates_is_refused() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        crate::migrate::migrate(&mut connection).unwrap();
+        prepare(&connection).unwrap();
+        let date = session(1).date;
+        let split = |old_rate: i64| CorporateAction {
+            symbol: Symbol::new("FB"),
+            ex_date: date,
+            kind: CorporateActionKind::Split {
+                old_rate: Decimal::from(old_rate),
+                new_rate: Decimal::from(2),
+            },
+        };
+        let covered = [Symbol::new("FB")];
+        let written = corporate_actions(
+            &mut connection,
+            DataSource::Alpaca,
+            vec![split(0)],
+            &covered,
+            (date, date),
+        )
+        .unwrap();
+        assert_eq!(written.rows, 0);
+        assert!(
+            AdjustmentFactor::for_action(&split(0), Adjustment::Split, None).is_none(),
+            "a zero rate must not divide"
         );
     }
 }
