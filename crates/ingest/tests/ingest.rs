@@ -37,12 +37,15 @@ const HISTORY_START: &str = "2016-01-01";
 const ALPACA_FIRST_BAR: &str = "2016-03-01";
 const CALENDAR_END: &str = "2025-06-30";
 const ALPACA_LAST_BAR: &str = "2016-04-29";
+const SPY_REVISED: &str = "2024-07-05";
 
 #[derive(Default)]
 struct Fake {
     rate_limit_bars: AtomicBool,
     fail_bars: AtomicBool,
     closed: Mutex<Option<NaiveDate>>,
+    revised: AtomicBool,
+    last_bars: Mutex<Params>,
     hits: Mutex<HashMap<&'static str, u32>>,
 }
 
@@ -106,24 +109,31 @@ async fn bars(State(fake): State<Arc<Fake>>, Query(params): Query<Params>) -> Re
     if fake.fail_bars.load(Ordering::SeqCst) {
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
-    let from = date(&params["start"]).max(date(ALPACA_FIRST_BAR));
-    let to = date(&params["end"]).min(date(ALPACA_LAST_BAR));
-    let rows: Vec<String> = weekdays(from, to)
-        .into_iter()
-        .map(|day| {
-            let close = alpaca_close(day);
-            format!(
-                r#"{{"t":"{day}T12:00:00Z","o":{close},"h":{close},"l":{close},"c":{close},"v":1000}}"#
-            )
-        })
-        .collect();
-    let aapl = if params["symbols"].contains("AAPL") {
+    *fake.last_bars.lock().unwrap() = params.clone();
+    let requested = |symbol: &str, first: NaiveDate, last: NaiveDate| {
+        if !params["symbols"].split(',').any(|listed| listed == symbol) {
+            return String::new();
+        }
+        let from = date(&params["start"]).max(first);
+        let to = date(&params["end"]).min(last);
+        let rows: Vec<String> = weekdays(from, to)
+            .into_iter()
+            .map(|day| {
+                let revision = i64::from(
+                    symbol == "SPY" && day == date(SPY_REVISED) && fake.revised.load(Ordering::SeqCst),
+                );
+                let close = alpaca_close(day) + revision;
+                format!(
+                    r#"{{"t":"{day}T12:00:00Z","o":{close},"h":{close},"l":{close},"c":{close},"v":1000}}"#
+                )
+            })
+            .collect();
         rows.join(",")
-    } else {
-        String::new()
     };
+    let aapl = requested("AAPL", date(ALPACA_FIRST_BAR), date(ALPACA_LAST_BAR));
+    let spy = requested("SPY", date(HISTORY_START), date(CALENDAR_END));
     json(format!(
-        r#"{{"bars":{{"AAPL":[{aapl}]}},"next_page_token":null}}"#
+        r#"{{"bars":{{"AAPL":[{aapl}],"SPY":[{spy}]}},"next_page_token":null}}"#
     ))
 }
 
@@ -369,6 +379,7 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
         ]
     );
     assert_eq!(rows(&market).await, backfilled);
+    assert_eq!(fake.last_bars.lock().unwrap()["symbols"], "SPY");
     assert_eq!(fake.hits("tiingo"), 1);
     let snapshots: Vec<_> = std::fs::read_dir(directory.path().join("snapshots"))
         .unwrap()
@@ -409,4 +420,21 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
         .unwrap();
     assert!(retried.ran.contains(&("bars_1d", JobOutcome::Backoff)));
     assert_eq!(fake.hits("bars"), hits);
+
+    fake.rate_limit_bars.store(false, Ordering::SeqCst);
+    fake.revised.store(true, Ordering::SeqCst);
+    let inside_sip_delay = stamp("2024-07-08T20:10:00Z");
+    let revised = ingest.tick(inside_sip_delay).await.unwrap();
+    assert!(revised.ran.contains(&("bars_1d", JobOutcome::Ok)));
+    assert_eq!(fake.last_bars.lock().unwrap()["end"], SPY_REVISED);
+    let spy = market
+        .bars_between(
+            Timeframe::Day,
+            vec![Symbol::new("SPY")],
+            stamp("2024-07-05T00:00:00Z"),
+            stamp("2024-07-06T00:00:00Z"),
+        )
+        .await
+        .unwrap();
+    assert_eq!(spy[0].close, (alpaca_close(date(SPY_REVISED)) + 1).into());
 }
