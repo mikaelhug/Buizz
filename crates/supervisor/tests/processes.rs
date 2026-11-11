@@ -140,3 +140,47 @@ async fn stopping_a_chatty_live_bot_nobody_reads_returns() {
         .expect("stop returns while the event queue is full")
         .unwrap();
 }
+
+const SECRET: &str = "BUIZZ_ADMIN_PASSWORD";
+const ENVIRONMENT_TEST: &str = "bots_see_only_the_protocol_and_toolchain_environment";
+
+#[tokio::test]
+async fn bots_see_only_the_protocol_and_toolchain_environment() {
+    if std::env::var_os(SECRET).is_none() {
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", ENVIRONMENT_TEST, "--nocapture"])
+            .env(SECRET, "hunter2")
+            .status()
+            .unwrap();
+        assert!(status.success());
+        return;
+    }
+    let temp = tempfile::tempdir().unwrap();
+    let bot = write_bot(&temp.path().join("bots"), "nosy", "env\n");
+    let supervisor = Supervisor::new(SupervisorConfig {
+        spine_url: "ws://127.0.0.1:1".into(),
+        log_dir: temp.path().join("logs"),
+        max_parallel_backtests: 1,
+        restart_delay: Duration::from_millis(10),
+        kill_grace: Duration::from_secs(2),
+    });
+    let mut process = supervisor
+        .spawn(&Launch {
+            run_id: RunId(4),
+            token: "token".into(),
+            bot,
+        })
+        .await
+        .unwrap();
+    let mut names = Vec::new();
+    while let Some(event) = process.events().recv().await {
+        if let ProcessEvent::Line { line, .. } = event
+            && let Some((name, _)) = line.split_once('=')
+        {
+            names.push(name.to_owned());
+        }
+    }
+    assert!(names.iter().any(|name| name == "BUIZZ_RUN_TOKEN"));
+    assert!(names.iter().any(|name| name == "PATH"));
+    assert!(!names.iter().any(|name| name == SECRET));
+}

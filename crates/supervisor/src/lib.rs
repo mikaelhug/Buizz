@@ -22,6 +22,8 @@ use tokio::time::Instant;
 const EVENT_BUFFER: usize = 1024;
 const RESTART_WINDOW: Duration = Duration::from_secs(600);
 const MAX_RESTARTS_IN_WINDOW: usize = 5;
+const INHERITED_VARS: [&str; 5] = ["PATH", "HOME", "LANG", "TZ", "TMPDIR"];
+const INHERITED_PREFIXES: [&str; 2] = ["UV_", "PYTHON"];
 const IGNORED_NAMES: [&str; 6] = [
     "__pycache__",
     ".venv",
@@ -187,6 +189,15 @@ pub struct BotProcess {
     exit: watch::Receiver<Option<Option<i32>>>,
 }
 
+fn inherited(name: &std::ffi::OsStr) -> bool {
+    name.to_str().is_some_and(|name| {
+        INHERITED_VARS.contains(&name)
+            || INHERITED_PREFIXES
+                .iter()
+                .any(|prefix| name.starts_with(prefix))
+    })
+}
+
 fn signal_group(pid: u32, signal: Signal) -> Result<(), SupervisorError> {
     match killpg(Pid::from_raw(pid as i32), signal) {
         Ok(()) | Err(Errno::ESRCH) => Ok(()),
@@ -337,6 +348,8 @@ impl Supervisor {
         let mut child = Command::new(program)
             .args(args)
             .current_dir(&bot.dir)
+            .env_clear()
+            .envs(std::env::vars_os().filter(|(name, _)| inherited(name)))
             .env(ENV_SPINE_URL, &self.config.spine_url)
             .env(ENV_RUN_ID, launch.run_id.to_string())
             .env(ENV_RUN_TOKEN, &launch.token)
