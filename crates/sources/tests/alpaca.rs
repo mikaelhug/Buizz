@@ -210,7 +210,7 @@ async fn alpaca_client_pages_filters_and_normalizes_against_fixtures() {
         .unwrap()
         .1["end"]
         .clone();
-    assert_eq!(daily_end, "2024-07-03");
+    assert_eq!(daily_end, "2024-07-03T17:00:00Z");
 
     let seen_bars = seen.lock().unwrap().clone();
     assert!(

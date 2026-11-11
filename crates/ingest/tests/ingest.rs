@@ -119,7 +119,7 @@ async fn bars(State(fake): State<Arc<Fake>>, Query(params): Query<Params>) -> Re
             return String::new();
         }
         let from = date(&params["start"]).max(first);
-        let to = date(&params["end"]).min(last);
+        let to = date(&params["end"][..10]).min(last);
         let rows: Vec<String> = weekdays(from, to)
             .into_iter()
             .map(|day| {
@@ -251,6 +251,7 @@ fn sources(url: &str) -> Sources {
         .unwrap(),
         wikipedia: None,
         ibkr: None,
+        nasdaq: None,
     }
 }
 
@@ -496,7 +497,7 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
     let inside_sip_delay = stamp("2024-07-08T20:10:00Z");
     let revised = ingest.tick(inside_sip_delay).await.unwrap();
     assert!(revised.ran.contains(&("bars_1d", JobOutcome::Ok)));
-    assert_eq!(fake.last_bars.lock().unwrap()["end"], SPY_REVISED);
+    assert!(fake.last_bars.lock().unwrap()["end"].starts_with(SPY_REVISED));
     let spy = market
         .bars_between(
             Timeframe::Day,

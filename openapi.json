@@ -1204,7 +1204,8 @@
           "fred",
           "fixture",
           "wikipedia",
-          "interactive_brokers"
+          "interactive_brokers",
+          "nasdaq"
         ]
       },
       "DataWarning": {

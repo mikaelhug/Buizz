@@ -132,12 +132,12 @@ impl AlpacaClient {
                 let from = request.from.exchange_date();
                 let Some(last) = closed
                     .checked_sub(1)
-                    .map(|index| sessions[index].date)
-                    .filter(|last| *last >= from)
+                    .map(|index| sessions[index])
+                    .filter(|last| last.date >= from)
                 else {
                     return Ok(empty);
                 };
-                ("1Day", from.to_string(), last.to_string())
+                ("1Day", from.to_string(), last.close.to_string())
             }
             Timeframe::Minute => ("1Min", request.from.to_string(), to.to_string()),
         };

@@ -17,6 +17,7 @@ use buizz_sources::alpaca_stream::SYMBOL_CAP;
 use buizz_sources::edgar::EdgarClient;
 use buizz_sources::fred::FredClient;
 use buizz_sources::ibkr::IbkrClient;
+use buizz_sources::nasdaq::NasdaqClient;
 use buizz_sources::tiingo::TiingoClient;
 use buizz_sources::treasury::TreasuryClient;
 use buizz_sources::wikipedia::WikipediaClient;
@@ -78,6 +79,7 @@ async fn main() -> Result<()> {
             .map(WikipediaClient::new)
             .transpose()?,
         ibkr: Some(IbkrClient::new(config.ibkr.clone())),
+        nasdaq: Some(NasdaqClient::new(config.nasdaq.clone())?),
     };
     let feed = FeedManager::new(
         FeedConfig {

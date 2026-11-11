@@ -67,6 +67,7 @@ The spine (`cargo run -p buizz-spine`) reads these environment variables. Empty 
 | `SEC_DATA_URL`, `SEC_WWW_URL` | `https://data.sec.gov`, `https://www.sec.gov` | EDGAR endpoints |
 | `TREASURY_URL` | `https://home.treasury.gov` | US Treasury rates endpoint |
 | `WIKIPEDIA_URL` | `https://en.wikipedia.org` | MediaWiki endpoint for S&P 500 membership |
+| `NASDAQ_TRADER_URL` | `https://www.nasdaqtrader.com` | NASDAQ Trader's symbol directory, read daily to tell ETFs from stocks |
 | `IBKR_FTP_ADDRESS` | `ftp2.interactivebrokers.com:21` | Interactive Brokers' public short stock FTP server, read daily by the `borrow` job |
 | `FRED_API_KEY` | unset | Enables the FRED macro series for bots (`ctx.macro`); a free key from fred.stlouisfed.org. Without it the `macro` job reports that FRED is not configured |
 | `FRED_URL` | `https://api.stlouisfed.org` | FRED endpoint |

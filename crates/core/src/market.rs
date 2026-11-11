@@ -525,6 +525,7 @@ pub enum DataSource {
     Fixture,
     Wikipedia,
     InteractiveBrokers,
+    Nasdaq,
 }
 
 #[derive(

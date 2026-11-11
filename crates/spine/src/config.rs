@@ -9,6 +9,7 @@ use buizz_sources::alpaca_stream::{self, StreamConfig};
 use buizz_sources::edgar::{self, EdgarConfig};
 use buizz_sources::fred::{self, FredConfig};
 use buizz_sources::ibkr::{self, IbkrConfig};
+use buizz_sources::nasdaq::{self, NasdaqConfig};
 use buizz_sources::tiingo::{self, TiingoConfig};
 use buizz_sources::treasury::{self, TreasuryConfig};
 use buizz_sources::wikipedia::{self, WikipediaConfig};
@@ -30,6 +31,7 @@ pub struct Config {
     pub treasury: TreasuryConfig,
     pub wikipedia: Option<WikipediaConfig>,
     pub ibkr: IbkrConfig,
+    pub nasdaq: NasdaqConfig,
     pub ingest_symbols: Option<BTreeSet<Symbol>>,
     pub duckdb_memory: String,
     pub duckdb_threads: usize,
@@ -121,6 +123,9 @@ impl Config {
             }),
             treasury: TreasuryConfig {
                 base_url: var_or("TREASURY_URL", treasury::BASE_URL),
+            },
+            nasdaq: NasdaqConfig {
+                base_url: var_or(nasdaq::URL_ENV, nasdaq::BASE_URL),
             },
             ingest_symbols: var("BUIZZ_INGEST_SYMBOLS").map(|symbols| {
                 symbols

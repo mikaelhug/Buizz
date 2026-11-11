@@ -51,6 +51,7 @@ async fn spine() -> Spine {
         .expect("treasury client"),
         wikipedia: None,
         ibkr: None,
+        nasdaq: None,
     };
     let feed = FeedManager::new(
         FeedConfig {

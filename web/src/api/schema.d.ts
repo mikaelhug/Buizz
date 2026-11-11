@@ -461,7 +461,7 @@ export interface components {
             ingest_enabled: boolean;
         };
         /** @enum {string} */
-        DataSource: "alpaca" | "alpaca_stream" | "tiingo" | "edgar" | "treasury" | "fred" | "fixture" | "wikipedia" | "interactive_brokers";
+        DataSource: "alpaca" | "alpaca_stream" | "tiingo" | "edgar" | "treasury" | "fred" | "fixture" | "wikipedia" | "interactive_brokers" | "nasdaq";
         DataWarning: (components["schemas"]["CoverageGap"] & {
             /** @enum {string} */
             type: "coverage_gap";

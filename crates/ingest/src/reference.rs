@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use buizz_core::market::{
     AssetClass, DataSource, Dataset, Instrument, RiskFreeRate, Session, Symbol,
@@ -90,23 +90,37 @@ impl Ingest {
             .map(|instrument| (instrument.symbol.clone(), instrument))
             .collect();
         let mut batch = Batch::default();
-        let funds = match &self.sources.edgar {
-            None => None,
-            Some(edgar) => {
-                let key = FetchKey::new(DataSource::Edgar, Dataset::Instruments, None, None);
-                match edgar.fund_tickers().await {
-                    Ok(funds) => {
-                        self.record_fetched(now, &key, funds.len()).await?;
-                        Some(funds)
-                    }
-                    Err(error) => {
-                        self.record_failure(now, &key, &error).await?;
-                        batch.failure("SEC fund tickers", &error);
-                        None
-                    }
+        let mut funds: Option<BTreeSet<Symbol>> = None;
+        let mut fund_lists_complete = true;
+        if let Some(edgar) = &self.sources.edgar {
+            let key = FetchKey::new(DataSource::Edgar, Dataset::Instruments, None, None);
+            match edgar.fund_tickers().await {
+                Ok(listed) => {
+                    self.record_fetched(now, &key, listed.len()).await?;
+                    funds.get_or_insert_default().extend(listed);
+                }
+                Err(error) => {
+                    self.record_failure(now, &key, &error).await?;
+                    batch.failure("SEC fund tickers", &error);
+                    fund_lists_complete = false;
                 }
             }
-        };
+        }
+        if let Some(nasdaq) = &self.sources.nasdaq {
+            let key = FetchKey::new(DataSource::Nasdaq, Dataset::Instruments, None, None);
+            match nasdaq.etf_symbols().await {
+                Ok(listed) => {
+                    self.record_fetched(now, &key, listed.len()).await?;
+                    funds.get_or_insert_default().extend(listed);
+                }
+                Err(error) => {
+                    self.record_failure(now, &key, &error).await?;
+                    batch.failure("NASDAQ symbol directory", &error);
+                    fund_lists_complete = false;
+                }
+            }
+        }
+        let funds = funds.filter(|_| fund_lists_complete);
         for asset in &mut assets {
             asset.asset_class = match &funds {
                 Some(funds) if funds.contains(&asset.symbol) => AssetClass::Etf,

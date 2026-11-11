@@ -90,6 +90,7 @@ impl FakeProviders {
             .route("/tiingo/daily/{symbol}/prices", get(tiingo))
             .route("/files/company_tickers.json", get(tickers))
             .route("/files/company_tickers_mf.json", get(fund_tickers))
+            .route("/dynamic/SymDir/nasdaqtraded.txt", get(symbol_directory))
             .route("/api/xbrl/companyfacts/{file}", get(company_facts))
             .route("/submissions/{file}", get(submissions))
             .route("/w/api.php", get(wikipedia))
@@ -262,7 +263,7 @@ async fn bars(State(fake): State<Arc<Fake>>, Query(params): Query<Params>) -> Re
     let mut matching: Vec<&Bar> = if daily {
         let (start, end): (NaiveDate, NaiveDate) = (
             param(&params, "start").parse().expect("daily start date"),
-            param(&params, "end").parse().expect("daily end date"),
+            param(&params, "end")[..10].parse().expect("daily end date"),
         );
         world
             .daily
@@ -435,6 +436,31 @@ async fn fund_tickers(State(fake): State<Arc<Fake>>) -> Response {
         })
         .collect();
     Json(json!({"fields": ["cik", "seriesId", "classId", "symbol"], "data": rows})).into_response()
+}
+
+async fn symbol_directory(State(fake): State<Arc<Fake>>) -> Response {
+    let rows: String = fake
+        .world()
+        .instruments
+        .iter()
+        .map(|instrument| {
+            let etf = if instrument.asset_class == AssetClass::Etf {
+                "Y"
+            } else {
+                "N"
+            };
+            format!(
+                "Y|{}|{}|N| |{etf}|100|N||{}|{}|N\n",
+                instrument.symbol, instrument.name, instrument.symbol, instrument.symbol
+            )
+        })
+        .collect();
+    format!(
+        "Nasdaq Traded|Symbol|Security Name|Listing Exchange|Market Category|ETF|Round Lot Size|\
+         Test Issue|Financial Status|CQS Symbol|NASDAQ Symbol|NextShares\n{rows}\
+         File Creation Time: 1111202618:02|||||\n"
+    )
+    .into_response()
 }
 
 async fn submissions(State(fake): State<Arc<Fake>>, Path(file): Path<String>) -> Response {
