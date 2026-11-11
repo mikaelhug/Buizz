@@ -126,6 +126,8 @@ Out of v1: brokers and real money; options, crypto, FX; tick/quote simulation; e
    - The spine has no health route; cluster probes need a cheap unauthenticated `/healthz`.
    - Live runs can never have risk limits: `go_live` uses the spine defaults (none) and neither `bot.toml` nor the UI can set them, so the drawdown kill switch only works for API-started backtests. Needs a decision on where live risk limits are configured.
    - `result_hash` depends on decimal scale: `100000` and `100000.00` start cash give different hashes for identical runs.
+   - The spine does not exit on SIGTERM while a browser holds the SSE stream open (graceful shutdown waits on it); Kubernetes pod shutdown would hang until SIGKILL.
+   - A live run's SPY benchmark only extends on reload or status change.
 4. Implement the bot backlog in `bots/BRIEFS.md`, one Opus 5.5 agent per bot, each followed by a critical review of that implementation against its brief. Contract gaps (G1–G13) land as their own PRs before the bots they block.
 
 ## Deployment (after Wave 3, separate repo, with your go-ahead)
