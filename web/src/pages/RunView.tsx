@@ -35,6 +35,7 @@ export function RunView({ runId }: { runId: number }) {
     switch (event.type) {
       case "run_status":
         run.reload();
+        curve.reload();
         break;
       case "equity": {
         const point = { at: event.at, equity: event.equity };

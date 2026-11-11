@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::io::SeekFrom;
 
 use axum::Json;
@@ -7,15 +7,14 @@ use axum::http::header;
 use axum::response::IntoResponse;
 use buizz_core::api::{
     ApiError, EquitySeries, EventsPage, Leaderboard, LeaderboardQuery, LeaderboardRow, OrderView,
-    OrdersPage, PageQuery, PositionView, RunSummary, RunsQuery, SparkPoint,
+    OrdersPage, PageQuery, PositionView, RunSummary, RunsQuery,
 };
-use buizz_core::market::{Adjustment, Symbol, Timeframe};
-use buizz_core::money::{round_cash, round_price};
+use buizz_core::market::{Adjustment, Symbol};
+use buizz_core::money::round_price;
 use buizz_core::order::{Fill, OrderId};
-use buizz_core::run::{CostModel, EquityPoint, Mode, Period, RunId, RunStatus};
+use buizz_core::run::{CostModel, Mode, Period, RunId, RunStatus};
 use buizz_market::HistoryRequest;
 use buizz_state::RunFilter;
-use chrono::{NaiveDate, TimeDelta};
 use rust_decimal::Decimal;
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 
@@ -84,46 +83,6 @@ pub(crate) async fn cancel_run(
     Ok(Json(app.runner.cancel(id).await?))
 }
 
-async fn benchmark_curve(
-    app: &AppState,
-    run: &RunSummary,
-    points: &[EquityPoint],
-) -> Result<Vec<SparkPoint>, Failure> {
-    let (Some(first), Some(last)) = (points.first(), points.last()) else {
-        return Ok(Vec::new());
-    };
-    let bars = app
-        .market
-        .bars_between(
-            Timeframe::Day,
-            vec![run.config.benchmark.clone()],
-            first.at - TimeDelta::days(1),
-            last.at + TimeDelta::seconds(1),
-        )
-        .await?;
-    let closes: BTreeMap<NaiveDate, Decimal> = bars
-        .iter()
-        .map(|bar| (bar.start.exchange_date(), bar.close))
-        .collect();
-    let Some(base) = closes
-        .get(&first.at.exchange_date())
-        .filter(|close| !close.is_zero())
-    else {
-        return Ok(Vec::new());
-    };
-    Ok(points
-        .iter()
-        .filter_map(|point| {
-            closes
-                .get(&point.at.exchange_date())
-                .map(|close| SparkPoint {
-                    at: point.at,
-                    equity: round_cash(run.config.start_cash * close / base),
-                })
-        })
-        .collect())
-}
-
 #[utoipa::path(get, path = "/api/runs/{id}/equity", tag = "runs",
     params(("id" = RunId, Path)),
     responses((status = 200, body = EquitySeries), (status = 404, body = ApiError)))]
@@ -133,7 +92,7 @@ pub(crate) async fn run_equity(
 ) -> Result<Json<EquitySeries>, Failure> {
     let run = require_run(&app, id).await?;
     let points = app.state.equity(id).await?;
-    let benchmark = benchmark_curve(&app, &run, &points).await?;
+    let benchmark = app.runner.benchmark(&run).await?;
     Ok(Json(EquitySeries {
         run_id: id,
         points,
