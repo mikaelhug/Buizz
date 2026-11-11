@@ -237,7 +237,8 @@ max_gross_exposure = 1.0
 max_drawdown = 0.2
 ```
 
-They apply to every live run and are the default for backtests; the `risk` field of a backtest request replaces them for that run.
+They apply to every live run and are the default for backtests; the `risk` field of a backtest request replaces them for that run, and so do the limits in the UI's backtest dialog (in percent, empty for none) and `buizz backtest --risk max_drawdown=0.3`, which changes one limit and keeps the bot's others (`--risk max_drawdown=none` removes it).
+
  A run keeps the limits it started with: a live run captures them when it goes live, so after changing them stop the live run and go live again. An order that would grow a position past `max_position_weight`, or the book past `max_gross_exposure`, is rejected; while equity is at or below zero every order that grows a position breaks a limit that is set. Without limits nothing is rejected for exposure. `max_drawdown` is a stop-loss, the same in backtests and live runs: when equity falls by that fraction from its peak, the run records a risk breach, the bot gets `end` with reason `risk_limit` and no further orders are taken, working orders are cancelled and every position is closed with a market order at the next open through the normal fills (slippage, commission and volume cap; what the cap leaves open is closed at the following opens). Once flat the run ends as `failed` with the message "stopped by drawdown limit"; a backtest ends there instead of running to its end date, and going live again starts a fresh run with a fresh peak. Its metrics, equity and ledger include the closing fills. To test a strategy without the stop, remove `max_drawdown`. Without a `[risk]` section a run has no limits.
 
 ## Holdout and honest data
@@ -256,7 +257,7 @@ With a spine running (`just dev` for the fixture data, or one with real data):
 cd sdk/python
 export BUIZZ_ADMIN_PASSWORD=buizz-dev-admin
 uv run --frozen buizz backtest ../../bots/red_green --from 2024-11-20 --to 2024-12-04
-uv run --frozen buizz backtest ../../bots/sma_cross --from 2020-01-01 --to 2024-12-31 --param fast=20 --param slow=100
+uv run --frozen buizz backtest ../../bots/sma_cross --from 2020-01-01 --to 2024-12-31 --param fast=20 --param slow=100 --risk max_drawdown=0.25
 ```
 
 It queues the run, prints the clock and equity while it runs, then the metrics (`total_return`, `cagr`, `volatility`, `sharpe`, `sortino`, `max_drawdown`, `calmar`, `win_rate`, `profit_factor`, `exposure`, `turnover`, `alpha`, `beta`, `trades`, `sessions`; `-` when a metric is undefined for the run, e.g. `cagr` and `calmar` for runs shorter than 252 sessions, because annualizing a shorter return mostly magnifies noise) and the orders by status with the net shares held per symbol after splits. The exit code is 1 when the run fails or is cancelled; a run ended by the drawdown stop still prints its metrics and orders, then `run <id> failed: stopped by drawdown limit`. The same run is in the UI with the equity curve against the benchmark, the orders with their reasons, positions and the bot log. Bot output and tracebacks are in `logs/<run_id>.log` under the data directory.

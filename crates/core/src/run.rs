@@ -288,6 +288,17 @@ pub struct RiskLimits {
 }
 
 impl RiskLimits {
+    pub fn are_positive(&self) -> bool {
+        [
+            self.max_position_weight,
+            self.max_gross_exposure,
+            self.max_drawdown,
+        ]
+        .into_iter()
+        .flatten()
+        .all(|limit| limit > Decimal::ZERO)
+    }
+
     pub fn check_order(
         &self,
         equity: Decimal,
@@ -557,19 +568,10 @@ impl BotManifest {
                 "daily bots must use wake = \"bar\" or \"before_close:<n>m\"",
             ));
         }
-        let risk = manifest.risk;
-        let limits = [
-            risk.max_position_weight,
-            risk.max_gross_exposure,
-            risk.max_drawdown,
-        ];
-        if limits
-            .into_iter()
-            .flatten()
-            .any(|limit| limit <= Decimal::ZERO)
-        {
+        if !manifest.risk.are_positive() {
             return Err(ManifestError::Invalid("risk limits must be positive"));
         }
+
         match &manifest.universe {
             UniverseSpec::Symbols { symbols } if symbols.is_empty() => {
                 Err(ManifestError::Invalid("universe.symbols must not be empty"))

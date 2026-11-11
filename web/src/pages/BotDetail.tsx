@@ -73,6 +73,7 @@ export function BotDetail({ name, runId }: { name: string; runId: number | undef
       {backtesting && (
         <BacktestDialog
           bot={summary}
+          risk={detail.data.manifest.risk ?? {}}
           onClose={() => setBacktesting(false)}
           onStarted={(run) => {
             setBacktesting(false);

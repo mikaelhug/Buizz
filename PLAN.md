@@ -118,7 +118,7 @@ Out of v1: brokers and real money; options, crypto, FX; tick/quote simulation; e
 2. Confirm every worktree branch is merged into `main` and pruned.
 3. Code review each module of Buizz (one review per crate, the SDK and the web app); fix confirmed findings.
    Known issues to fold into the reviews:
-   - The UI and CLI cannot override a bot's risk limits for one backtest.
+
    - No time seam: the runner, feed, ingest, API and supervisor call the wall clock directly, so the live e2e scenarios must sleep between 23:28 and 00:11 ET. Add one `now()` in `buizz_core::time` with a test offset.
    - The e2e fake does not serve SEC `company_tickers_mf.json`, so fund classification is untested and the instruments job reports a 404 in e2e.
 

@@ -446,6 +446,12 @@ impl Runner {
             Some(seed) => seed,
             None => rand::random_range(0..SEED_LIMIT),
         };
+        let risk = request.risk.unwrap_or(manifest.risk);
+        if !risk.are_positive() {
+            return Err(RunnerError::InvalidRequest(
+                "risk limits must be positive".to_owned(),
+            ));
+        }
         Ok(RunConfig {
             bot: spec.name.clone(),
             mode,
@@ -457,7 +463,7 @@ impl Runner {
             end,
             start_cash,
             cost: request.cost.unwrap_or_else(|| defaults.cost.clone()),
-            risk: request.risk.unwrap_or(manifest.risk),
+            risk,
             seed,
             benchmark: manifest.benchmark.clone(),
             holdout,
