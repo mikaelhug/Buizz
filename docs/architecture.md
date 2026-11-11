@@ -55,7 +55,7 @@ flowchart LR
 
 The engine only ever reads the market store. Ingest and the feed manager write bars and advance a watermark; a run replays bars up to what the store holds. A backtest is a replay that finds all its bars already there. A live run is the same replay loop blocked at the watermark: it waits until the next bar arrives and then goes on. There is no separate live code path for decisions, so backtest and live behave the same by construction, and recovering after a restart is resuming from the last checkpoint.
 
-For each bar the runner runs one cycle: corporate actions, order expiry, fills at the bar's open, then at the bar's visible time mark to market, risk limits, wake the bot, accept its orders. A bar's cycle finishes before the next bar's begins. Each step is committed together with the engine checkpoint.
+For each bar the runner runs one cycle: order expiry, corporate actions, fills at the bar's open, then at the bar's visible time mark to market, risk limits, wake the bot, accept its orders. A bar's cycle finishes before the next bar's begins. Each step is committed together with the engine checkpoint.
 
 Live runs on 1m bars use the real-time IEX stream; backtests use SIP history, so volume is partial live. Live fills are tagged with the feed. The volume cap uses the average daily volume, so it is the same in both modes. Live runs on daily bars use the official daily bar and take no stream slot.
 When bars arrive in live while the bot is still deciding, they coalesce into its next step. Pausing a live run cancels its working orders and stops the bot process while the spine keeps marking equity; resuming starts the bot again with its saved state and current holdings and never replays the paused interval.
@@ -64,11 +64,11 @@ When bars arrive in live while the bot is still deciding, they coalesce into its
 
 **No lookahead.** Every query a bot makes is answered by the spine as of the run clock; the bot has no direct access to data. The visibility rules live in `crates/core` and are the single source of truth: a 1m bar is visible at its start plus 60 seconds, a daily bar at the session close, a fundamental fact at the open of the first session after its SEC `filed` date, a corporate action at the open of its ex-date session. History adjustment uses only corporate actions already visible at the clock. An order decided on bar N cannot fill before bar N+1's open. `fixtures/scenarios/` holds hand-computed expectations, including a lookahead probe.
 
-**Determinism.** The engine uses no wall clock and no unseeded randomness, keeps ordered maps and chains a blake3 hash over every ledger entry and order change. A completed run stores it as `result_hash`: the same bot, config, seed and data give the same hash. Money is `rust_decimal` in the ledger and strings on the wire, where the HTTP API writes cash amounts with 2 decimals and prices with 4; bars reach bots as float columns, and floats never enter the ledger. All times are UTC.
+**Determinism.** The engine uses no wall clock and no unseeded randomness, keeps ordered maps and chains a blake3 hash over every ledger entry and order change. A completed run stores it as `result_hash`: the same bot, config, seed and data give the same hash. Money is `rust_decimal` in the ledger and strings on the wire. Every cash amount enters the ledger rounded half-even to exactly 2 decimals and every price to exactly 4, so `100000` and `100000.00` start cash give the same hash, and a start cash with more than 2 decimals is refused; bars reach bots as float columns, and floats never enter the ledger. All times are UTC.
 
 **Crash safety.** The ledger and checkpoints are written in SQLite transactions, one per step. On start the runner recovers runs that were active.
 
-**Reproducibility.** A run records the bot content hash, engine version, seed, data watermark and its full config.
+**Reproducibility.** A run records the bot content hash, engine version, seed, data watermark and its full config. The engine version is a number bumped whenever the engine's behaviour or checkpoint changes. A live run resumes from an older engine's checkpoint; a backtest refuses to, so its result never mixes two engines.
 
 ## Data sources and limits
 

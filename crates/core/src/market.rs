@@ -128,10 +128,6 @@ pub struct Session {
 }
 
 impl Session {
-    pub fn is_half_day(&self) -> bool {
-        self.close - self.open < TimeDelta::hours(6)
-    }
-
     pub fn minutes(&self) -> i64 {
         (self.close - self.open).num_minutes()
     }

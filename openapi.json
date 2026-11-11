@@ -1997,7 +1997,7 @@
           "not_shortable",
           "max_position_weight",
           "max_gross_exposure",
-          "run_paused"
+          "invalid_size"
         ]
       },
       "Reproducibility": {

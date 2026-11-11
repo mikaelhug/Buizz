@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::market::{Feed, Symbol};
-use crate::money::round_cash;
+use crate::money::{round_cash, round_price};
 use crate::order::OrderId;
 use crate::time::Timestamp;
 
@@ -182,7 +182,7 @@ impl Portfolio {
                     position.cost_basis -= released;
                 }
                 position.qty = *qty_after;
-                position.last_price = position.last_price * *old_rate / *new_rate;
+                position.last_price = round_price(position.last_price * *old_rate / *new_rate);
             }
         }
         self.positions

@@ -207,7 +207,6 @@ impl Holdings {
                 .collect(),
             working: working
                 .into_iter()
-                .filter(|order| !order.status.is_terminal())
                 .map(|order| WorkingOrder {
                     order_id: order.id,
                     client_id: order.client_id.clone(),

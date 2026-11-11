@@ -93,7 +93,7 @@ pub enum RejectReason {
     NotShortable,
     MaxPositionWeight,
     MaxGrossExposure,
-    RunPaused,
+    InvalidSize,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
@@ -167,8 +167,9 @@ pub struct Fill {
 }
 
 pub fn target_weight_qty(weight: Decimal, equity: Decimal, price: Decimal) -> Option<i64> {
-    if price <= Decimal::ZERO {
-        return None;
-    }
-    (weight * equity / price).trunc().to_i64()
+    weight
+        .checked_mul(equity)?
+        .checked_div(price)?
+        .trunc()
+        .to_i64()
 }

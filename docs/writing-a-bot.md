@@ -117,13 +117,13 @@ ctx.log(message, level="info")
 - `order_target_weight` targets a fraction of equity: the target is `trunc(weight * equity / last close)` shares and the order is the difference to the position plus the session's working orders. A negative weight shorts. A target that needs no change is recorded as rejected with `zero_quantity`. Weights and limit prices must be finite numbers; NaN or infinity raises `ValueError`.
 - `rebalance` makes the book these weights: it cancels every working order, targets each weight and sends every other held symbol to zero with `exit_reason`. `reason` is one string, or a mapping with a reason per symbol of `weights`. A zero weight for a symbol you do not hold places nothing, so `ctx.rebalance({}, exit_reason="flat before the close")` flattens the book.
 - Quantities are whole shares. Splits pay cash in lieu of fractions.
-- Without `limit_price` the order is a market order. All orders are day orders.
+- Without `limit_price` the order is a market order. A limit price is rounded to 4 decimals away from the market (down for a buy, up for a sell). All orders are day orders.
 - `reason` is required free text. It is stored with the order and shown in the order list: write the decision, not the action.
-- `client_id` is returned. Leave it out to get `<symbol>-<session date>` (daily) or `<symbol>-<YYYY-MM-DDTHH:MM>` (1m), with `-1`, `-2` for repeats in the same step. A client id is unique per run and a repeated one is ignored, which makes replaying an ack after a crash safe.
+- `client_id` is returned. Leave it out to get `<symbol>-<session date>` (daily) or `<symbol>-<YYYY-MM-DDTHH:MM>` (1m), with `-1`, `-2` for repeats in the same step. A client id is unique per run; a repeated one is rejected with `duplicate_client_id` (in the step events and run events; the run's order list keeps only the first) and leaves the first order alone, which makes replaying an ack after a crash safe.
 - `cancel` cancels a working order by client id.
 - `log` writes a line of the given level (`debug`, `info`, `warn`, `error`) into the run's event log; the bot's stdout and stderr go to the log file.
 
-Orders are rejected, with the reason on the order and in the run events, for: `unknown_symbol`, `zero_quantity`, `invalid_limit_price`, `no_price` (no close seen yet), `not_shortable`, `max_position_weight`, `max_gross_exposure` and `run_paused`.
+Orders are rejected, with the reason on the order and in the run events, for: `unknown_symbol`, `duplicate_client_id`, `zero_quantity`, `invalid_limit_price`, `no_price` (no close seen yet), `not_shortable`, `max_position_weight`, `max_gross_exposure` and `invalid_size` (a quantity or target weight too large to compute).
 
 ### State
 
@@ -133,7 +133,7 @@ Orders are rejected, with the reason on the order and in the run events, for: `u
 
 - A bar is visible when it is complete: a 1m bar one minute after its start, a daily bar at the session close, a fundamental fact at the next session open after `filed`, a corporate action at the open of its ex-date session.
 - The bot is stepped when a bar is visible. An order decided on bar N fills no earlier than bar N+1's open; there is no way to trade on the bar you are looking at.
-- A market order fills at the open of the next bar, moved against you by the slippage. A limit buy fills at the open if the open is at or below the limit, otherwise at the limit if the bar's low touches it; a limit sell mirrors that. Otherwise it stays working until its session closes and then expires.
+- A market order fills at the open of the next bar, moved against you by the slippage. A limit buy fills at the open moved against you by the slippage, but never above the limit, if the open is at or below the limit; otherwise at the limit if the bar's low touches it. A limit sell mirrors that. Otherwise it stays working until its session closes and then expires.
 - A day order belongs to the session of the first bar that starts at or after the decision, so an order placed at a daily close fills in the next session, and so does one placed after the last minute of a session.
 - Splits and cash dividends hit the position at the ex-date open.
 - A delisted symbol's position is liquidated at its last close and its orders are cancelled.
@@ -145,15 +145,15 @@ The spine starts every run with 100,000 start cash and this cost model:
 | Cost | Default |
 |---|---|
 | Commission | 0.005 per share, at least 1.00 per fill |
-| Slippage | 5 bps against you on market fills |
-| Volume cap | 5% of the average daily volume of the last 20 sessions, per symbol and session; the rest of the order stays working and expires with its session |
+| Slippage | 5 bps against you on market fills and on limit orders already marketable at the open |
+| Volume cap | 5% of the average daily volume of the last 20 sessions, per symbol and session; the rest of the order stays working and expires with its session. A symbol with no average daily volume fills uncapped and the run gets one data warning event for it |
 | Borrow | 2% per year on short positions, charged at each session close |
 
 Shorting is allowed for instruments flagged shortable.
 
 ## Risk limits
 
-A run can carry `max_position_weight`, `max_gross_exposure` and `max_drawdown` (fractions). None is set by default; they are set per run through the `risk` field of the backtest request of the HTTP API. An order that would grow a position past `max_position_weight`, or the book past `max_gross_exposure`, is rejected. Falling past `max_drawdown` from the peak equity records a risk breach and pauses the run with end reason `risk_limit`.
+A run can carry `max_position_weight`, `max_gross_exposure` and `max_drawdown` (fractions). None is set by default; they are set per run through the `risk` field of the backtest request of the HTTP API. An order that would grow a position past `max_position_weight`, or the book past `max_gross_exposure`, is rejected; while equity is at or below zero every order that grows a position breaks a limit that is set. Without limits nothing is rejected for exposure. Falling past `max_drawdown` from the peak equity records a risk breach and pauses the run with end reason `risk_limit`.
 
 ## Holdout and honest data
 
@@ -174,4 +174,4 @@ uv run --frozen buizz backtest ../../bots/red_green --from 2024-11-20 --to 2024-
 uv run --frozen buizz backtest ../../bots/sma_cross --from 2020-01-01 --to 2024-12-31 --param fast=20 --param slow=100
 ```
 
-It queues the run, prints the clock and equity while it runs, then the metrics (`total_return`, `cagr`, `volatility`, `sharpe`, `sortino`, `max_drawdown`, `calmar`, `win_rate`, `profit_factor`, `exposure`, `turnover`, `alpha`, `beta`, `trades`, `sessions`; `-` when a metric is undefined for the run) and the orders by status with the net shares held per symbol after splits. The exit code is 1 when the run fails or is cancelled. The same run is in the UI with the equity curve against the benchmark, the orders with their reasons, positions and the bot log. Bot output and tracebacks are in `data/logs/<run_id>.log`.
+It queues the run, prints the clock and equity while it runs, then the metrics (`total_return`, `cagr`, `volatility`, `sharpe`, `sortino`, `max_drawdown`, `calmar`, `win_rate`, `profit_factor`, `exposure`, `turnover`, `alpha`, `beta`, `trades`, `sessions`; `-` when a metric is undefined for the run, e.g. `cagr` and `calmar` for runs shorter than 252 sessions, because annualizing a shorter return mostly magnifies noise) and the orders by status with the net shares held per symbol after splits. The exit code is 1 when the run fails or is cancelled. The same run is in the UI with the equity curve against the benchmark, the orders with their reasons, positions and the bot log. Bot output and tracebacks are in `data/logs/<run_id>.log`.

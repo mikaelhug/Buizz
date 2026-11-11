@@ -15,7 +15,7 @@ Waves 0–3 are merged: every crate, the SDK, the web UI, six example bots, the 
 - **Live is a backtest whose data has not arrived yet.** The engine only ever reads the market store. Ingest and the live feed write bars and bump a watermark; a live run is the same replay loop blocked at the watermark. This gives backtest/live parity by construction and makes restart recovery a cursor resume.
 - **Lookahead is structurally impossible.** Every bot query is answered as-of the run clock, server-side. Rules frozen in `crates/core`:
   - `visible_at`: 1m bar = bar start + 60s; daily bar = session close; fundamentals = next session open after the SEC `filed` date.
-  - Per-bar cycle (`core::visibility::CyclePhase`): at bar start, corporate actions → order expiry → fills at open; at the bar's `visible_at`, mark → risk limits → wake bot → accept orders. Bar N's cycle completes before bar N+1's, so an order decided on bar N fills at bar N+1 open.
+  - Per-bar cycle in the engine: at bar start, order expiry → corporate actions → fills at open; at the bar's `visible_at`, mark → risk limits → wake bot → accept orders. Bar N's cycle completes before bar N+1's, so an order decided on bar N fills at bar N+1 open.
   - Whole shares only (signed); splits pay cash in lieu. A target-weight order resolving to zero shares is recorded as rejected `zero_quantity`.
   - Fills use raw prices; splits and dividends hit positions on the ex-date. Bots may ask for back-adjusted history, computed only from actions known at the clock.
 - **Deterministic:** no wall clock in the engine, seeded, ordered maps, `result_hash` per run. Same inputs → same hash.
@@ -118,12 +118,9 @@ Out of v1: brokers and real money; options, crypto, FX; tick/quote simulation; e
 2. Confirm every worktree branch is merged into `main` and pruned.
 3. Code review each module of Buizz (one review per crate, the SDK and the web app); fix confirmed findings.
    Known issues to fold into the reviews:
-   - A repeated `client_id` is silently ignored, but `docs/protocol.md` says it is rejected and `RejectReason::DuplicateClientId` is never produced.
    - Bot logs go to `data/logs` relative to the working directory in the supervisor and the API, ignoring `BUIZZ_DATA_DIR`.
    - Runs get no default risk limits, and the UI and CLI cannot set any; a drawdown breach in a backtest reads as a pause with reason `risk_limit`.
-   - The ADV volume cap treats a missing average daily volume as zero, so the order never fills.
    - Live runs can never have risk limits: `go_live` uses the spine defaults (none) and neither `bot.toml` nor the UI can set them, so the drawdown kill switch only works for API-started backtests. Needs a decision on where live risk limits are configured.
-   - `result_hash` depends on decimal scale: `100000` and `100000.00` start cash give different hashes for identical runs.
    - The spine does not exit on SIGTERM while a browser holds the SSE stream open (graceful shutdown waits on it); Kubernetes pod shutdown would hang until SIGKILL.
    - A live run's SPY benchmark only extends on reload or status change.
    - No time seam: the runner, feed, ingest, API and supervisor call the wall clock directly, so the live e2e scenarios must sleep between 23:28 and 00:11 ET. Add one `now()` in `buizz_core::time` with a test offset.

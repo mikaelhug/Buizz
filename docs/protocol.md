@@ -45,7 +45,7 @@ spine -> end {reason, message?}
 
 ## Ack
 
-- `orders`: `{client_id, symbol, size, order_type, tif, reason}`. `size` is `{by: "qty", qty}` (signed: negative sells) or `{by: "target_weight", weight}` (sized against equity and the last close at `clock`). `order_type` is `{type: "market"}` or `{type: "limit", limit_price}`. `tif` is `day`. `client_id` must be unique per run; a repeat is rejected, which makes acks safe to replay after a crash.
+- `orders`: `{client_id, symbol, size, order_type, tif, reason}`. `size` is `{by: "qty", qty}` (signed: negative sells) or `{by: "target_weight", weight}` (sized against equity and the last close at `clock`). `order_type` is `{type: "market"}` or `{type: "limit", limit_price}`; the spine rounds `limit_price` to 4 decimals away from the market (down for a buy, up for a sell), so a limit never fills worse than the bot asked. `tif` is `day`. `client_id` must be unique per run; a repeat is rejected with `duplicate_client_id` and leaves the first order alone, which makes acks safe to replay after a crash.
 - `cancels`: client ids of working orders.
 - `state`: opaque bytes ≤ 64 KiB persisted with the step checkpoint and returned in `ready`; `null` keeps the previous state.
 - `logs`: `{level, message}` lines for the run log.
@@ -53,7 +53,7 @@ spine -> end {reason, message?}
 ## Time rules
 
 - Visibility: a 1m bar at `start + 60 s`; a daily bar at the session close; a fundamental fact at the open of the first session after its `filed` date; a corporate action at the open of its ex-date session.
-- Each bar runs one cycle: corporate actions, order expiry, fills (at the bar's start), mark, risk limits, wake the bot, accept orders (at the bar's visible time). A bar's cycle finishes before the next bar's begins, so an order accepted on bar N fills no earlier than bar N+1's open.
+- Each bar runs one cycle: order expiry, corporate actions, fills (at the bar's start), mark, risk limits, wake the bot, accept orders (at the bar's visible time). A bar's cycle finishes before the next bar's begins, so an order accepted on bar N fills no earlier than bar N+1's open.
 - A day order belongs to the session of the first bar starting at or after its decision and expires at that session's close.
 - `wake`: `bar` wakes on every bar; `every:30m` when `clock − session open` is a positive multiple of 30 minutes, up to the close; `at:15:55` when the exchange-local clock reads 15:55. Bars visible between wakes still arrive, coalesced, at the next step.
 

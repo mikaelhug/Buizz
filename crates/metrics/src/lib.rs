@@ -5,12 +5,12 @@ use buizz_core::ledger::{LedgerEntry, LedgerKind};
 use buizz_core::market::{RiskFreeRate, Symbol};
 use buizz_core::money::round_cash;
 use buizz_core::performance::Metrics;
-use buizz_core::run::EquityPoint;
+use buizz_core::run::{CostModel, EquityPoint};
 use buizz_core::time::Timestamp;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
 
-const TRADING_DAYS: f64 = 252.0;
+const TRADING_DAYS: f64 = CostModel::TRADING_DAYS_PER_YEAR as f64;
 const MIN_SPREAD: f64 = f64::EPSILON;
 
 pub struct MetricsInput<'a> {
@@ -22,10 +22,15 @@ pub struct MetricsInput<'a> {
 }
 
 pub fn compute(input: &MetricsInput<'_>) -> Metrics {
-    let values: Vec<f64> = input
+    let closes: Vec<f64> = input
         .equity
         .iter()
         .map(|point| point.equity.to_f64().unwrap_or(f64::NAN))
+        .collect();
+    let values: Vec<f64> = (!closes.is_empty())
+        .then(|| input.start_cash.to_f64().unwrap_or(f64::NAN))
+        .into_iter()
+        .chain(closes.iter().copied())
         .collect();
     let returns = simple_returns(&values);
     let excess = returns
@@ -55,7 +60,7 @@ pub fn compute(input: &MetricsInput<'_>) -> Metrics {
         win_rate: win_rate(&trips),
         profit_factor: profit_factor(&trips),
         exposure: exposure(input.equity),
-        turnover: turnover(input.ledger, &values),
+        turnover: turnover(input.ledger, &closes),
         alpha,
         beta,
         trades: u32::try_from(trips.len()).unwrap_or(u32::MAX),
@@ -74,7 +79,6 @@ fn excess_returns(input: &MetricsInput<'_>, returns: &[f64]) -> Option<Vec<f64>>
     input
         .equity
         .iter()
-        .skip(1)
         .zip(returns)
         .map(|(point, ret)| daily_risk_free(input.risk_free, point).map(|rf| ret - rf))
         .collect()
@@ -92,6 +96,9 @@ fn daily_risk_free(rates: &[RiskFreeRate], point: &EquityPoint) -> Option<f64> {
 
 fn cagr(start_cash: Decimal, equity: &[EquityPoint]) -> Option<f64> {
     let periods = equity.len() as f64;
+    if periods < TRADING_DAYS {
+        return None;
+    }
     final_ratio(start_cash, equity).map(|ratio| ratio.max(0.0).powf(TRADING_DAYS / periods) - 1.0)
 }
 
@@ -191,18 +198,22 @@ fn round_trips(ledger: &[LedgerEntry]) -> Vec<Decimal> {
             continue;
         };
         let trip = open.entry(symbol).or_default();
-        trip.pnl += entry.kind.cash_delta();
-        match &entry.kind {
-            LedgerKind::Fill { qty, .. } | LedgerKind::Liquidation { qty, .. } => trip.qty += qty,
-            LedgerKind::Split { qty_after, .. } => trip.qty = *qty_after,
-            _ => {}
+        let cash = entry.kind.cash_delta();
+        let before = trip.qty;
+        trip.qty = match &entry.kind {
+            LedgerKind::Fill { qty, .. } | LedgerKind::Liquidation { qty, .. } => before + qty,
+            LedgerKind::Split { qty_after, .. } => *qty_after,
+            _ => before,
+        };
+        if before.signum() * trip.qty.signum() < 0 {
+            let closing =
+                cash * Decimal::from(before.abs()) / Decimal::from((trip.qty - before).abs());
+            closed.push(trip.pnl + closing);
+            trip.pnl = cash - closing;
+            continue;
         }
-        let closes_trip = trip.qty == 0
-            && matches!(
-                entry.kind,
-                LedgerKind::Fill { .. } | LedgerKind::Liquidation { .. }
-            );
-        if closes_trip {
+        trip.pnl += cash;
+        if before != 0 && trip.qty == 0 {
             closed.push(trip.pnl);
         }
         if trip.qty == 0 {
@@ -246,6 +257,7 @@ fn alpha_beta(input: &MetricsInput<'_>, returns: &[f64]) -> Option<(f64, f64)> {
     if variance <= MIN_SPREAD * MIN_SPREAD {
         return None;
     }
+    let returns = returns.get(1..)?;
     let beta = sample_covariance(returns, &benchmark)? / variance;
     let alpha = (mean(returns) - beta * mean(&benchmark)) * TRADING_DAYS;
     Some((alpha, beta))
@@ -327,12 +339,11 @@ mod tests {
             );
         };
         close("total_return", actual.total_return, expected.total_return);
-        close("cagr", actual.cagr, expected.cagr);
         close("volatility", actual.volatility, expected.volatility);
         close("sharpe", actual.sharpe, expected.sharpe);
         close("sortino", actual.sortino, expected.sortino);
         close("max_drawdown", actual.max_drawdown, expected.max_drawdown);
-        close("calmar", actual.calmar, expected.calmar);
+        assert_eq!((actual.cagr, actual.calmar), (None, None));
         close("win_rate", actual.win_rate, expected.win_rate);
         close(
             "profit_factor",
@@ -357,5 +368,43 @@ mod tests {
             risk_free: &[],
         });
         assert_eq!(metrics, Metrics::default());
+    }
+
+    #[test]
+    fn a_flip_closes_one_round_trip_and_a_split_to_zero_closes_another() {
+        let entry = |seq, kind| LedgerEntry {
+            seq,
+            at: Timestamp::from_datetime(chrono::DateTime::UNIX_EPOCH).unwrap(),
+            kind,
+        };
+        let fill = |symbol: &str, qty: i64, price: i64| LedgerKind::Fill {
+            order_id: buizz_core::order::OrderId(1),
+            symbol: Symbol::new(symbol),
+            qty,
+            price: Decimal::from(price),
+            commission: Decimal::ZERO,
+            feed: buizz_core::market::Feed::Sip,
+        };
+        let ledger = [
+            entry(1, fill("AAA", 100, 10)),
+            entry(2, fill("AAA", -150, 12)),
+            entry(3, fill("AAA", 50, 11)),
+            entry(4, fill("BBB", 3, 10)),
+            entry(
+                5,
+                LedgerKind::Split {
+                    symbol: Symbol::new("BBB"),
+                    old_rate: Decimal::from(10),
+                    new_rate: Decimal::ONE,
+                    qty_before: 3,
+                    qty_after: 0,
+                    cash_in_lieu: Decimal::from(25),
+                },
+            ),
+        ];
+        assert_eq!(
+            round_trips(&ledger),
+            [Decimal::from(200), Decimal::from(50), Decimal::from(-5)]
+        );
     }
 }

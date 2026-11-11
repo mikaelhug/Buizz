@@ -32,24 +32,24 @@ Orders 1, 6, 7, 9 and 12 are zero-quantity rejections on green days without a po
 
 ## Metric definitions
 
-Equity points `E_1..E_n` are the session closes (n = 10), returns `r_t = E_t / E_{t-1} − 1` (9 returns), benchmark returns `b_t` from the benchmark equity curve (SPY closes scaled to start cash, rounded to cents), `rf = percent / 100 / 252` from `rates.csv` (4.50%).
+Equity points `E_1..E_n` are the session closes (n = 10) and `E_0` is the start cash, so the first session counts: returns `r_t = E_t / E_{t-1} − 1` for t = 1..n (10 returns). Benchmark returns `b_t` come from the benchmark equity curve (SPY closes scaled to start cash at the first close, rounded to cents), so they start at t = 2 and pair with `r_2..r_n`. `rf = percent / 100 / 252` from `rates.csv` (4.50%).
 
 | Metric | Definition | Value |
 |---|---|---|
 | total_return | `E_n / start_cash − 1` | 0.0044846 |
-| cagr | `(E_n / start_cash)^(252 / n) − 1` | 0.119362… |
-| volatility | `stdev(r, ddof=1) × √252` | 0.041032… |
-| sharpe | `mean(r − rf) / stdev(r − rf, ddof=1) × √252` | 1.975672… |
-| sortino | `mean(r − rf) / √(Σ min(r − rf, 0)² / 9) × √252` | 4.121476… |
-| max_drawdown | `max (peak − E) / peak` (100,000.00 → 99,415.52) | 0.0058448 |
-| calmar | `cagr / max_drawdown` | 20.42198… |
-| trades | closed round trips (flat → flat per symbol) | 3 |
+| cagr | `(E_n / start_cash)^(252 / n) − 1`, absent when n < 252 | absent |
+| volatility | `stdev(r, ddof=1) × √252` | 0.038766… |
+| sharpe | `mean(r − rf) / stdev(r − rf, ddof=1) × √252` | 1.765925… |
+| sortino | `mean(r − rf) / √(Σ min(r − rf, 0)² / 10) × √252` | 3.664590… |
+| max_drawdown | `max (peak − E) / peak` over `E_0..E_n` (100,000.00 → 99,415.52) | 0.0058448 |
+| calmar | `cagr / max_drawdown`, absent with cagr | absent |
+| trades | closed round trips (flat → flat per symbol; a fill that crosses zero closes the trip with its pro-rata share and opens the next, a split to zero shares closes it) | 3 |
 | win_rate | winning round trips / trades; pnl = Σ fill cash deltas + dividends: BBB −131.99, AAA 97.92, AAA 599.81 | 0.6667 |
 | profit_factor | Σ wins / Σ |losses| = 697.73 / 131.99 | 5.286233… |
 | exposure | mean of `gross_exposure / equity` over equity points | 0.248096… |
 | turnover | Σ |round2(qty × price)| / mean equity = 174,828.83 / 99,889.766 | 1.750217… |
-| beta | `cov(r, b) / var(b)`, ddof=1 | −0.617072… |
-| alpha | `(mean(r) − beta × mean(b)) × 252` | 0.638220… |
+| beta | `cov(r_2..r_n, b) / var(b)`, ddof=1 | −0.617072… |
+| alpha | `(mean(r_2..r_n) − beta × mean(b)) × 252` | 0.638220… |
 
 ## Lookahead boundaries
 
