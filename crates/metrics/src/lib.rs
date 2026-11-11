@@ -1,9 +1,17 @@
+use std::collections::{BTreeMap, HashMap};
+
 use buizz_core::api::SparkPoint;
-use buizz_core::ledger::LedgerEntry;
-use buizz_core::market::RiskFreeRate;
+use buizz_core::ledger::{LedgerEntry, LedgerKind};
+use buizz_core::market::{RiskFreeRate, Symbol};
+use buizz_core::money::round_cash;
 use buizz_core::performance::Metrics;
 use buizz_core::run::EquityPoint;
+use buizz_core::time::Timestamp;
 use rust_decimal::Decimal;
+use rust_decimal::prelude::ToPrimitive;
+
+const TRADING_DAYS: f64 = 252.0;
+const MIN_SPREAD: f64 = f64::EPSILON;
 
 pub struct MetricsInput<'a> {
     pub start_cash: Decimal,
@@ -13,6 +21,353 @@ pub struct MetricsInput<'a> {
     pub risk_free: &'a [RiskFreeRate],
 }
 
-pub fn compute(_input: &MetricsInput<'_>) -> Metrics {
-    unimplemented!()
+pub fn compute(input: &MetricsInput<'_>) -> Metrics {
+    let values: Vec<f64> = input
+        .equity
+        .iter()
+        .map(|point| point.equity.to_f64().unwrap_or(f64::NAN))
+        .collect();
+    let returns = simple_returns(&values);
+    let excess = returns
+        .as_deref()
+        .and_then(|returns| excess_returns(input, returns));
+    let cagr = cagr(input.start_cash, input.equity);
+    let max_drawdown = max_drawdown(&values);
+    let trips = round_trips(input.ledger);
+    let (alpha, beta) = returns
+        .as_deref()
+        .and_then(|returns| alpha_beta(input, returns))
+        .unzip();
+
+    Metrics {
+        total_return: final_ratio(input.start_cash, input.equity).map_or(0.0, |ratio| ratio - 1.0),
+        cagr,
+        volatility: returns
+            .as_deref()
+            .and_then(sample_stdev)
+            .map_or(0.0, |stdev| stdev * TRADING_DAYS.sqrt()),
+        sharpe: excess.as_deref().and_then(sharpe),
+        sortino: excess.as_deref().and_then(sortino),
+        max_drawdown,
+        calmar: (max_drawdown > 0.0).then(|| cagr / max_drawdown),
+        win_rate: win_rate(&trips),
+        profit_factor: profit_factor(&trips),
+        exposure: exposure(input.equity),
+        turnover: turnover(input.ledger, &values),
+        alpha,
+        beta,
+        trades: u32::try_from(trips.len()).unwrap_or(u32::MAX),
+        sessions: u32::try_from(input.equity.len()).unwrap_or(u32::MAX),
+    }
+}
+
+fn simple_returns(values: &[f64]) -> Option<Vec<f64>> {
+    values
+        .windows(2)
+        .map(|pair| (pair[0] > 0.0 && pair[1].is_finite()).then(|| pair[1] / pair[0] - 1.0))
+        .collect()
+}
+
+fn excess_returns(input: &MetricsInput<'_>, returns: &[f64]) -> Option<Vec<f64>> {
+    input
+        .equity
+        .iter()
+        .skip(1)
+        .zip(returns)
+        .map(|(point, ret)| daily_risk_free(input.risk_free, point).map(|rf| ret - rf))
+        .collect()
+}
+
+fn daily_risk_free(rates: &[RiskFreeRate], point: &EquityPoint) -> Option<f64> {
+    let date = point.at.exchange_date();
+    rates
+        .iter()
+        .filter(|rate| rate.date <= date)
+        .max_by_key(|rate| rate.date)
+        .and_then(|rate| (rate.percent / Decimal::from(100)).to_f64())
+        .map(|annual| annual / TRADING_DAYS)
+}
+
+fn cagr(start_cash: Decimal, equity: &[EquityPoint]) -> f64 {
+    let periods = equity.len() as f64;
+    final_ratio(start_cash, equity).map_or(0.0, |ratio| {
+        ratio.max(0.0).powf(TRADING_DAYS / periods) - 1.0
+    })
+}
+
+fn final_ratio(start_cash: Decimal, equity: &[EquityPoint]) -> Option<f64> {
+    let last = equity.last()?;
+    (start_cash > Decimal::ZERO)
+        .then(|| (last.equity / start_cash).to_f64())
+        .flatten()
+}
+
+fn mean(values: &[f64]) -> f64 {
+    values.iter().sum::<f64>() / values.len() as f64
+}
+
+fn sample_stdev(values: &[f64]) -> Option<f64> {
+    sample_covariance(values, values).map(f64::sqrt)
+}
+
+fn sample_covariance(left: &[f64], right: &[f64]) -> Option<f64> {
+    if left.len() < 2 || left.len() != right.len() {
+        return None;
+    }
+    let (left_mean, right_mean) = (mean(left), mean(right));
+    let sum: f64 = left
+        .iter()
+        .zip(right)
+        .map(|(l, r)| (l - left_mean) * (r - right_mean))
+        .sum();
+    Some(sum / (left.len() - 1) as f64)
+}
+
+fn sharpe(excess: &[f64]) -> Option<f64> {
+    let stdev = sample_stdev(excess).filter(|stdev| *stdev > MIN_SPREAD)?;
+    Some(mean(excess) / stdev * TRADING_DAYS.sqrt())
+}
+
+fn sortino(excess: &[f64]) -> Option<f64> {
+    if excess.len() < 2 {
+        return None;
+    }
+    let shortfall: f64 = excess.iter().map(|value| value.min(0.0).powi(2)).sum();
+    let downside = (shortfall / excess.len() as f64).sqrt();
+    (downside > MIN_SPREAD).then(|| mean(excess) / downside * TRADING_DAYS.sqrt())
+}
+
+fn max_drawdown(values: &[f64]) -> f64 {
+    let mut peak = f64::MIN;
+    values.iter().fold(0.0, |worst, value| {
+        peak = peak.max(*value);
+        if peak > 0.0 {
+            worst.max((peak - value) / peak)
+        } else {
+            worst
+        }
+    })
+}
+
+fn exposure(equity: &[EquityPoint]) -> f64 {
+    let ratios: Vec<f64> = equity
+        .iter()
+        .filter(|point| point.equity > Decimal::ZERO)
+        .filter_map(|point| (point.gross_exposure / point.equity).to_f64())
+        .collect();
+    if ratios.is_empty() {
+        0.0
+    } else {
+        mean(&ratios)
+    }
+}
+
+fn turnover(ledger: &[LedgerEntry], equity: &[f64]) -> f64 {
+    let traded: Decimal = ledger
+        .iter()
+        .filter_map(|entry| match &entry.kind {
+            LedgerKind::Fill { qty, price, .. } | LedgerKind::Liquidation { qty, price, .. } => {
+                Some(round_cash(Decimal::from(*qty) * *price).abs())
+            }
+            _ => None,
+        })
+        .sum();
+    if equity.is_empty() || mean(equity) <= 0.0 {
+        return 0.0;
+    }
+    traded.to_f64().unwrap_or(0.0) / mean(equity)
+}
+
+#[derive(Default)]
+struct OpenTrip {
+    qty: i64,
+    pnl: Decimal,
+}
+
+fn round_trips(ledger: &[LedgerEntry]) -> Vec<Decimal> {
+    let mut open: HashMap<&Symbol, OpenTrip> = HashMap::new();
+    let mut closed = Vec::new();
+    for entry in ledger {
+        let Some(symbol) = entry_symbol(&entry.kind) else {
+            continue;
+        };
+        let trip = open.entry(symbol).or_default();
+        trip.pnl += entry.kind.cash_delta();
+        match &entry.kind {
+            LedgerKind::Fill { qty, .. } | LedgerKind::Liquidation { qty, .. } => trip.qty += qty,
+            LedgerKind::Split { qty_after, .. } => trip.qty = *qty_after,
+            _ => {}
+        }
+        if trip.qty == 0 {
+            if let Some(trip) = open.remove(symbol) {
+                if matches!(
+                    entry.kind,
+                    LedgerKind::Fill { .. } | LedgerKind::Liquidation { .. }
+                ) {
+                    closed.push(trip.pnl);
+                }
+            }
+        }
+    }
+    closed
+}
+
+fn entry_symbol(kind: &LedgerKind) -> Option<&Symbol> {
+    match kind {
+        LedgerKind::Deposit { .. } => None,
+        LedgerKind::Fill { symbol, .. }
+        | LedgerKind::Dividend { symbol, .. }
+        | LedgerKind::Split { symbol, .. }
+        | LedgerKind::BorrowFee { symbol, .. }
+        | LedgerKind::Liquidation { symbol, .. } => Some(symbol),
+    }
+}
+
+fn win_rate(trips: &[Decimal]) -> Option<f64> {
+    let wins = trips.iter().filter(|pnl| **pnl > Decimal::ZERO).count();
+    (!trips.is_empty()).then(|| wins as f64 / trips.len() as f64)
+}
+
+fn profit_factor(trips: &[Decimal]) -> Option<f64> {
+    let gains: Decimal = trips.iter().filter(|pnl| **pnl > Decimal::ZERO).sum();
+    let losses: Decimal = trips
+        .iter()
+        .filter(|pnl| **pnl < Decimal::ZERO)
+        .map(|pnl| -*pnl)
+        .sum();
+    (losses > Decimal::ZERO)
+        .then(|| (gains / losses).to_f64())
+        .flatten()
+}
+
+fn alpha_beta(input: &MetricsInput<'_>, returns: &[f64]) -> Option<(f64, f64)> {
+    let benchmark = benchmark_returns(input)?;
+    let variance = sample_covariance(&benchmark, &benchmark)?;
+    if variance <= MIN_SPREAD * MIN_SPREAD {
+        return None;
+    }
+    let beta = sample_covariance(returns, &benchmark)? / variance;
+    let alpha = (mean(returns) - beta * mean(&benchmark)) * TRADING_DAYS;
+    Some((alpha, beta))
+}
+
+fn benchmark_returns(input: &MetricsInput<'_>) -> Option<Vec<f64>> {
+    let by_time: BTreeMap<Timestamp, f64> = input
+        .benchmark
+        .iter()
+        .map(|point| (point.at, point.equity.to_f64().unwrap_or(f64::NAN)))
+        .collect();
+    let values: Vec<f64> = input
+        .equity
+        .iter()
+        .map(|point| by_time.get(&point.at).copied())
+        .collect::<Option<_>>()?;
+    simple_returns(&values)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+    use std::path::{Path, PathBuf};
+
+    use chrono::NaiveDate;
+
+    use super::*;
+
+    fn fixtures() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures")
+    }
+
+    fn risk_free() -> Vec<RiskFreeRate> {
+        fs::read_to_string(fixtures().join("market/rates.csv"))
+            .unwrap()
+            .lines()
+            .skip(1)
+            .map(|line| {
+                let (date, percent) = line.split_once(',').unwrap();
+                RiskFreeRate {
+                    date: NaiveDate::parse_from_str(date, "%Y-%m-%d").unwrap(),
+                    percent: percent.parse().unwrap(),
+                }
+            })
+            .collect()
+    }
+
+    #[test]
+    fn red_green_metrics_match_the_hand_computed_values() {
+        let text =
+            fs::read_to_string(fixtures().join("scenarios/red_green.expected.json")).unwrap();
+        let scenario: serde_json::Value = serde_json::from_str(&text).unwrap();
+        let equity: Vec<EquityPoint> = serde_json::from_value(scenario["equity"].clone()).unwrap();
+        let benchmark: Vec<SparkPoint> =
+            serde_json::from_value(scenario["benchmark"].clone()).unwrap();
+        let ledger: Vec<LedgerEntry> = serde_json::from_value(scenario["ledger"].clone()).unwrap();
+        let risk_free = risk_free();
+        let start_cash: Decimal = scenario["config"]["start_cash"]
+            .as_str()
+            .unwrap()
+            .parse()
+            .unwrap();
+
+        let actual = compute(&MetricsInput {
+            start_cash,
+            equity: &equity,
+            benchmark: &benchmark,
+            ledger: &ledger,
+            risk_free: &risk_free,
+        });
+
+        let expected: Metrics = serde_json::from_value(scenario["metrics"].clone()).unwrap();
+        let tolerance: f64 = serde_json::from_value(scenario["metrics_tolerance"].clone()).unwrap();
+        let close = |name: &str, actual: Option<f64>, expected: Option<f64>| {
+            let (actual, expected) = (actual.unwrap(), expected.unwrap());
+            assert!(
+                (actual - expected).abs() <= tolerance,
+                "{name}: {actual} vs {expected}"
+            );
+        };
+        close(
+            "total_return",
+            Some(actual.total_return),
+            Some(expected.total_return),
+        );
+        close("cagr", Some(actual.cagr), Some(expected.cagr));
+        close(
+            "volatility",
+            Some(actual.volatility),
+            Some(expected.volatility),
+        );
+        close("sharpe", actual.sharpe, expected.sharpe);
+        close("sortino", actual.sortino, expected.sortino);
+        close(
+            "max_drawdown",
+            Some(actual.max_drawdown),
+            Some(expected.max_drawdown),
+        );
+        close("calmar", actual.calmar, expected.calmar);
+        close("win_rate", actual.win_rate, expected.win_rate);
+        close(
+            "profit_factor",
+            actual.profit_factor,
+            expected.profit_factor,
+        );
+        close("exposure", Some(actual.exposure), Some(expected.exposure));
+        close("turnover", Some(actual.turnover), Some(expected.turnover));
+        close("alpha", actual.alpha, expected.alpha);
+        close("beta", actual.beta, expected.beta);
+        assert_eq!(actual.trades, expected.trades);
+        assert_eq!(actual.sessions, expected.sessions);
+    }
+
+    #[test]
+    fn missing_data_stays_absent() {
+        let metrics = compute(&MetricsInput {
+            start_cash: Decimal::from(1000),
+            equity: &[],
+            benchmark: &[],
+            ledger: &[],
+            risk_free: &[],
+        });
+        assert_eq!(metrics, Metrics::default());
+    }
 }
