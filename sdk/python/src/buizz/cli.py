@@ -57,6 +57,8 @@ def parse_param(text: str) -> tuple[str, Any]:
 
 
 def format_value(value: Any) -> str:
+    if value is None:
+        return "-"
     return f"{value:.4f}" if isinstance(value, float) else str(value)
 
 
