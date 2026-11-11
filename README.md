@@ -27,9 +27,10 @@ The other bots in `bots/` need real data: set the provider keys below and start 
 
 | Command | What it does |
 |---|---|
-| `just setup` | Install web dependencies (`npm ci`) and the Python SDK environment (`uv sync --frozen`) |
+| `just setup` | Install web and end-to-end browser dependencies (`npm ci`) and the Python SDK environment (`uv sync --frozen`) |
 | `just dev` | Run the spine and the Vite dev server with the fixture data |
-| `just check` | Everything a merge needs: `lint`, `test`, `build`, `drift` (the default recipe) |
+| `just check` | Everything a merge needs: `lint`, `test`, `build`, `drift`, `e2e` (the default recipe) |
+| `just e2e` | The end-to-end scenarios against the real spine binary and fake providers; the browser steps need Google Chrome installed |
 | `just lint` | rustfmt, clippy, ruff, pyright, web typecheck and the no-comments lint |
 | `just test` | Rust workspace tests and the SDK tests |
 | `just build` | Build the workspace and the web bundle |

@@ -6,7 +6,7 @@ Buizz is a platform for testing trading strategies of any kind (technical, value
 
 Decisions already made with you: US stocks & ETFs; daily + 1-minute bars + real-time stream; paper trading only (no broker); develop on the Mac, deploy to the `akrell` Kubernetes cluster.
 
-Finished slices are deleted from this file (CLAUDE.md directive 6). Wave 0 (contracts) is merged: `crates/core` is complete, every other crate is a compiling stub with frozen signatures, and `docs/protocol.md`, `fixtures/` and both `schema.sql` files are the contracts.
+Waves 0–3 are merged: every crate, the SDK, the web UI, six example bots, the Docker image and release workflow, and the seven end-to-end scenarios in `e2e/` (run by `just e2e`, part of `just check`). Finished work is deleted from this file (CLAUDE.md directive 6).
 
 ## Core design: one engine, one event path
 
@@ -106,43 +106,11 @@ In v1:
 
 Out of v1: brokers and real money; options, crypto, FX; tick/quote simulation; extended hours; stop/bracket orders; margin model; walk-forward, sweeps, optimisers; index-membership history; non-Python SDKs; multi-user; notifications; live-vs-backtest shadow parity report (v1.1).
 
-## Slices
+## Working agreement for agent work
 
-Each slice owns its paths exclusively. Agents run in git worktrees at medium effort.
-
-Contract notes for slice owners: stub parameters are `_`-prefixed and stub structs empty, so rename and add fields freely inside your crate. The SDK must use the websockets sans-I/O `ClientProtocol` over a blocking socket (the only transport that met the 20k steps/s gate, ~24k measured). TypeScript stays on 5.9 while openapi-typescript requires it.
-
-Wave 1 is merged. Handoff notes for Wave 2 (the code is the reference):
-- Runner: `commit_step` needs `step_seq` exactly last+1; drain the engine Outbox and `checkpoint()` in that same commit. Screen unknown and unshortable symbols before `engine.accept` (the engine has no instrument data). Repeated `client_id`s are dropped silently. Bots get `BUIZZ_RUN_TOKEN`; logs land in `data/logs/<run_id>.log` relative to the spine's working directory.
-- Runner/feed: market watermarks are in memory only; re-advance them on boot. Use `bars_between` for chunk preloads and apply `bar_visible_at` yourself.
-- Ingest: load the calendar before bars and facts (rows outside it are dropped); widen corporate-action ranges (Alpaca filters on process date); budget Tiingo's 1000/day and 500 symbols/month; back off on `RateLimited{retry_after}` via `record_fetch`; snapshots need a fresh dated path.
-- Unverified until Alpaca keys exist: calendar times assumed America/New_York; SDK throughput (~19.5k steps/s measured against a Python fake under heavy load) is re-measured against the real runner.
-
-**Wave 2 — parallel (6 agents)**
-
-| Slice | Owns | Done when | Model |
-|---|---|---|---|
-| Runner | `crates/runner/` | Backtest lockstep, live tail-follow, coalescing, checkpoint/recovery, risk limits; `red_green` passes through the real binary | Opus |
-| Feed manager | `crates/feed/` | Ref-counted subscriptions, cap refusal naming holders, gap backfill, watermark notifications | Opus |
-| Web UI | `web/` (not `schema.d.ts`) | Grid, hover stats, detail, Live/Pause, leaderboard, data health against the stub API | Opus |
-| Ingest | `crates/ingest/` | Tick scheduler, jobs, lazy 1m coverage, nightly `state.db` snapshot; second tick is a noop | Sonnet |
-| API | `crates/api/` | Real handlers + SSE + login replace every stub fixture; serves the UI | Sonnet |
-| Example bots | `bots/` | `red_green`, `sma_cross`, `momentum_12_1`, `value_quality` (Buffett), `cannibal` (Singleton buybacks), `opening_range` (1m) | Sonnet |
-
-**Wave 3 — integration (3 agents)**
-
-| Slice | Owns | Done when | Model |
-|---|---|---|---|
-| End-to-end + fake Alpaca | `e2e/` | The seven scenarios below are green; slice-level checks they supersede are deleted | Opus |
-| Deploy | `Dockerfile`, `.github/workflows/release.yaml` | Release workflow modelled on `../Engly/.github/workflows/release.yaml`: on push to `main` and `v*` tags only, build the amd64 image and push it to `ghcr.io/mikaelhug/buizz` with the same version scheme; `tini` PID 1, bots' uv env synced `--frozen` at build, dependency layer cached so DuckDB only rebuilds when `Cargo.lock` changes | Sonnet |
-| Docs | `README.md`, `docs/` (not `protocol.md`) | Small and current: run, write a bot, architecture | Sonnet |
-
-**Merge protocol**
-- One slice = one squash PR, rebased on main, `just check` green.
-- Slices never edit `crates/core`, schemas, root manifests, lockfiles, generated files or `PLAN.md`.
-- A contract or dependency change is its own PR touching only those files, merged first; open worktrees rebase.
-- Wave 2 merges runner → feed → ingest → API → web → bots. A wave starts only from a green main.
-- The orchestrating session spawns the agents, merges, and prunes `PLAN.md`.
+- Each agent works in its own git worktree and first clones the main checkout's build caches (`cp -c -R <repo>/target ./target`, same for `web/node_modules`) so DuckDB is not recompiled. At most 5 agents at a time.
+- An agent owns explicit paths; a contract or dependency change is its own commit touching only those files and is merged first.
+- `just check` is green on the merged result before anything is pushed to `main`.
 
 ## After Wave 3
 
@@ -157,6 +125,8 @@ Wave 1 is merged. Handoff notes for Wave 2 (the code is the reference):
    - The data-health page does not show the feed's `error` text.
    - The ADV volume cap treats a missing average daily volume as zero, so the order never fills.
    - The spine has no health route; cluster probes need a cheap unauthenticated `/healthz`.
+   - Live runs can never have risk limits: `go_live` uses the spine defaults (none) and neither `bot.toml` nor the UI can set them, so the drawdown kill switch only works for API-started backtests. Needs a decision on where live risk limits are configured.
+   - `result_hash` depends on decimal scale: `100000` and `100000.00` start cash give different hashes for identical runs.
 4. Implement the bot backlog in `bots/BRIEFS.md`, one Opus 5.5 agent per bot, each followed by a critical review of that implementation against its brief. Contract gaps (G1–G13) land as their own PRs before the bots they block.
 
 ## Deployment (after Wave 3, separate repo, with your go-ahead)
@@ -167,21 +137,7 @@ Follows `~/akrell/akrell-apps` conventions (pattern: `apps/base/bande-logs/`, gu
 - Default chosen: public route + app login, as `bro`/`engly`/`vabblarna` do. Say so if you prefer a LAN-only MetalLB IP.
 - Backups: nightly `state.db` snapshots on the PVC (keep 14). The cluster has one Longhorn replica and no off-cluster backup target, so disk loss still loses run history; market data is re-downloadable.
 
-## Verification
-
-All scenarios use the real spine binary, real bot processes and fixture data (CLAUDE.md directive 2):
-1. **Hand-computed backtest** — `red_green` over 10 sessions: ledger, equity and metrics match the hand calculation; a rerun gives the same `result_hash`.
-2. **Lookahead boundary** — a probe bot asks for everything every step: no bar past the clock, filing invisible until next open, no fill on the decision bar.
-3. **Intraday sessions** — 1m bot with `every:30m`: correct step count, limit fills on touch, day orders expire at 13:00 on the half day.
-4. **Live, pause, resume (Playwright)** — fake Alpaca replays a session; click Live and see fills arrive; Pause cancels orders and stops the bot; Resume skips the paused interval; live ledger equals the backtest ledger on the same bars.
-5. **Crash recovery** — `kill -9` the bot, then the spine: no duplicate orders; final ledger equals the uninterrupted run.
-6. **Ingest** — empty spine backfills from fake providers; 429 is a recorded backoff; second tick is a noop; mismatched Tiingo tail is rejected and shown in data health.
-7. **Limits** — a run exceeding 30 stream symbols is refused naming the holders; a drawdown breach auto-pauses; an oversized order is rejected.
-
-Final manual check: `just dev`, run every example bot over the standard period from the UI, start one live during market hours.
-
 ## Needed from you
 
 - A free Alpaca account (paper API key + secret).
-- A private GitHub repo `mikaelhug/buizz` (image builds).
 - Confirm the Tiingo key and SEC user-agent from HUG may be reused.
