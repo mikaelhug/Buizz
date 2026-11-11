@@ -61,6 +61,14 @@ pub struct HistoryRequest {
     pub as_of: Timestamp,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ActionWindow {
+    pub symbols: Vec<Symbol>,
+    pub from: NaiveDate,
+    pub through: NaiveDate,
+    pub covered_to: Option<NaiveDate>,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct WriteSummary {
     pub batch_id: i64,
@@ -156,7 +164,13 @@ impl MarketStore {
             .collect();
         let ex_dates = actions.iter().map(|action| action.ex_date);
         if let (Some(from), Some(to)) = (ex_dates.clone().min(), ex_dates.max()) {
-            self.upsert_corporate_actions(source, actions, covered, from, to)
+            let window = ActionWindow {
+                symbols: covered,
+                from,
+                through: to,
+                covered_to: Some(to),
+            };
+            self.replace_corporate_actions(source, actions, window)
                 .await?;
         }
         let facts = fixture::rows(dir, "fundamental_facts.csv").await?;
@@ -232,18 +246,14 @@ impl MarketStore {
             .await
     }
 
-    pub async fn upsert_corporate_actions(
+    pub async fn replace_corporate_actions(
         &self,
         source: DataSource,
         actions: Vec<CorporateAction>,
-        covered: Vec<Symbol>,
-        from: NaiveDate,
-        to: NaiveDate,
+        window: ActionWindow,
     ) -> Result<WriteSummary> {
         self.writer
-            .run(move |connection| {
-                write::corporate_actions(connection, source, actions, &covered, (from, to))
-            })
+            .run(move |connection| write::corporate_actions(connection, source, actions, &window))
             .await
     }
 

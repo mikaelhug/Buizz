@@ -33,7 +33,6 @@ impl Ingest {
             .collect();
         let mut batch = Batch::default();
         let mut without_cik = 0;
-        let mut companies = Vec::new();
         for symbol in due {
             let key = FetchKey::new(DataSource::Edgar, Dataset::Companies, Some(&symbol), None);
             let Some(cik) = tickers.get(&symbol).copied() else {
@@ -44,11 +43,16 @@ impl Ingest {
             let backfill = !backfilled.contains(&symbol);
             match self.company_filings(edgar, &symbol, cik, backfill).await {
                 Ok((company, releases)) => {
-                    self.record_fetched(now, &key, releases.len() + 1).await?;
+                    let fetched = releases.len() + 1;
+                    let mut rows = self.new_releases(&symbol, releases).await?;
                     if !stored.contains(&company) {
-                        companies.push(company);
+                        rows += self
+                            .market
+                            .upsert_companies(DataSource::Edgar, vec![company])
+                            .await?
+                            .rows;
                     }
-                    let rows = self.new_releases(&symbol, releases).await?;
+                    self.record_fetched(now, &key, fetched).await?;
                     batch.success(rows);
                 }
                 Err(error) => {
@@ -58,13 +62,6 @@ impl Ingest {
                     }
                 }
             }
-        }
-        if !companies.is_empty() {
-            let summary = self
-                .market
-                .upsert_companies(DataSource::Edgar, companies)
-                .await?;
-            batch.success(summary.rows);
         }
         let mut work = batch.finish("filings");
         if without_cik > 0 {

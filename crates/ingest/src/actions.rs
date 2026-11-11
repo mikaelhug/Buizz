@@ -1,24 +1,17 @@
-use std::collections::{BTreeMap, HashSet};
+use std::collections::HashSet;
 
-use buizz_core::market::{CorporateAction, CorporateActionKind, DataSource, Dataset, Symbol};
+use buizz_core::market::{CorporateAction, DataSource, Dataset, Symbol};
 use buizz_core::time::Timestamp;
-use chrono::{NaiveDate, TimeDelta};
+use buizz_market::ActionWindow;
+use buizz_sources::alpaca::ACTIONS_SYMBOLS_PER_REQUEST;
+use chrono::TimeDelta;
 
 use crate::fetch::{Batch, FetchKey, Work};
 use crate::{Ingest, IngestError};
 
 const PROCESS_DATE_SLACK: TimeDelta = TimeDelta::days(30);
 const REFRESH_WINDOW: TimeDelta = TimeDelta::days(90);
-
-type ActionKey = (Symbol, NaiveDate, bool);
-
-fn identity(action: &CorporateAction) -> ActionKey {
-    (
-        action.symbol.clone(),
-        action.ex_date,
-        matches!(action.kind, CorporateActionKind::Split { .. }),
-    )
-}
+const ANNOUNCED_HORIZON: TimeDelta = TimeDelta::days(90);
 
 impl Ingest {
     pub(crate) async fn corporate_actions(&self, now: Timestamp) -> Result<Work, IngestError> {
@@ -32,7 +25,8 @@ impl Ingest {
         if symbols.is_empty() {
             return Ok(Work::noop("no instruments to price"));
         }
-        let to = now.exchange_date();
+        let today = now.exchange_date();
+        let through = today + ANNOUNCED_HORIZON;
         let history_start = self.config.history_start;
         let covered = self
             .symbol_coverage(Dataset::CorporateActions, DataSource::Alpaca)
@@ -43,65 +37,63 @@ impl Ingest {
                     .get(symbol)
                     .is_some_and(|coverage| coverage.first <= history_start)
             });
-        let refresh_from = (to - REFRESH_WINDOW).max(history_start);
+        let refresh_from = (today - REFRESH_WINDOW).max(history_start);
         let mut batch = Batch::default();
-        for (from, group, backfilling) in [
+        let groups = [
             (history_start, backfill, true),
             (refresh_from, refresh, false),
-        ] {
-            if group.is_empty() {
-                continue;
-            }
-            let key = FetchKey::new(
-                DataSource::Alpaca,
-                Dataset::CorporateActions,
-                None,
-                Some((from, to)),
-            );
-            let fetched = match alpaca
-                .corporate_actions(&group, from - PROCESS_DATE_SLACK, to + PROCESS_DATE_SLACK)
-                .await
-            {
-                Ok(actions) => actions,
-                Err(error) => {
-                    self.record_failure(now, &key, &error).await?;
-                    let label = format!("{} symbols from {from}", group.len());
-                    if batch.source_error(&label, &error) {
-                        break;
+        ];
+        'groups: for (from, group, backfilling) in groups {
+            for chunk in group.chunks(ACTIONS_SYMBOLS_PER_REQUEST) {
+                let key = FetchKey::new(
+                    DataSource::Alpaca,
+                    Dataset::CorporateActions,
+                    None,
+                    Some((from, through)),
+                );
+                let fetched = match alpaca
+                    .corporate_actions(
+                        chunk,
+                        from - PROCESS_DATE_SLACK,
+                        through + PROCESS_DATE_SLACK,
+                    )
+                    .await
+                {
+                    Ok(actions) => actions,
+                    Err(error) => {
+                        self.record_failure(now, &key, &error).await?;
+                        let label = format!("{} symbols from {from}", chunk.len());
+                        if batch.source_error(&label, &error) {
+                            break 'groups;
+                        }
+                        continue;
                     }
-                    continue;
-                }
-            };
-            self.record_fetched(now, &key, fetched.len()).await?;
-            let members: HashSet<&Symbol> = group.iter().collect();
-            let fetched: BTreeMap<ActionKey, CorporateAction> = fetched
-                .into_iter()
-                .filter(|action| {
-                    (from..=to).contains(&action.ex_date) && members.contains(&action.symbol)
-                })
-                .map(|action| (identity(&action), action))
-                .collect();
-            let stored: BTreeMap<ActionKey, CorporateAction> = self
-                .market
-                .corporate_actions(group.clone(), from, to)
-                .await?
-                .into_iter()
-                .map(|action| (identity(&action), action))
-                .collect();
-            let changed: Vec<CorporateAction> = fetched
-                .into_iter()
-                .filter(|(key, action)| stored.get(key) != Some(action))
-                .map(|(_, action)| action)
-                .collect();
-            if changed.is_empty() && !backfilling {
-                batch.success(0);
-                continue;
+                };
+                let members: HashSet<&Symbol> = chunk.iter().collect();
+                let fetched: Vec<CorporateAction> = fetched
+                    .into_iter()
+                    .filter(|action| {
+                        (from..=through).contains(&action.ex_date)
+                            && members.contains(&action.symbol)
+                    })
+                    .collect();
+                let count = fetched.len();
+                let summary = self
+                    .market
+                    .replace_corporate_actions(
+                        DataSource::Alpaca,
+                        fetched,
+                        ActionWindow {
+                            symbols: chunk.to_vec(),
+                            from,
+                            through,
+                            covered_to: backfilling.then_some(today),
+                        },
+                    )
+                    .await?;
+                self.record_fetched(now, &key, count).await?;
+                batch.success(summary.rows);
             }
-            let summary = self
-                .market
-                .upsert_corporate_actions(DataSource::Alpaca, changed, group, from, to)
-                .await?;
-            batch.success(summary.rows);
         }
         Ok(batch.finish("corporate actions"))
     }

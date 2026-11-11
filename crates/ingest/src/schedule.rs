@@ -89,7 +89,8 @@ pub(crate) fn due_at(spec: &JobSpec, latest: Option<&JobRun>, failures: u32) -> 
         Some(JobOutcome::Failed) => {
             FIRST_FAILURE_RETRY.saturating_mul(1 << failures.saturating_sub(1).min(16))
         }
-        Some(JobOutcome::Ok) | None => spec.every,
+        Some(JobOutcome::Ok) => spec.every,
+        None => Duration::ZERO,
     };
     Some(run.started_at + delta(wait.min(spec.every)))
 }
@@ -125,5 +126,26 @@ fn describe(every: Duration) -> String {
         format!("{}m", seconds / 60)
     } else {
         format!("{seconds}s")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_run_killed_before_it_finished_is_due_at_once() {
+        let started_at = Timestamp::from_nanos(1_000_000_000);
+        let killed = JobRun {
+            id: 1,
+            job: BARS_1D.to_owned(),
+            started_at,
+            finished_at: None,
+            outcome: None,
+            rows: 0,
+            message: None,
+        };
+        let bars = JOBS.iter().find(|spec| spec.name == BARS_1D).unwrap();
+        assert_eq!(due_at(bars, Some(&killed), 0), Some(started_at));
     }
 }

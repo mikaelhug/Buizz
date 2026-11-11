@@ -7,11 +7,13 @@ use buizz_core::market::{
 };
 use buizz_core::time::Timestamp;
 use chrono::NaiveDate;
-use duckdb::{Appender, Connection, Transaction, params};
+use duckdb::{Appender, Connection, Transaction, params, params_from_iter};
 use rust_decimal::Decimal;
 
-use crate::codec::{Dec, Ts, action_columns, feed_name, wire_name};
-use crate::{Result, WriteSummary};
+use crate::codec::{
+    Dec, Params, Ts, action_columns, feed_name, placeholders, symbol_params, wire_name,
+};
+use crate::{ActionWindow, Result, WriteSummary};
 
 const STAGED: [&str; 9] = [
     "instrument",
@@ -350,9 +352,15 @@ pub(crate) fn corporate_actions(
     connection: &mut Connection,
     source: DataSource,
     actions: Vec<CorporateAction>,
-    covered: &[Symbol],
-    (from, to): (NaiveDate, NaiveDate),
+    window: &ActionWindow,
 ) -> Result<WriteSummary> {
+    let ActionWindow {
+        symbols: covered,
+        from,
+        through: to,
+        covered_to,
+    } = window;
+    let (from, to) = (*from, *to);
     let unique: BTreeMap<(Symbol, NaiveDate, &'static str), CorporateAction> = actions
         .into_iter()
         .filter(|action| match action.kind {
@@ -370,9 +378,11 @@ pub(crate) fn corporate_actions(
         })
         .collect();
     let mut coverage = Coverage::new();
-    for symbol in covered {
-        cover(&mut coverage, Some(symbol), from);
-        cover(&mut coverage, Some(symbol), to);
+    if let Some(covered_to) = covered_to {
+        for symbol in covered {
+            cover(&mut coverage, Some(symbol), from);
+            cover(&mut coverage, Some(symbol), *covered_to);
+        }
     }
     let source_name = wire_name(&source);
     write_batch(
@@ -399,6 +409,32 @@ pub(crate) fn corporate_actions(
                     ])
                 },
             )?;
+            if !covered.is_empty() {
+                let withdrawn = format!(
+                    "FROM main.corporate_action c WHERE c.source = ? AND c.ex_date BETWEEN ? AND ? \
+                     AND c.symbol IN ({}) AND NOT EXISTS (SELECT 1 FROM stage_corporate_action s \
+                     WHERE s.symbol = c.symbol AND s.ex_date = c.ex_date AND s.kind = c.kind)",
+                    placeholders(covered.len())
+                );
+                let window = || {
+                    let mut params: Params =
+                        vec![Box::new(source_name.clone()), Box::new(from), Box::new(to)];
+                    params.extend(symbol_params(covered));
+                    params
+                };
+                let mut archive: Params = vec![Box::new(batch_id)];
+                archive.extend(window());
+                transaction.execute(
+                    &format!(
+                        "INSERT INTO main.corporate_action_revision SELECT c.*, ? {withdrawn}"
+                    ),
+                    params_from_iter(archive.iter()),
+                )?;
+                transaction.execute(
+                    &format!("DELETE {withdrawn}"),
+                    params_from_iter(window().iter()),
+                )?;
+            }
             replace_staged(transaction, "corporate_action", batch_id)
         },
     )
@@ -832,15 +868,15 @@ mod tests {
                 new_rate: Decimal::from(2),
             },
         };
-        let covered = [Symbol::new("FB")];
-        let written = corporate_actions(
-            &mut connection,
-            DataSource::Alpaca,
-            vec![split(0)],
-            &covered,
-            (date, date),
-        )
-        .unwrap();
+        let window = ActionWindow {
+            symbols: vec![Symbol::new("FB")],
+            from: date,
+            through: date,
+            covered_to: Some(date),
+        };
+        let written =
+            corporate_actions(&mut connection, DataSource::Alpaca, vec![split(0)], &window)
+                .unwrap();
         assert_eq!(written.rows, 0);
         assert!(
             AdjustmentFactor::for_action(&split(0), Adjustment::Split, None).is_none(),

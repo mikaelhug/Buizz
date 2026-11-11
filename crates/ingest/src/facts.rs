@@ -47,11 +47,12 @@ impl Ingest {
             };
             match edgar.company_facts(&symbol, *cik, &calendar).await {
                 Ok(facts) => {
-                    self.record_fetched(now, &key, facts.len()).await?;
+                    let fetched = facts.len();
                     let summary = self
                         .market
                         .append_fundamental_facts(DataSource::Edgar, facts)
                         .await?;
+                    self.record_fetched(now, &key, fetched).await?;
                     batch.success(summary.rows);
                 }
                 Err(error) => {

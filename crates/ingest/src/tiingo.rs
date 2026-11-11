@@ -1,6 +1,7 @@
 use buizz_core::market::{Bar, DataSource, Dataset, Symbol, Timeframe};
 use buizz_core::ops::FetchStatus;
 use buizz_core::time::Timestamp;
+use buizz_market::ActionWindow;
 use buizz_sources::tiingo::{
     OverlapVerdict, REQUESTS_PER_DAY, SYMBOLS_PER_MONTH, normalize, validate_overlap,
 };
@@ -111,20 +112,24 @@ impl Ingest {
                 .into_iter()
                 .filter(|action| action.ex_date < first)
                 .collect::<Vec<_>>();
-            self.record_fetched(now, &key, bars.len()).await?;
+            let fetched = bars.len();
             let written = self
                 .market
                 .upsert_bars(DataSource::Tiingo, Timeframe::Day, bars)
                 .await?;
             self.market
-                .upsert_corporate_actions(
+                .replace_corporate_actions(
                     DataSource::Tiingo,
                     actions,
-                    vec![symbol.clone()],
-                    history_start,
-                    gap_end,
+                    ActionWindow {
+                        symbols: vec![symbol.clone()],
+                        from: history_start,
+                        through: gap_end,
+                        covered_to: Some(gap_end),
+                    },
                 )
                 .await?;
+            self.record_fetched(now, &key, fetched).await?;
             batch.success(written.rows);
         }
         Ok(batch.finish("Tiingo history"))

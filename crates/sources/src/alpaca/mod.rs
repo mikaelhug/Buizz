@@ -27,7 +27,7 @@ pub const RATE_LIMIT: RateLimit = RateLimit {
 pub const HISTORY_START: NaiveDate = NaiveDate::from_ymd_opt(2016, 1, 1).expect("valid date");
 pub const MAX_PAGE_LIMIT: u32 = 10_000;
 pub const ACTIONS_PAGE_LIMIT: u32 = 1_000;
-const ACTIONS_SYMBOLS_PER_REQUEST: usize = 100;
+pub const ACTIONS_SYMBOLS_PER_REQUEST: usize = 100;
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct AlpacaConfig {
