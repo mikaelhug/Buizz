@@ -37,6 +37,7 @@ use crate::{Inner, gate_symbols, now, report};
 const EXIT_GRACE: Duration = Duration::from_secs(5);
 const IDLE_RECHECK: Duration = Duration::from_secs(60);
 const EVENT_PAGE: u32 = 1000;
+const BACKTEST_EQUITY_EVERY: Duration = Duration::from_millis(250);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Control {
@@ -353,6 +354,8 @@ struct Driver {
     step_seq: u64,
     bot_state: Option<Vec<u8>>,
     arrived_while_deciding: Option<(Timestamp, Timestamp)>,
+    equity_shown_at: Option<tokio::time::Instant>,
+    unshown_equity: Option<EquityPoint>,
 }
 
 impl Driver {
@@ -413,6 +416,8 @@ impl Driver {
             step_seq: last_step,
             bot_state,
             arrived_while_deciding: None,
+            equity_shown_at: None,
+            unshown_equity: None,
             spec,
             run,
             inner,
@@ -748,13 +753,13 @@ impl Driver {
                 order: OrderUpdate::from(order),
             });
         }
-        for point in &equity_points {
-            self.inner.broadcast(SpineEvent::Equity {
-                run_id,
-                bot: self.run.bot.clone(),
-                at: point.at,
-                equity: point.equity,
-            });
+        if self.live() {
+            for point in &equity_points {
+                self.broadcast_equity(point.at, point.equity);
+            }
+        } else if let Some(point) = equity_points.last() {
+            self.unshown_equity = Some(point.clone());
+            self.show_backtest_equity(false);
         }
         self.pending.ledger.extend(ledger);
         self.pending.orders.extend(orders);
@@ -804,13 +809,31 @@ impl Driver {
 
     fn publish_equity(&self) {
         if let Some(at) = self.clock {
-            self.inner.broadcast(SpineEvent::Equity {
-                run_id: self.run.id,
-                bot: self.run.bot.clone(),
-                at,
-                equity: self.engine.portfolio().equity(),
-            });
+            self.broadcast_equity(at, self.engine.portfolio().equity());
         }
+    }
+
+    fn show_backtest_equity(&mut self, last: bool) {
+        let due = last
+            || self
+                .equity_shown_at
+                .is_none_or(|shown| shown.elapsed() >= BACKTEST_EQUITY_EVERY);
+        if !due {
+            return;
+        }
+        if let Some(point) = self.unshown_equity.take() {
+            self.broadcast_equity(point.at, point.equity);
+            self.equity_shown_at = Some(tokio::time::Instant::now());
+        }
+    }
+
+    fn broadcast_equity(&self, at: Timestamp, equity: Decimal) {
+        self.inner.broadcast(SpineEvent::Equity {
+            run_id: self.run.id,
+            bot: self.run.bot.clone(),
+            at,
+            equity,
+        });
     }
 
     async fn await_bot(&mut self) -> Flow<()> {
@@ -1191,6 +1214,7 @@ impl Driver {
             self.engine.cancel_all(self.after);
             self.absorb();
         }
+        self.show_backtest_equity(true);
         let persisted = match status {
             Some(_) => self.commit(true).await,
             None => self.checkpoint().await,
