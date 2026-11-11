@@ -1,0 +1,6 @@
+description = "Buys after a red day, exits after a green day."
+command = ["uv", "run", "--frozen", "--project", "../../sdk/python", "python", "bot.py"]
+timeframe = "1d"
+wake = "bar"
+universe = { symbols = ["AAA", "BBB"] }
+params = { weight = 0.25 }
