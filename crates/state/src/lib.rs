@@ -292,6 +292,16 @@ impl StateStore {
             .await
     }
 
+    pub async fn latest_rejections(
+        &self,
+        source: DataSource,
+        dataset: Dataset,
+    ) -> Result<Vec<SourceFetch>> {
+        self.db
+            .read(move |connection| jobs::latest_rejections(connection, source, dataset))
+            .await
+    }
+
     pub async fn snapshot(&self, destination: &Path) -> Result<()> {
         let destination = destination.to_path_buf();
         self.db

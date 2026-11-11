@@ -169,3 +169,24 @@ pub fn recent_fetches(
         .collect::<rusqlite::Result<_>>()?;
     Ok(fetches)
 }
+
+pub fn latest_rejections(
+    connection: &Connection,
+    source: DataSource,
+    dataset: Dataset,
+) -> Result<Vec<SourceFetch>> {
+    let mut statement = connection.prepare_cached(&format!(
+        "SELECT {FETCH_COLUMNS} FROM source_fetch latest \
+         WHERE source = ?1 AND dataset = ?2 AND status = 'rejected' AND id = \
+         (SELECT MAX(id) FROM source_fetch other WHERE other.source = ?1 \
+         AND other.dataset = ?2 AND other.symbol = latest.symbol) \
+         ORDER BY symbol"
+    ))?;
+    let fetches = statement
+        .query_map(
+            params![enum_text(&source)?, enum_text(&dataset)?],
+            source_fetch,
+        )?
+        .collect::<rusqlite::Result<_>>()?;
+    Ok(fetches)
+}
