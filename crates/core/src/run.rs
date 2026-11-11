@@ -1,0 +1,473 @@
+use std::fmt;
+use std::str::FromStr;
+
+use chrono::{Months, NaiveDate, NaiveTime, TimeDelta};
+use rust_decimal::Decimal;
+use rust_decimal::prelude::ToPrimitive;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde_json::{Map, Value};
+use utoipa::openapi::schema::{ObjectBuilder, Type};
+use utoipa::openapi::{RefOr, Schema};
+use utoipa::{PartialSchema, ToSchema};
+
+use crate::market::{Bar, Session, Symbol, Timeframe};
+use crate::money::{round_cash, round_price};
+use crate::order::{RejectReason, Side};
+use crate::time::Timestamp;
+
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, ToSchema,
+)]
+#[serde(transparent)]
+pub struct RunId(pub i64);
+
+impl fmt::Display for RunId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum Mode {
+    Backtest,
+    Live,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(untagged)]
+pub enum UniverseSpec {
+    Symbols { symbols: Vec<Symbol> },
+    TopDollarVolume { top_dollar_volume: u32 },
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum Wake {
+    #[default]
+    Bar,
+    Every {
+        minutes: u32,
+    },
+    At {
+        time: NaiveTime,
+    },
+}
+
+impl Wake {
+    pub fn is_due(&self, clock: Timestamp, session: &Session) -> bool {
+        match *self {
+            Self::Bar => true,
+            Self::Every { minutes } => {
+                let elapsed = (clock - session.open).num_minutes();
+                clock > session.open
+                    && clock <= session.close
+                    && minutes > 0
+                    && elapsed % i64::from(minutes) == 0
+            }
+            Self::At { time } => clock <= session.close && clock.exchange_time() == time,
+        }
+    }
+}
+
+impl fmt::Display for Wake {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Bar => f.write_str("bar"),
+            Self::Every { minutes } if minutes % 60 == 0 => write!(f, "every:{}h", minutes / 60),
+            Self::Every { minutes } => write!(f, "every:{minutes}m"),
+            Self::At { time } => write!(f, "at:{}", time.format("%H:%M")),
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("invalid wake {0:?}, expected bar, every:<n>m, every:<n>h or at:HH:MM")]
+pub struct ParseWakeError(String);
+
+impl FromStr for Wake {
+    type Err = ParseWakeError;
+
+    fn from_str(text: &str) -> Result<Self, Self::Err> {
+        let invalid = || ParseWakeError(text.to_owned());
+        if text == "bar" {
+            return Ok(Self::Bar);
+        }
+        if let Some(every) = text.strip_prefix("every:") {
+            let (amount, scale) = match every.strip_suffix('h') {
+                Some(hours) => (hours, 60),
+                None => (every.strip_suffix('m').ok_or_else(invalid)?, 1),
+            };
+            let amount: u32 = amount.parse().map_err(|_| invalid())?;
+            return match amount.checked_mul(scale) {
+                Some(minutes) if minutes > 0 => Ok(Self::Every { minutes }),
+                _ => Err(invalid()),
+            };
+        }
+        if let Some(at) = text.strip_prefix("at:") {
+            let time = NaiveTime::parse_from_str(at, "%H:%M").map_err(|_| invalid())?;
+            return Ok(Self::At { time });
+        }
+        Err(invalid())
+    }
+}
+
+impl Serialize for Wake {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_str(self)
+    }
+}
+
+impl PartialSchema for Wake {
+    fn schema() -> RefOr<Schema> {
+        ObjectBuilder::new()
+            .schema_type(Type::String)
+            .pattern(Some(r"^(bar|every:[0-9]+[mh]|at:[0-2][0-9]:[0-5][0-9])$"))
+            .examples(["bar", "every:30m", "at:15:55"])
+            .into()
+    }
+}
+
+impl ToSchema for Wake {}
+
+impl<'de> Deserialize<'de> for Wake {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let text = String::deserialize(deserializer)?;
+        text.parse().map_err(serde::de::Error::custom)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct CostModel {
+    pub commission_per_share: Decimal,
+    pub commission_min: Decimal,
+    pub slippage_bps: Decimal,
+    pub adv_participation: Decimal,
+    pub adv_sessions: u32,
+    pub borrow_rate: Decimal,
+}
+
+impl Default for CostModel {
+    fn default() -> Self {
+        Self {
+            commission_per_share: Decimal::new(5, 3),
+            commission_min: Decimal::ONE,
+            slippage_bps: Decimal::new(5, 0),
+            adv_participation: Decimal::new(5, 2),
+            adv_sessions: 20,
+            borrow_rate: Decimal::new(2, 2),
+        }
+    }
+}
+
+impl CostModel {
+    pub const TRADING_DAYS_PER_YEAR: u32 = 252;
+
+    pub fn market_fill_price(&self, side: Side, open: Decimal) -> Decimal {
+        let slip = self.slippage_bps / Decimal::new(10_000, 0);
+        let factor = match side {
+            Side::Buy => Decimal::ONE + slip,
+            Side::Sell => Decimal::ONE - slip,
+        };
+        round_price(open * factor)
+    }
+
+    pub fn limit_fill_price(side: Side, limit: Decimal, bar: &Bar) -> Option<Decimal> {
+        match side {
+            Side::Buy if bar.open <= limit => Some(bar.open),
+            Side::Buy if bar.low <= limit => Some(limit),
+            Side::Sell if bar.open >= limit => Some(bar.open),
+            Side::Sell if bar.high >= limit => Some(limit),
+            _ => None,
+        }
+    }
+
+    pub fn commission(&self, qty: u64) -> Decimal {
+        if qty == 0 {
+            return Decimal::ZERO;
+        }
+        round_cash((self.commission_per_share * Decimal::from(qty)).max(self.commission_min))
+    }
+
+    pub fn participation_cap(&self, average_daily_volume: u64) -> u64 {
+        (Decimal::from(average_daily_volume) * self.adv_participation)
+            .floor()
+            .to_u64()
+            .unwrap_or(0)
+    }
+
+    pub fn borrow_fee(&self, short_qty: u64, price: Decimal) -> Decimal {
+        round_cash(
+            Decimal::from(short_qty) * price * self.borrow_rate
+                / Decimal::from(Self::TRADING_DAYS_PER_YEAR),
+        )
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct RiskLimits {
+    pub max_position_weight: Option<Decimal>,
+    pub max_gross_exposure: Option<Decimal>,
+    pub max_drawdown: Option<Decimal>,
+}
+
+impl RiskLimits {
+    pub fn check_order(
+        &self,
+        equity: Decimal,
+        position_exposure_after: Decimal,
+        gross_exposure_after: Decimal,
+    ) -> Result<(), RejectReason> {
+        if equity <= Decimal::ZERO {
+            return Err(RejectReason::MaxGrossExposure);
+        }
+        if let Some(limit) = self.max_position_weight
+            && position_exposure_after.abs() / equity > limit
+        {
+            return Err(RejectReason::MaxPositionWeight);
+        }
+        if let Some(limit) = self.max_gross_exposure
+            && gross_exposure_after / equity > limit
+        {
+            return Err(RejectReason::MaxGrossExposure);
+        }
+        Ok(())
+    }
+
+    pub fn drawdown_breached(&self, peak_equity: Decimal, equity: Decimal) -> bool {
+        match self.max_drawdown {
+            Some(limit) if peak_equity > Decimal::ZERO => (peak_equity - equity) / peak_equity >= limit,
+            _ => false,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct RunConfig {
+    pub bot: String,
+    pub mode: Mode,
+    #[schema(value_type = Object)]
+    pub params: Map<String, Value>,
+    pub universe: UniverseSpec,
+    pub timeframe: Timeframe,
+    pub wake: Wake,
+    pub start: NaiveDate,
+    pub end: Option<NaiveDate>,
+    pub start_cash: Decimal,
+    pub cost: CostModel,
+    pub risk: RiskLimits,
+    pub seed: u64,
+    pub benchmark: Symbol,
+    pub holdout: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum RunStatus {
+    Queued,
+    Starting,
+    Running,
+    Paused,
+    Completed,
+    Failed,
+    Cancelled,
+}
+
+impl RunStatus {
+    pub fn is_finished(self) -> bool {
+        matches!(self, Self::Completed | Self::Failed | Self::Cancelled)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum DesiredState {
+    Running,
+    Paused,
+    Stopped,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]
+pub enum PeriodPreset {
+    #[serde(rename = "1y")]
+    OneYear,
+    #[serde(rename = "3y")]
+    ThreeYears,
+    #[serde(rename = "5y")]
+    FiveYears,
+    #[serde(rename = "10y")]
+    TenYears,
+    #[serde(rename = "holdout")]
+    Holdout,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]
+pub struct Period {
+    pub from: NaiveDate,
+    pub to: NaiveDate,
+}
+
+pub const HOLDOUT_MONTHS: u32 = 12;
+
+pub fn holdout_start(today: NaiveDate) -> NaiveDate {
+    today
+        .checked_sub_months(Months::new(HOLDOUT_MONTHS))
+        .unwrap_or(NaiveDate::MIN)
+}
+
+impl Period {
+    pub fn touches_holdout(&self, today: NaiveDate) -> bool {
+        self.to >= holdout_start(today)
+    }
+}
+
+impl PeriodPreset {
+    pub fn resolve(self, today: NaiveDate) -> Period {
+        let holdout = holdout_start(today);
+        let years = match self {
+            Self::Holdout => {
+                return Period {
+                    from: holdout,
+                    to: today,
+                };
+            }
+            Self::OneYear => 1,
+            Self::ThreeYears => 3,
+            Self::FiveYears => 5,
+            Self::TenYears => 10,
+        };
+        let to = holdout - TimeDelta::days(1);
+        let from = holdout
+            .checked_sub_months(Months::new(12 * years))
+            .unwrap_or(NaiveDate::MIN);
+        Period { from, to }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct EquityPoint {
+    pub at: Timestamp,
+    pub equity: Decimal,
+    pub cash: Decimal,
+    pub gross_exposure: Decimal,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum LogLevel {
+    Debug,
+    Info,
+    Warn,
+    Error,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum RiskLimit {
+    MaxPositionWeight,
+    MaxGrossExposure,
+    MaxDrawdown,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum RunEventKind {
+    Log {
+        level: LogLevel,
+        message: String,
+    },
+    Status {
+        status: RunStatus,
+        message: Option<String>,
+    },
+    OrderRejected {
+        client_id: String,
+        symbol: Symbol,
+        reason: RejectReason,
+    },
+    RiskBreach {
+        limit: RiskLimit,
+        value: Decimal,
+        threshold: Decimal,
+    },
+    BotExited {
+        code: Option<i32>,
+    },
+    DataWarning {
+        message: String,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct RunEvent {
+    pub seq: u64,
+    pub at: Timestamp,
+    pub clock: Option<Timestamp>,
+    pub kind: RunEventKind,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct Reproducibility {
+    pub bot_hash: String,
+    pub engine_version: String,
+    pub seed: u64,
+    pub data_watermark: Option<Timestamp>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum RunBadge {
+    SurvivorshipBiased,
+    Holdout,
+    DataWarnings,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct BotManifest {
+    #[serde(default)]
+    pub description: String,
+    pub command: Vec<String>,
+    pub timeframe: Timeframe,
+    #[serde(default)]
+    pub wake: Wake,
+    pub universe: UniverseSpec,
+    #[serde(default)]
+    #[schema(value_type = Object)]
+    pub params: Map<String, Value>,
+    #[serde(default = "BotManifest::default_benchmark")]
+    pub benchmark: Symbol,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ManifestError {
+    #[error("bot.toml is not valid: {0}")]
+    Toml(#[from] toml::de::Error),
+    #[error("bot.toml is not valid: {0}")]
+    Invalid(&'static str),
+}
+
+impl BotManifest {
+    pub const FILE_NAME: &'static str = "bot.toml";
+
+    fn default_benchmark() -> Symbol {
+        Symbol::new("SPY")
+    }
+
+    pub fn from_toml(text: &str) -> Result<Self, ManifestError> {
+        let manifest: Self = toml::from_str(text)?;
+        if manifest.command.is_empty() {
+            return Err(ManifestError::Invalid("command must not be empty"));
+        }
+        if manifest.timeframe == Timeframe::Day && manifest.wake != Wake::Bar {
+            return Err(ManifestError::Invalid("daily bots must use wake = \"bar\""));
+        }
+        match &manifest.universe {
+            UniverseSpec::Symbols { symbols } if symbols.is_empty() => {
+                Err(ManifestError::Invalid("universe.symbols must not be empty"))
+            }
+            UniverseSpec::TopDollarVolume { top_dollar_volume: 0 } => {
+                Err(ManifestError::Invalid("universe.top_dollar_volume must be positive"))
+            }
+            _ => Ok(manifest),
+        }
+    }
+}

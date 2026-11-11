@@ -1,0 +1,26 @@
+[package]
+name = "buizz-spine"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+buizz-api.workspace = true
+buizz-core.workspace = true
+buizz-engine.workspace = true
+buizz-feed.workspace = true
+buizz-ingest.workspace = true
+buizz-market.workspace = true
+buizz-runner.workspace = true
+buizz-sources.workspace = true
+buizz-state.workspace = true
+buizz-supervisor.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,224 @@
+use std::collections::BTreeMap;
+
+use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
+
+use crate::market::{Feed, Symbol};
+use crate::money::round_cash;
+use crate::order::OrderId;
+use crate::time::Timestamp;
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct LedgerEntry {
+    pub seq: u64,
+    pub at: Timestamp,
+    pub kind: LedgerKind,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum LedgerKind {
+    Deposit {
+        amount: Decimal,
+    },
+    Fill {
+        order_id: OrderId,
+        symbol: Symbol,
+        qty: i64,
+        price: Decimal,
+        commission: Decimal,
+        feed: Feed,
+    },
+    Dividend {
+        symbol: Symbol,
+        qty: i64,
+        rate: Decimal,
+        amount: Decimal,
+    },
+    Split {
+        symbol: Symbol,
+        old_rate: Decimal,
+        new_rate: Decimal,
+        qty_before: i64,
+        qty_after: i64,
+        cash_in_lieu: Decimal,
+    },
+    BorrowFee {
+        symbol: Symbol,
+        qty: i64,
+        amount: Decimal,
+    },
+    Liquidation {
+        symbol: Symbol,
+        qty: i64,
+        price: Decimal,
+    },
+}
+
+impl LedgerKind {
+    pub fn cash_delta(&self) -> Decimal {
+        match self {
+            Self::Deposit { amount } => *amount,
+            Self::Fill {
+                qty,
+                price,
+                commission,
+                ..
+            } => -round_cash(Decimal::from(*qty) * *price) - *commission,
+            Self::Dividend { amount, .. } => *amount,
+            Self::Split { cash_in_lieu, .. } => *cash_in_lieu,
+            Self::BorrowFee { amount, .. } => -*amount,
+            Self::Liquidation { qty, price, .. } => -round_cash(Decimal::from(*qty) * *price),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct Position {
+    pub qty: i64,
+    pub cost_basis: Decimal,
+    pub last_price: Decimal,
+    pub realized_pnl: Decimal,
+}
+
+impl Position {
+    pub fn market_value(&self) -> Decimal {
+        Decimal::from(self.qty) * self.last_price
+    }
+
+    pub fn average_cost(&self) -> Decimal {
+        if self.qty == 0 {
+            Decimal::ZERO
+        } else {
+            self.cost_basis / Decimal::from(self.qty)
+        }
+    }
+
+    fn trade(&mut self, qty: i64, price: Decimal) {
+        let opening = self.qty == 0 || self.qty.signum() == qty.signum();
+        if opening {
+            self.cost_basis += Decimal::from(qty) * price;
+            self.qty += qty;
+            return;
+        }
+        let closing = qty.abs().min(self.qty.abs()) * qty.signum();
+        let released = self.cost_basis * Decimal::from(-closing) / Decimal::from(self.qty);
+        self.realized_pnl += Decimal::from(-closing) * price - released;
+        self.cost_basis -= released;
+        self.qty += closing;
+        let remainder = qty - closing;
+        if remainder != 0 {
+            self.cost_basis = Decimal::from(remainder) * price;
+            self.qty = remainder;
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct Portfolio {
+    pub cash: Decimal,
+    pub positions: BTreeMap<Symbol, Position>,
+}
+
+impl Portfolio {
+    pub fn fold<'a>(entries: impl IntoIterator<Item = &'a LedgerEntry>) -> Self {
+        let mut portfolio = Self::default();
+        for entry in entries {
+            portfolio.apply(&entry.kind);
+        }
+        portfolio
+    }
+
+    pub fn apply(&mut self, kind: &LedgerKind) {
+        self.cash += kind.cash_delta();
+        match kind {
+            LedgerKind::Deposit { .. } => {}
+            LedgerKind::Fill {
+                symbol,
+                qty,
+                price,
+                commission,
+                ..
+            } => {
+                let position = self.positions.entry(symbol.clone()).or_default();
+                position.trade(*qty, *price);
+                position.realized_pnl -= *commission;
+                if position.last_price.is_zero() {
+                    position.last_price = *price;
+                }
+            }
+            LedgerKind::Liquidation { symbol, qty, price } => {
+                let position = self.positions.entry(symbol.clone()).or_default();
+                position.trade(*qty, *price);
+                position.last_price = *price;
+            }
+            LedgerKind::Dividend { symbol, amount, .. } => {
+                self.positions.entry(symbol.clone()).or_default().realized_pnl += *amount;
+            }
+            LedgerKind::BorrowFee { symbol, amount, .. } => {
+                self.positions.entry(symbol.clone()).or_default().realized_pnl -= *amount;
+            }
+            LedgerKind::Split {
+                symbol,
+                old_rate,
+                new_rate,
+                qty_before,
+                qty_after,
+                cash_in_lieu,
+            } => {
+                let position = self.positions.entry(symbol.clone()).or_default();
+                if *qty_before != 0 {
+                    let kept = Decimal::from(*qty_after) * *old_rate
+                        / (*new_rate * Decimal::from(*qty_before));
+                    let released = position.cost_basis - position.cost_basis * kept;
+                    position.realized_pnl += *cash_in_lieu - released;
+                    position.cost_basis -= released;
+                }
+                position.qty = *qty_after;
+                position.last_price = position.last_price * *old_rate / *new_rate;
+            }
+        }
+        self.positions
+            .retain(|_, position| position.qty != 0 || !position.realized_pnl.is_zero());
+    }
+
+    pub fn mark(&mut self, symbol: &Symbol, price: Decimal) {
+        if let Some(position) = self.positions.get_mut(symbol) {
+            position.last_price = price;
+        }
+    }
+
+    pub fn qty(&self, symbol: &Symbol) -> i64 {
+        self.positions.get(symbol).map_or(0, |position| position.qty)
+    }
+
+    pub fn equity(&self) -> Decimal {
+        self.cash
+            + self
+                .positions
+                .values()
+                .map(Position::market_value)
+                .sum::<Decimal>()
+    }
+
+    pub fn gross_exposure(&self) -> Decimal {
+        self.positions
+            .values()
+            .map(|position| position.market_value().abs())
+            .sum()
+    }
+
+    pub fn open_positions(&self) -> impl Iterator<Item = (&Symbol, &Position)> {
+        self.positions.iter().filter(|(_, position)| position.qty != 0)
+    }
+}
+
+pub fn split_qty(qty: i64, old_rate: Decimal, new_rate: Decimal) -> (i64, Decimal) {
+    let exact = Decimal::from(qty) * new_rate / old_rate;
+    let whole = exact.trunc();
+    (
+        i64::try_from(whole).unwrap_or(0),
+        exact - whole,
+    )
+}

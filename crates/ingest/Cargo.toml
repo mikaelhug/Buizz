@@ -1,0 +1,20 @@
+[package]
+name = "buizz-ingest"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+buizz-core.workspace = true
+buizz-market.workspace = true
+buizz-sources.workspace = true
+buizz-state.workspace = true
+chrono.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[lints]
+workspace = true

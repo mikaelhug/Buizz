@@ -1,0 +1,29 @@
+[package]
+name = "buizz-runner"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+axum.workspace = true
+buizz-core.workspace = true
+buizz-engine.workspace = true
+buizz-feed.workspace = true
+buizz-ingest.workspace = true
+buizz-market.workspace = true
+buizz-metrics.workspace = true
+buizz-state.workspace = true
+buizz-supervisor.workspace = true
+chrono.workspace = true
+futures.workspace = true
+rand.workspace = true
+rmp-serde.workspace = true
+rust_decimal.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[lints]
+workspace = true

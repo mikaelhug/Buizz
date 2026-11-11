@@ -1,0 +1,15 @@
+[package]
+name = "buizz-metrics"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+buizz-core.workspace = true
+chrono.workspace = true
+rust_decimal.workspace = true
+
+[lints]
+workspace = true
