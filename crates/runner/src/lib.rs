@@ -22,7 +22,7 @@ use buizz_feed::{FeedError, FeedLease, FeedManager};
 use buizz_ingest::{Ingest, IngestError};
 use buizz_market::{MarketError, MarketStore};
 use buizz_state::{NewRun, RunFilter, StateError, StateStore};
-use buizz_supervisor::{BotScan, BotSpec, Supervisor, SupervisorError, scan_bots};
+use buizz_supervisor::{BotScan, BotSpec, Supervisor, SupervisorError, load_bot, scan_bots};
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use tokio::sync::{broadcast, mpsc, watch};
@@ -187,17 +187,18 @@ impl Runner {
             })
             .await?;
         runs.reverse();
-        let scan = self.bots();
         for mut run in runs {
             if run.desired == DesiredState::Stopped {
                 self.conclude(run.id, RunStatus::Cancelled, None).await?;
                 continue;
             }
-            let Some(spec) = scan.bots.iter().find(|spec| spec.name == run.bot).cloned() else {
-                let message = format!("bot folder {} is gone", run.bot);
-                self.conclude(run.id, RunStatus::Failed, Some(message))
-                    .await?;
-                continue;
+            let spec = match self.bot(&run.bot).await {
+                Ok(spec) => spec,
+                Err(error) => {
+                    self.conclude(run.id, RunStatus::Failed, Some(error.to_string()))
+                        .await?;
+                    continue;
+                }
             };
             let mut lease = None;
             if run.mode == Mode::Backtest {
@@ -227,7 +228,7 @@ impl Runner {
         request: StartBacktest,
         today: NaiveDate,
     ) -> Result<RunSummary, RunnerError> {
-        let spec = self.bot(bot)?;
+        let spec = self.bot(bot).await?;
         let period = match (request.period, request.preset) {
             (Some(period), _) => period,
             (None, Some(preset)) => preset.resolve(today),
@@ -275,7 +276,7 @@ impl Runner {
     }
 
     pub async fn go_live(&self, bot: &str) -> Result<RunSummary, RunnerError> {
-        let spec = self.bot(bot)?;
+        let spec = self.bot(bot).await?;
         if let Some(run) = self.live_run(bot).await? {
             if run.desired != DesiredState::Paused {
                 return Err(RunnerError::AlreadyLive(bot.to_owned()));
@@ -414,12 +415,15 @@ impl Runner {
         }
     }
 
-    fn bot(&self, name: &str) -> Result<BotSpec, RunnerError> {
-        self.bots()
-            .bots
-            .into_iter()
-            .find(|spec| spec.name == name)
-            .ok_or_else(|| RunnerError::UnknownBot(name.to_owned()))
+    async fn bot(&self, name: &str) -> Result<BotSpec, RunnerError> {
+        let (bots_dir, name) = (self.inner.config.bots_dir.clone(), name.to_owned());
+        let loaded = tokio::task::spawn_blocking(move || load_bot(&bots_dir, &name))
+            .await
+            .expect("loading a bot does not panic");
+        match loaded {
+            Err(SupervisorError::NoSuchBot(name)) => Err(RunnerError::UnknownBot(name)),
+            loaded => Ok(loaded?),
+        }
     }
 
     fn run_config(

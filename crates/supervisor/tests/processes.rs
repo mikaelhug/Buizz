@@ -4,7 +4,8 @@ use std::time::Duration;
 
 use buizz_core::run::{BotManifest, RunId};
 use buizz_supervisor::{
-    BotSpec, Launch, ProcessEvent, Supervisor, SupervisorConfig, bot_hash, scan_bots,
+    BotSpec, Launch, ProcessEvent, Supervisor, SupervisorConfig, SupervisorError, bot_hash,
+    load_bot, scan_bots,
 };
 use nix::errno::Errno;
 use nix::sys::signal::killpg;
@@ -183,4 +184,19 @@ async fn bots_see_only_the_protocol_and_toolchain_environment() {
     assert!(names.iter().any(|name| name == "BUIZZ_RUN_TOKEN"));
     assert!(names.iter().any(|name| name == "PATH"));
     assert!(!names.iter().any(|name| name == SECRET));
+}
+
+#[test]
+fn bots_load_by_name_only_from_direct_children_of_the_bots_folder() {
+    let temp = tempfile::tempdir().unwrap();
+    let bots = temp.path().join("bots");
+    let inside = write_bot(&bots, "inside", "exit 0\n");
+    write_bot(temp.path(), "outside", "exit 0\n");
+    assert_eq!(load_bot(&bots, "inside").unwrap(), inside);
+    for name in ["../outside", "inside/..", "..", "", "/inside", "missing"] {
+        assert!(matches!(
+            load_bot(&bots, name),
+            Err(SupervisorError::NoSuchBot(_))
+        ));
+    }
 }

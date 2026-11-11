@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;
@@ -35,6 +35,8 @@ const IGNORED_NAMES: [&str; 6] = [
 
 #[derive(Debug, thiserror::Error)]
 pub enum SupervisorError {
+    #[error("no bot named {0:?}")]
+    NoSuchBot(String),
     #[error("bot directory {0}: {1}")]
     Io(PathBuf, std::io::Error),
     #[error("bot {bot}: {source}")]
@@ -75,7 +77,7 @@ pub fn scan_bots(dir: &Path) -> Result<BotScan, SupervisorError> {
     folders.sort();
     let mut scan = BotScan::default();
     for (name, path) in folders {
-        match load_bot(name, path) {
+        match load(name, path) {
             Ok(bot) => scan.bots.push(bot),
             Err(error) => scan.invalid.push(error),
         }
@@ -83,7 +85,20 @@ pub fn scan_bots(dir: &Path) -> Result<BotScan, SupervisorError> {
     Ok(scan)
 }
 
-fn load_bot(name: String, dir: PathBuf) -> Result<BotSpec, SupervisorError> {
+pub fn load_bot(bots_dir: &Path, name: &str) -> Result<BotSpec, SupervisorError> {
+    let mut components = Path::new(name).components();
+    let direct_child = matches!(
+        (components.next(), components.next()),
+        (Some(Component::Normal(_)), None)
+    );
+    let dir = bots_dir.join(name);
+    if !direct_child || name.starts_with('.') || !dir.join(BotManifest::FILE_NAME).is_file() {
+        return Err(SupervisorError::NoSuchBot(name.to_owned()));
+    }
+    load(name.to_owned(), dir)
+}
+
+fn load(name: String, dir: PathBuf) -> Result<BotSpec, SupervisorError> {
     let manifest_path = dir.join(BotManifest::FILE_NAME);
     let text =
         fs::read_to_string(&manifest_path).map_err(|e| SupervisorError::Io(manifest_path, e))?;
