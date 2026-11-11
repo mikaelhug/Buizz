@@ -4,7 +4,7 @@ The types are `buizz_core::protocol`; golden frames for every message are in `fi
 
 ## Transport
 
-- The supervisor starts the bot with `BUIZZ_SPINE_URL` (e.g. `ws://127.0.0.1:8080`), `BUIZZ_RUN_ID` and `BUIZZ_RUN_TOKEN`.
+- The supervisor starts the bot with `BUIZZ_SPINE_URL` (the spine's `BUIZZ_BIND` address, loopback when it binds all interfaces, e.g. `ws://127.0.0.1:8080`), `BUIZZ_RUN_ID` and `BUIZZ_RUN_TOKEN`.
 - The bot opens a WebSocket to `$BUIZZ_SPINE_URL/bot/v1` with `Authorization: Bearer $BUIZZ_RUN_TOKEN`. A bad token is refused at the upgrade with 401.
 - Every frame is one binary WebSocket message holding one MessagePack map with a `type` key. Structs are maps with named fields; unknown fields must be ignored.
 - Encoding: timestamps are `int64` nanoseconds since the Unix epoch, UTC. Dates are `"YYYY-MM-DD"` strings. Money, prices, quantities as weights and rates are decimal strings (`"49.2246"`); share quantities are integers. Enums are snake_case strings.

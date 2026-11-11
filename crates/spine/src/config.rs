@@ -1,4 +1,4 @@
-use std::net::SocketAddr;
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
@@ -84,7 +84,12 @@ impl Config {
     }
 
     pub fn spine_url(&self) -> String {
-        format!("ws://127.0.0.1:{}", self.bind.port())
+        let ip = match self.bind.ip() {
+            IpAddr::V4(ip) if ip.is_unspecified() => IpAddr::V4(Ipv4Addr::LOCALHOST),
+            IpAddr::V6(ip) if ip.is_unspecified() => IpAddr::V6(Ipv6Addr::LOCALHOST),
+            ip => ip,
+        };
+        format!("ws://{}", SocketAddr::new(ip, self.bind.port()))
     }
 
     pub fn stream(&self) -> Option<StreamConfig> {
