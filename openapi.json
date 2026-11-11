@@ -1979,7 +1979,8 @@
           "not_shortable",
           "max_position_weight",
           "max_gross_exposure",
-          "run_paused"
+          "run_paused",
+          "no_stream_slot"
         ]
       },
       "Reproducibility": {

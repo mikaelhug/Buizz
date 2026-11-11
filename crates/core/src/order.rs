@@ -94,6 +94,7 @@ pub enum RejectReason {
     MaxPositionWeight,
     MaxGrossExposure,
     RunPaused,
+    NoStreamSlot,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
