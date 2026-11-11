@@ -1,0 +1,9 @@
+description = "Antonacci Global Equities Momentum: when US stocks beat T-bills over 12 months hold the stronger of US and ex-US stocks, else aggregate bonds"
+command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
+timeframe = "1d"
+wake = "bar"
+universe = { symbols = ["SPY", "ACWX", "BIL", "AGG"] }
+params = { us = "SPY", intl = "ACWX", cash = "BIL", bonds = "AGG", lookback_months = 12 }
+
+[risk]
+max_gross_exposure = 1.0
