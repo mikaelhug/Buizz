@@ -1,10 +1,11 @@
 use std::collections::{BTreeMap, HashMap};
+use std::fmt;
 
 use buizz_core::market::{Calendar, FundamentalFact, FundamentalMetric, PeriodType, Symbol};
 use buizz_core::visibility::fundamental_visible_at;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer, de};
 
 use super::concepts::{
     COVER_PAGE_SHARES, DEI, IFRS, IFRS_PRIMARY, US_GAAP, US_GAAP_PRIMARY, WEIGHTED_AVERAGE_SHARES,
@@ -19,7 +20,44 @@ const SHARE_SCALE_REFERENCE_DAYS: i64 = 400;
 #[derive(Deserialize)]
 struct CompanyFacts {
     cik: u32,
-    facts: BTreeMap<String, BTreeMap<String, Concept>>,
+    facts: BTreeMap<String, Mapped>,
+}
+
+struct Mapped(BTreeMap<String, Concept>);
+
+fn mapped(concept: &str) -> bool {
+    concept == COVER_PAGE_SHARES
+        || WEIGHTED_AVERAGE_SHARES.contains(&concept)
+        || US_GAAP_PRIMARY
+            .iter()
+            .chain(IFRS_PRIMARY)
+            .any(|&(name, _, _)| name == concept)
+}
+
+impl<'de> Deserialize<'de> for Mapped {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct Visitor;
+        impl<'de> de::Visitor<'de> for Visitor {
+            type Value = Mapped;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a map of XBRL concepts")
+            }
+
+            fn visit_map<A: de::MapAccess<'de>>(self, mut map: A) -> Result<Mapped, A::Error> {
+                let mut concepts = BTreeMap::new();
+                while let Some(name) = map.next_key::<String>()? {
+                    if mapped(&name) {
+                        concepts.insert(name, map.next_value::<Concept>()?);
+                    } else {
+                        map.next_value::<de::IgnoredAny>()?;
+                    }
+                }
+                Ok(Mapped(concepts))
+            }
+        }
+        deserializer.deserialize_map(Visitor)
+    }
 }
 
 #[derive(Deserialize)]
@@ -66,7 +104,7 @@ pub fn normalize_company_facts(
 ) -> Result<Vec<FundamentalFact>, SourceError> {
     let company: CompanyFacts =
         serde_json::from_slice(payload).map_err(|error| SourceError::Decode(error.to_string()))?;
-    let lookup = |taxonomy: &str, concept: &str| company.facts.get(taxonomy)?.get(concept);
+    let lookup = |taxonomy: &str, concept: &str| company.facts.get(taxonomy)?.0.get(concept);
     let mut collector = Collector {
         symbol,
         cik: company.cik,
