@@ -68,10 +68,10 @@ class WorkingOrder(msgspec.Struct, frozen=True):
     order_id: int
     client_id: str
     symbol: str
-    side: str
+    side: Literal["buy", "sell"]
     qty: int
     filled_qty: int
-    order_type: dict[str, Any]
+    order_type: Market | Limit
 
 
 class Holdings(msgspec.Struct, frozen=True):

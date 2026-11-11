@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from numbers import Integral, Real
 from typing import TYPE_CHECKING, Any, cast, get_args
@@ -37,7 +37,7 @@ from buizz.wire import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Mapping
 
 type QueryFn = Callable[[HistoryRequest | FundamentalsRequest], HistoryResult | FundamentalsResult]
 
@@ -56,6 +56,12 @@ STATE_INT_RANGE = range(-(2**63), 2**64)
 
 def from_ns(ns: int) -> datetime:
     return EPOCH + timedelta(microseconds=ns // 1000)
+
+
+def to_ns(moment: datetime) -> int:
+    if moment.tzinfo is None:
+        raise ValueError(f"to_ns needs a timezone-aware datetime, got naive {moment}")
+    return (moment - EPOCH) // timedelta(microseconds=1) * 1000
 
 
 def integer(name: str, value: object) -> int:
@@ -160,6 +166,14 @@ class FundamentalPoint(msgspec.Struct, frozen=True):
     form: str
     filed: date
     available_at: datetime
+
+
+def split_ratio(raw: History, split_adjusted: History, day: date) -> float | None:
+    end_of_day = to_ns(datetime.combine(day + timedelta(days=1), time.min, tzinfo=UTC))
+    index = int(np.searchsorted(raw.start, end_of_day, side="left")) - 1
+    if index < 0 or index >= len(split_adjusted.close) or split_adjusted.close[index] <= 0:
+        return None
+    return float(raw.close[index] / split_adjusted.close[index])
 
 
 def column(raw: bytes, dtype: str) -> list[Any]:
@@ -321,6 +335,27 @@ class Context:
         client_id: str | None = None,
     ) -> str:
         return self._submit(symbol, WeightSize(wire_decimal("weight", weight)), reason, limit_price, client_id)
+
+    def rebalance(
+        self,
+        weights: Mapping[str, Decimal | float],
+        *,
+        exit_reason: str,
+        reason: str | Mapping[str, str] | None = None,
+    ) -> None:
+        self._current("ctx.rebalance")
+        targets = {symbol: wire_decimal(f"weight of {symbol}", weight) for symbol, weight in weights.items()}
+        reasons = {} if reason is None else dict.fromkeys(targets, reason) if isinstance(reason, str) else dict(reason)
+        if missing := sorted(targets.keys() - reasons.keys()):
+            raise ValueError(f"rebalance needs a reason for {missing}")
+        for order in self._working:
+            self.cancel(order.client_id)
+        for symbol, weight in targets.items():
+            if weight != 0 or self.position(symbol).qty != 0:
+                self.order_target_weight(symbol, weight, reason=reasons[symbol])
+        for symbol, position in self._positions.items():
+            if position.qty != 0 and symbol not in targets:
+                self.order_target_weight(symbol, 0, reason=exit_reason)
 
     def cancel(self, client_id: str) -> None:
         self._current("ctx.cancel")

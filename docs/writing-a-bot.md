@@ -90,8 +90,8 @@ Outside `on_step` only `params`, `universe`, `state`, `portfolio` and `position`
 | `ctx.session` | `Session(date, open, close)` of the current session |
 | `ctx.universe` | Current symbols |
 | `ctx.bars` | `dict[symbol, Bar]` (`open`, `high`, `low`, `close`, `volume` floats): the latest bar of each symbol that became visible since the previous step |
-| `ctx.events` | Fills, order status changes and corporate actions since the previous step |
-| `ctx.portfolio` | `cash`, `equity`, `positions` (`qty`, `avg_cost`) and `working` orders as of the start of the step. Orders you place in this step are not reflected |
+| `ctx.events` | `list[Event]`: the `Fill`, `OrderUpdate` and `CorporateAction` events since the previous step |
+| `ctx.portfolio` | `cash`, `equity`, `positions` (`qty`, `avg_cost`) and `working` orders (`WorkingOrder`: `client_id`, `symbol`, `side`, `qty`, `filled_qty` and `order_type`, a `Market()` or `Limit(limit_price)`) as of the start of the step. Orders you place in this step are not reflected |
 | `ctx.position(symbol)` | The `Position`, with `qty == 0` when flat |
 | `ctx.history(symbols, tf="1d", bars=1, adjust="raw")` | The last `bars` (1 to 10000) bars per symbol visible at the clock, as numpy arrays (`start` in ns, `open`, `high`, `low`, `close`, `volume`). Each call is a round trip to the spine |
 | `ctx.fundamentals(symbols, metrics)` | Every fundamental fact visible at the clock for the given metrics (`Metric` names, below) |
@@ -99,19 +99,23 @@ Outside `on_step` only `params`, `universe`, `state`, `portfolio` and `position`
 
 `tf`, `bars` and `adjust` are checked before the query is sent: a wrong value raises `ValueError` or `TypeError` in the step. `adjust` is `raw`, `split` or `all` (splits and dividends). Adjustment only uses corporate actions whose ex-date session has opened by the clock, so history never reflects a split that has not happened yet. Fills always use raw prices.
 
-Fundamentals are snake_case metrics, typed as `Metric` (an unknown name raises `ValueError`): `revenue`, `cost_of_revenue`, `gross_profit`, `research_development`, `sga_expense`, `operating_expenses`, `operating_income`, `interest_expense`, `pretax_income`, `income_tax`, `net_income`, `eps_diluted`, `total_assets`, `current_assets`, `cash_and_equivalents`, `inventory`, `receivables`, `ppe_net`, `goodwill`, `current_liabilities`, `long_term_debt`, `total_liabilities`, `equity`, `operating_cash_flow`, `depreciation_amortization`, `stock_based_comp`, `capex`, `investing_cash_flow`, `financing_cash_flow`, `dividends_paid`, `share_repurchases`, `acquisitions`, `shares_outstanding`. A `FundamentalPoint` carries `period_type` (`FY` or `Q`), `period_start`, `period_end`, `value`, `form`, `filed` and `available_at`; the latest filing per period wins. A fact becomes visible at the open of the first session after its `filed` date, never earlier. `bots/value_quality` is a complete example.
+Fundamentals are snake_case metrics, typed as `Metric` (an unknown name raises `ValueError`): `revenue`, `cost_of_revenue`, `gross_profit`, `research_development`, `sga_expense`, `operating_expenses`, `operating_income`, `interest_expense`, `pretax_income`, `income_tax`, `net_income`, `eps_diluted`, `total_assets`, `current_assets`, `cash_and_equivalents`, `inventory`, `receivables`, `ppe_net`, `goodwill`, `current_liabilities`, `long_term_debt`, `total_liabilities`, `equity`, `operating_cash_flow`, `depreciation_amortization`, `stock_based_comp`, `capex`, `investing_cash_flow`, `financing_cash_flow`, `dividends_paid`, `share_repurchases`, `acquisitions`, `shares_outstanding`. A `FundamentalPoint` carries `period_type` (`FY` or `Q`), `period_start`, `period_end`, `value`, `form`, `filed` and `available_at`; the latest filing per period wins. A fact becomes visible at the open of the first session after its `filed` date, never earlier. Share counts such as `shares_outstanding` are as reported, before any later split: `split_ratio(raw, split_adjusted, day)` takes a raw and a split-adjusted `ctx.history` of the same symbol and returns how many shares today one share on `day` has become (`None` when the history does not reach back to `day`). `bots/value_quality` is a complete example.
+
+`to_ns(moment)` turns a timezone-aware `datetime` into the nanoseconds of `History.start`, for example `history.start >= to_ns(ctx.session.open)`.
 
 ### Acting
 
 ```python
 ctx.order(symbol, qty, *, reason, limit_price=None, client_id=None) -> str
 ctx.order_target_weight(symbol, weight, *, reason, limit_price=None, client_id=None) -> str
+ctx.rebalance(weights, *, exit_reason, reason=None)
 ctx.cancel(client_id)
 ctx.log(message, level="info")
 ```
 
 - `order` takes a signed share count as an `int` (numpy integers too): positive buys, negative sells. A float raises `TypeError`; round it yourself.
 - `order_target_weight` targets a fraction of equity: the target is `trunc(weight * equity / last close)` shares and the order is the difference to the position plus the session's working orders. A negative weight shorts. A target that needs no change is recorded as rejected with `zero_quantity`. Weights and limit prices must be finite numbers; NaN or infinity raises `ValueError`.
+- `rebalance` makes the book these weights: it cancels every working order, targets each weight and sends every other held symbol to zero with `exit_reason`. `reason` is one string, or a mapping with a reason per symbol of `weights`. A zero weight for a symbol you do not hold places nothing, so `ctx.rebalance({}, exit_reason="flat before the close")` flattens the book.
 - Quantities are whole shares. Splits pay cash in lieu of fractions.
 - Without `limit_price` the order is a market order. All orders are day orders.
 - `reason` is required free text. It is stored with the order and shown in the order list: write the decision, not the action.
