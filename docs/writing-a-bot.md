@@ -179,7 +179,7 @@ With a spine running (`just dev` for the fixture data, or one with real data):
 
 ```sh
 cd sdk/python
-export BUIZZ_ADMIN_PASSWORD=dev
+export BUIZZ_ADMIN_PASSWORD=buizz-dev-admin
 uv run --frozen buizz backtest ../../bots/red_green --from 2024-11-20 --to 2024-12-04
 uv run --frozen buizz backtest ../../bots/sma_cross --from 2020-01-01 --to 2024-12-31 --param fast=20 --param slow=100
 ```

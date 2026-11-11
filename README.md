@@ -17,8 +17,8 @@ Backtest it from the UI (bot detail, Backtest) or headless from a second termina
 
 ```sh
 cd sdk/python
-BUIZZ_ADMIN_PASSWORD=dev uv run --frozen buizz bots
-BUIZZ_ADMIN_PASSWORD=dev uv run --frozen buizz backtest ../../bots/red_green --from 2024-11-20 --to 2024-12-04
+BUIZZ_ADMIN_PASSWORD=buizz-dev-admin uv run --frozen buizz bots
+BUIZZ_ADMIN_PASSWORD=buizz-dev-admin uv run --frozen buizz backtest ../../bots/red_green --from 2024-11-20 --to 2024-12-04
 ```
 
 The other bots in `bots/` need real data: set the provider keys below and start the spine without the fixture (see Configuration).
@@ -48,7 +48,7 @@ The spine (`cargo run -p buizz-spine`) reads these environment variables. Empty 
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `BUIZZ_ADMIN_PASSWORD` | required | The single admin password for the web UI and API |
+| `BUIZZ_ADMIN_PASSWORD` | required | The single admin password for the web UI and API, at least 12 characters |
 | `BUIZZ_BIND` | `0.0.0.0:8080` | Listen address, `host:port` |
 | `BUIZZ_DATA_DIR` | `data` | Where `market.duckdb`, `state.db` and `backups/` live |
 | `BUIZZ_BOTS_DIR` | `bots` | Folder scanned for bots |
@@ -67,7 +67,7 @@ The spine (`cargo run -p buizz-spine`) reads these environment variables. Empty 
 | `TREASURY_URL` | `https://home.treasury.gov` | US Treasury rates endpoint |
 | `RUST_LOG` | `info` | Log filter |
 
-`just dev` sets `BUIZZ_ADMIN_PASSWORD=dev`, `BUIZZ_SECURE_COOKIES=false`, `BUIZZ_INGEST=false`, `BUIZZ_BIND=127.0.0.1:8080` and `BUIZZ_FIXTURE_DIR=fixtures/market`.
+`just dev` sets `BUIZZ_ADMIN_PASSWORD=buizz-dev-admin`, `BUIZZ_SECURE_COOKIES=false`, `BUIZZ_INGEST=false`, `BUIZZ_BIND=127.0.0.1:8080` and `BUIZZ_FIXTURE_DIR=fixtures/market`.
 
 Spine start with real data and the bundled UI:
 
