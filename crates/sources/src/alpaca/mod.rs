@@ -4,9 +4,14 @@ use buizz_core::market::{
     Bar, Calendar, CorporateAction, Feed, Instrument, Session, Symbol, Timeframe,
 };
 use buizz_core::time::Timestamp;
-use chrono::NaiveDate;
+use chrono::{NaiveDate, TimeDelta, Utc};
+use serde::de::DeserializeOwned;
 
-use crate::http::{RateLimit, SourceError};
+use crate::http::{HttpClient, RateLimit, SourceError};
+
+mod wire;
+
+use wire::{ActionsPage, BarsPage, Paged, WireAsset, WireCalendarDay};
 
 pub const DATA_URL: &str = "https://data.alpaca.markets";
 pub const TRADING_URL: &str = "https://paper-api.alpaca.markets";
@@ -17,6 +22,8 @@ pub const RATE_LIMIT: RateLimit = RateLimit {
 pub const HISTORY_START: NaiveDate = NaiveDate::from_ymd_opt(2016, 1, 1).expect("valid date");
 pub const SIP_DELAY: Duration = Duration::from_secs(15 * 60);
 pub const MAX_PAGE_LIMIT: u32 = 10_000;
+pub const ACTIONS_PAGE_LIMIT: u32 = 1_000;
+const ACTIONS_SYMBOLS_PER_REQUEST: usize = 100;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AlpacaConfig {
@@ -47,39 +54,157 @@ pub struct BarsRequest {
 }
 
 #[derive(Clone)]
-pub struct AlpacaClient {}
+pub struct AlpacaClient {
+    http: HttpClient,
+    config: AlpacaConfig,
+}
 
 impl AlpacaClient {
-    pub fn new(_config: AlpacaConfig) -> Result<Self, SourceError> {
-        unimplemented!()
+    pub fn new(config: AlpacaConfig) -> Result<Self, SourceError> {
+        Ok(Self {
+            http: HttpClient::new("buizz", RATE_LIMIT)?,
+            config,
+        })
     }
 
     pub async fn bars(
         &self,
-        _request: &BarsRequest,
-        _calendar: &Calendar,
+        request: &BarsRequest,
+        calendar: &Calendar,
     ) -> Result<Vec<Bar>, SourceError> {
-        unimplemented!()
+        let to = match request.feed {
+            Feed::Sip => {
+                let delay = TimeDelta::from_std(SIP_DELAY).expect("SIP delay fits a time delta");
+                let latest = Timestamp::from_datetime(Utc::now()).map(|now| now - delay);
+                latest.map_or(request.to, |latest| request.to.min(latest))
+            }
+            Feed::Iex => request.to,
+        };
+        if to <= request.from || request.symbols.is_empty() {
+            return Ok(Vec::new());
+        }
+        let (timeframe, start, end) = match request.timeframe {
+            Timeframe::Day => (
+                "1Day",
+                request.from.exchange_date().to_string(),
+                to.exchange_date().to_string(),
+            ),
+            Timeframe::Minute => ("1Min", request.from.to_string(), to.to_string()),
+        };
+        let feed = match request.feed {
+            Feed::Sip => "sip",
+            Feed::Iex => "iex",
+        };
+        let query = [
+            ("symbols", join_symbols(&request.symbols)),
+            ("timeframe", timeframe.to_owned()),
+            ("start", start),
+            ("end", end),
+            ("adjustment", "raw".to_owned()),
+            ("feed", feed.to_owned()),
+            ("limit", MAX_PAGE_LIMIT.to_string()),
+            ("sort", "asc".to_owned()),
+        ];
+        let url = format!("{}/v2/stocks/bars", self.config.data_url);
+        let pages = self.pages::<BarsPage>(&url, &query).await?;
+        Ok(pages
+            .into_iter()
+            .flat_map(|page| page.into_bars(request.timeframe, request.feed, calendar))
+            .collect())
     }
 
     pub async fn calendar(
         &self,
-        _from: NaiveDate,
-        _to: NaiveDate,
+        from: NaiveDate,
+        to: NaiveDate,
     ) -> Result<Vec<Session>, SourceError> {
-        unimplemented!()
+        let query = [("start", from.to_string()), ("end", to.to_string())];
+        let url = format!("{}/v2/calendar", self.config.trading_url);
+        let days: Vec<WireCalendarDay> = self.get(&url, &query).await?;
+        days.into_iter()
+            .map(WireCalendarDay::into_session)
+            .collect()
     }
 
     pub async fn assets(&self) -> Result<Vec<Instrument>, SourceError> {
-        unimplemented!()
+        let query = [("asset_class", "us_equity".to_owned())];
+        let url = format!("{}/v2/assets", self.config.trading_url);
+        let assets: Vec<WireAsset> = self.get(&url, &query).await?;
+        Ok(assets
+            .into_iter()
+            .filter_map(WireAsset::into_instrument)
+            .collect())
     }
 
     pub async fn corporate_actions(
         &self,
-        _symbols: &[Symbol],
-        _from: NaiveDate,
-        _to: NaiveDate,
+        symbols: &[Symbol],
+        from: NaiveDate,
+        to: NaiveDate,
     ) -> Result<Vec<CorporateAction>, SourceError> {
-        unimplemented!()
+        let url = format!("{}/v1/corporate-actions", self.config.data_url);
+        let mut actions = Vec::new();
+        for chunk in symbols.chunks(ACTIONS_SYMBOLS_PER_REQUEST) {
+            let query = [
+                ("symbols", join_symbols(chunk)),
+                (
+                    "types",
+                    "forward_split,reverse_split,cash_dividend".to_owned(),
+                ),
+                ("start", from.to_string()),
+                ("end", to.to_string()),
+                ("limit", ACTIONS_PAGE_LIMIT.to_string()),
+                ("sort", "asc".to_owned()),
+            ];
+            for page in self.pages::<ActionsPage>(&url, &query).await? {
+                actions.extend(page.into_actions());
+            }
+        }
+        Ok(actions)
     }
+
+    async fn get<T: DeserializeOwned>(
+        &self,
+        url: &str,
+        query: &[(&str, String)],
+    ) -> Result<T, SourceError> {
+        let request = self
+            .http
+            .client()
+            .get(url)
+            .header("APCA-API-KEY-ID", &self.config.key_id)
+            .header("APCA-API-SECRET-KEY", &self.config.secret_key)
+            .query(query);
+        let body = self.http.send(request).await?.bytes().await?;
+        serde_json::from_slice(&body).map_err(|error| SourceError::Decode(error.to_string()))
+    }
+
+    async fn pages<T: DeserializeOwned + Paged>(
+        &self,
+        url: &str,
+        query: &[(&str, String)],
+    ) -> Result<Vec<T>, SourceError> {
+        let mut pages = Vec::new();
+        let mut query = query.to_vec();
+        loop {
+            let mut page: T = self.get(url, &query).await?;
+            let token = page
+                .take_next_page_token()
+                .filter(|token| !token.is_empty());
+            pages.push(page);
+            let Some(token) = token else {
+                return Ok(pages);
+            };
+            query.retain(|(name, _)| *name != "page_token");
+            query.push(("page_token", token));
+        }
+    }
+}
+
+fn join_symbols(symbols: &[Symbol]) -> String {
+    symbols
+        .iter()
+        .map(Symbol::as_str)
+        .collect::<Vec<_>>()
+        .join(",")
 }

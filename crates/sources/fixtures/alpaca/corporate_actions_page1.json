@@ -1,0 +1,11 @@
+{
+  "corporate_actions": {
+    "forward_splits": [
+      {"id": "189bd849-ab9f-4b4d-aaaa-a6d415fd976d", "symbol": "NVDA", "cusip": "67066G104", "old_rate": 1, "new_rate": 10, "ex_date": "2024-06-10", "record_date": "2024-06-06", "payable_date": "2024-06-07", "process_date": "2024-06-10"}
+    ],
+    "cash_dividends": [
+      {"id": "11cfd108-292e-4cc6-bfbf-5999cdbc4029", "symbol": "AAPL", "cusip": "037833100", "rate": 0.25, "special": false, "foreign": false, "ex_date": "2024-05-10", "record_date": "2024-05-13", "payable_date": "2024-05-16", "process_date": "2024-05-16"}
+    ]
+  },
+  "next_page_token": "Y29ycC1hY3Rpb25zLXBhZ2UtMg=="
+}
