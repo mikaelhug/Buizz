@@ -14,9 +14,10 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use axum::Router;
+use axum::extract::Request;
 use axum::extract::{FromRef, State, WebSocketUpgrade};
-use axum::http::{HeaderMap, StatusCode, header};
-use axum::middleware::{from_fn, from_fn_with_state, map_response};
+use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
+use axum::middleware::{Next, from_fn, from_fn_with_state, map_response};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{any, get};
 use buizz_core::protocol::BOT_PATH;
@@ -33,6 +34,8 @@ use utoipa_axum::router::OpenApiRouter;
 use crate::auth::{Auth, require_session};
 use crate::error::Failure;
 use crate::guard::{reject_cross_site, security_headers, spine_host_only};
+
+const HASHED_ASSETS: &str = "/assets/";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ApiConfig {
@@ -99,13 +102,34 @@ pub fn router(app: AppState) -> Router {
     let router = match web_dir {
         Some(dir) => {
             let index = dir.join("index.html");
-            router.fallback_service(ServeDir::new(dir).fallback(ServeFile::new(index)))
+            let bundle = Router::new()
+                .fallback_service(ServeDir::new(dir).fallback(ServeFile::new(index)))
+                .layer(from_fn(bundle_caching));
+            router.fallback_service(bundle)
         }
         None => router,
     };
     router
         .layer(from_fn(reject_cross_site))
         .layer(map_response(security_headers))
+}
+
+async fn bundle_caching(request: Request, next: Next) -> Response {
+    let hashed = request.uri().path().starts_with(HASHED_ASSETS);
+    let mut response = next.run(request).await;
+    let page = response
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .is_some_and(|kind| kind.as_bytes().starts_with(b"text/html"));
+    let policy = if hashed && !page && response.status().is_success() {
+        "public, max-age=31536000, immutable"
+    } else {
+        "no-cache"
+    };
+    response
+        .headers_mut()
+        .insert(header::CACHE_CONTROL, HeaderValue::from_static(policy));
+    response
 }
 
 #[utoipa::path(get, path = "/healthz", tag = "health",
