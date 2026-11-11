@@ -217,7 +217,18 @@ async fn answer(
                 .universe(&universe, date, UNIVERSE_SESSIONS)
                 .await
                 .map_err(|error| error.to_string())?;
-            Ok(DataResult::Universe { symbols })
+            let reliable_from = match universe {
+                UniverseSpec::Index { index } => market
+                    .index_history(index)
+                    .await
+                    .map_err(|error| error.to_string())?
+                    .and_then(|history| history.reliable_from),
+                _ => None,
+            };
+            Ok(DataResult::Universe {
+                symbols,
+                reliable_from,
+            })
         }
         QueryRequest::Instruments { symbols } => {
             let instruments = market

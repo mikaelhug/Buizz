@@ -403,6 +403,7 @@ fn main() {
             id: 5,
             result: DataResult::Universe {
                 symbols: vec![Symbol::new("SPY"), aaa.clone()],
+                reliable_from: None,
             },
         }),
     );
