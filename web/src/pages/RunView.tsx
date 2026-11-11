@@ -83,7 +83,7 @@ export function RunView({ runId }: { runId: number }) {
       <section className="panel">
         <MetricGrid metrics={run.data.metrics} />
       </section>
-      <div className="split">
+      <div className="split split-wide">
         <Positions positions={positions} />
         <Events events={events} />
       </div>
