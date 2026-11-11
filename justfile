@@ -4,7 +4,7 @@ default: check
 
 setup:
     cd web && npm ci --no-audit --no-fund
-    cd e2e/browser && npm ci --no-audit --no-fund
+    cd e2e/browser && npm ci --no-audit --no-fund && npx --no-install playwright-core install --only-shell --no-progress chromium
     cd sdk/python && uv sync --frozen
 
 fmt:
