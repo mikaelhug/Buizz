@@ -46,6 +46,8 @@ struct Fake {
     closed: Mutex<Option<NaiveDate>>,
     revised: AtomicBool,
     last_bars: Mutex<Params>,
+    listed_later: AtomicBool,
+    action_requests: Mutex<Vec<Params>>,
     hits: Mutex<HashMap<&'static str, u32>>,
 }
 
@@ -137,7 +139,17 @@ async fn bars(State(fake): State<Arc<Fake>>, Query(params): Query<Params>) -> Re
     ))
 }
 
-async fn actions(Query(params): Query<Params>) -> Response {
+async fn assets(State(fake): State<Arc<Fake>>) -> Response {
+    let later = r#",{"class":"us_equity","exchange":"NASDAQ","symbol":"MSFT","name":"Microsoft Corporation Common Stock","status":"active","shortable":true}]"#;
+    if fake.listed_later.load(Ordering::SeqCst) {
+        json(ASSETS.trim_end().trim_end_matches(']').to_owned() + later)
+    } else {
+        json(ASSETS.to_owned())
+    }
+}
+
+async fn actions(State(fake): State<Arc<Fake>>, Query(params): Query<Params>) -> Response {
+    fake.action_requests.lock().unwrap().push(params.clone());
     json(
         if params.contains_key("page_token") {
             ACTIONS_PAGE_2
@@ -188,7 +200,7 @@ async fn yields() -> Response {
 async fn serve_fakes(fake: Arc<Fake>) -> String {
     let router = Router::new()
         .route("/v2/calendar", get(calendar))
-        .route("/v2/assets", get(|| async { json(ASSETS.to_owned()) }))
+        .route("/v2/assets", get(assets))
         .route("/v2/stocks/bars", get(bars))
         .route("/v1/corporate-actions", get(actions))
         .route("/tiingo/daily/{symbol}/prices", get(tiingo))
@@ -423,6 +435,8 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
 
     fake.rate_limit_bars.store(false, Ordering::SeqCst);
     fake.revised.store(true, Ordering::SeqCst);
+    fake.listed_later.store(true, Ordering::SeqCst);
+    fake.action_requests.lock().unwrap().clear();
     let inside_sip_delay = stamp("2024-07-08T20:10:00Z");
     let revised = ingest.tick(inside_sip_delay).await.unwrap();
     assert!(revised.ran.contains(&("bars_1d", JobOutcome::Ok)));
@@ -437,4 +451,19 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
         .await
         .unwrap();
     assert_eq!(spy[0].close, (alpaca_close(date(SPY_REVISED)) + 1).into());
+    let action_starts: Vec<(String, String)> = fake
+        .action_requests
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|params| !params.contains_key("page_token"))
+        .map(|params| (params["symbols"].clone(), params["start"].clone()))
+        .collect();
+    assert_eq!(
+        action_starts,
+        vec![
+            ("MSFT".to_owned(), "2015-12-02".to_owned()),
+            ("AAPL,SPY".to_owned(), "2024-03-10".to_owned()),
+        ]
+    );
 }

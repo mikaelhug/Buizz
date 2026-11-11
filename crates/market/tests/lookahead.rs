@@ -238,8 +238,15 @@ async fn rewrite(store: MarketStore, symbols: Vec<Symbol>, loaded_through: Times
                 .await
                 .unwrap();
         }
+        let split = future_split();
         store
-            .upsert_corporate_actions(DataSource::Fixture, vec![future_split()])
+            .upsert_corporate_actions(
+                DataSource::Fixture,
+                vec![split.clone()],
+                vec![split.symbol],
+                split.ex_date,
+                split.ex_date,
+            )
             .await
             .unwrap();
         store

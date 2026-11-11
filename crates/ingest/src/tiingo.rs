@@ -120,7 +120,13 @@ impl Ingest {
                 .upsert_bars(DataSource::Tiingo, Timeframe::Day, bars)
                 .await?;
             self.market
-                .upsert_corporate_actions(DataSource::Tiingo, actions)
+                .upsert_corporate_actions(
+                    DataSource::Tiingo,
+                    actions,
+                    vec![symbol.clone()],
+                    history_start,
+                    gap_end,
+                )
                 .await?;
             batch.success(written.rows);
         }

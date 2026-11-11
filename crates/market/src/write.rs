@@ -297,6 +297,8 @@ pub(crate) fn corporate_actions(
     connection: &mut Connection,
     source: DataSource,
     actions: Vec<CorporateAction>,
+    covered: &[Symbol],
+    (from, to): (NaiveDate, NaiveDate),
 ) -> Result<WriteSummary> {
     let unique: BTreeMap<(Symbol, NaiveDate, &'static str), CorporateAction> = actions
         .into_iter()
@@ -305,12 +307,17 @@ pub(crate) fn corporate_actions(
             ((action.symbol.clone(), action.ex_date, kind), action)
         })
         .collect();
+    let mut coverage = Coverage::new();
+    for symbol in covered {
+        cover(&mut coverage, Some(symbol), from);
+        cover(&mut coverage, Some(symbol), to);
+    }
     let source_name = wire_name(&source);
     write_batch(
         connection,
         source,
         Dataset::CorporateActions,
-        Coverage::new(),
+        coverage,
         |transaction, batch_id| {
             let rows = stage(
                 transaction,
