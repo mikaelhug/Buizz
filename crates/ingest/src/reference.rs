@@ -10,13 +10,26 @@ use crate::fetch::{Batch, FetchKey, Work};
 use crate::{Ingest, IngestError};
 
 pub(crate) const CALENDAR_HORIZON_DAYS: i64 = 365;
+const CALENDAR_START_SLACK: TimeDelta = TimeDelta::days(10);
+const CALENDAR_RECHECK: TimeDelta = TimeDelta::days(30);
 
 impl Ingest {
     pub(crate) async fn calendar(&self, now: Timestamp) -> Result<Work, IngestError> {
         let Some(alpaca) = &self.sources.alpaca else {
             return Ok(Work::unconfigured("Alpaca"));
         };
-        let from = self.config.history_start;
+        let history_start = self.config.history_start;
+        let backfilled = !self
+            .market
+            .calendar(history_start, history_start + CALENDAR_START_SLACK)
+            .await?
+            .sessions()
+            .is_empty();
+        let from = if backfilled {
+            history_start.max(now.exchange_date() - CALENDAR_RECHECK)
+        } else {
+            history_start
+        };
         let to = now.exchange_date() + TimeDelta::days(CALENDAR_HORIZON_DAYS);
         let key = FetchKey::new(
             DataSource::Alpaca,
