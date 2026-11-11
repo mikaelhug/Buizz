@@ -116,7 +116,6 @@ Wave 1 is merged. Handoff notes for Wave 2 (the code is the reference):
 - Runner: `commit_step` needs `step_seq` exactly last+1; drain the engine Outbox and `checkpoint()` in that same commit. Screen unknown and unshortable symbols before `engine.accept` (the engine has no instrument data). Repeated `client_id`s are dropped silently. Bots get `BUIZZ_RUN_TOKEN`; logs land in `data/logs/<run_id>.log` relative to the spine's working directory.
 - Runner/feed: market watermarks are in memory only; re-advance them on boot. Use `bars_between` for chunk preloads and apply `bar_visible_at` yourself.
 - Ingest: load the calendar before bars and facts (rows outside it are dropped); widen corporate-action ranges (Alpaca filters on process date); budget Tiingo's 1000/day and 500 symbols/month; back off on `RateLimited{retry_after}` via `record_fetch`; snapshots need a fresh dated path.
-- Metrics fields that are not `Option` (total return, CAGR, volatility, drawdown, exposure, turnover) read 0.0 with too little data; make them `Option` in a contract PR before the UI shows them.
 - Unverified until Alpaca keys exist: calendar times assumed America/New_York; SDK throughput (~19.5k steps/s measured against a Python fake under heavy load) is re-measured against the real runner.
 
 **Wave 2 — parallel (6 agents)**

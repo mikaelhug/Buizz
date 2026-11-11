@@ -1461,26 +1461,29 @@
       "Metrics": {
         "type": "object",
         "required": [
-          "total_return",
-          "cagr",
-          "volatility",
-          "max_drawdown",
-          "exposure",
-          "turnover",
           "trades",
           "sessions"
         ],
         "properties": {
           "total_return": {
-            "type": "number",
+            "type": [
+              "number",
+              "null"
+            ],
             "format": "double"
           },
           "cagr": {
-            "type": "number",
+            "type": [
+              "number",
+              "null"
+            ],
             "format": "double"
           },
           "volatility": {
-            "type": "number",
+            "type": [
+              "number",
+              "null"
+            ],
             "format": "double"
           },
           "sharpe": {
@@ -1498,7 +1501,10 @@
             "format": "double"
           },
           "max_drawdown": {
-            "type": "number",
+            "type": [
+              "number",
+              "null"
+            ],
             "format": "double"
           },
           "calmar": {
@@ -1523,11 +1529,17 @@
             "format": "double"
           },
           "exposure": {
-            "type": "number",
+            "type": [
+              "number",
+              "null"
+            ],
             "format": "double"
           },
           "turnover": {
-            "type": "number",
+            "type": [
+              "number",
+              "null"
+            ],
             "format": "double"
           },
           "alpha": {

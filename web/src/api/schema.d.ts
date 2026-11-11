@@ -493,17 +493,17 @@ export interface components {
         };
         Metrics: {
             /** Format: double */
-            total_return: number;
+            total_return?: number | null;
             /** Format: double */
-            cagr: number;
+            cagr?: number | null;
             /** Format: double */
-            volatility: number;
+            volatility?: number | null;
             /** Format: double */
             sharpe?: number | null;
             /** Format: double */
             sortino?: number | null;
             /** Format: double */
-            max_drawdown: number;
+            max_drawdown?: number | null;
             /** Format: double */
             calmar?: number | null;
             /** Format: double */
@@ -511,9 +511,9 @@ export interface components {
             /** Format: double */
             profit_factor?: number | null;
             /** Format: double */
-            exposure: number;
+            exposure?: number | null;
             /** Format: double */
-            turnover: number;
+            turnover?: number | null;
             /** Format: double */
             alpha?: number | null;
             /** Format: double */

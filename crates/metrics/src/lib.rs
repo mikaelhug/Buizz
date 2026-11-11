@@ -40,16 +40,18 @@ pub fn compute(input: &MetricsInput<'_>) -> Metrics {
         .unzip();
 
     Metrics {
-        total_return: final_ratio(input.start_cash, input.equity).map_or(0.0, |ratio| ratio - 1.0),
+        total_return: final_ratio(input.start_cash, input.equity).map(|ratio| ratio - 1.0),
         cagr,
         volatility: returns
             .as_deref()
             .and_then(sample_stdev)
-            .map_or(0.0, |stdev| stdev * TRADING_DAYS.sqrt()),
+            .map(|stdev| stdev * TRADING_DAYS.sqrt()),
         sharpe: excess.as_deref().and_then(sharpe),
         sortino: excess.as_deref().and_then(sortino),
         max_drawdown,
-        calmar: (max_drawdown > 0.0).then(|| cagr / max_drawdown),
+        calmar: cagr
+            .zip(max_drawdown)
+            .and_then(|(cagr, drawdown)| (drawdown > 0.0).then(|| cagr / drawdown)),
         win_rate: win_rate(&trips),
         profit_factor: profit_factor(&trips),
         exposure: exposure(input.equity),
@@ -88,11 +90,9 @@ fn daily_risk_free(rates: &[RiskFreeRate], point: &EquityPoint) -> Option<f64> {
         .map(|annual| annual / TRADING_DAYS)
 }
 
-fn cagr(start_cash: Decimal, equity: &[EquityPoint]) -> f64 {
+fn cagr(start_cash: Decimal, equity: &[EquityPoint]) -> Option<f64> {
     let periods = equity.len() as f64;
-    final_ratio(start_cash, equity).map_or(0.0, |ratio| {
-        ratio.max(0.0).powf(TRADING_DAYS / periods) - 1.0
-    })
+    final_ratio(start_cash, equity).map(|ratio| ratio.max(0.0).powf(TRADING_DAYS / periods) - 1.0)
 }
 
 fn final_ratio(start_cash: Decimal, equity: &[EquityPoint]) -> Option<f64> {
@@ -137,32 +137,31 @@ fn sortino(excess: &[f64]) -> Option<f64> {
     (downside > MIN_SPREAD).then(|| mean(excess) / downside * TRADING_DAYS.sqrt())
 }
 
-fn max_drawdown(values: &[f64]) -> f64 {
+fn max_drawdown(values: &[f64]) -> Option<f64> {
+    if values.is_empty() {
+        return None;
+    }
     let mut peak = f64::MIN;
-    values.iter().fold(0.0, |worst, value| {
+    Some(values.iter().fold(0.0, |worst, value| {
         peak = peak.max(*value);
         if peak > 0.0 {
             worst.max((peak - value) / peak)
         } else {
             worst
         }
-    })
+    }))
 }
 
-fn exposure(equity: &[EquityPoint]) -> f64 {
+fn exposure(equity: &[EquityPoint]) -> Option<f64> {
     let ratios: Vec<f64> = equity
         .iter()
         .filter(|point| point.equity > Decimal::ZERO)
         .filter_map(|point| (point.gross_exposure / point.equity).to_f64())
         .collect();
-    if ratios.is_empty() {
-        0.0
-    } else {
-        mean(&ratios)
-    }
+    (!ratios.is_empty()).then(|| mean(&ratios))
 }
 
-fn turnover(ledger: &[LedgerEntry], equity: &[f64]) -> f64 {
+fn turnover(ledger: &[LedgerEntry], equity: &[f64]) -> Option<f64> {
     let traded: Decimal = ledger
         .iter()
         .filter_map(|entry| match &entry.kind {
@@ -173,9 +172,9 @@ fn turnover(ledger: &[LedgerEntry], equity: &[f64]) -> f64 {
         })
         .sum();
     if equity.is_empty() || mean(equity) <= 0.0 {
-        return 0.0;
+        return None;
     }
-    traded.to_f64().unwrap_or(0.0) / mean(equity)
+    traded.to_f64().map(|traded| traded / mean(equity))
 }
 
 #[derive(Default)]
@@ -327,24 +326,12 @@ mod tests {
                 "{name}: {actual} vs {expected}"
             );
         };
-        close(
-            "total_return",
-            Some(actual.total_return),
-            Some(expected.total_return),
-        );
-        close("cagr", Some(actual.cagr), Some(expected.cagr));
-        close(
-            "volatility",
-            Some(actual.volatility),
-            Some(expected.volatility),
-        );
+        close("total_return", actual.total_return, expected.total_return);
+        close("cagr", actual.cagr, expected.cagr);
+        close("volatility", actual.volatility, expected.volatility);
         close("sharpe", actual.sharpe, expected.sharpe);
         close("sortino", actual.sortino, expected.sortino);
-        close(
-            "max_drawdown",
-            Some(actual.max_drawdown),
-            Some(expected.max_drawdown),
-        );
+        close("max_drawdown", actual.max_drawdown, expected.max_drawdown);
         close("calmar", actual.calmar, expected.calmar);
         close("win_rate", actual.win_rate, expected.win_rate);
         close(
@@ -352,8 +339,8 @@ mod tests {
             actual.profit_factor,
             expected.profit_factor,
         );
-        close("exposure", Some(actual.exposure), Some(expected.exposure));
-        close("turnover", Some(actual.turnover), Some(expected.turnover));
+        close("exposure", actual.exposure, expected.exposure);
+        close("turnover", actual.turnover, expected.turnover);
         close("alpha", actual.alpha, expected.alpha);
         close("beta", actual.beta, expected.beta);
         assert_eq!(actual.trades, expected.trades);
