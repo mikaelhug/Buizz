@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use buizz_core::ledger::{LedgerEntry, LedgerKind, Portfolio, split_qty};
-use buizz_core::market::{Bar, CorporateAction, CorporateActionKind, Session, Symbol};
+use buizz_core::market::{Bar, CorporateAction, CorporateActionKind, Instrument, Session, Symbol};
 use buizz_core::money::{round_cash, round_price, round_price_with};
 use buizz_core::order::{
     Fill, Order, OrderId, OrderRequest, OrderSize, OrderStatus, OrderType, OrderUpdate,
@@ -50,6 +50,7 @@ pub struct Outbox {
     pub equity_points: Vec<EquityPoint>,
     pub breaches: Vec<RiskBreach>,
     pub warnings: Vec<String>,
+    pub rejections: Vec<Order>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -147,12 +148,13 @@ impl Engine {
         self.check_limits();
     }
 
-    pub fn accept(
+    pub fn accept<'a>(
         &mut self,
         decided_at: Timestamp,
         session: NaiveDate,
         orders: Vec<OrderRequest>,
         cancels: Vec<String>,
+        instrument: impl Fn(&Symbol) -> Option<&'a Instrument>,
     ) {
         for client_id in &cancels {
             self.close_where(decided_at, OrderStatus::Cancelled, |order| {
@@ -181,7 +183,8 @@ impl Engine {
                 reject_reason: None,
                 updated_at: decided_at,
             };
-            if let Err(reason) = self.size(&mut order, session) {
+            let instrument = instrument(&order.symbol);
+            if let Err(reason) = self.size(&mut order, session, instrument) {
                 order.status = OrderStatus::Rejected;
                 order.reject_reason = Some(reason);
             }
@@ -490,7 +493,13 @@ impl Engine {
         }
     }
 
-    fn size(&self, order: &mut Order, session: NaiveDate) -> Result<(), RejectReason> {
+    fn size(
+        &self,
+        order: &mut Order,
+        session: NaiveDate,
+        instrument: Option<&Instrument>,
+    ) -> Result<(), RejectReason> {
+        let instrument = instrument.ok_or(RejectReason::UnknownSymbol)?;
         if let OrderType::Limit { limit_price } = order.order_type
             && limit_price <= Decimal::ZERO
         {
@@ -540,6 +549,9 @@ impl Engine {
             }
         }
         let after = before.checked_add(delta).ok_or(RejectReason::InvalidSize)?;
+        if delta < 0 && after < 0 && !instrument.shortable {
+            return Err(RejectReason::NotShortable);
+        }
         if after.abs() <= before.abs() {
             return Ok(());
         }
@@ -598,6 +610,9 @@ impl Engine {
         self.outbox
             .step_events
             .push(StepEvent::Order(OrderUpdate::from(&order)));
+        if order.status == OrderStatus::Rejected {
+            self.outbox.rejections.push(order.clone());
+        }
         if order.status.is_terminal() {
             self.state.working.remove(&order.id);
         } else {
@@ -618,8 +633,8 @@ impl Engine {
 
 #[cfg(test)]
 mod tests {
-    use buizz_core::market::Feed;
     use buizz_core::market::Timeframe;
+    use buizz_core::market::{AssetClass, Feed};
     use buizz_core::order::TimeInForce;
     use buizz_core::run::{Mode, UniverseSpec, Wake};
     use chrono::NaiveTime;
@@ -714,11 +729,23 @@ mod tests {
     }
 
     fn submit(engine: &mut Engine, session: &Session, orders: Vec<OrderRequest>) -> Vec<Order> {
+        let instrument = Instrument {
+            symbol: Symbol::new("AAA"),
+            name: "AAA".to_owned(),
+            exchange: "NYSE".to_owned(),
+            asset_class: AssetClass::Stock,
+            active: true,
+            shortable: false,
+            first_session: None,
+            last_session: None,
+        };
+        let known = |symbol: &Symbol| (*symbol == instrument.symbol).then_some(&instrument);
         engine.accept(
             session.close,
             session.date.succ_opt().unwrap(),
             orders,
             Vec::new(),
+            known,
         );
         engine.drain().orders
     }
@@ -900,6 +927,29 @@ mod tests {
                 Some(RejectReason::InvalidSize),
                 None,
                 Some(RejectReason::InvalidSize)
+            ]
+        );
+    }
+
+    #[test]
+    fn unknown_and_unshortable_orders_are_rejected_as_orders() {
+        let first = session(20);
+        let mut engine = Engine::new(&config("100000", "1"), first.open);
+        step(
+            &mut engine,
+            &first,
+            &[bar(&first, "100", "99", "100")],
+            &[("AAA", 1_000_000)],
+        );
+        let mut unknown = buy("ZZZ-1", 10);
+        unknown.symbol = Symbol::new("ZZZ");
+        let orders = submit(&mut engine, &first, vec![unknown, buy("AAA-1", -10)]);
+        let reasons: Vec<_> = orders.iter().map(|order| order.reject_reason).collect();
+        assert_eq!(
+            reasons,
+            [
+                Some(RejectReason::UnknownSymbol),
+                Some(RejectReason::NotShortable)
             ]
         );
     }
