@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::time::Duration;
 
+pub use buizz_core::market::SIP_DELAY;
 use buizz_core::market::{
     Bar, Calendar, CorporateAction, CorporateActionKind, Feed, Instrument, Session, Symbol,
     Timeframe,
@@ -24,7 +25,6 @@ pub const RATE_LIMIT: RateLimit = RateLimit {
     per: Duration::from_secs(60),
 };
 pub const HISTORY_START: NaiveDate = NaiveDate::from_ymd_opt(2016, 1, 1).expect("valid date");
-pub const SIP_DELAY: Duration = Duration::from_secs(15 * 60);
 pub const MAX_PAGE_LIMIT: u32 = 10_000;
 pub const ACTIONS_PAGE_LIMIT: u32 = 1_000;
 const ACTIONS_SYMBOLS_PER_REQUEST: usize = 100;

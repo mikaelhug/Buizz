@@ -1,5 +1,6 @@
 use std::fmt;
 use std::str::FromStr;
+use std::time::Duration;
 
 use chrono::{NaiveDate, TimeDelta};
 use rust_decimal::Decimal;
@@ -105,6 +106,8 @@ pub enum Feed {
     Sip,
     Iex,
 }
+
+pub const SIP_DELAY: Duration = Duration::from_secs(15 * 60);
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct Bar {
