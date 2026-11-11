@@ -97,6 +97,9 @@ async fn main() -> Result<()> {
             ingest: ingest.clone(),
         },
     );
+    let listener = TcpListener::bind(config.bind)
+        .await
+        .with_context(|| format!("cannot bind {}", config.bind))?;
     runner.recover().await?;
 
     let feed_task = feed.spawn();
@@ -114,9 +117,6 @@ async fn main() -> Result<()> {
         feed,
         ingest,
     });
-    let listener = TcpListener::bind(config.bind)
-        .await
-        .with_context(|| format!("cannot bind {}", config.bind))?;
     tracing::info!(bind = %config.bind, "spine listening");
     axum::serve(
         listener,
