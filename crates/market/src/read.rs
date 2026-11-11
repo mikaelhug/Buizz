@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use buizz_core::market::{
     Adjustment, AdjustmentFactor, Bar, Calendar, CorporateAction, CorporateActionKind, Coverage,
     DataSource, Dataset, Feed, FundamentalMetric, FundamentalPoint, Instrument, PeriodType,
-    RiskFreeRate, Session, Symbol, Timeframe,
+    RiskFreeRate, SIP_DELAY, Session, Symbol, Timeframe,
 };
 use buizz_core::ops::{CoverageGap, DataWarning, UNEXPLAINED_MOVE_THRESHOLD};
 use buizz_core::protocol::BarRow;
@@ -18,6 +18,10 @@ use crate::codec::{Dec, Params, Sym, Ts, Wire, action_kind, placeholders, symbol
 use crate::{HistoryRequest, Result};
 
 const MINUTES_PER_SESSION: usize = 390;
+
+fn sip_delay_micros() -> i64 {
+    i64::try_from(SIP_DELAY.as_micros()).expect("the SIP delay fits in microseconds")
+}
 
 pub(crate) fn calendar(connection: &Connection) -> Result<Calendar> {
     let mut statement =
@@ -597,8 +601,11 @@ fn listing_bounds(
     symbols: &[Symbol],
 ) -> Result<BTreeMap<Symbol, Listing>> {
     let sql = format!(
-        "SELECT symbol, first_session, last_session FROM instrument WHERE symbol IN ({})",
-        placeholders(symbols.len())
+        "WITH wanted (symbol) AS (VALUES {}) \
+         SELECT w.symbol, coalesce(i.first_session, \
+         (SELECT min(d.date) FROM bar_1d d WHERE d.symbol = w.symbol)), i.last_session \
+         FROM wanted w LEFT JOIN instrument i ON i.symbol = w.symbol",
+        vec!["(?)"; symbols.len()].join(", ")
     );
     let params = symbol_params(symbols);
     let mut statement = connection.prepare_cached(&sql)?;
@@ -642,11 +649,14 @@ pub(crate) fn coverage_gaps(
             params.push(Box::new(Ts(last.close)));
             params.push(Box::new(first.date));
             params.push(Box::new(last.date));
+            params.push(Box::new(sip_delay_micros()));
             format!(
                 "SELECT DISTINCT b.symbol, c.date FROM bar_1m b \
                  JOIN calendar c ON b.start >= c.open AND b.start < c.close \
+                 JOIN ingest_batch i ON i.id = b.batch_id \
                  WHERE b.symbol IN ({}) AND b.start >= ? AND b.start < ? \
-                 AND c.date BETWEEN ? AND ?",
+                 AND c.date BETWEEN ? AND ? AND b.feed = 'sip' \
+                 AND i.created_at >= c.close + to_microseconds(?)",
                 placeholders(symbols.len())
             )
         }
