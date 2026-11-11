@@ -230,8 +230,11 @@ async fn alpaca_client_pages_filters_and_normalizes_against_fixtures() {
 
     let instruments = client.assets().await.unwrap();
     assert_eq!(instruments.len(), 3);
-    assert_eq!(instruments[0].asset_class, AssetClass::Stock);
-    assert_eq!(instruments[1].asset_class, AssetClass::Etf);
+    assert!(
+        instruments
+            .iter()
+            .all(|instrument| instrument.asset_class == AssetClass::Stock)
+    );
     assert_eq!(instruments[1].exchange, "ARCA");
     assert!(instruments[0].active && !instruments[2].active);
 

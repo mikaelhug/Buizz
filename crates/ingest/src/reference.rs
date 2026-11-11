@@ -1,6 +1,8 @@
 use std::collections::{BTreeMap, HashSet};
 
-use buizz_core::market::{DataSource, Dataset, Instrument, RiskFreeRate, Session, Symbol};
+use buizz_core::market::{
+    AssetClass, DataSource, Dataset, Instrument, RiskFreeRate, Session, Symbol,
+};
 use buizz_core::time::Timestamp;
 use chrono::{Datelike, NaiveDate, TimeDelta};
 
@@ -68,11 +70,24 @@ impl Ingest {
         {
             return Ok(work);
         }
-        let assets = match alpaca.assets().await {
+        let mut assets = match alpaca.assets().await {
             Ok(assets) => assets,
             Err(error) => return self.source_failure(now, &key, &error).await,
         };
         self.record_fetched(now, &key, assets.len()).await?;
+        if let Some(edgar) = &self.sources.edgar {
+            let key = FetchKey::new(DataSource::Edgar, Dataset::Instruments, None, None);
+            let funds = match edgar.fund_tickers().await {
+                Ok(funds) => funds,
+                Err(error) => return self.source_failure(now, &key, &error).await,
+            };
+            self.record_fetched(now, &key, funds.len()).await?;
+            for asset in &mut assets {
+                if funds.contains(&asset.symbol) {
+                    asset.asset_class = AssetClass::Etf;
+                }
+            }
+        }
         let stored: BTreeMap<Symbol, Instrument> = self
             .market
             .instruments()

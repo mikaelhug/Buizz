@@ -113,19 +113,11 @@ impl WireAsset {
         if self.class != "us_equity" {
             return None;
         }
-        let is_etf = self
-            .name
-            .split(|c: char| !c.is_alphanumeric())
-            .any(|word| word.eq_ignore_ascii_case("etf"));
         Some(Instrument {
             symbol: Symbol::new(&self.symbol),
             name: self.name,
             exchange: self.exchange,
-            asset_class: if is_etf {
-                AssetClass::Etf
-            } else {
-                AssetClass::Stock
-            },
+            asset_class: AssetClass::Stock,
             active: self.status == "active",
             shortable: self.shortable,
             first_session: None,

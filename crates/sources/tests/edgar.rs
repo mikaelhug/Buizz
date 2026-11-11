@@ -12,6 +12,7 @@ use rust_decimal::Decimal;
 const USER_AGENT_VALUE: &str = "buizz-test contact@example.test";
 const COMPANY_FACTS: &str = include_str!("../fixtures/edgar/companyfacts_sample.json");
 const TICKERS: &str = include_str!("../fixtures/edgar/company_tickers.json");
+const FUND_TICKERS: &str = include_str!("../fixtures/edgar/company_tickers_mf.json");
 
 fn date(year: i32, month: u32, day: u32) -> NaiveDate {
     NaiveDate::from_ymd_opt(year, month, day).unwrap()
@@ -54,6 +55,7 @@ fn guarded(
 async fn serve_sec() -> String {
     let app = Router::new()
         .route("/files/company_tickers.json", get(guarded(TICKERS)))
+        .route("/files/company_tickers_mf.json", get(guarded(FUND_TICKERS)))
         .route(
             "/api/xbrl/companyfacts/CIK0000320193.json",
             get(guarded(COMPANY_FACTS)),
@@ -89,6 +91,8 @@ async fn companyfacts_become_append_only_point_in_time_facts() {
     let tickers = client.ticker_map().await.unwrap();
     assert_eq!(tickers.get(&apple), Some(&320193));
     assert_eq!(tickers.get(&Symbol::new("BRK.B")), Some(&1067983));
+    let funds = client.fund_tickers().await.unwrap();
+    assert!(funds.contains(&Symbol::new("SPY")) && !funds.contains(&apple));
 
     let facts = client
         .company_facts(&apple, tickers[&apple], &weekday_calendar(2021, 2024))

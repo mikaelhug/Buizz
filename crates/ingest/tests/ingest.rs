@@ -10,7 +10,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Router, serve};
 use buizz_core::api::SpineEvent;
-use buizz_core::market::{DataSource, Dataset, Symbol, Timeframe};
+use buizz_core::market::{AssetClass, DataSource, Dataset, Symbol, Timeframe};
 use buizz_core::ops::{FetchStatus, JobOutcome};
 use buizz_core::time::Timestamp;
 use buizz_ingest::{Ingest, IngestConfig};
@@ -30,6 +30,7 @@ const ACTIONS_PAGE_1: &str =
 const ACTIONS_PAGE_2: &str =
     include_str!("../../sources/fixtures/alpaca/corporate_actions_page2.json");
 const TICKERS: &str = include_str!("../../sources/fixtures/edgar/company_tickers.json");
+const FUND_TICKERS: &str = include_str!("../../sources/fixtures/edgar/company_tickers_mf.json");
 const COMPANY_FACTS: &str = include_str!("../../sources/fixtures/edgar/companyfacts_sample.json");
 const YIELDS: &str = include_str!("../../sources/fixtures/treasury/par_yield_2025.csv");
 
@@ -205,6 +206,10 @@ async fn serve_fakes(fake: Arc<Fake>) -> String {
         .route("/v1/corporate-actions", get(actions))
         .route("/tiingo/daily/{symbol}/prices", get(tiingo))
         .route("/files/company_tickers.json", get(tickers))
+        .route(
+            "/files/company_tickers_mf.json",
+            get(|| async { json(FUND_TICKERS.to_owned()) }),
+        )
         .route("/api/xbrl/companyfacts/{file}", get(company_facts))
         .route(
             "/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv/{year}/all",
@@ -338,6 +343,21 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
     let backfilled = rows(&market).await;
     assert!(backfilled.sessions > 2_000);
     assert_eq!(backfilled.instruments, 3);
+    let classes: Vec<(String, AssetClass)> = market
+        .instruments()
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|instrument| (instrument.symbol.as_str().to_owned(), instrument.asset_class))
+        .collect();
+    assert_eq!(
+        classes,
+        vec![
+            ("AAPL".to_owned(), AssetClass::Stock),
+            ("SIVB".to_owned(), AssetClass::Stock),
+            ("SPY".to_owned(), AssetClass::Etf),
+        ]
+    );
     assert_eq!(
         backfilled.bars,
         weekdays(date(ALPACA_FIRST_BAR), date(ALPACA_LAST_BAR)).len()
