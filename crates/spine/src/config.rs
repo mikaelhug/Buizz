@@ -55,6 +55,15 @@ fn admin_password(value: Option<String>) -> Result<String> {
     Ok(password)
 }
 
+pub fn spine_url(bound: SocketAddr) -> String {
+    let ip = match bound.ip() {
+        IpAddr::V4(ip) if ip.is_unspecified() => IpAddr::V4(Ipv4Addr::LOCALHOST),
+        IpAddr::V6(ip) if ip.is_unspecified() => IpAddr::V6(Ipv6Addr::LOCALHOST),
+        ip => ip,
+    };
+    format!("ws://{}", SocketAddr::new(ip, bound.port()))
+}
+
 impl Config {
     pub fn from_env() -> Result<Self> {
         let bind = var_or("BUIZZ_BIND", "0.0.0.0:8080")
@@ -92,15 +101,6 @@ impl Config {
                 base_url: var_or("TREASURY_URL", treasury::BASE_URL),
             },
         })
-    }
-
-    pub fn spine_url(&self) -> String {
-        let ip = match self.bind.ip() {
-            IpAddr::V4(ip) if ip.is_unspecified() => IpAddr::V4(Ipv4Addr::LOCALHOST),
-            IpAddr::V6(ip) if ip.is_unspecified() => IpAddr::V6(Ipv6Addr::LOCALHOST),
-            ip => ip,
-        };
-        format!("ws://{}", SocketAddr::new(ip, self.bind.port()))
     }
 
     pub fn stream(&self) -> Option<StreamConfig> {

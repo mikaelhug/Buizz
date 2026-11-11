@@ -49,7 +49,7 @@ The spine (`cargo run -p buizz-spine`) reads these environment variables. Empty 
 | Variable | Default | Meaning |
 |---|---|---|
 | `BUIZZ_ADMIN_PASSWORD` | required | The single admin password for the web UI and API, at least 12 characters |
-| `BUIZZ_BIND` | `0.0.0.0:8080` | Listen address, `host:port` |
+| `BUIZZ_BIND` | `0.0.0.0:8080` | Listen address, `host:port`; with port 0 the spine picks a free port and logs it as `spine listening addr=<host:port>` |
 | `BUIZZ_DATA_DIR` | `data` | Where `market.duckdb`, `state.db` and `backups/` live |
 | `BUIZZ_BOTS_DIR` | `bots` | Folder scanned for bots |
 | `BUIZZ_WEB_DIR` | unset | A built web bundle (`web/dist`) to serve from the spine; unset serves the API only |
