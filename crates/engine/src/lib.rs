@@ -56,6 +56,13 @@ impl Decision<'_> {
     }
 }
 
+fn locked_on_close(order: &Order, session: &Session, at: Timestamp) -> bool {
+    order.order_type == OrderType::MarketOnClose
+        && order.session == Some(session.date)
+        && at > session.close - TimeDelta::minutes(MOC_CUTOFF_MINUTES)
+        && at < session.close
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DrawdownStop {
     Closing,
@@ -220,9 +227,11 @@ impl Engine {
 
     pub fn drawdown_stop(&self) -> Option<DrawdownStop> {
         self.state.stopped_at?;
-        Some(match self.state.portfolio.open_positions().next() {
-            Some(_) => DrawdownStop::Closing,
-            None => DrawdownStop::Flat,
+        let flat =
+            self.state.portfolio.open_positions().next().is_none() && self.state.working.is_empty();
+        Some(match flat {
+            true => DrawdownStop::Flat,
+            false => DrawdownStop::Closing,
         })
     }
 
@@ -346,8 +355,7 @@ impl Engine {
         };
         let id = order.id;
         if order.order_type == OrderType::MarketOnClose {
-            let locked = order.session == Some(decision.on_close.date) && decision.auction_closed();
-            if !locked {
+            if !locked_on_close(order, decision.on_close, decision.at) {
                 self.close_where(decision.at, OrderStatus::Cancelled, |order| order.id == id);
             }
             return;
@@ -508,6 +516,7 @@ impl Engine {
             .state
             .working
             .values()
+            .filter(|order| order.order_type != OrderType::MarketOnClose)
             .map(|order| &order.symbol)
             .collect();
         let uncovered: Vec<(Symbol, i64)> = self
@@ -809,7 +818,10 @@ impl Engine {
                 });
                 if limit == RiskLimit::MaxDrawdown {
                     self.state.stopped_at = Some(at);
-                    self.cancel_all(at);
+                    let session = self.state.session;
+                    self.close_where(at, OrderStatus::Cancelled, |order| {
+                        !session.is_some_and(|session| locked_on_close(order, &session, at))
+                    });
                 }
             }
         }
@@ -1328,6 +1340,48 @@ mod tests {
             Some(RejectReason::DuplicateClientId)
         );
         assert_eq!(engine.holdings().working.len(), 1);
+    }
+
+    #[test]
+    fn a_drawdown_stop_after_the_cutoff_keeps_the_locked_market_on_close() {
+        let (first, second) = (session(20), session(21));
+        let mut config = config("100000", "1");
+        config.risk.max_drawdown = Some("0.1".parse().unwrap());
+        let mut engine = Engine::new(&config, first.open);
+        step(
+            &mut engine,
+            &first,
+            &[bar(&first, "100", "99", "100")],
+            &[("AAA", 1_000_000)],
+        );
+        submit(
+            &mut engine,
+            &first,
+            vec![
+                buy("AAA-1", 500),
+                order(
+                    "AAA-2",
+                    OrderSize::Qty { qty: 10 },
+                    OrderType::MarketOnClose,
+                ),
+            ],
+        );
+        let crash = bar(&second, "100", "40", "50");
+        engine.run_cycle(&Cycle {
+            session: &second,
+            start: second.open,
+            visible_at: second.close - TimeDelta::minutes(5),
+            bars: std::slice::from_ref(&crash),
+            official: &[],
+            actions: &[],
+            average_daily_volume: &BTreeMap::new(),
+            delisted: &[],
+            risk_free_rate: None,
+        });
+        assert_eq!(engine.drawdown_stop(), Some(DrawdownStop::Closing));
+        let working = engine.holdings().working;
+        assert_eq!(working.len(), 1);
+        assert_eq!(working[0].order_type, OrderType::MarketOnClose);
     }
 
     #[test]
