@@ -7,8 +7,14 @@ use axum::body::{Body, to_bytes};
 use axum::extract::ConnectInfo;
 use axum::http::{HeaderMap, HeaderName, Request, StatusCode, header};
 use buizz_api::{ApiConfig, AppState};
+use buizz_core::api::Leaderboard;
+use buizz_core::performance::Metrics;
 use buizz_core::protocol::BOT_PATH;
-use buizz_core::run::CostModel;
+use buizz_core::run::{
+    BotManifest, CostModel, DesiredState, Mode, PeriodPreset, RiskLimits, RunConfig, RunId,
+    RunStatus,
+};
+use buizz_core::time::Timestamp;
 use buizz_feed::{FeedConfig, FeedManager};
 use buizz_ingest::{Ingest, IngestConfig};
 use buizz_market::MarketStore;
@@ -16,7 +22,7 @@ use buizz_runner::{Runner, RunnerConfig, RunnerDeps};
 use buizz_sources::Sources;
 use buizz_sources::alpaca::HISTORY_START;
 use buizz_sources::treasury::{self, TreasuryClient, TreasuryConfig};
-use buizz_state::StateStore;
+use buizz_state::{NewRun, RunOutcome, StateStore};
 use buizz_supervisor::{Supervisor, SupervisorConfig};
 use rust_decimal::Decimal;
 use tempfile::TempDir;
@@ -26,7 +32,8 @@ const SPINE_IP: [u8; 4] = [10, 42, 0, 9];
 
 struct Spine {
     router: Router,
-    _data: TempDir,
+    state: StateStore,
+    data: TempDir,
 }
 
 async fn spine() -> Spine {
@@ -102,14 +109,15 @@ async fn spine() -> Spine {
         }),
         runner,
         market,
-        state,
+        state: state.clone(),
         feed,
         ingest,
         shutdown: tokio::sync::watch::channel(false).1,
     });
     Spine {
         router,
-        _data: data,
+        state,
+        data,
     }
 }
 
@@ -247,4 +255,89 @@ async fn the_bot_socket_refuses_peers_outside_the_spine_host() {
     assert_ne!(local.status, StatusCode::FORBIDDEN);
     let bound = send(&spine, bot_dial(SPINE_IP)).await;
     assert_ne!(bound.status, StatusCode::FORBIDDEN);
+}
+
+const STEADY: &str = r#"
+command = ["python", "bot.py"]
+timeframe = "1d"
+universe = { symbols = ["SPY"] }
+params = { lookback = 20 }
+risk = { max_drawdown = 0.2 }
+"#;
+
+async fn completed_backtest(spine: &Spine, manifest: &BotManifest, risk: RiskLimits) -> RunId {
+    let created_at = Timestamp::now();
+    let period = PeriodPreset::OneYear.resolve(created_at.exchange_date());
+    let config = RunConfig {
+        bot: "steady".to_owned(),
+        mode: Mode::Backtest,
+        params: manifest.params.clone(),
+        universe: manifest.universe.clone(),
+        timeframe: manifest.timeframe,
+        wake: manifest.wake,
+        start: period.from,
+        end: Some(period.to),
+        start_cash: Decimal::from(100_000),
+        cost: CostModel::default(),
+        risk,
+        seed: 1,
+        benchmark: manifest.benchmark.clone(),
+        holdout: false,
+    };
+    let id = spine
+        .state
+        .create_run(NewRun {
+            config,
+            status: RunStatus::Running,
+            desired: DesiredState::Running,
+            bot_hash: String::new(),
+            engine_version: String::new(),
+            data_watermark: None,
+            badges: Vec::new(),
+            created_at,
+        })
+        .await
+        .expect("run created");
+    spine
+        .state
+        .finish_run(
+            id,
+            RunOutcome {
+                status: RunStatus::Completed,
+                finished_at: Timestamp::now(),
+                result_hash: None,
+                metrics: Some(Metrics::default()),
+                message: None,
+                badge: None,
+            },
+        )
+        .await
+        .expect("run finished");
+    id
+}
+
+#[tokio::test]
+async fn the_leaderboard_ranks_a_bot_by_its_run_as_configured_not_by_an_override() {
+    let spine = spine().await;
+    let bot = spine.data.path().join("bots").join("steady");
+    std::fs::create_dir_all(&bot).expect("bot dir");
+    std::fs::write(bot.join(BotManifest::FILE_NAME), STEADY).expect("bot.toml");
+    let manifest = BotManifest::from_toml(STEADY).expect("manifest");
+    let configured = completed_backtest(&spine, &manifest, manifest.risk).await;
+    completed_backtest(&spine, &manifest, RiskLimits::default()).await;
+
+    let cookie = session_cookie(&spine).await;
+    let request = Request::get("/api/leaderboard?preset=1y")
+        .header(header::COOKIE, &cookie)
+        .body(Body::empty())
+        .expect("request");
+    let reply = send(&spine, request).await;
+    assert_eq!(reply.status, StatusCode::OK, "{}", reply.body);
+    let leaderboard: Leaderboard = serde_json::from_str(&reply.body).expect("leaderboard");
+    let ranked: Vec<RunId> = leaderboard.rows.iter().map(|row| row.run_id).collect();
+    assert_eq!(
+        ranked,
+        [configured],
+        "the newer run without the drawdown stop does not rank"
+    );
 }

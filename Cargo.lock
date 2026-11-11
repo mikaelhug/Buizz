@@ -476,6 +476,7 @@ dependencies = [
  "futures",
  "rand 0.10.3",
  "rust_decimal",
+ "serde_json",
  "subtle",
  "tempfile",
  "tokio",
