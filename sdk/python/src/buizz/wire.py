@@ -189,9 +189,39 @@ class FundamentalsResult(msgspec.Struct, frozen=True, tag_field="kind", tag="fun
     points: list[FundamentalFact]
 
 
+class InstrumentProfile(msgspec.Struct, frozen=True):
+    symbol: str
+    name: str
+    exchange: str
+    asset_class: Literal["stock", "etf"]
+    sic: int | None
+    sic_description: str | None
+
+
+class InstrumentsResult(msgspec.Struct, frozen=True, tag_field="kind", tag="instruments"):
+    instruments: list[InstrumentProfile]
+
+
+class EarningsReleaseFrame(msgspec.Struct, frozen=True):
+    symbol: str
+    cik: int
+    accession: str
+    form: str
+    filed: date
+    report_date: date | None
+    accepted_at: int
+
+
+class EarningsResult(msgspec.Struct, frozen=True, tag_field="kind", tag="earnings"):
+    releases: list[EarningsReleaseFrame]
+
+
+type QueryResult = HistoryResult | FundamentalsResult | InstrumentsResult | EarningsResult
+
+
 class Data(msgspec.Struct, frozen=True, tag_field="type", tag="data"):
     id: int
-    result: HistoryResult | FundamentalsResult
+    result: QueryResult
 
 
 class Error(msgspec.Struct, frozen=True, tag_field="type", tag="error"):
@@ -222,9 +252,20 @@ class FundamentalsRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="fu
     metrics: list[Metric]
 
 
+class InstrumentsRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="instruments"):
+    symbols: list[str]
+
+
+class EarningsRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="earnings"):
+    symbols: list[str]
+
+
+type QueryRequest = HistoryRequest | FundamentalsRequest | InstrumentsRequest | EarningsRequest
+
+
 class Query(msgspec.Struct, frozen=True, tag_field="type", tag="query"):
     id: int
-    request: HistoryRequest | FundamentalsRequest
+    request: QueryRequest
 
 
 class QtySize(msgspec.Struct, frozen=True, tag_field="by", tag="qty"):

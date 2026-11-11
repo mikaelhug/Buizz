@@ -36,12 +36,14 @@ spine -> end {reason, message?}
   - In numpy: `np.frombuffer(bars["close"], "<f8")`.
 - `events`: what happened since the previous step: `fill`, `order` (status changes incl. `rejected` with `reject_reason`, `expired`, `cancelled`) and `corporate_action` (applied at the ex-date open).
 - `cash`, `equity`: always present. `holdings` (`positions` with `qty` and `avg_cost`, `working` orders) is sent on the first step and whenever it changed, otherwise `null`; the bot keeps its last copy and prices positions with the bars.
-- `universe`: present when the universe changed (`top_dollar_volume` is recomputed as-of each session).
+- `universe`: present when the universe changed (`top_dollar_volume` and `index` universes are recomputed as-of each session).
 
 ## Queries
 
 - `history {symbols, timeframe, bars, adjust}`: the last `bars` (1..10000) bars per symbol visible at `clock`, as a bar buffer. `adjust` is `raw`, `split` or `all` (splits and dividends), using only corporate actions whose ex-date session has opened by `clock`.
 - `fundamentals {symbols, metrics}`: every fact visible at `clock` for those canonical metrics (the latest filing per period wins), as `points`.
+- `instruments {symbols}`: `instruments`, one `{symbol, name, exchange, asset_class, sic, sic_description}` per known symbol. These are the instrument's current values, not as of `clock` (see [Writing a bot](writing-a-bot.md#reading)).
+- `earnings {symbols}`: `releases`, every 8-K or 8-K/A carrying Item 2.02 (results of operations) whose EDGAR acceptance time is at or before `clock`: `{symbol, cik, accession, form, filed, report_date, accepted_at}` with `accepted_at` in ns.
 
 ## Ack
 
@@ -52,7 +54,7 @@ spine -> end {reason, message?}
 
 ## Time rules
 
-- Visibility: a 1m bar at `start + 60 s`; a daily bar at the session close; a fundamental fact at the open of the first session after its `filed` date; a corporate action at the open of its ex-date session.
+- Visibility: a 1m bar at `start + 60 s`; a daily bar at the session close; a fundamental fact at the open of the first session after its `filed` date; an earnings release at its EDGAR acceptance time; a corporate action at the open of its ex-date session.
 - Each bar runs one cycle: order expiry, corporate actions, fills (at the bar's start), mark, risk limits, wake the bot, accept orders (at the bar's visible time). A bar's cycle finishes before the next bar's begins, so an order accepted on bar N fills no earlier than bar N+1's open.
 - A day order belongs to the session of the first bar starting at or after its decision and expires at that session's close.
 - `wake`: `bar` wakes on every bar; `every:30m` when `clock − session open` is a positive multiple of 30 minutes, up to the close; `at:15:55` when the exchange-local clock reads 15:55. Bars visible between wakes still arrive, coalesced, at the next step.

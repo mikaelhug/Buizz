@@ -102,3 +102,49 @@ CREATE TABLE IF NOT EXISTS coverage (
     updated_at TIMESTAMP NOT NULL,
     PRIMARY KEY (dataset, symbol, source)
 );
+
+CREATE TABLE IF NOT EXISTS company (
+    symbol VARCHAR PRIMARY KEY,
+    cik UINTEGER NOT NULL,
+    sic USMALLINT,
+    sic_description VARCHAR,
+    batch_id BIGINT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS earnings_release (
+    symbol VARCHAR NOT NULL,
+    cik UINTEGER NOT NULL,
+    accession VARCHAR NOT NULL,
+    form VARCHAR NOT NULL,
+    filed DATE NOT NULL,
+    report_date DATE,
+    accepted_at TIMESTAMP NOT NULL,
+    batch_id BIGINT NOT NULL,
+    PRIMARY KEY (symbol, accession)
+);
+
+CREATE TABLE IF NOT EXISTS index_member (
+    index_name VARCHAR NOT NULL,
+    symbol VARCHAR NOT NULL,
+    start_date DATE,
+    end_date DATE,
+    batch_id BIGINT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS index_history (
+    index_name VARCHAR PRIMARY KEY,
+    changes UINTEGER NOT NULL,
+    reliable_from DATE,
+    batch_id BIGINT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS borrow_availability (
+    symbol VARCHAR NOT NULL,
+    recorded_at TIMESTAMP NOT NULL,
+    con_id UBIGINT NOT NULL,
+    rebate_rate DECIMAL(12, 6),
+    fee_rate DECIMAL(12, 6),
+    available UBIGINT NOT NULL,
+    available_or_more BOOLEAN NOT NULL,
+    batch_id BIGINT NOT NULL
+);

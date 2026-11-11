@@ -366,6 +366,76 @@ pub struct FundamentalPoint {
     pub available_at: Timestamp,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct Company {
+    pub symbol: Symbol,
+    pub cik: u32,
+    pub sic: Option<u16>,
+    pub sic_description: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct InstrumentProfile {
+    pub symbol: Symbol,
+    pub name: String,
+    pub exchange: String,
+    pub asset_class: AssetClass,
+    pub sic: Option<u16>,
+    pub sic_description: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct EarningsRelease {
+    pub symbol: Symbol,
+    pub cik: u32,
+    pub accession: String,
+    pub form: String,
+    pub filed: NaiveDate,
+    pub report_date: Option<NaiveDate>,
+    pub accepted_at: Timestamp,
+}
+
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, ToSchema,
+)]
+pub enum StockIndex {
+    #[serde(rename = "sp500")]
+    Sp500,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct IndexMember {
+    pub index: StockIndex,
+    pub symbol: Symbol,
+    pub start: Option<NaiveDate>,
+    pub end: Option<NaiveDate>,
+}
+
+impl IndexMember {
+    pub fn member_on(&self, date: NaiveDate) -> bool {
+        self.start.is_none_or(|start| start <= date) && self.end.is_none_or(|end| date < end)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct IndexHistory {
+    pub index: StockIndex,
+    pub members: Vec<IndexMember>,
+    pub changes: u32,
+    pub reliable_from: Option<NaiveDate>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct BorrowAvailability {
+    pub symbol: Symbol,
+    pub at: Timestamp,
+    pub con_id: u64,
+    pub rebate_rate: Option<Decimal>,
+    pub fee_rate: Option<Decimal>,
+    pub available: u64,
+    pub available_or_more: bool,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct RiskFreeRate {
     pub date: NaiveDate,
@@ -383,6 +453,8 @@ pub enum DataSource {
     Edgar,
     Treasury,
     Fixture,
+    Wikipedia,
+    InteractiveBrokers,
 }
 
 #[derive(
@@ -397,6 +469,10 @@ pub enum Dataset {
     CorporateActions,
     Fundamentals,
     Rates,
+    Companies,
+    EarningsReleases,
+    IndexMembership,
+    Borrow,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]

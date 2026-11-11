@@ -7,7 +7,8 @@ use serde_json::{Map, Value};
 
 use crate::ledger::Portfolio;
 use crate::market::{
-    Adjustment, CorporateAction, FundamentalMetric, FundamentalPoint, Session, Symbol, Timeframe,
+    Adjustment, CorporateAction, EarningsRelease, FundamentalMetric, FundamentalPoint,
+    InstrumentProfile, Session, Symbol, Timeframe,
 };
 use crate::order::{Fill, Order, OrderId, OrderRequest, OrderType, OrderUpdate, Side};
 use crate::run::{LogLevel, Mode, RunId, Wake};
@@ -102,6 +103,12 @@ pub enum QueryRequest {
         symbols: Vec<Symbol>,
         metrics: Vec<FundamentalMetric>,
     },
+    Instruments {
+        symbols: Vec<Symbol>,
+    },
+    Earnings {
+        symbols: Vec<Symbol>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -115,6 +122,8 @@ pub struct Data {
 pub enum DataResult {
     History { bars: BarBuffer },
     Fundamentals { points: Vec<FundamentalPoint> },
+    Instruments { instruments: Vec<InstrumentProfile> },
+    Earnings { releases: Vec<EarningsRelease> },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

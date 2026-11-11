@@ -16,11 +16,16 @@ from buizz.wire import (
     Ack,
     Adjust,
     BarBuffer,
+    EarningsRequest,
+    EarningsResult,
     Event,
     FundamentalsRequest,
     FundamentalsResult,
     HistoryRequest,
     HistoryResult,
+    InstrumentProfile,
+    InstrumentsRequest,
+    InstrumentsResult,
     Limit,
     LogLevel,
     LogLine,
@@ -29,6 +34,8 @@ from buizz.wire import (
     OrderRequest,
     Position,
     QtySize,
+    QueryRequest,
+    QueryResult,
     Ready,
     Step,
     Timeframe,
@@ -39,7 +46,7 @@ from buizz.wire import (
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
 
-type QueryFn = Callable[[HistoryRequest | FundamentalsRequest], HistoryResult | FundamentalsResult]
+type QueryFn = Callable[[QueryRequest], QueryResult]
 
 EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 INTRADAY_STAMP = "%Y-%m-%dT%H:%M"
@@ -166,6 +173,16 @@ class FundamentalPoint(msgspec.Struct, frozen=True):
     form: str
     filed: date
     available_at: datetime
+
+
+class EarningsRelease(msgspec.Struct, frozen=True):
+    symbol: str
+    cik: int
+    accession: str
+    form: str
+    filed: date
+    report_date: date | None
+    accepted_at: datetime
 
 
 def split_ratio(raw: History, split_adjusted: History, day: date) -> float | None:
@@ -312,6 +329,23 @@ class Context:
                 from_ns(f.available_at),
             )
             for f in result.points
+        ]
+
+    def instruments(self, symbols: list[str]) -> dict[str, InstrumentProfile]:
+        self._current("ctx.instruments")
+        result = self._query(InstrumentsRequest(symbols))
+        if not isinstance(result, InstrumentsResult):
+            raise ProtocolError(f"instruments query answered with {type(result).__name__}")
+        return {profile.symbol: profile for profile in result.instruments}
+
+    def earnings(self, symbols: list[str]) -> list[EarningsRelease]:
+        self._current("ctx.earnings")
+        result = self._query(EarningsRequest(symbols))
+        if not isinstance(result, EarningsResult):
+            raise ProtocolError(f"earnings query answered with {type(result).__name__}")
+        return [
+            EarningsRelease(r.symbol, r.cik, r.accession, r.form, r.filed, r.report_date, from_ns(r.accepted_at))
+            for r in result.releases
         ]
 
     def order(

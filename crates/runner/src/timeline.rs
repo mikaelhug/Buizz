@@ -186,14 +186,7 @@ impl Timeline {
             .and_then(|previous| previous.date.succ_opt())
             .unwrap_or(date);
         async move {
-            let universe = match universe {
-                UniverseSpec::Symbols { symbols } => symbols,
-                UniverseSpec::TopDollarVolume { top_dollar_volume } => {
-                    market
-                        .top_dollar_volume(top_dollar_volume, date, adv_sessions)
-                        .await?
-                }
-            };
+            let universe = market.universe(&universe, date, adv_sessions).await?;
             let tracked: BTreeSet<Symbol> = universe.iter().cloned().chain(held).collect();
             let symbols: Vec<Symbol> = tracked.iter().cloned().collect();
             let actions = market

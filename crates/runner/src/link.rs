@@ -175,5 +175,19 @@ async fn answer(
                 .map_err(|error| error.to_string())?;
             Ok(DataResult::Fundamentals { points })
         }
+        QueryRequest::Instruments { symbols } => {
+            let instruments = market
+                .instrument_profiles(symbols)
+                .await
+                .map_err(|error| error.to_string())?;
+            Ok(DataResult::Instruments { instruments })
+        }
+        QueryRequest::Earnings { symbols } => {
+            let releases = market
+                .earnings_releases(symbols, clock)
+                .await
+                .map_err(|error| error.to_string())?;
+            Ok(DataResult::Earnings { releases })
+        }
     }
 }

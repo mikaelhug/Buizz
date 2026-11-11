@@ -835,6 +835,13 @@
           }
         }
       },
+      "AssetClass": {
+        "type": "string",
+        "enum": [
+          "stock",
+          "etf"
+        ]
+      },
       "BotDetail": {
         "type": "object",
         "required": [
@@ -1130,7 +1137,9 @@
           "tiingo",
           "edgar",
           "treasury",
-          "fixture"
+          "fixture",
+          "wikipedia",
+          "interactive_brokers"
         ]
       },
       "DataWarning": {
@@ -1221,7 +1230,11 @@
           "bars1m",
           "corporate_actions",
           "fundamentals",
-          "rates"
+          "rates",
+          "companies",
+          "earnings_releases",
+          "index_membership",
+          "borrow"
         ]
       },
       "DesiredState": {
@@ -2072,7 +2085,8 @@
         "enum": [
           "survivorship_biased",
           "holdout",
-          "data_warnings"
+          "data_warnings",
+          "thin_index_history"
         ]
       },
       "RunConfig": {
@@ -2705,6 +2719,12 @@
           }
         }
       },
+      "StockIndex": {
+        "type": "string",
+        "enum": [
+          "sp500"
+        ]
+      },
       "Symbol": {
         "type": "string",
         "example": "AAPL"
@@ -2752,6 +2772,27 @@
                 "type": "integer",
                 "format": "int32",
                 "minimum": 0
+              },
+              "asset_class": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/AssetClass"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "index"
+            ],
+            "properties": {
+              "index": {
+                "$ref": "#/components/schemas/StockIndex"
               }
             }
           }

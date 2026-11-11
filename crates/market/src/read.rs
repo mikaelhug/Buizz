@@ -1,9 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use buizz_core::market::{
-    Adjustment, AdjustmentFactor, Bar, Calendar, CorporateAction, CorporateActionKind, Coverage,
-    DataSource, Dataset, Feed, FundamentalMetric, FundamentalPoint, Instrument, RiskFreeRate,
-    SIP_DELAY, Session, Symbol, Timeframe,
+    Adjustment, AdjustmentFactor, AssetClass, Bar, Calendar, Company, CorporateAction,
+    CorporateActionKind, Coverage, DataSource, Dataset, EarningsRelease, Feed, FundamentalMetric,
+    FundamentalPoint, IndexHistory, IndexMember, Instrument, InstrumentProfile, RiskFreeRate,
+    SIP_DELAY, Session, StockIndex, Symbol, Timeframe,
 };
 use buizz_core::ops::{CoverageGap, DataWarning, UNEXPLAINED_MOVE_THRESHOLD};
 use buizz_core::protocol::BarRow;
@@ -518,6 +519,7 @@ pub(crate) fn top_dollar_volume(
     connection: &Connection,
     calendar: &Calendar,
     count: u32,
+    asset_class: Option<AssetClass>,
     before: NaiveDate,
     sessions: u32,
 ) -> Result<Vec<Symbol>> {
@@ -525,15 +527,174 @@ pub(crate) fn top_dollar_volume(
         return Ok(Vec::new());
     };
     let mut statement = connection.prepare_cached(
-        "SELECT symbol FROM bar_1d WHERE date >= ? AND date < ? GROUP BY symbol \
-         ORDER BY sum(CAST(close AS DOUBLE) * volume) DESC, symbol LIMIT ?",
+        "SELECT b.symbol FROM bar_1d b LEFT JOIN instrument i ON i.symbol = b.symbol \
+         WHERE b.date >= ? AND b.date < ? AND (? IS NULL OR i.asset_class = ?) \
+         GROUP BY b.symbol ORDER BY sum(CAST(b.close AS DOUBLE) * b.volume) DESC, b.symbol \
+         LIMIT ?",
     )?;
+    let class = asset_class.as_ref().map(crate::codec::wire_name);
     let symbols = statement
-        .query_map(params![first.date, before, u64::from(count)], |row| {
-            Ok(row.get::<_, Sym>(0)?.0)
-        })?
+        .query_map(
+            params![first.date, before, class, class, u64::from(count)],
+            |row| Ok(row.get::<_, Sym>(0)?.0),
+        )?
         .collect::<duckdb::Result<Vec<_>>>()?;
     Ok(symbols)
+}
+
+pub(crate) fn index_universe(
+    connection: &Connection,
+    calendar: &Calendar,
+    index: StockIndex,
+    before: NaiveDate,
+    sessions: u32,
+) -> Result<Vec<Symbol>> {
+    let Some(first) = sessions_before(calendar, before, sessions).first() else {
+        return Ok(Vec::new());
+    };
+    let mut statement = connection.prepare_cached(
+        "SELECT DISTINCT m.symbol FROM index_member m \
+         WHERE m.index_name = ? AND (m.start_date IS NULL OR m.start_date <= ?) \
+         AND (m.end_date IS NULL OR ? < m.end_date) \
+         AND EXISTS (SELECT 1 FROM bar_1d b WHERE b.symbol = m.symbol \
+         AND b.date >= ? AND b.date < ?) ORDER BY m.symbol",
+    )?;
+    let symbols = statement
+        .query_map(
+            params![
+                crate::codec::wire_name(&index),
+                before,
+                before,
+                first.date,
+                before
+            ],
+            |row| Ok(row.get::<_, Sym>(0)?.0),
+        )?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    Ok(symbols)
+}
+
+pub(crate) fn index_history(
+    connection: &Connection,
+    index: StockIndex,
+) -> Result<Option<IndexHistory>> {
+    let name = crate::codec::wire_name(&index);
+    let mut statement = connection
+        .prepare_cached("SELECT changes, reliable_from FROM index_history WHERE index_name = ?")?;
+    let mut rows = statement.query(params![name])?;
+    let Some(row) = rows.next()? else {
+        return Ok(None);
+    };
+    let changes: u32 = row.get(0)?;
+    let reliable_from: Option<NaiveDate> = row.get(1)?;
+    let mut statement = connection.prepare_cached(
+        "SELECT symbol, start_date, end_date FROM index_member WHERE index_name = ? \
+         ORDER BY symbol, start_date NULLS FIRST",
+    )?;
+    let members = statement
+        .query_map(params![name], |row| {
+            Ok(IndexMember {
+                index,
+                symbol: row.get::<_, Sym>(0)?.0,
+                start: row.get(1)?,
+                end: row.get(2)?,
+            })
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    Ok(Some(IndexHistory {
+        index,
+        members,
+        changes,
+        reliable_from,
+    }))
+}
+
+pub(crate) fn companies(connection: &Connection) -> Result<Vec<Company>> {
+    let mut statement = connection
+        .prepare_cached("SELECT symbol, cik, sic, sic_description FROM company ORDER BY symbol")?;
+    let companies = statement
+        .query_map([], |row| {
+            Ok(Company {
+                symbol: row.get::<_, Sym>(0)?.0,
+                cik: row.get(1)?,
+                sic: row.get(2)?,
+                sic_description: row.get(3)?,
+            })
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    Ok(companies)
+}
+
+pub(crate) fn instrument_profiles(
+    connection: &Connection,
+    symbols: &[Symbol],
+) -> Result<Vec<InstrumentProfile>> {
+    let symbols = unique(symbols);
+    if symbols.is_empty() {
+        return Ok(Vec::new());
+    }
+    let sql = format!(
+        "SELECT i.symbol, i.name, i.exchange, i.asset_class, c.sic, c.sic_description \
+         FROM instrument i LEFT JOIN company c ON c.symbol = i.symbol \
+         WHERE i.symbol IN ({}) ORDER BY i.symbol",
+        placeholders(symbols.len())
+    );
+    let params = symbol_params(&symbols);
+    let mut statement = connection.prepare_cached(&sql)?;
+    let profiles = statement
+        .query_map(params_from_iter(params.iter()), |row| {
+            Ok(InstrumentProfile {
+                symbol: row.get::<_, Sym>(0)?.0,
+                name: row.get(1)?,
+                exchange: row.get(2)?,
+                asset_class: row.get::<_, Wire<_>>(3)?.0,
+                sic: row.get(4)?,
+                sic_description: row.get(5)?,
+            })
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    Ok(profiles)
+}
+
+pub(crate) fn earnings_releases(
+    connection: &Connection,
+    symbols: &[Symbol],
+    as_of: Timestamp,
+) -> Result<Vec<EarningsRelease>> {
+    let symbols = unique(symbols);
+    if symbols.is_empty() {
+        return Ok(Vec::new());
+    }
+    let sql = format!(
+        "SELECT symbol, cik, accession, form, filed, report_date, accepted_at \
+         FROM earnings_release WHERE symbol IN ({}) AND accepted_at <= ? \
+         ORDER BY symbol, accepted_at, accession",
+        placeholders(symbols.len())
+    );
+    let mut params = symbol_params(&symbols);
+    params.push(Box::new(Ts(as_of)));
+    let mut statement = connection.prepare_cached(&sql)?;
+    let releases = statement
+        .query_map(params_from_iter(params.iter()), |row| {
+            Ok(EarningsRelease {
+                symbol: row.get::<_, Sym>(0)?.0,
+                cik: row.get(1)?,
+                accession: row.get(2)?,
+                form: row.get(3)?,
+                filed: row.get(4)?,
+                report_date: row.get(5)?,
+                accepted_at: row.get::<_, Ts>(6)?.0,
+            })
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    Ok(releases)
+}
+
+pub(crate) fn latest_borrow(connection: &Connection) -> Result<Option<Timestamp>> {
+    let mut statement =
+        connection.prepare_cached("SELECT max(recorded_at) FROM borrow_availability")?;
+    let latest: Option<Ts> = statement.query_row([], |row| row.get(0))?;
+    Ok(latest.map(|at| at.0))
 }
 
 pub(crate) fn risk_free_rates(

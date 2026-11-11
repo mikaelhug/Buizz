@@ -107,9 +107,17 @@ pub const US_GAAP_PRIMARY: &[Entry] = &[
     ("DebtCurrent", M::ShortTermDebt, Currency),
     ("ShortTermBorrowings", M::ShortTermBorrowings, Currency),
     ("LongTermDebtCurrent", M::CurrentLongTermDebt, Currency),
-    ("LongTermDebtNoncurrent", M::LongTermDebtNoncurrent, Currency),
+    (
+        "LongTermDebtNoncurrent",
+        M::LongTermDebtNoncurrent,
+        Currency,
+    ),
     ("PreferredStockValue", M::PreferredStock, Currency),
-    ("PreferredStockValueOutstanding", M::PreferredStock, Currency),
+    (
+        "PreferredStockValueOutstanding",
+        M::PreferredStock,
+        Currency,
+    ),
     ("MinorityInterest", M::MinorityInterest, Currency),
     (
         "RetainedEarningsAccumulatedDeficit",
@@ -118,7 +126,11 @@ pub const US_GAAP_PRIMARY: &[Entry] = &[
     ),
     ("AccruedIncomeTaxesCurrent", M::IncomeTaxesPayable, Currency),
     ("ShortTermInvestments", M::ShortTermInvestments, Currency),
-    ("MarketableSecuritiesCurrent", M::ShortTermInvestments, Currency),
+    (
+        "MarketableSecuritiesCurrent",
+        M::ShortTermInvestments,
+        Currency,
+    ),
     (
         "AvailableForSaleSecuritiesDebtSecuritiesCurrent",
         M::ShortTermInvestments,
@@ -251,7 +263,11 @@ pub const IFRS_PRIMARY: &[Entry] = &[
     ),
     ("NoncontrollingInterests", M::MinorityInterest, Currency),
     ("RetainedEarnings", M::RetainedEarnings, Currency),
-    ("CurrentTaxLiabilitiesCurrent", M::IncomeTaxesPayable, Currency),
+    (
+        "CurrentTaxLiabilitiesCurrent",
+        M::IncomeTaxesPayable,
+        Currency,
+    ),
     ("CurrentTaxLiabilities", M::IncomeTaxesPayable, Currency),
 ];
 

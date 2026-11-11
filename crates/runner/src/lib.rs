@@ -4,13 +4,13 @@ mod link;
 mod report;
 mod timeline;
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, PoisonError};
 
 use axum::extract::ws::WebSocket;
 use buizz_core::api::{RunSummary, SparkPoint, SpineEvent, StartBacktest};
-use buizz_core::market::{Instrument, Symbol, Timeframe};
+use buizz_core::market::{Dataset, Instrument, StockIndex, Symbol, Timeframe};
 use buizz_core::money::CASH_DECIMALS;
 use buizz_core::ops::{CoverageGap, DataWarning};
 use buizz_core::run::{
@@ -470,12 +470,21 @@ impl Runner {
         config: RunConfig,
         spec: &BotSpec,
         status: RunStatus,
-        warnings: Vec<DataWarning>,
+        mut warnings: Vec<DataWarning>,
     ) -> Result<RunSummary, RunnerError> {
         let inner = &self.inner;
         let instruments = inner.market.instruments().await?;
         let mut badges = Vec::new();
-        if survivorship_biased(&config.universe, &instruments) {
+        let mut survivorship = survivorship_biased(&config.universe, &instruments);
+        if let UniverseSpec::Index { index } = config.universe {
+            let check = index_check(&inner.market, index, &config).await?;
+            survivorship |= !check.unpriced.is_empty();
+            if check.thin {
+                badges.push(RunBadge::ThinIndexHistory);
+            }
+            warnings.extend(check.unpriced.into_iter().map(DataWarning::CoverageGap));
+        }
+        if survivorship {
             badges.push(RunBadge::SurvivorshipBiased);
         }
         if config.holdout {
@@ -587,14 +596,9 @@ async fn universe_at(
     config: &RunConfig,
     date: NaiveDate,
 ) -> Result<Vec<Symbol>, MarketError> {
-    match &config.universe {
-        UniverseSpec::Symbols { symbols } => Ok(symbols.clone()),
-        UniverseSpec::TopDollarVolume { top_dollar_volume } => {
-            market
-                .top_dollar_volume(*top_dollar_volume, date, config.cost.adv_sessions)
-                .await
-        }
-    }
+    market
+        .universe(&config.universe, date, config.cost.adv_sessions)
+        .await
 }
 
 pub(crate) async fn gate_symbols(
@@ -618,7 +622,66 @@ fn survivorship_biased(universe: &UniverseSpec, instruments: &[Instrument]) -> b
         UniverseSpec::TopDollarVolume { .. } => !instruments
             .iter()
             .any(|instrument| !instrument.active || instrument.last_session.is_some()),
+        UniverseSpec::Index { .. } => false,
     }
+}
+
+struct IndexCheck {
+    thin: bool,
+    unpriced: Vec<CoverageGap>,
+}
+
+async fn index_check(
+    market: &MarketStore,
+    index: StockIndex,
+    config: &RunConfig,
+) -> Result<IndexCheck, RunnerError> {
+    let history = market.index_history(index).await?.ok_or_else(|| {
+        RunnerError::InvalidRequest(
+            "no index membership is stored yet; the index_membership ingest job fills it"
+                .to_owned(),
+        )
+    })?;
+    let end = config.end.unwrap_or(config.start);
+    let priced: BTreeMap<Symbol, (NaiveDate, NaiveDate)> = market
+        .coverage()
+        .await?
+        .into_iter()
+        .filter(|row| row.dataset == Dataset::Bars1d)
+        .filter_map(|row| Some((row.symbol?, (row.first, row.last))))
+        .fold(BTreeMap::new(), |mut spans, (symbol, (first, last))| {
+            let span = spans.entry(symbol).or_insert((first, last));
+            *span = (span.0.min(first), span.1.max(last));
+            spans
+        });
+    let unpriced = history
+        .members
+        .iter()
+        .filter_map(|member| {
+            let from = member
+                .start
+                .map_or(config.start, |start| start.max(config.start));
+            let to = member
+                .end
+                .and_then(|member_end| member_end.pred_opt())
+                .map_or(end, |last| last.min(end));
+            let priced = priced
+                .get(&member.symbol)
+                .is_some_and(|(first, last)| *first <= to && from <= *last);
+            (from <= to && !priced).then(|| CoverageGap {
+                symbol: member.symbol.clone(),
+                timeframe: Timeframe::Day,
+                from,
+                to,
+            })
+        })
+        .collect();
+    Ok(IndexCheck {
+        thin: history
+            .reliable_from
+            .is_none_or(|reliable| config.start < reliable),
+        unpriced,
+    })
 }
 
 fn describe(warning: &DataWarning) -> String {
