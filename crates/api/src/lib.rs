@@ -22,6 +22,7 @@ use buizz_ingest::Ingest;
 use buizz_market::MarketStore;
 use buizz_runner::Runner;
 use buizz_state::StateStore;
+use tokio::sync::watch;
 use tower_http::services::{ServeDir, ServeFile};
 use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
@@ -43,6 +44,7 @@ pub struct AppState {
     pub state: StateStore,
     pub feed: FeedManager,
     pub ingest: Ingest,
+    pub shutdown: watch::Receiver<bool>,
 }
 
 #[derive(Clone)]

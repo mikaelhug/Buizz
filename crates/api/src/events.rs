@@ -115,9 +115,16 @@ pub(crate) async fn events(
     let through = replayed_through(&backlog, resume);
     let live = live.filter(move |event| future::ready(!already_sent(event, through)));
 
+    let mut shutdown = app.shutdown.clone();
+    let closed = async move {
+        tokio::select! {
+            () = session.ended() => {}
+            _ = shutdown.wait_for(|down| *down) => {}
+        }
+    };
     let stream = stream::iter(backlog)
         .chain(live)
-        .take_until(session.ended())
+        .take_until(closed)
         .filter_map(|event| future::ready(frame(&event).map(Ok)));
     Sse::new(stream).keep_alive(KeepAlive::default())
 }

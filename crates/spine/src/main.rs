@@ -20,6 +20,8 @@ use buizz_state::StateStore;
 use buizz_supervisor::{Supervisor, SupervisorConfig};
 use rust_decimal::Decimal;
 use tokio::net::TcpListener;
+use tokio::signal::unix::{SignalKind, signal};
+use tokio::sync::watch;
 use tracing_subscriber::EnvFilter;
 
 use crate::config::Config;
@@ -105,6 +107,7 @@ async fn main() -> Result<()> {
     let feed_task = feed.spawn();
     let ingest_task = ingest.spawn();
 
+    let (shutting_down, shutdown) = watch::channel(false);
     let app = buizz_api::router(AppState {
         config: Arc::new(ApiConfig {
             admin_password: config.admin_password.clone(),
@@ -116,13 +119,14 @@ async fn main() -> Result<()> {
         state,
         feed,
         ingest,
+        shutdown,
     });
     tracing::info!(bind = %config.bind, "spine listening");
     axum::serve(
         listener,
         app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
     )
-    .with_graceful_shutdown(shutdown_signal())
+    .with_graceful_shutdown(shutdown_signal(shutting_down))
     .await?;
 
     runner.shutdown().await;
@@ -133,12 +137,21 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn shutdown_signal() {
-    let interrupt = tokio::signal::ctrl_c();
-    let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-        .expect("SIGTERM handler installs");
+async fn shutdown_signal(shutting_down: watch::Sender<bool>) {
+    let mut interrupt = signal(SignalKind::interrupt()).expect("SIGINT handler installs");
+    let mut terminate = signal(SignalKind::terminate()).expect("SIGTERM handler installs");
     tokio::select! {
-        _ = interrupt => {}
+        _ = interrupt.recv() => {}
         _ = terminate.recv() => {}
     }
+    tracing::info!("shutting down; a second signal exits at once");
+    shutting_down.send_replace(true);
+    tokio::spawn(async move {
+        tokio::select! {
+            _ = interrupt.recv() => {}
+            _ = terminate.recv() => {}
+        }
+        tracing::warn!("second signal, exiting without a clean shutdown");
+        std::process::exit(1);
+    });
 }

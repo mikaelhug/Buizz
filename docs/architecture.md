@@ -34,7 +34,7 @@ flowchart LR
 
 | Component | Crate or folder | Job |
 |---|---|---|
-| Spine | `crates/spine` | The binary: reads the environment, wires everything, serves HTTP, shuts down cleanly |
+| Spine | `crates/spine` | The binary: reads the environment, wires everything, serves HTTP, shuts down cleanly on SIGTERM or Ctrl-C (closing event streams, then stopping runs at their last checkpoint); a second signal exits at once |
 | Core | `crates/core` | Types and rules shared by all: run config, cost model, risk limits, order and ledger types, visibility rules, bot protocol messages, API types |
 | Market store | `crates/market` | Embedded DuckDB (`market.duckdb`): instruments, calendar, daily and 1m bars, corporate actions, fundamentals, rates, coverage. All reads a run does are as-of queries here |
 | State store | `crates/state` | SQLite in WAL mode (`state.db`): runs, orders, ledger, equity points, run events, job runs, fetch records, step checkpoints |
