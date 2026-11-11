@@ -28,6 +28,9 @@ utoipa.workspace = true
 utoipa-axum.workspace = true
 
 [dev-dependencies]
+buizz-sources.workspace = true
+buizz-supervisor.workspace = true
+tempfile.workspace = true
 tower.workspace = true
 
 [lints]

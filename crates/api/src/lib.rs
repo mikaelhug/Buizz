@@ -16,7 +16,7 @@ use axum::extract::{FromRef, State, WebSocketUpgrade};
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::middleware::{from_fn, from_fn_with_state};
 use axum::response::{IntoResponse, Response};
-use axum::routing::get;
+use axum::routing::{any, get};
 use buizz_core::protocol::BOT_PATH;
 use buizz_feed::FeedManager;
 use buizz_ingest::Ingest;
@@ -28,6 +28,7 @@ use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
 
 use crate::auth::{Auth, require_session};
+use crate::error::Failure;
 use crate::guard::reject_cross_site;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -83,6 +84,8 @@ pub fn router(app: AppState) -> Router {
         .route_layer(from_fn_with_state(api.auth.clone(), require_session))
         .merge(public)
         .route(BOT_PATH, get(bot_socket))
+        .route("/api", any(unknown_api_route))
+        .route("/api/{*rest}", any(unknown_api_route))
         .with_state(api);
     let router = match web_dir {
         Some(dir) => {
@@ -92,6 +95,16 @@ pub fn router(app: AppState) -> Router {
         None => router,
     };
     router.layer(from_fn(reject_cross_site))
+}
+
+#[utoipa::path(get, path = "/healthz", tag = "health",
+    responses((status = 204, description = "the spine is serving requests")))]
+pub(crate) async fn healthz() -> StatusCode {
+    StatusCode::NO_CONTENT
+}
+
+async fn unknown_api_route() -> Failure {
+    Failure::new(StatusCode::NOT_FOUND, "no such API route")
 }
 
 async fn bot_socket(
@@ -119,7 +132,8 @@ async fn bot_socket(
         (name = "leaderboard"),
         (name = "data"),
         (name = "auth"),
-        (name = "events")
+        (name = "events"),
+        (name = "health")
     )
 )]
 struct ApiDoc;

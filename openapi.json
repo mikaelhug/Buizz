@@ -799,6 +799,19 @@
           }
         }
       }
+    },
+    "/healthz": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "operationId": "healthz",
+        "responses": {
+          "204": {
+            "description": "the spine is serving requests"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2785,6 +2798,9 @@
     },
     {
       "name": "events"
+    },
+    {
+      "name": "health"
     }
   ]
 }
