@@ -32,7 +32,7 @@ Orders 1, 6, 7, 9 and 12 are zero-quantity rejections on green days without a po
 
 ## Metric definitions
 
-Equity points `E_1..E_n` are the session closes (n = 10), returns `r_t = E_t / E_{t-1} − 1` (9 returns), benchmark returns `b_t` from SPY closes, `rf = percent / 100 / 252` from `rates.csv` (4.50%).
+Equity points `E_1..E_n` are the session closes (n = 10), returns `r_t = E_t / E_{t-1} − 1` (9 returns), benchmark returns `b_t` from the benchmark equity curve (SPY closes scaled to start cash, rounded to cents), `rf = percent / 100 / 252` from `rates.csv` (4.50%).
 
 | Metric | Definition | Value |
 |---|---|---|
@@ -48,8 +48,8 @@ Equity points `E_1..E_n` are the session closes (n = 10), returns `r_t = E_t / E
 | profit_factor | Σ wins / Σ |losses| = 697.73 / 131.99 | 5.286233… |
 | exposure | mean of `gross_exposure / equity` over equity points | 0.248096… |
 | turnover | Σ |round2(qty × price)| / mean equity = 174,828.83 / 99,889.766 | 1.750217… |
-| beta | `cov(r, b) / var(b)`, ddof=1 | −0.617062… |
-| alpha | `(mean(r) − beta × mean(b)) × 252` | 0.638212… |
+| beta | `cov(r, b) / var(b)`, ddof=1 | −0.617072… |
+| alpha | `(mean(r) − beta × mean(b)) × 252` | 0.638220… |
 
 ## Lookahead boundaries
 
