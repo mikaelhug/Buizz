@@ -69,19 +69,6 @@ impl Ingest {
             Err(error) => return self.source_failure(now, &key, &error).await,
         };
         self.record_fetched(now, &key, assets.len()).await?;
-        if let Some(edgar) = &self.sources.edgar {
-            let key = FetchKey::new(DataSource::Edgar, Dataset::Instruments, None, None);
-            let funds = match edgar.fund_tickers().await {
-                Ok(funds) => funds,
-                Err(error) => return self.source_failure(now, &key, &error).await,
-            };
-            self.record_fetched(now, &key, funds.len()).await?;
-            for asset in &mut assets {
-                if funds.contains(&asset.symbol) {
-                    asset.asset_class = AssetClass::Etf;
-                }
-            }
-        }
         let stored: BTreeMap<Symbol, Instrument> = self
             .market
             .instruments()
@@ -89,21 +76,47 @@ impl Ingest {
             .into_iter()
             .map(|instrument| (instrument.symbol.clone(), instrument))
             .collect();
+        let mut batch = Batch::default();
+        let funds = match &self.sources.edgar {
+            None => None,
+            Some(edgar) => {
+                let key = FetchKey::new(DataSource::Edgar, Dataset::Instruments, None, None);
+                match edgar.fund_tickers().await {
+                    Ok(funds) => {
+                        self.record_fetched(now, &key, funds.len()).await?;
+                        Some(funds)
+                    }
+                    Err(error) => {
+                        self.record_failure(now, &key, &error).await?;
+                        batch.failure("SEC fund tickers", &error);
+                        None
+                    }
+                }
+            }
+        };
+        for asset in &mut assets {
+            asset.asset_class = match &funds {
+                Some(funds) if funds.contains(&asset.symbol) => AssetClass::Etf,
+                Some(_) => AssetClass::Stock,
+                None => stored
+                    .get(&asset.symbol)
+                    .map_or(AssetClass::Stock, |known| known.asset_class),
+            };
+        }
         let changed: Vec<Instrument> = assets
             .into_iter()
             .filter(|asset| stored.get(&asset.symbol) != Some(asset))
             .collect();
-        if changed.is_empty() {
-            return Ok(Work::noop("instruments unchanged"));
-        }
-        let summary = self
-            .market
-            .upsert_instruments(DataSource::Alpaca, changed)
-            .await?;
-        Ok(Work::ok(
-            summary.rows,
-            format!("instruments: {} new or changed", summary.rows),
-        ))
+        let rows = if changed.is_empty() {
+            0
+        } else {
+            self.market
+                .upsert_instruments(DataSource::Alpaca, changed)
+                .await?
+                .rows
+        };
+        batch.success(rows);
+        Ok(batch.finish("instruments"))
     }
 
     pub(crate) async fn rates(&self, now: Timestamp) -> Result<Work, IngestError> {
