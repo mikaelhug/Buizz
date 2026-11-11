@@ -1,5 +1,5 @@
 description = "Singleton-style cannibals: profitable companies shrinking their share count year over year, rebalanced quarterly."
-command = ["uv", "run", "--frozen", "--project", "../../sdk/python", "python", "bot.py"]
+command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
 timeframe = "1d"
 wake = "bar"
 universe = { top_dollar_volume = 500 }

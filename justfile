@@ -6,6 +6,7 @@ setup:
     cd web && npm ci --no-audit --no-fund
     cd e2e/browser && npm ci --no-audit --no-fund && npx --no-install playwright-core install --only-shell --no-progress chromium
     cd sdk/python && uv sync --frozen
+    cd bots && uv sync --frozen
 
 fmt:
     cargo fmt --all
@@ -44,7 +45,7 @@ test:
 lint:
     cargo fmt --all --check
     cargo clippy --workspace --all-targets --locked -- -D warnings
-    cd sdk/python && uv run --frozen ruff format --check . ../../bots ../../e2e/bots && uv run --frozen ruff check . ../../bots ../../e2e/bots && uv run --frozen pyright . ../../bots ../../e2e/bots
+    cd sdk/python && uv run --frozen ruff format --check . ../../bots ../../e2e/bots && uv run --frozen ruff check . ../../bots ../../e2e/bots && uv run --frozen pyright . ../../e2e/bots && cd ../../bots && uv run --frozen pyright
     cd web && npm run --silent typecheck
     cd e2e/browser && npm run --silent typecheck
     uv run --no-project --python 3.13 python scripts/no_comments.py

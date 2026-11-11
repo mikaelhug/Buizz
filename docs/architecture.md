@@ -48,6 +48,7 @@ flowchart LR
 | Metrics | `crates/metrics` | CAGR, volatility, Sharpe, Sortino, drawdown, Calmar, win rate, profit factor, exposure, turnover, alpha and beta from the equity series |
 | Web | `web/` | React and TypeScript with lightweight-charts: bot grid, bot detail, run view, leaderboard, data health. Types are generated from `openapi.json` |
 | SDK | `sdk/python` | The `buizz` package: `Bot`, `Context`, the protocol client and the `buizz` command |
+| Bots environment | `bots/pyproject.toml` | The locked Python environment bots run in (SDK, hmmlearn, lightgbm, scikit-learn, scipy) and the shared package `buizz_bots` |
 
 `just gen` regenerates the golden protocol frames in `fixtures/protocol/`, `openapi.json` and `web/src/api/schema.d.ts` from the Rust types; `just drift` (part of `just check`) fails when they differ.
 
