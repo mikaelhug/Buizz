@@ -454,6 +454,7 @@ impl Driver {
                 )
             }
         };
+        let session = clock.and_then(|clock| timeline.calendar().containing(clock).copied());
         Ok(Self {
             token: token.to_owned(),
             control_tx,
@@ -468,7 +469,7 @@ impl Driver {
             frame,
             after,
             clock,
-            session: None,
+            session,
             link: None,
             process: None,
             status: run.status,
@@ -616,7 +617,7 @@ impl Driver {
                         self.wake().await?;
                     }
                 }
-                None if self.frame.due && (self.benched() || self.link.is_some()) => {
+                None if self.frame.due && self.deliverable() => {
                     self.wake().await?;
                 }
                 None => {
@@ -631,6 +632,10 @@ impl Driver {
                 }
             }
         }
+    }
+
+    fn deliverable(&self) -> bool {
+        self.benched() || (self.link.is_some() && self.session.is_some())
     }
 
     fn arrived_while_deciding(&self) -> bool {

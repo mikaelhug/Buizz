@@ -1,4 +1,4 @@
-use buizz_core::api::RunSummary;
+use buizz_core::api::{RunSummary, SpineEvent};
 use buizz_core::run::{RunId, RunStatus};
 use buizz_core::time::Timestamp;
 use chrono::TimeDelta;
@@ -70,6 +70,38 @@ async fn a_live_run_survives_kill_9_of_its_bot_and_of_the_spine() {
     let (_, through) = fake.release(RELEASE_MINUTES);
     spine.restart().await;
     caught_up(&spine, run.id, through).await;
+
+    let deciding = *bot_started(&spine, run.id, 3).await.last().expect("a bot");
+    killpg(Pid::from_raw(deciding), Signal::SIGSTOP).expect("the bot is stopped");
+    let mut events = spine.subscribe().await;
+    let (_, through) = fake.release(1);
+    let visible = through + TimeDelta::minutes(1);
+    loop {
+        if let SpineEvent::Equity { run_id, at, .. } = events.next().await
+            && run_id == run.id
+            && at == visible
+        {
+            break;
+        }
+    }
+    killpg(Pid::from_raw(deciding), Signal::SIGKILL).expect("the stopped bot is killed");
+    eventually("the undelivered step to be saved", || async {
+        (spine.run(run.id).await.clock == Some(visible)).then_some(())
+    })
+    .await;
+    spine.kill().await;
+    spine.restart().await;
+    let seen = format!("AAA@{}", through.to_datetime().format("%Y-%m-%dT%H:%M:%SZ"));
+    eventually(
+        "the saved step to reach the bot after the restart",
+        || async {
+            let logs = spine.logs(run.id).await;
+            logs.iter()
+                .any(|(_, message)| message.starts_with("step ") && message.contains(&seen))
+                .then_some(())
+        },
+    )
+    .await;
 
     fake.release(60);
     let finished = through_the_close(&spine, run.id).await;
