@@ -1020,7 +1020,7 @@ impl Driver {
         self.absorb();
         if ordered {
             let held = self.held();
-            self.timeline.track(held);
+            self.timeline.track(held).await?;
         }
         self.lease_stream().await?;
         self.commit(false).await
