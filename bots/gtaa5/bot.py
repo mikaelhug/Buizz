@@ -1,7 +1,8 @@
-from datetime import date, timedelta
+from datetime import date
 
 import numpy as np
 import numpy.typing as npt
+from buizz_bots.sessions import last_session_of_month
 
 from buizz import Bot, Context, History, run
 
@@ -18,9 +19,9 @@ def month_end_closes(history: History, today: date) -> npt.NDArray[np.float64]:
 
 class Gtaa5(Bot):
     def on_step(self, ctx: Context) -> None:
-        today = ctx.session.date
-        if ctx.calendar(today, today + timedelta(days=10))[1].date.month == today.month:
+        if not last_session_of_month(ctx):
             return
+        today = ctx.session.date
         assets: list[str] = ctx.params["assets"]
         cash: str = ctx.params["cash"]
         months = int(ctx.params["sma_months"])

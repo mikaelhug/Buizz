@@ -1,4 +1,4 @@
-from datetime import timedelta
+from buizz_bots.sessions import last_session_of_month
 
 from buizz import Bot, Context, run
 
@@ -8,9 +8,7 @@ class SixtyForty(Bot):
         equity_weight = float(ctx.params["equity_weight"])
         targets: dict[str, float] = {ctx.params["equity"]: equity_weight, ctx.params["bonds"]: 1 - equity_weight}
         invested = any(ctx.position(symbol).qty != 0 for symbol in targets)
-        today = ctx.session.date
-        following = ctx.calendar(today, today + timedelta(days=10))[1].date
-        if invested and following.month == today.month:
+        if invested and not last_session_of_month(ctx):
             return
         if missing := sorted(targets.keys() - ctx.bars.keys()):
             ctx.log(f"no bar for {missing} at the close, rebalance skipped", level="warn")
