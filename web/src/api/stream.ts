@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useSyncExternalStore } from "react";
-import type { Schemas } from "./client";
+import { api, type Schemas, UNAUTHORIZED_EVENT } from "./client";
 
 export type SpineEvent = Schemas["SpineEvent"];
 export type StreamStatus = "connecting" | "open" | "down";
@@ -30,6 +30,19 @@ export function connectStream(): () => void {
   let source: EventSource | undefined;
   let retry: ReturnType<typeof setTimeout> | undefined;
   let openedBefore = false;
+  let stopped = false;
+
+  const retryUnlessSignedOut = async () => {
+    const { data } = await api.GET("/api/auth/session").catch(() => ({ data: undefined }));
+    if (stopped) {
+      return;
+    }
+    if (data?.authenticated === false) {
+      window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
+      return;
+    }
+    retry = setTimeout(open, RETRY_MS);
+  };
 
   const open = () => {
     setStatus("connecting");
@@ -44,7 +57,7 @@ export function connectStream(): () => void {
     source.onerror = () => {
       if (source?.readyState === EventSource.CLOSED) {
         setStatus("down");
-        retry = setTimeout(open, RETRY_MS);
+        void retryUnlessSignedOut();
       } else {
         setStatus("connecting");
       }
@@ -59,6 +72,7 @@ export function connectStream(): () => void {
 
   open();
   return () => {
+    stopped = true;
     clearTimeout(retry);
     source?.close();
     setStatus("connecting");
