@@ -380,6 +380,8 @@ export interface components {
             params?: Record<string, never>;
             benchmark?: components["schemas"]["Symbol"];
             risk?: components["schemas"]["RiskLimits"];
+            /** Format: int32 */
+            step_timeout?: number;
         };
         /** @enum {string} */
         BotStatus: "idle" | "live" | "paused" | "backtesting" | "error";

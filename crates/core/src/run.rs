@@ -1,5 +1,6 @@
 use std::fmt;
 use std::str::FromStr;
+use std::time::Duration;
 
 use chrono::{Months, NaiveDate, NaiveTime, TimeDelta};
 use rust_decimal::Decimal;
@@ -577,6 +578,8 @@ pub struct BotManifest {
     pub benchmark: Symbol,
     #[serde(default)]
     pub risk: RiskLimits,
+    #[serde(default = "BotManifest::default_step_timeout")]
+    pub step_timeout: u32,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -590,8 +593,18 @@ pub enum ManifestError {
 impl BotManifest {
     pub const FILE_NAME: &'static str = "bot.toml";
 
+    pub const MAX_STEP_TIMEOUT: u32 = 3600;
+
     fn default_benchmark() -> Symbol {
         Symbol::new("SPY")
+    }
+
+    fn default_step_timeout() -> u32 {
+        60
+    }
+
+    pub fn step_timeout(&self) -> Duration {
+        Duration::from_secs(u64::from(self.step_timeout))
     }
 
     pub fn from_toml(text: &str) -> Result<Self, ManifestError> {
@@ -608,6 +621,11 @@ impl BotManifest {
         }
         if !manifest.risk.are_positive() {
             return Err(ManifestError::Invalid("risk limits must be positive"));
+        }
+        if !(1..=Self::MAX_STEP_TIMEOUT).contains(&manifest.step_timeout) {
+            return Err(ManifestError::Invalid(
+                "step_timeout must be between 1 and 3600 seconds",
+            ));
         }
         if let Wake::BeforeClose { minutes } = manifest.wake
             && minutes >= HALF_DAY_MINUTES

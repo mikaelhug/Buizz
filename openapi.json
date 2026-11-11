@@ -902,6 +902,11 @@
           },
           "risk": {
             "$ref": "#/components/schemas/RiskLimits"
+          },
+          "step_timeout": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
           }
         }
       },

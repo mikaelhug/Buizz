@@ -22,6 +22,7 @@ loop:
 spine -> end {reason, message?}
 ```
 
+- The spine waits `step_timeout` seconds from `bot.toml` (default 60, at most 3600) for the connection and for every frame the bot owes it, so a step's queries and its `ack` each have that long; a bot that stays silent fails its backtest or pauses its live run.
 - Strict alternation: after a `step` the spine only answers queries until it receives the `ack` with the same `seq`. A second `hello`, an ack with the wrong `seq` or any frame outside this order ends the run with `error {code: protocol_violation}`.
 - `error` with `id: null` is fatal and is followed by the socket closing; with an `id` it answers that query and the step continues.
 - Identical in backtest and live. In live, bars that become visible while the bot is deciding coalesce into the next step: `bars` then holds several rows per symbol.

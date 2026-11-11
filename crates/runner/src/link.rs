@@ -10,7 +10,6 @@ use buizz_core::time::Timestamp;
 use buizz_core::visibility::calendar_known_through;
 use buizz_market::{HistoryRequest, MarketStore};
 
-pub(crate) const ACK_TIMEOUT: Duration = Duration::from_secs(60);
 const MAX_HISTORY_BARS: u32 = 10_000;
 const MAX_UNIVERSE_SYMBOLS: u32 = 10_000;
 
@@ -18,19 +17,24 @@ const MAX_UNIVERSE_SYMBOLS: u32 = 10_000;
 pub(crate) enum LinkError {
     #[error("the bot closed its connection")]
     Closed,
-    #[error("the bot sent no frame within {} s", ACK_TIMEOUT.as_secs())]
-    Timeout,
+    #[error("the bot sent no frame within {} s", .0.as_secs())]
+    Timeout(Duration),
     #[error("{1}")]
     Violation(ErrorCode, String),
 }
 
 pub(crate) struct BotLink {
     socket: WebSocket,
+    timeout: Duration,
 }
 
 impl BotLink {
-    pub(crate) async fn handshake(socket: WebSocket, ready: Ready) -> Result<Self, LinkError> {
-        let mut link = Self { socket };
+    pub(crate) async fn handshake(
+        socket: WebSocket,
+        ready: Ready,
+        timeout: Duration,
+    ) -> Result<Self, LinkError> {
+        let mut link = Self { socket, timeout };
         match link.receive().await? {
             BotMessage::Hello(Hello { protocol, .. }) if protocol == PROTOCOL_VERSION => {}
             BotMessage::Hello(Hello { protocol, .. }) => {
@@ -116,9 +120,9 @@ impl BotLink {
 
     async fn receive(&mut self) -> Result<BotMessage, LinkError> {
         loop {
-            let frame = tokio::time::timeout(ACK_TIMEOUT, self.socket.recv())
+            let frame = tokio::time::timeout(self.timeout, self.socket.recv())
                 .await
-                .map_err(|_| LinkError::Timeout)?;
+                .map_err(|_| LinkError::Timeout(self.timeout))?;
             match frame {
                 Some(Ok(Message::Binary(bytes))) => {
                     return match protocol::decode(&bytes) {

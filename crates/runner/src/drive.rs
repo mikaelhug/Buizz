@@ -32,7 +32,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, watch};
 
 use crate::commit::Committer;
-use crate::link::{ACK_TIMEOUT, BotLink, LinkError};
+use crate::link::{BotLink, LinkError};
 use crate::timeline::{Point, Timeline};
 use crate::{Inner, gate_symbols, now, report};
 
@@ -1011,7 +1011,8 @@ impl Driver {
     }
 
     async fn await_bot(&mut self) -> Flow<()> {
-        let deadline = tokio::time::Instant::now() + ACK_TIMEOUT;
+        let timeout = self.spec.manifest.step_timeout();
+        let deadline = tokio::time::Instant::now() + timeout;
         while self.link.is_none() {
             tokio::select! {
                 socket = self.sockets.recv() => self.attach(socket).await?,
@@ -1020,7 +1021,7 @@ impl Driver {
                 _ = tokio::time::sleep_until(deadline) => {
                     let message = format!(
                         "the bot did not connect within {} s",
-                        ACK_TIMEOUT.as_secs()
+                        timeout.as_secs()
                     );
                     if self.live() {
                         return self.pause(EndReason::Failed, Some(message)).await;
@@ -1055,7 +1056,7 @@ impl Driver {
         }
         let ready = self.ready().await?;
         let universe = ready.universe.clone();
-        match BotLink::handshake(socket, ready).await {
+        match BotLink::handshake(socket, ready, self.spec.manifest.step_timeout()).await {
             Ok(link) => {
                 self.link = Some(link);
                 self.arrived_while_deciding = None;

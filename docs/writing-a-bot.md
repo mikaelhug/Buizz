@@ -67,6 +67,7 @@ if __name__ == "__main__":
 | `params` | no | Default parameters, available as `ctx.params`. A backtest request may override them but not add others: an unknown name is refused, as are unknown request and cost fields |
 | `benchmark` | no, default `"SPY"` | Symbol the equity curve is compared with |
 | `[risk]` | no | Risk limits for live runs and the default for backtests, see [Risk limits](#risk-limits) |
+| `step_timeout` | no, default `60` | Seconds the spine waits for the bot to connect and for each of its frames, up to `3600`: raise it for a bot that trains a model inside one step. A bot that stays silent longer fails its backtest or pauses its live run |
 
 The spine starts `command` with `BUIZZ_SPINE_URL`, `BUIZZ_RUN_ID` and `BUIZZ_RUN_TOKEN` set. Of the spine's own environment the bot only inherits `PATH`, `HOME`, `LANG`, `TZ`, `TMPDIR` and the `UV_*` and `PYTHON*` variables, so API keys and the admin password never reach it. Output on stdout and stderr is captured to `logs/<run_id>.log` under the spine's data directory (`BUIZZ_DATA_DIR`, default `data`).
 
