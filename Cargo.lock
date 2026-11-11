@@ -502,6 +502,7 @@ dependencies = [
  "rmp-serde",
  "rust_decimal",
  "serde",
+ "serde_json",
  "thiserror",
 ]
 
@@ -509,10 +510,13 @@ dependencies = [
 name = "buizz-feed"
 version = "0.1.0"
 dependencies = [
+ "axum",
  "buizz-core",
  "buizz-market",
  "buizz-sources",
  "chrono",
+ "futures",
+ "tempfile",
  "thiserror",
  "tokio",
  "tracing",
@@ -522,11 +526,14 @@ dependencies = [
 name = "buizz-ingest"
 version = "0.1.0"
 dependencies = [
+ "axum",
  "buizz-core",
  "buizz-market",
  "buizz-sources",
  "buizz-state",
  "chrono",
+ "futures",
+ "tempfile",
  "thiserror",
  "tokio",
  "tracing",
@@ -555,6 +562,7 @@ dependencies = [
  "buizz-core",
  "chrono",
  "rust_decimal",
+ "serde_json",
 ]
 
 [[package]]
@@ -575,8 +583,11 @@ dependencies = [
  "rand 0.10.3",
  "rmp-serde",
  "rust_decimal",
+ "serde_json",
+ "tempfile",
  "thiserror",
  "tokio",
+ "tokio-tungstenite 0.30.0",
  "tracing",
 ]
 
