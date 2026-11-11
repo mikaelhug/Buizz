@@ -1,0 +1,10 @@
+description = "60/40 SPY/AGG, rebalanced to target at every month end"
+command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
+timeframe = "1d"
+wake = "bar"
+universe = { symbols = ["SPY", "AGG"] }
+params = { equity_weight = 0.6, equity = "SPY", bonds = "AGG" }
+benchmark = "AOR"
+
+[risk]
+max_gross_exposure = 1.0
