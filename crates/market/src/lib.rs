@@ -24,10 +24,11 @@ use crate::read::BarQuery;
 mod codec;
 mod fixture;
 mod lane;
+mod migrate;
 mod read;
 mod write;
 
-pub const SCHEMA: &str = include_str!("../schema.sql");
+pub(crate) const SCHEMA: &str = include_str!("../schema.sql");
 pub const FILE_NAME: &str = "market.duckdb";
 pub const TIMESTAMP_RESOLUTION: TimeDelta = TimeDelta::microseconds(1);
 
@@ -39,6 +40,8 @@ pub enum MarketError {
     Fixture(String),
     #[error("market store io: {0}")]
     Io(#[from] std::io::Error),
+    #[error("market store schema is version {found}, newer than the {known} this spine knows")]
+    NewerSchema { found: i64, known: i64 },
     #[error("market store has shut down")]
     Closed,
     #[error("market store worker failed: {0}")]
@@ -95,8 +98,8 @@ impl MarketStore {
     pub async fn open(path: &Path, readers: usize) -> Result<Self> {
         let path = path.to_owned();
         let (writer, pool, calendar) = tokio::task::spawn_blocking(move || {
-            let writer = Connection::open(path)?;
-            writer.execute_batch(SCHEMA)?;
+            let mut writer = Connection::open(path)?;
+            migrate::migrate(&mut writer)?;
             write::prepare(&writer)?;
             let pool = (0..readers.max(1))
                 .map(|_| writer.try_clone())
