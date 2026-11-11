@@ -12,8 +12,8 @@ use buizz_core::protocol::{
     StepEvent,
 };
 use buizz_core::run::{
-    DRAWDOWN_STOP, DesiredState, EquityPoint, LogLevel, Mode, RunEvent, RunEventKind, RunId,
-    RunStatus,
+    DRAWDOWN_STOP, DesiredState, EquityPoint, LogLevel, Mode, RunBadge, RunEvent, RunEventKind,
+    RunId, RunStatus,
 };
 use buizz_core::time::Timestamp;
 use buizz_core::visibility::{close_auction_session, open_auction_session, order_session};
@@ -247,12 +247,13 @@ pub(crate) async fn run(mut launch: Launch) {
             EndReason::RiskLimit,
         ),
     };
+    let badge = (reason == EndReason::RiskLimit).then_some(RunBadge::DrawdownStop);
     let (message, result_hash) = match closing {
         Some((driver, _slot)) => driver.close(status, reason, message).await,
         None => (message, None),
     };
     if let Some(status) = status
-        && let Err(error) = conclude(&inner, run_id, status, message, result_hash).await
+        && let Err(error) = conclude(&inner, run_id, status, message, result_hash, badge).await
     {
         tracing::error!(run = %run_id, %error, "cannot record the end of a run");
     }
@@ -316,6 +317,7 @@ pub(crate) async fn conclude(
     status: RunStatus,
     message: Option<String>,
     result_hash: Option<String>,
+    badge: Option<RunBadge>,
 ) -> Result<(), StateError> {
     let Some(run) = inner.state.run(run_id).await? else {
         return Err(StateError::UnknownRun(run_id));
@@ -341,6 +343,7 @@ pub(crate) async fn conclude(
                 result_hash,
                 metrics,
                 message: message.clone(),
+                badge,
             },
         )
         .await?;

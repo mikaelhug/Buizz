@@ -102,6 +102,7 @@ pub struct RunOutcome {
     pub result_hash: Option<String>,
     pub metrics: Option<Metrics>,
     pub message: Option<String>,
+    pub badge: Option<RunBadge>,
 }
 
 #[derive(Clone)]

@@ -679,7 +679,7 @@ export interface components {
             max_drawdown?: string | null;
         };
         /** @enum {string} */
-        RunBadge: "survivorship_biased" | "holdout" | "data_warnings";
+        RunBadge: "survivorship_biased" | "holdout" | "data_warnings" | "drawdown_stop";
         RunConfig: {
             bot: string;
             mode: components["schemas"]["Mode"];

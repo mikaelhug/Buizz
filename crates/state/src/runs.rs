@@ -173,15 +173,18 @@ pub fn set_desired(connection: &Connection, run_id: RunId, desired: DesiredState
 
 pub fn finish(connection: &Connection, run_id: RunId, outcome: &RunOutcome) -> Result<()> {
     let metrics = outcome.metrics.as_ref().map(json_text).transpose()?;
+    let badge = outcome.badge.as_ref().map(enum_text).transpose()?;
     let changed = connection.execute(
-        "UPDATE run SET status = ?, finished_at = ?, result_hash = ?, metrics = ?, message = ? \
-         WHERE id = ?",
+        "UPDATE run SET status = ?1, finished_at = ?2, result_hash = ?3, metrics = ?4, message = ?5, \
+         badges = CASE WHEN ?6 IS NULL THEN badges ELSE json_insert(badges, '$[#]', ?6) END \
+         WHERE id = ?7",
         params![
             enum_text(&outcome.status)?,
             outcome.finished_at.nanos(),
             outcome.result_hash,
             metrics,
             outcome.message,
+            badge,
             run_id.0,
         ],
     )?;

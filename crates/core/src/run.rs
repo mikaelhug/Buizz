@@ -509,6 +509,7 @@ pub enum RunBadge {
     SurvivorshipBiased,
     Holdout,
     DataWarnings,
+    DrawdownStop,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]

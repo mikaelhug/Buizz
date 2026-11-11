@@ -545,7 +545,7 @@ impl Runner {
         status: RunStatus,
         message: Option<String>,
     ) -> Result<(), RunnerError> {
-        drive::conclude(&self.inner, run_id, status, message, None).await?;
+        drive::conclude(&self.inner, run_id, status, message, None, None).await?;
         Ok(())
     }
 

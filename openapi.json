@@ -2174,7 +2174,8 @@
         "enum": [
           "survivorship_biased",
           "holdout",
-          "data_warnings"
+          "data_warnings",
+          "drawdown_stop"
         ]
       },
       "RunConfig": {
