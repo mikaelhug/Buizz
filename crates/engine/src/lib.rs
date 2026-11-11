@@ -87,6 +87,7 @@ struct State {
     portfolio: Portfolio,
     last_close: BTreeMap<Symbol, Decimal>,
     working: BTreeMap<OrderId, Order>,
+    #[serde(skip)]
     client_ids: BTreeSet<String>,
     orders_issued: u64,
     ledger_len: u64,
@@ -154,7 +155,11 @@ impl Engine {
         engine
     }
 
-    pub fn restore(config: &RunConfig, checkpoint: &[u8]) -> Result<Self, EngineError> {
+    pub fn restore(
+        config: &RunConfig,
+        checkpoint: &[u8],
+        client_ids: BTreeSet<String>,
+    ) -> Result<Self, EngineError> {
         let header: CheckpointHeader = rmp_serde::from_slice(checkpoint)?;
         let written = match header.version {
             WrittenBy::Engine(version) => version,
@@ -165,7 +170,8 @@ impl Engine {
         if !resumable {
             return Err(EngineError::Version(written));
         }
-        let CheckpointIn { state } = rmp_serde::from_slice(checkpoint)?;
+        let CheckpointIn { mut state } = rmp_serde::from_slice(checkpoint)?;
+        state.client_ids = client_ids;
         Ok(Self {
             timeframe: config.timeframe,
             cost: config.cost.clone(),
@@ -1325,6 +1331,49 @@ mod tests {
     }
 
     #[test]
+    fn a_checkpoint_leaves_client_ids_to_the_orders_and_a_restored_engine_still_rejects_repeats() {
+        let first = session(20);
+        let config = config("100000", "1");
+        let mut engine = Engine::new(&config, first.open);
+        step(
+            &mut engine,
+            &first,
+            &[bar(&first, "100", "99", "100")],
+            &[("AAA", 1_000_000)],
+        );
+        let placed = submit(
+            &mut engine,
+            &first,
+            vec![buy("client-id-kept-by-orders", 1)],
+        );
+        engine.cancel_all(first.close);
+        let checkpoint = engine.checkpoint();
+        assert!(
+            !checkpoint
+                .windows(placed[0].client_id.len())
+                .any(|window| window == placed[0].client_id.as_bytes())
+        );
+        let ids = placed.into_iter().map(|order| order.client_id).collect();
+        let mut restored = Engine::restore(&config, &checkpoint, ids).unwrap();
+        let decision = Decision {
+            at: first.close,
+            session: &first,
+            on_open: &first,
+            on_close: &first,
+        };
+        restored.accept(
+            &decision,
+            vec![buy("client-id-kept-by-orders", 1)],
+            Vec::new(),
+            |_| Err(RejectReason::UnknownSymbol),
+        );
+        assert_eq!(
+            restored.drain().rejections[0].reject_reason,
+            Some(RejectReason::DuplicateClientId)
+        );
+    }
+
+    #[test]
     fn a_live_run_resumes_from_an_older_engine_checkpoint_and_a_backtest_refuses() {
         #[derive(Serialize)]
         struct Legacy<'a> {
@@ -1343,10 +1392,10 @@ mod tests {
             state: &engine.state,
         })
         .unwrap();
-        let resumed = Engine::restore(&live, &checkpoint).unwrap();
+        let resumed = Engine::restore(&live, &checkpoint, BTreeSet::new()).unwrap();
         assert_eq!(resumed.result_hash(), engine.result_hash());
         assert!(matches!(
-            Engine::restore(&backtest, &checkpoint),
+            Engine::restore(&backtest, &checkpoint, BTreeSet::new()),
             Err(EngineError::Version(1))
         ));
     }

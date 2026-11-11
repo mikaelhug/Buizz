@@ -39,6 +39,7 @@ use crate::{Inner, gate_symbols, now, report};
 const EXIT_GRACE: Duration = Duration::from_secs(5);
 const IDLE_RECHECK: Duration = Duration::from_secs(60);
 const EVENT_PAGE: u32 = 1000;
+const ORDER_PAGE: u32 = 1000;
 const BACKTEST_EQUITY_EVERY: Duration = Duration::from_millis(250);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -383,6 +384,19 @@ pub(crate) async fn conclude(
     Ok(())
 }
 
+async fn client_ids(inner: &Inner, run_id: RunId) -> Result<BTreeSet<String>, StateError> {
+    let mut ids = BTreeSet::new();
+    let mut after = None;
+    loop {
+        let page = inner.state.orders(run_id, after, ORDER_PAGE).await?;
+        let Some(last) = page.last() else {
+            return Ok(ids);
+        };
+        after = Some(last.id.0);
+        ids.extend(page.into_iter().map(|order| order.client_id));
+    }
+}
+
 async fn last_event_seq(inner: &Inner, run_id: RunId) -> Result<u64, StateError> {
     let mut last = 0;
     loop {
@@ -444,7 +458,11 @@ impl Driver {
         let checkpoint = inner.state.checkpoint(run.id).await?;
         let (engine, after, clock, last_step, bot_state, frame) = match checkpoint {
             Some(checkpoint) => (
-                Engine::restore(config, &checkpoint.engine_checkpoint)?,
+                Engine::restore(
+                    config,
+                    &checkpoint.engine_checkpoint,
+                    client_ids(&inner, run.id).await?,
+                )?,
                 checkpoint.clock,
                 Some(checkpoint.clock),
                 checkpoint.step_seq,
