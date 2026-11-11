@@ -268,7 +268,7 @@ The spine starts every run with 100,000 start cash and this cost model, whose fi
 | `commission_tiers` | none | Volume tiers, e.g. `[{"above": 300000, "per_share": "0.002"}]`: a fill pays the rate of the highest tier whose `above` the run's shares traded so far this calendar month have reached, like IBKR's tiered pricing |
 | `slippage_bps` | `5` | Basis points against you on market, stop and auction fills and on limit orders already marketable at the open |
 | `slippage_per_share` | `0` | A further amount per share against you on the same fills, e.g. `0.001` |
-| `adv_participation`, `adv_sessions` | `0.05`, `20` | Volume cap: that fraction of the average daily volume of the last sessions, per symbol and session; the rest of the order stays working. A symbol with no average daily volume fills uncapped and the run gets one data warning event for it |
+| `adv_participation`, `adv_sessions` | `0.05`, `20` | Volume cap: that fraction of the average daily volume of the last `adv_sessions` sessions, per symbol and session (universes always rank over 20 sessions, whatever this is); the rest of the order stays working. A symbol with no average daily volume fills uncapped and the run gets one data warning event for it |
 | `borrow_rate` | `0.02` | Per year on short positions, charged at each session close |
 | `financing_spread` | `0.015` | Added to the T-bill rate for the financing of negative cash: the US Treasury 3-month rate last published before the session (within 31 days). Without one the spread alone is charged and the run gets a data warning |
 

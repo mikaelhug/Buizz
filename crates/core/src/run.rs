@@ -310,6 +310,8 @@ pub const MOC_CUTOFF_MINUTES: i64 = 10;
 
 pub const RATE_LOOKBACK_DAYS: i64 = 31;
 
+pub const UNIVERSE_SESSIONS: u32 = 20;
+
 pub const DRAWDOWN_STOP: &str = "stopped by drawdown limit";
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]

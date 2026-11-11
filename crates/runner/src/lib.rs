@@ -15,7 +15,7 @@ use buizz_core::money::CASH_DECIMALS;
 use buizz_core::ops::{CoverageGap, DataWarning};
 use buizz_core::run::{
     CostModel, DesiredState, Mode, PeriodPreset, RunBadge, RunConfig, RunEvent, RunEventKind,
-    RunId, RunStatus, UniverseSpec,
+    RunId, RunStatus, UNIVERSE_SESSIONS, UniverseSpec,
 };
 use buizz_core::time::Timestamp;
 use buizz_engine::ENGINE_VERSION;
@@ -606,7 +606,7 @@ async fn universe_at(
     date: NaiveDate,
 ) -> Result<Vec<Symbol>, MarketError> {
     market
-        .universe(&config.universe, date, config.cost.adv_sessions)
+        .universe(&config.universe, date, UNIVERSE_SESSIONS)
         .await
 }
 

@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use buizz_core::market::{Bar, Calendar, CorporateAction, Instrument, Session, Symbol, Timeframe};
-use buizz_core::run::{Mode, RATE_LOOKBACK_DAYS, RunConfig, UniverseSpec, Wake};
+use buizz_core::run::{Mode, RATE_LOOKBACK_DAYS, RunConfig, UNIVERSE_SESSIONS, UniverseSpec, Wake};
 use buizz_core::time::Timestamp;
 use buizz_core::visibility::bar_visible_at;
 use buizz_market::{MarketError, MarketStore, TIMESTAMP_RESOLUTION};
@@ -218,7 +218,7 @@ impl Timeline {
             .and_then(|previous| previous.date.succ_opt())
             .unwrap_or(date);
         async move {
-            let universe = market.universe(&universe, date, adv_sessions).await?;
+            let universe = market.universe(&universe, date, UNIVERSE_SESSIONS).await?;
             let tracked: BTreeSet<Symbol> = universe.iter().cloned().chain(held).collect();
             let symbols: Vec<Symbol> = tracked.iter().cloned().collect();
             let actions = market
