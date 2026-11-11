@@ -5,12 +5,12 @@ use buizz_core::ledger::{LedgerEntry, LedgerKind};
 use buizz_core::market::{RiskFreeRate, Symbol};
 use buizz_core::money::round_cash;
 use buizz_core::performance::Metrics;
-use buizz_core::run::EquityPoint;
+use buizz_core::run::{CostModel, EquityPoint};
 use buizz_core::time::Timestamp;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
 
-const TRADING_DAYS: f64 = 252.0;
+const TRADING_DAYS: f64 = CostModel::TRADING_DAYS_PER_YEAR as f64;
 const MIN_SPREAD: f64 = f64::EPSILON;
 
 pub struct MetricsInput<'a> {
