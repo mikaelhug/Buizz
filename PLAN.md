@@ -127,6 +127,8 @@ Out of v1: brokers and real money; options, crypto, FX; tick/quote simulation; e
    - `result_hash` depends on decimal scale: `100000` and `100000.00` start cash give different hashes for identical runs.
    - The spine does not exit on SIGTERM while a browser holds the SSE stream open (graceful shutdown waits on it); Kubernetes pod shutdown would hang until SIGKILL.
    - A live run's SPY benchmark only extends on reload or status change.
+   - No time seam: the runner, feed, ingest, API and supervisor call the wall clock directly, so the live e2e scenarios must sleep between 23:28 and 00:11 ET. Add one `now()` in `buizz_core::time` with a test offset.
+   - The spine cannot report its bound address when `BUIZZ_BIND` uses port 0; e2e works around it with relaunch-on-collision.
    Decided: the drawdown limit is a true stop-loss in both modes. On a breach the engine closes every position at the next open with normal costs, and the run ends as failed with the message "stopped by drawdown limit" (backtest and live alike; going live again starts a fresh run). To test a strategy without the stop, remove `max_drawdown` from its `[risk]`. Implemented after the core/engine and runner fix agents merge.
 4. Implement the bot backlog in `bots/BRIEFS.md`, one Opus 5.5 agent per bot, each followed by a critical review of that implementation against its brief. Contract gaps (G1–G13) land as their own PRs before the bots they block.
 
