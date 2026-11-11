@@ -8,6 +8,7 @@ use axum::response::IntoResponse;
 use buizz_core::api::{
     ApiError, EquitySeries, EventsPage, Leaderboard, LeaderboardBenchmark, LeaderboardQuery,
     LeaderboardRow, OrderView, OrdersPage, PageQuery, PositionView, RunSummary, RunsQuery,
+    TradeView,
 };
 use buizz_core::market::{Adjustment, Symbol};
 use buizz_core::money::round_price;
@@ -144,6 +145,35 @@ pub(crate) async fn run_orders(
         })
         .collect();
     Ok(Json(OrdersPage { items, next_after }))
+}
+
+#[utoipa::path(get, path = "/api/runs/{id}/trades", tag = "runs",
+    params(("id" = RunId, Path)),
+    responses((status = 200, body = Vec<TradeView>), (status = 404, body = ApiError)))]
+pub(crate) async fn run_trades(
+    State(app): State<AppState>,
+    Path(id): Path<RunId>,
+) -> Result<Json<Vec<TradeView>>, Failure> {
+    require_run(&app, id).await?;
+    let trips = buizz_metrics::round_trips(&app.state.ledger(id).await?);
+    let reasons: HashMap<OrderId, String> = app
+        .state
+        .orders(id, None, u32::MAX)
+        .await?
+        .into_iter()
+        .map(|order| (order.id, order.reason))
+        .collect();
+    let reason = |order: Option<OrderId>| order.and_then(|order| reasons.get(&order).cloned());
+    Ok(Json(
+        trips
+            .into_iter()
+            .map(|trip| TradeView {
+                opening_reason: reason(trip.opened_by),
+                closing_reason: reason(trip.closed_by),
+                trip,
+            })
+            .collect(),
+    ))
 }
 
 async fn latest_closes(

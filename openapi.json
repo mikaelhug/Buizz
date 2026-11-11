@@ -808,6 +808,47 @@
         }
       }
     },
+    "/api/runs/{id}/trades": {
+      "get": {
+        "tags": [
+          "runs"
+        ],
+        "operationId": "run_trades",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/RunId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TradeView"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/healthz": {
       "get": {
         "tags": [
@@ -2229,6 +2270,54 @@
         },
         "additionalProperties": false
       },
+      "RoundTrip": {
+        "type": "object",
+        "required": [
+          "symbol",
+          "qty",
+          "opened_at",
+          "closed_at",
+          "pnl"
+        ],
+        "properties": {
+          "symbol": {
+            "$ref": "#/components/schemas/Symbol"
+          },
+          "qty": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "opened_at": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "closed_at": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "opened_by": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OrderId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "closed_by": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OrderId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pnl": {
+            "type": "string"
+          }
+        }
+      },
       "RunBadge": {
         "type": "string",
         "enum": [
@@ -2896,6 +2985,30 @@
       "Timestamp": {
         "type": "string",
         "format": "date-time"
+      },
+      "TradeView": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RoundTrip"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "opening_reason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "closing_reason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        ]
       },
       "Trail": {
         "oneOf": [

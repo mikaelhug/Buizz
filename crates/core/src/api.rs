@@ -6,7 +6,7 @@ use utoipa::{IntoParams, ToSchema};
 use crate::market::{Coverage, Symbol, Timeframe, Watermarks};
 use crate::ops::{DataWarning, JobOutcome};
 use crate::order::{Fill, Order, OrderUpdate};
-use crate::performance::Metrics;
+use crate::performance::{Metrics, RoundTrip};
 use crate::run::{
     BotManifest, CostModel, DesiredState, EquityPoint, Mode, Period, PeriodPreset, Reproducibility,
     RiskLimits, RunBadge, RunConfig, RunEvent, RunId, RunStatus,
@@ -92,6 +92,14 @@ pub struct OrderView {
     pub order: Order,
     #[serde(default, with = "crate::money::price_option")]
     pub avg_fill_price: Option<Decimal>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct TradeView {
+    #[serde(flatten)]
+    pub trip: RoundTrip,
+    pub opening_reason: Option<String>,
+    pub closing_reason: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]

@@ -10,6 +10,7 @@ import { EquityChart } from "../ui/EquityChart";
 import { Failure, LoadMore, Loading, StaleFailure } from "../ui/Feedback";
 import { MetricGrid } from "../ui/Metrics";
 import { MonthlyReturns } from "../ui/MonthlyReturns";
+import { Trades } from "./Trades";
 import { RunBadges, StatusPill } from "../ui/Status";
 
 type Run = Schemas["RunSummary"];
@@ -23,6 +24,7 @@ export function RunView({ runId }: { runId: number }) {
   const run = useResource(() => must(api.GET("/api/runs/{id}", path)), [runId]);
   const curve = useResource<Curve>(() => must(api.GET("/api/runs/{id}/equity", path)), [runId]);
   const positions = useResource(() => must(api.GET("/api/runs/{id}/positions", path)), [runId]);
+  const trades = useResource(() => must(api.GET("/api/runs/{id}/trades", path)), [runId]);
   const orders = usePaged(
     (after) => must(api.GET("/api/runs/{id}/orders", { params: { path: { id: runId }, query: { limit: PAGE_SIZE, ...(after === undefined ? {} : { after }) } } })),
     [runId],
@@ -60,9 +62,13 @@ export function RunView({ runId }: { runId: number }) {
         appendEquity({ at: event.at, equity: event.equity });
         break;
       case "order":
+        orders.reload();
+        positions.reload();
+        break;
       case "fill":
         orders.reload();
         positions.reload();
+        trades.reload();
         break;
       case "log":
         events.mutate((current) => {
@@ -108,6 +114,7 @@ export function RunView({ runId }: { runId: number }) {
         <Positions positions={positions} />
         <Events events={events} />
       </div>
+      <Trades trades={trades} />
       <Orders orders={orders} />
       <ProcessLog key={runId} runId={runId} failed={run.data.status === "failed"} />
     </>

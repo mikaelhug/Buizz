@@ -13,6 +13,7 @@ buizz-core.workspace = true
 buizz-feed.workspace = true
 buizz-ingest.workspace = true
 buizz-market.workspace = true
+buizz-metrics.workspace = true
 buizz-runner.workspace = true
 buizz-state.workspace = true
 chrono.workspace = true

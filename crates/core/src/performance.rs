@@ -1,5 +1,10 @@
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
+
+use crate::market::Symbol;
+use crate::order::OrderId;
+use crate::time::Timestamp;
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct Metrics {
@@ -18,4 +23,16 @@ pub struct Metrics {
     pub beta: Option<f64>,
     pub trades: u32,
     pub sessions: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct RoundTrip {
+    pub symbol: Symbol,
+    pub qty: i64,
+    pub opened_at: Timestamp,
+    pub closed_at: Timestamp,
+    pub opened_by: Option<OrderId>,
+    pub closed_by: Option<OrderId>,
+    #[serde(with = "crate::money::cash")]
+    pub pnl: Decimal,
 }

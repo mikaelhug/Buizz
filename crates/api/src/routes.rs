@@ -16,6 +16,7 @@ pub(crate) fn protected_routes() -> OpenApiRouter<Api> {
         .routes(routes!(runs::run_equity))
         .routes(routes!(runs::run_orders))
         .routes(routes!(runs::run_positions))
+        .routes(routes!(runs::run_trades))
         .routes(routes!(runs::run_events))
         .routes(routes!(runs::run_logs))
         .routes(routes!(runs::leaderboard))

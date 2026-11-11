@@ -4,7 +4,8 @@ use buizz_core::api::SparkPoint;
 use buizz_core::ledger::{LedgerEntry, LedgerKind};
 use buizz_core::market::{RiskFreeRate, Symbol};
 use buizz_core::money::round_cash;
-use buizz_core::performance::Metrics;
+use buizz_core::order::OrderId;
+use buizz_core::performance::{Metrics, RoundTrip};
 use buizz_core::run::{CostModel, EquityPoint};
 use buizz_core::time::Timestamp;
 use rust_decimal::Decimal;
@@ -184,56 +185,106 @@ fn turnover(ledger: &[LedgerEntry], equity: &[f64]) -> Option<f64> {
     traded.to_f64().map(|traded| traded / mean(equity))
 }
 
-#[derive(Default)]
 struct OpenTrip {
     qty: i64,
+    peak: i64,
     pnl: Decimal,
+    opened_at: Timestamp,
+    opened_by: Option<OrderId>,
 }
 
-fn round_trips(ledger: &[LedgerEntry]) -> Vec<Decimal> {
+impl OpenTrip {
+    fn new(qty: i64, pnl: Decimal, opened_at: Timestamp, opened_by: Option<OrderId>) -> Self {
+        Self {
+            qty,
+            peak: qty,
+            pnl,
+            opened_at,
+            opened_by,
+        }
+    }
+
+    fn close(
+        &self,
+        symbol: &Symbol,
+        pnl: Decimal,
+        closed_at: Timestamp,
+        closed_by: Option<OrderId>,
+    ) -> RoundTrip {
+        RoundTrip {
+            symbol: symbol.clone(),
+            qty: self.peak,
+            opened_at: self.opened_at,
+            closed_at,
+            opened_by: self.opened_by,
+            closed_by,
+            pnl,
+        }
+    }
+}
+
+pub fn round_trips(ledger: &[LedgerEntry]) -> Vec<RoundTrip> {
     let mut open: HashMap<&Symbol, OpenTrip> = HashMap::new();
     let mut closed = Vec::new();
     for entry in ledger {
         let Some(symbol) = entry.kind.symbol() else {
             continue;
         };
-        let trip = open.entry(symbol).or_default();
+        let order = match &entry.kind {
+            LedgerKind::Fill { order_id, .. } => Some(*order_id),
+            _ => None,
+        };
+        let trip = open
+            .entry(symbol)
+            .or_insert_with(|| OpenTrip::new(0, Decimal::ZERO, entry.at, order));
         let cash = entry.kind.cash_delta();
         let before = trip.qty;
-        trip.qty = match &entry.kind {
+        let after = match &entry.kind {
             LedgerKind::Fill { qty, .. } | LedgerKind::Liquidation { qty, .. } => before + qty,
             LedgerKind::Split { qty_after, .. } => *qty_after,
             _ => before,
         };
-        if before.signum() * trip.qty.signum() < 0 {
+        if before.signum() * after.signum() < 0 {
             let closing =
-                cash * Decimal::from(before.abs()) / Decimal::from((trip.qty - before).abs());
-            closed.push(trip.pnl + closing);
-            trip.pnl = cash - closing;
+                cash * Decimal::from(before.abs()) / Decimal::from((after - before).abs());
+            closed.push(trip.close(symbol, trip.pnl + closing, entry.at, order));
+            *trip = OpenTrip::new(after, cash - closing, entry.at, order);
             continue;
         }
-        trip.pnl += cash;
-        if before != 0 && trip.qty == 0 {
-            closed.push(trip.pnl);
+        if before == 0 {
+            trip.opened_at = entry.at;
+            trip.opened_by = order;
         }
-        if trip.qty == 0 {
+        trip.qty = after;
+        if after.abs() > trip.peak.abs() {
+            trip.peak = after;
+        }
+        trip.pnl += cash;
+        if before != 0 && after == 0 {
+            closed.push(trip.close(symbol, trip.pnl, entry.at, order));
+        }
+        if after == 0 {
             open.remove(symbol);
         }
     }
     closed
 }
 
-fn win_rate(trips: &[Decimal]) -> Option<f64> {
-    let wins = trips.iter().filter(|pnl| **pnl > Decimal::ZERO).count();
+fn win_rate(trips: &[RoundTrip]) -> Option<f64> {
+    let wins = trips.iter().filter(|trip| trip.pnl > Decimal::ZERO).count();
     (!trips.is_empty()).then(|| wins as f64 / trips.len() as f64)
 }
 
-fn profit_factor(trips: &[Decimal]) -> Option<f64> {
-    let gains: Decimal = trips.iter().filter(|pnl| **pnl > Decimal::ZERO).sum();
+fn profit_factor(trips: &[RoundTrip]) -> Option<f64> {
+    let gains: Decimal = trips
+        .iter()
+        .map(|trip| trip.pnl)
+        .filter(|pnl| *pnl > Decimal::ZERO)
+        .sum();
     let losses: Decimal = trips
         .iter()
-        .filter(|pnl| **pnl < Decimal::ZERO)
-        .map(|pnl| -*pnl)
+        .map(|trip| -trip.pnl)
+        .filter(|loss| *loss > Decimal::ZERO)
         .sum();
     (losses > Decimal::ZERO)
         .then(|| (gains / losses).to_f64())
@@ -401,9 +452,14 @@ mod tests {
                 },
             ),
         ];
+        let trips = round_trips(&ledger);
         assert_eq!(
-            round_trips(&ledger),
+            trips.iter().map(|trip| trip.pnl).collect::<Vec<_>>(),
             [Decimal::from(200), Decimal::from(50), Decimal::from(-5)]
+        );
+        assert_eq!(
+            trips.iter().map(|trip| trip.qty).collect::<Vec<_>>(),
+            [100, -50, 3]
         );
     }
 }
