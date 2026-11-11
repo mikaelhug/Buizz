@@ -47,7 +47,7 @@ export function BotActions({ bot, onChanged }: Props) {
   };
 
   return (
-    <>
+    <span className="bot-actions">
       {liveRun !== null && liveRun !== undefined && (
         <button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={() => void stop(liveRun)} title="End the live run for good">
           Stop
@@ -62,6 +62,6 @@ export function BotActions({ bot, onChanged }: Props) {
       >
         {live ? "Pause" : "Live"}
       </button>
-    </>
+    </span>
   );
 }

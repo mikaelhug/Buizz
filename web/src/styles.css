@@ -1083,6 +1083,11 @@ h2 {
   align-self: stretch;
 }
 
+.bot-actions {
+  display: inline-flex;
+  gap: 6px;
+}
+
 .period-range {
   display: flex;
   gap: 10px;
