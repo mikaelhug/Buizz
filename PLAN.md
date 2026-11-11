@@ -119,7 +119,6 @@ Out of v1: brokers and real money; options, crypto, FX; tick/quote simulation; e
 3. Code review each module of Buizz (one review per crate, the SDK and the web app); fix confirmed findings.
    Known issues to fold into the reviews:
    - The UI and CLI cannot override a bot's risk limits for one backtest.
-   - A live run's SPY benchmark only extends on reload or status change.
    - No time seam: the runner, feed, ingest, API and supervisor call the wall clock directly, so the live e2e scenarios must sleep between 23:28 and 00:11 ET. Add one `now()` in `buizz_core::time` with a test offset.
    - The spine cannot report its bound address when `BUIZZ_BIND` uses port 0; e2e works around it with relaunch-on-collision.
    - The bot WebSocket's loopback-only guard refuses bots when `BUIZZ_BIND` names a specific non-loopback address (bots then connect from that address); accept the spine's own bound IP too.

@@ -15,6 +15,8 @@ type Run = Schemas["RunSummary"];
 type SparkPoint = Schemas["SparkPoint"];
 type Curve = Omit<Schemas["EquitySeries"], "points"> & { points: SparkPoint[] };
 
+const DAILY_BARS_JOB = "bars_1d";
+
 export function RunView({ runId }: { runId: number }) {
   const path = { params: { path: { id: runId } } };
   const run = useResource(() => must(api.GET("/api/runs/{id}", path)), [runId]);
@@ -39,6 +41,12 @@ export function RunView({ runId }: { runId: number }) {
   });
 
   useSpineEvents((event) => {
+    if (event.type === "job") {
+      if (event.job.name === DAILY_BARS_JOB && event.job.last_outcome === "ok" && run.data?.mode === "live" && !run.data.finished_at) {
+        curve.reload();
+      }
+      return;
+    }
     if (!("run_id" in event) || event.run_id !== runId) {
       return;
     }
