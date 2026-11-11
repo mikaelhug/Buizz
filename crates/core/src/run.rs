@@ -218,16 +218,18 @@ impl RiskLimits {
         position_exposure_after: Decimal,
         gross_exposure_after: Decimal,
     ) -> Result<(), RejectReason> {
-        if equity <= Decimal::ZERO {
-            return Err(RejectReason::MaxGrossExposure);
-        }
-        if let Some(limit) = self.max_position_weight
-            && position_exposure_after.abs() / equity > limit
+        let exceeds = |exposure: Decimal, limit: Decimal| {
+            equity <= Decimal::ZERO || exposure / equity > limit
+        };
+        if self
+            .max_position_weight
+            .is_some_and(|limit| exceeds(position_exposure_after.abs(), limit))
         {
             return Err(RejectReason::MaxPositionWeight);
         }
-        if let Some(limit) = self.max_gross_exposure
-            && gross_exposure_after / equity > limit
+        if self
+            .max_gross_exposure
+            .is_some_and(|limit| exceeds(gross_exposure_after, limit))
         {
             return Err(RejectReason::MaxGrossExposure);
         }
@@ -477,5 +479,20 @@ impl BotManifest {
             )),
             _ => Ok(manifest),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn without_limits_no_order_is_rejected_for_exposure_even_at_negative_equity() {
+        let exposure = Decimal::from(1000);
+        let equity = Decimal::from(-5);
+        assert_eq!(
+            RiskLimits::default().check_order(equity, exposure, exposure),
+            Ok(())
+        );
     }
 }

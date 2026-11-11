@@ -147,7 +147,7 @@ Shorting is allowed for instruments flagged shortable.
 
 ## Risk limits
 
-A run can carry `max_position_weight`, `max_gross_exposure` and `max_drawdown` (fractions). None is set by default; they are set per run through the `risk` field of the backtest request of the HTTP API. An order that would grow a position past `max_position_weight`, or the book past `max_gross_exposure`, is rejected. Falling past `max_drawdown` from the peak equity records a risk breach and pauses the run with end reason `risk_limit`.
+A run can carry `max_position_weight`, `max_gross_exposure` and `max_drawdown` (fractions). None is set by default; they are set per run through the `risk` field of the backtest request of the HTTP API. An order that would grow a position past `max_position_weight`, or the book past `max_gross_exposure`, is rejected; while equity is at or below zero every order that grows a position breaks a limit that is set. Without limits nothing is rejected for exposure. Falling past `max_drawdown` from the peak equity records a risk breach and pauses the run with end reason `risk_limit`.
 
 ## Holdout and honest data
 
