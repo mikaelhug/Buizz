@@ -88,31 +88,33 @@ class Rsi2Pullback(Bot):
         ctx.state["proxy"] = {
             "session": ctx.session.date.isoformat(),
             "decisions": {
-                symbol: ["exit", s.exits()] if symbol in held else ["entry", s.enters(rules)]
-                for symbol, s in today.items()
+                symbol: ["exit", reading.exits()] if symbol in held else ["entry", reading.enters(rules)]
+                for symbol, reading in today.items()
             },
         }
         staying = len(held)
         for symbol in held:
-            s = today.get(symbol)
-            if s is not None and s.exits():
+            reading = today.get(symbol)
+            if reading is not None and reading.exits():
                 staying -= 1
                 ctx.order_target_weight(
                     symbol,
                     0,
                     at="close",
-                    reason=f"last {s.close:.2f} above the {rules.exit_sma}-day SMA {s.exit_sma:.2f}",
+                    reason=f"last {reading.close:.2f} above the {rules.exit_sma}-day SMA {reading.exit_sma:.2f}",
                 )
-        candidates = sorted((s.rsi, symbol) for symbol, s in today.items() if symbol not in held and s.enters(rules))
+        candidates = sorted(
+            (reading.rsi, symbol) for symbol, reading in today.items() if symbol not in held and reading.enters(rules)
+        )
         for rsi, symbol in candidates[: max(max_positions - staying, 0)]:
-            s = today[symbol]
+            reading = today[symbol]
             ctx.order_target_weight(
                 symbol,
                 1 / max_positions,
                 at="close",
                 reason=(
-                    f"RSI({rules.rsi_period}) {rsi:.1f} below {rules.entry_rsi} with last {s.close:.2f} "
-                    f"above the {rules.trend_sma}-day SMA {s.trend_sma:.2f}"
+                    f"RSI({rules.rsi_period}) {rsi:.1f} below {rules.entry_rsi} with last {reading.close:.2f} "
+                    f"above the {rules.trend_sma}-day SMA {reading.trend_sma:.2f}"
                 ),
             )
 
