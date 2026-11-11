@@ -323,6 +323,7 @@ class Context:
         self._equity = ready.equity
         self._positions = {p.symbol: p for p in ready.holdings.positions}
         self._working = ready.holdings.working
+        self._cancels_wait_for_close = ready.wake.startswith("before_close")
         self._persisted = ready.state
         self._state: dict[str, Any] = {} if ready.state is None else msgspec.json.decode(ready.state)
         self._step: Step | None = None
@@ -521,13 +522,18 @@ class Context:
         reasons = {} if reason is None else dict.fromkeys(targets, reason) if isinstance(reason, str) else dict(reason)
         if missing := sorted(targets.keys() - reasons.keys()):
             raise ValueError(f"rebalance needs a reason for {missing}")
+        held = dict.fromkeys(symbol for symbol, position in self._positions.items() if position.qty != 0)
+        if self._cancels_wait_for_close:
+            held |= dict.fromkeys(
+                order.symbol for order in self._working if not isinstance(order.order_type, Stop | TrailingStop)
+            )
         for order in self._working:
             self.cancel(order.client_id)
         for symbol, weight in targets.items():
-            if weight != 0 or self.position(symbol).qty != 0:
+            if weight != 0 or symbol in held:
                 self.order_target_weight(symbol, weight, reason=reasons[symbol], at=at)
-        for symbol, position in self._positions.items():
-            if position.qty != 0 and symbol not in targets:
+        for symbol in held:
+            if symbol not in targets:
                 self.order_target_weight(symbol, 0, reason=exit_reason, at=at)
 
     def cancel(self, client_id: str) -> None:
