@@ -1,13 +1,18 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
-use buizz_core::ledger::{LedgerEntry, Portfolio};
-use buizz_core::market::{Bar, CorporateAction, Session, Symbol};
-use buizz_core::order::{Fill, Order, OrderRequest};
+use buizz_core::ledger::{LedgerEntry, LedgerKind, Portfolio, split_qty};
+use buizz_core::market::{Bar, CorporateAction, CorporateActionKind, Session, Symbol};
+use buizz_core::money::{round_cash, round_price};
+use buizz_core::order::{
+    Fill, Order, OrderId, OrderRequest, OrderSize, OrderStatus, OrderType, OrderUpdate,
+    RejectReason, Side, target_weight_qty,
+};
 use buizz_core::protocol::{Holdings, StepEvent};
-use buizz_core::run::{EquityPoint, RiskLimit, RunConfig};
+use buizz_core::run::{CostModel, EquityPoint, RiskLimit, RiskLimits, RunConfig};
 use buizz_core::time::Timestamp;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
 
 pub const ENGINE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -29,14 +34,14 @@ pub struct Cycle<'a> {
     pub delisted: &'a [Symbol],
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RiskBreach {
     pub limit: RiskLimit,
     pub value: Decimal,
     pub threshold: Decimal,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Outbox {
     pub ledger: Vec<LedgerEntry>,
     pub orders: Vec<Order>,
@@ -46,56 +51,546 @@ pub struct Outbox {
     pub breaches: Vec<RiskBreach>,
 }
 
-pub struct Engine {}
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+struct State {
+    portfolio: Portfolio,
+    last_close: BTreeMap<Symbol, Decimal>,
+    working: BTreeMap<OrderId, Order>,
+    client_ids: BTreeSet<String>,
+    orders_issued: u64,
+    ledger_len: u64,
+    peak_equity: Decimal,
+    session: Option<Session>,
+    session_filled: BTreeMap<Symbol, u64>,
+    breached: Vec<RiskLimit>,
+    chain: [u8; 32],
+    changed_orders: BTreeMap<OrderId, Order>,
+    outbox: Outbox,
+}
+
+#[derive(Serialize)]
+struct CheckpointOut<'a> {
+    version: &'a str,
+    state: &'a State,
+}
+
+#[derive(Deserialize)]
+struct CheckpointHeader {
+    version: String,
+}
+
+#[derive(Deserialize)]
+struct CheckpointIn {
+    state: State,
+}
+
+pub struct Engine {
+    cost: CostModel,
+    risk: RiskLimits,
+    state: State,
+}
 
 impl Engine {
-    pub fn new(_config: &RunConfig, _start: Timestamp) -> Self {
-        unimplemented!()
+    pub fn new(config: &RunConfig, start: Timestamp) -> Self {
+        let mut engine = Self {
+            cost: config.cost,
+            risk: config.risk,
+            state: State {
+                peak_equity: config.start_cash,
+                ..State::default()
+            },
+        };
+        engine.post(
+            start,
+            LedgerKind::Deposit {
+                amount: config.start_cash,
+            },
+        );
+        engine
     }
 
-    pub fn restore(_config: &RunConfig, _checkpoint: &[u8]) -> Result<Self, EngineError> {
-        unimplemented!()
+    pub fn restore(config: &RunConfig, checkpoint: &[u8]) -> Result<Self, EngineError> {
+        let header: CheckpointHeader = rmp_serde::from_slice(checkpoint)?;
+        if header.version != ENGINE_VERSION {
+            return Err(EngineError::Version(header.version));
+        }
+        let CheckpointIn { state } = rmp_serde::from_slice(checkpoint)?;
+        Ok(Self {
+            cost: config.cost,
+            risk: config.risk,
+            state,
+        })
     }
 
     pub fn checkpoint(&self) -> Vec<u8> {
-        unimplemented!()
+        rmp_serde::to_vec_named(&CheckpointOut {
+            version: ENGINE_VERSION,
+            state: &self.state,
+        })
+        .expect("engine state encodes as MessagePack")
     }
 
-    pub fn run_cycle(&mut self, _cycle: &Cycle<'_>) {
-        unimplemented!()
+    pub fn run_cycle(&mut self, cycle: &Cycle<'_>) {
+        let bars: BTreeMap<&Symbol, &Bar> =
+            cycle.bars.iter().map(|bar| (&bar.symbol, bar)).collect();
+        if self.state.session.map(|session| session.date) != Some(cycle.session.date) {
+            self.apply_actions(cycle);
+            self.delist(cycle);
+            self.expire(cycle);
+            self.state.session = Some(*cycle.session);
+            self.state.session_filled.clear();
+        }
+        self.fill(cycle, &bars);
+        self.mark(cycle, &bars);
+        self.check_limits();
     }
 
     pub fn accept(
         &mut self,
-        _decided_at: Timestamp,
-        _session: NaiveDate,
-        _orders: Vec<OrderRequest>,
-        _cancels: Vec<String>,
+        decided_at: Timestamp,
+        session: NaiveDate,
+        orders: Vec<OrderRequest>,
+        cancels: Vec<String>,
     ) {
-        unimplemented!()
+        for client_id in &cancels {
+            self.close_where(decided_at, OrderStatus::Cancelled, |order| {
+                order.client_id == *client_id
+            });
+        }
+        for request in orders {
+            if !self.state.client_ids.insert(request.client_id.clone()) {
+                continue;
+            }
+            self.state.orders_issued += 1;
+            let mut order = Order {
+                id: OrderId(self.state.orders_issued),
+                client_id: request.client_id,
+                symbol: request.symbol,
+                side: Side::Buy,
+                qty: 0,
+                filled_qty: 0,
+                requested: request.size,
+                order_type: request.order_type,
+                tif: request.tif,
+                reason: request.reason,
+                decided_at,
+                session: Some(session),
+                status: OrderStatus::Working,
+                reject_reason: None,
+                updated_at: decided_at,
+            };
+            if let Err(reason) = self.size(&mut order, session) {
+                order.status = OrderStatus::Rejected;
+                order.reject_reason = Some(reason);
+            }
+            self.record(order);
+        }
     }
 
-    pub fn cancel_all(&mut self, _at: Timestamp) {
-        unimplemented!()
+    pub fn cancel_all(&mut self, at: Timestamp) {
+        self.close_where(at, OrderStatus::Cancelled, |_| true);
     }
 
     pub fn drain(&mut self) -> Outbox {
-        unimplemented!()
+        let mut outbox = std::mem::take(&mut self.state.outbox);
+        outbox.orders = std::mem::take(&mut self.state.changed_orders)
+            .into_values()
+            .collect();
+        outbox
     }
 
     pub fn portfolio(&self) -> &Portfolio {
-        unimplemented!()
+        &self.state.portfolio
     }
 
     pub fn holdings(&self) -> Holdings {
-        unimplemented!()
+        Holdings::new(&self.state.portfolio, self.state.working.values())
     }
 
     pub fn peak_equity(&self) -> Decimal {
-        unimplemented!()
+        self.state.peak_equity
     }
 
     pub fn result_hash(&self) -> String {
-        unimplemented!()
+        blake3::Hash::from_bytes(self.state.chain)
+            .to_hex()
+            .to_string()
+    }
+
+    fn apply_actions(&mut self, cycle: &Cycle<'_>) {
+        for action in cycle.actions {
+            self.state
+                .outbox
+                .step_events
+                .push(StepEvent::CorporateAction(action.clone()));
+            let held = self.state.portfolio.qty(&action.symbol);
+            match action.kind {
+                CorporateActionKind::CashDividend { rate } if held != 0 => self.post(
+                    cycle.start,
+                    LedgerKind::Dividend {
+                        symbol: action.symbol.clone(),
+                        qty: held,
+                        rate,
+                        amount: round_cash(Decimal::from(held) * rate),
+                    },
+                ),
+                CorporateActionKind::CashDividend { .. } => {}
+                CorporateActionKind::Split { old_rate, new_rate } => {
+                    self.split(cycle.start, &action.symbol, old_rate, new_rate);
+                }
+            }
+        }
+    }
+
+    fn split(&mut self, at: Timestamp, symbol: &Symbol, old_rate: Decimal, new_rate: Decimal) {
+        let rescale = |price: Decimal| round_price(price * old_rate / new_rate);
+        let shares = |qty: u64| {
+            split_qty(i64::try_from(qty).unwrap_or(i64::MAX), old_rate, new_rate)
+                .0
+                .unsigned_abs()
+        };
+        if let Some(close) = self.state.last_close.get_mut(symbol) {
+            *close = rescale(*close);
+        }
+        if let Some(position) = self.state.portfolio.positions.get(symbol)
+            && position.qty != 0
+        {
+            let (qty_after, fraction) = split_qty(position.qty, old_rate, new_rate);
+            let kind = LedgerKind::Split {
+                symbol: symbol.clone(),
+                old_rate,
+                new_rate,
+                qty_before: position.qty,
+                qty_after,
+                cash_in_lieu: round_cash(fraction * rescale(position.last_price)),
+            };
+            self.post(at, kind);
+        }
+        let affected: Vec<Order> = self
+            .state
+            .working
+            .values()
+            .filter(|order| order.symbol == *symbol)
+            .cloned()
+            .collect();
+        for mut order in affected {
+            order.qty = shares(order.qty);
+            order.filled_qty = shares(order.filled_qty);
+            if let OrderType::Limit { limit_price } = &mut order.order_type {
+                *limit_price = rescale(*limit_price);
+            }
+            order.updated_at = at;
+            self.record(order);
+        }
+    }
+
+    fn delist(&mut self, cycle: &Cycle<'_>) {
+        for symbol in cycle.delisted {
+            if let Some(position) = self.state.portfolio.positions.get(symbol)
+                && position.qty != 0
+            {
+                let kind = LedgerKind::Liquidation {
+                    symbol: symbol.clone(),
+                    qty: -position.qty,
+                    price: position.last_price,
+                };
+                self.post(cycle.start, kind);
+            }
+            self.close_where(cycle.start, OrderStatus::Cancelled, |order| {
+                order.symbol == *symbol
+            });
+            self.state.last_close.remove(symbol);
+        }
+    }
+
+    fn expire(&mut self, cycle: &Cycle<'_>) {
+        if let Some(previous) = self.state.session {
+            self.close_where(previous.close, OrderStatus::Expired, |order| {
+                order.session == Some(previous.date)
+            });
+        }
+        self.close_where(cycle.start, OrderStatus::Expired, |order| {
+            order
+                .session
+                .is_none_or(|session| session < cycle.session.date)
+        });
+    }
+
+    fn fill(&mut self, cycle: &Cycle<'_>, bars: &BTreeMap<&Symbol, &Bar>) {
+        let due: Vec<Order> = self
+            .state
+            .working
+            .values()
+            .filter(|order| {
+                order.session == Some(cycle.session.date) && bars.contains_key(&order.symbol)
+            })
+            .cloned()
+            .collect();
+        for mut order in due {
+            let bar = bars[&order.symbol];
+            let price = match order.order_type {
+                OrderType::Market => Some(self.cost.market_fill_price(order.side, bar.open)),
+                OrderType::Limit { limit_price } => {
+                    CostModel::limit_fill_price(order.side, limit_price, bar)
+                }
+            };
+            let Some(price) = price else { continue };
+            let cap = self.cost.participation_cap(
+                cycle
+                    .average_daily_volume
+                    .get(&order.symbol)
+                    .copied()
+                    .unwrap_or(0),
+            );
+            let used = self
+                .state
+                .session_filled
+                .entry(order.symbol.clone())
+                .or_default();
+            let qty = order.remaining().min(cap.saturating_sub(*used));
+            if qty == 0 {
+                continue;
+            }
+            *used += qty;
+            let fill = Fill {
+                order_id: order.id,
+                client_id: order.client_id.clone(),
+                symbol: order.symbol.clone(),
+                at: cycle.start,
+                qty: order.side.signed(qty),
+                price,
+                commission: self.cost.commission(qty),
+                feed: bar.feed,
+            };
+            self.post(
+                cycle.start,
+                LedgerKind::Fill {
+                    order_id: fill.order_id,
+                    symbol: fill.symbol.clone(),
+                    qty: fill.qty,
+                    price: fill.price,
+                    commission: fill.commission,
+                    feed: fill.feed,
+                },
+            );
+            self.state
+                .outbox
+                .step_events
+                .push(StepEvent::Fill(fill.clone()));
+            self.state.outbox.fills.push(fill);
+            order.filled_qty += qty;
+            if order.remaining() == 0 {
+                order.status = OrderStatus::Filled;
+            }
+            order.updated_at = cycle.start;
+            self.record(order);
+        }
+    }
+
+    fn mark(&mut self, cycle: &Cycle<'_>, bars: &BTreeMap<&Symbol, &Bar>) {
+        for (symbol, bar) in bars {
+            self.state.last_close.insert((*symbol).clone(), bar.close);
+            self.state.portfolio.mark(symbol, bar.close);
+        }
+        let session_closed = cycle.visible_at >= cycle.session.close;
+        if session_closed {
+            let shorts: Vec<(Symbol, i64, Decimal)> = self
+                .state
+                .portfolio
+                .open_positions()
+                .filter(|(_, position)| position.qty < 0)
+                .map(|(symbol, position)| (symbol.clone(), position.qty, position.last_price))
+                .collect();
+            for (symbol, qty, price) in shorts {
+                let amount = self.cost.borrow_fee(qty.unsigned_abs(), price);
+                if !amount.is_zero() {
+                    self.post(
+                        cycle.visible_at,
+                        LedgerKind::BorrowFee {
+                            symbol,
+                            qty,
+                            amount,
+                        },
+                    );
+                }
+            }
+        }
+        let portfolio = &self.state.portfolio;
+        let equity = portfolio.equity();
+        self.state.peak_equity = self.state.peak_equity.max(equity);
+        if session_closed {
+            self.state.outbox.equity_points.push(EquityPoint {
+                at: cycle.visible_at,
+                equity,
+                cash: portfolio.cash,
+                gross_exposure: portfolio.gross_exposure(),
+            });
+        }
+    }
+
+    fn check_limits(&mut self) {
+        let portfolio = &self.state.portfolio;
+        let equity = portfolio.equity();
+        let peak = self.state.peak_equity;
+        let mut readings = Vec::new();
+        if equity > Decimal::ZERO {
+            if let Some(threshold) = self.risk.max_position_weight {
+                let value = portfolio
+                    .positions
+                    .values()
+                    .map(|position| position.market_value().abs() / equity)
+                    .max()
+                    .unwrap_or_default();
+                readings.push((
+                    RiskLimit::MaxPositionWeight,
+                    value,
+                    threshold,
+                    value > threshold,
+                ));
+            }
+            if let Some(threshold) = self.risk.max_gross_exposure {
+                let value = portfolio.gross_exposure() / equity;
+                readings.push((
+                    RiskLimit::MaxGrossExposure,
+                    value,
+                    threshold,
+                    value > threshold,
+                ));
+            }
+        }
+        if let Some(threshold) = self.risk.max_drawdown
+            && peak > Decimal::ZERO
+        {
+            readings.push((
+                RiskLimit::MaxDrawdown,
+                (peak - equity) / peak,
+                threshold,
+                self.risk.drawdown_breached(peak, equity),
+            ));
+        }
+        for (limit, value, threshold, breached) in readings {
+            let known = self.state.breached.contains(&limit);
+            if !breached {
+                self.state.breached.retain(|breach| *breach != limit);
+            } else if !known {
+                self.state.breached.push(limit);
+                self.state.outbox.breaches.push(RiskBreach {
+                    limit,
+                    value,
+                    threshold,
+                });
+            }
+        }
+    }
+
+    fn size(&self, order: &mut Order, session: NaiveDate) -> Result<(), RejectReason> {
+        if let OrderType::Limit { limit_price } = order.order_type
+            && limit_price <= Decimal::ZERO
+        {
+            return Err(RejectReason::InvalidLimitPrice);
+        }
+        let price = *self
+            .state
+            .last_close
+            .get(&order.symbol)
+            .ok_or(RejectReason::NoPrice)?;
+        let portfolio = &self.state.portfolio;
+        let equity = portfolio.equity();
+        let mut projected: BTreeMap<&Symbol, i64> = portfolio
+            .open_positions()
+            .map(|(symbol, position)| (symbol, position.qty))
+            .collect();
+        for working in self.state.working.values() {
+            if working.session == Some(session) {
+                *projected.entry(&working.symbol).or_default() += working.signed_remaining();
+            }
+        }
+        let before = projected.get(&order.symbol).copied().unwrap_or(0);
+        let delta = match order.requested {
+            OrderSize::Qty { qty } => qty,
+            OrderSize::TargetWeight { weight } => {
+                target_weight_qty(weight, equity, price).ok_or(RejectReason::NoPrice)? - before
+            }
+        };
+        order.side = Side::of_qty(delta);
+        order.qty = delta.unsigned_abs();
+        if delta == 0 {
+            return Err(RejectReason::ZeroQuantity);
+        }
+        let after = before + delta;
+        if after.abs() <= before.abs() {
+            return Ok(());
+        }
+        let price_of = |symbol: &Symbol| {
+            self.state
+                .last_close
+                .get(symbol)
+                .or_else(|| portfolio.positions.get(symbol).map(|p| &p.last_price))
+                .copied()
+                .unwrap_or_default()
+        };
+        let gross_before: Decimal = projected
+            .iter()
+            .map(|(symbol, qty)| (Decimal::from(*qty) * price_of(symbol)).abs())
+            .sum();
+        let exposure_after = Decimal::from(after) * price;
+        let gross_after =
+            gross_before - (Decimal::from(before) * price).abs() + exposure_after.abs();
+        self.risk.check_order(equity, exposure_after, gross_after)
+    }
+
+    fn close_where(
+        &mut self,
+        at: Timestamp,
+        status: OrderStatus,
+        matches: impl Fn(&Order) -> bool,
+    ) {
+        let closing: Vec<Order> = self
+            .state
+            .working
+            .values()
+            .filter(|order| matches(order))
+            .cloned()
+            .collect();
+        for mut order in closing {
+            order.status = status;
+            order.updated_at = at;
+            self.record(order);
+        }
+    }
+
+    fn post(&mut self, at: Timestamp, kind: LedgerKind) {
+        self.state.portfolio.apply(&kind);
+        self.state.ledger_len += 1;
+        let entry = LedgerEntry {
+            seq: self.state.ledger_len,
+            at,
+            kind,
+        };
+        self.absorb(b"ledger", &entry);
+        self.state.outbox.ledger.push(entry);
+    }
+
+    fn record(&mut self, order: Order) {
+        self.absorb(b"order", &order);
+        self.state
+            .outbox
+            .step_events
+            .push(StepEvent::Order(OrderUpdate::from(&order)));
+        if order.status.is_terminal() {
+            self.state.working.remove(&order.id);
+        } else {
+            self.state.working.insert(order.id, order.clone());
+        }
+        self.state.changed_orders.insert(order.id, order);
+    }
+
+    fn absorb(&mut self, tag: &[u8], record: &impl Serialize) {
+        let bytes = rmp_serde::to_vec_named(record).expect("engine records encode as MessagePack");
+        let mut hasher = blake3::Hasher::new();
+        hasher.update(&self.state.chain);
+        hasher.update(tag);
+        hasher.update(&bytes);
+        self.state.chain = *hasher.finalize().as_bytes();
     }
 }
