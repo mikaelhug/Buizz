@@ -19,7 +19,6 @@ use tokio::sync::{OwnedSemaphorePermit, Semaphore, mpsc, oneshot, watch};
 use tokio::task::JoinHandle;
 use tokio::time::Instant;
 
-const LOG_DIR: &str = "data/logs";
 const EVENT_BUFFER: usize = 1024;
 const RESTART_WINDOW: Duration = Duration::from_secs(600);
 const MAX_RESTARTS_IN_WINDOW: usize = 5;
@@ -143,6 +142,7 @@ fn hash_tree(
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SupervisorConfig {
     pub spine_url: String,
+    pub log_dir: PathBuf,
     pub max_parallel_backtests: usize,
     pub restart_delay: Duration,
     pub kill_grace: Duration,
@@ -312,12 +312,17 @@ impl Supervisor {
             .expect("backtest semaphore is never closed")
     }
 
+    pub fn log_path(&self, run_id: RunId) -> PathBuf {
+        self.config.log_dir.join(format!("{run_id}.log"))
+    }
+
     pub async fn spawn(&self, launch: &Launch) -> Result<BotProcess, SupervisorError> {
         let bot = &launch.bot;
-        tokio::fs::create_dir_all(LOG_DIR)
+        let log_dir = &self.config.log_dir;
+        tokio::fs::create_dir_all(log_dir)
             .await
-            .map_err(|e| SupervisorError::Io(PathBuf::from(LOG_DIR), e))?;
-        let log_path = Path::new(LOG_DIR).join(format!("{}.log", launch.run_id));
+            .map_err(|e| SupervisorError::Io(log_dir.clone(), e))?;
+        let log_path = self.log_path(launch.run_id);
         let log = OpenOptions::new()
             .create(true)
             .append(true)

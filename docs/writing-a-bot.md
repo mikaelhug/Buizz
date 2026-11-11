@@ -59,7 +59,7 @@ if __name__ == "__main__":
 | `params` | no | Default parameters, available as `ctx.params` |
 | `benchmark` | no, default `"SPY"` | Symbol the equity curve is compared with |
 
-The spine starts `command` with `BUIZZ_SPINE_URL`, `BUIZZ_RUN_ID` and `BUIZZ_RUN_TOKEN` set. Output on stdout and stderr is captured to `data/logs/<run_id>.log`.
+The spine starts `command` with `BUIZZ_SPINE_URL`, `BUIZZ_RUN_ID` and `BUIZZ_RUN_TOKEN` set. Output on stdout and stderr is captured to `logs/<run_id>.log` under the spine's data directory (`BUIZZ_DATA_DIR`, default `data`).
 
 **Universe.** `symbols` is a fixed list. `top_dollar_volume = N` selects the N symbols with the highest average dollar volume over the last 20 sessions, recomputed as of each session; the step carries `universe` whenever it changed and `ctx.universe` follows.
 
@@ -168,4 +168,4 @@ uv run --frozen buizz backtest ../../bots/red_green --from 2024-11-20 --to 2024-
 uv run --frozen buizz backtest ../../bots/sma_cross --from 2020-01-01 --to 2024-12-31 --param fast=20 --param slow=100
 ```
 
-It queues the run, prints the clock and equity while it runs, then the metrics (`total_return`, `cagr`, `volatility`, `sharpe`, `sortino`, `max_drawdown`, `calmar`, `win_rate`, `profit_factor`, `exposure`, `turnover`, `alpha`, `beta`, `trades`, `sessions`) and the orders by status with net shares per symbol. The exit code is 1 when the run fails or is cancelled. The same run is in the UI with the equity curve against the benchmark, the orders with their reasons, positions and the bot log. Bot output and tracebacks are in `data/logs/<run_id>.log`.
+It queues the run, prints the clock and equity while it runs, then the metrics (`total_return`, `cagr`, `volatility`, `sharpe`, `sortino`, `max_drawdown`, `calmar`, `win_rate`, `profit_factor`, `exposure`, `turnover`, `alpha`, `beta`, `trades`, `sessions`) and the orders by status with net shares per symbol. The exit code is 1 when the run fails or is cancelled. The same run is in the UI with the equity curve against the benchmark, the orders with their reasons, positions and the bot log. Bot output and tracebacks are in `logs/<run_id>.log` under the data directory.

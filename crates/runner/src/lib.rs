@@ -387,6 +387,10 @@ impl Runner {
         self.inner.events.subscribe()
     }
 
+    pub fn log_path(&self, run_id: RunId) -> PathBuf {
+        self.inner.supervisor.log_path(run_id)
+    }
+
     pub async fn benchmark(&self, run: &RunSummary) -> Result<Vec<SparkPoint>, RunnerError> {
         report::benchmark(&self.inner.market, run, now().exchange_date()).await
     }

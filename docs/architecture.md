@@ -92,6 +92,6 @@ All under `BUIZZ_DATA_DIR` (default `data/`) unless noted.
 | `market.duckdb` | Market data | Yes, by ingesting again from the sources |
 | `state.db` | Runs, orders, ledger, equity, events, job history, fetch budget | No: this is the backup target |
 | `backups/state-YYYY-MM-DD.db` | Daily snapshots of `state.db` | |
-| `data/logs/<run_id>.log` | Bot process output, one file per run | Relative to the spine's working directory |
+| `logs/<run_id>.log` | Bot process output, one file per run | |
 
 Bots are read from `BUIZZ_BOTS_DIR`. Market data watermarks are held in memory and re-advanced on start from what the store contains.

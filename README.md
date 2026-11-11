@@ -78,7 +78,7 @@ ALPACA_KEY_ID=... ALPACA_SECRET_KEY=... SEC_USER_AGENT="name email@example.com" 
 cargo run --release -p buizz-spine
 ```
 
-Bot logs go to `data/logs/` relative to the spine's working directory.
+Bot logs go to `logs/<run_id>.log` under `BUIZZ_DATA_DIR`.
 
 ## Docs
 

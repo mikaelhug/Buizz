@@ -33,7 +33,6 @@ fn gone(pid: u32) -> bool {
 #[tokio::test]
 async fn process_groups_logs_and_restarts() {
     let temp = tempfile::tempdir().unwrap();
-    std::env::set_current_dir(temp.path()).unwrap();
     let bots = temp.path().join("bots");
 
     let steady = write_bot(
@@ -54,6 +53,7 @@ async fn process_groups_logs_and_restarts() {
 
     let supervisor = Supervisor::new(SupervisorConfig {
         spine_url: "ws://127.0.0.1:1".into(),
+        log_dir: temp.path().join("logs"),
         max_parallel_backtests: 2,
         restart_delay: Duration::from_millis(10),
         kill_grace: Duration::from_secs(2),
@@ -83,7 +83,7 @@ async fn process_groups_logs_and_restarts() {
     tokio::time::sleep(Duration::from_millis(200)).await;
     assert!(gone(process.pid()));
     assert!(nix::sys::signal::kill(Pid::from_raw(grandchild as i32), None) == Err(Errno::ESRCH));
-    let log = fs::read_to_string(temp.path().join("data/logs/1.log")).unwrap();
+    let log = fs::read_to_string(supervisor.log_path(RunId(1))).unwrap();
     assert!(log.contains("out") && log.contains("err") && log.contains("ready"));
 
     let mut live = supervisor.keep_alive(Launch {
@@ -124,6 +124,7 @@ async fn stopping_a_chatty_live_bot_nobody_reads_returns() {
     );
     let supervisor = Supervisor::new(SupervisorConfig {
         spine_url: "ws://127.0.0.1:1".into(),
+        log_dir: temp.path().join("logs"),
         max_parallel_backtests: 1,
         restart_delay: Duration::from_millis(10),
         kill_grace: Duration::from_secs(2),

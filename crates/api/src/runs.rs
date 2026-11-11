@@ -27,7 +27,6 @@ const MAX_RUNS: u32 = 500;
 const DEFAULT_PAGE: u32 = 200;
 const MAX_PAGE: u32 = 1000;
 const LEADERBOARD_RUNS: u32 = 1000;
-const LOG_DIR: &str = "data/logs";
 const LOG_TAIL_BYTES: u64 = 256 * 1024;
 const WEIGHT_DECIMALS: u32 = 4;
 
@@ -231,8 +230,7 @@ pub(crate) async fn run_logs(
     Path(id): Path<RunId>,
 ) -> Result<impl IntoResponse, Failure> {
     require_run(&app, id).await?;
-    let path = std::path::Path::new(LOG_DIR).join(format!("{id}.log"));
-    let text = match tokio::fs::File::open(&path).await {
+    let text = match tokio::fs::File::open(app.runner.log_path(id)).await {
         Ok(mut file) => {
             let length = file.metadata().await?.len();
             let start = length.saturating_sub(LOG_TAIL_BYTES);

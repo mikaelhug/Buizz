@@ -77,6 +77,7 @@ async fn main() -> Result<()> {
     );
     let supervisor = Supervisor::new(SupervisorConfig {
         spine_url: config.spine_url(),
+        log_dir: config.data_dir.join("logs"),
         max_parallel_backtests: std::thread::available_parallelism().map_or(1, usize::from),
         restart_delay: Duration::from_secs(1),
         kill_grace: Duration::from_secs(10),
