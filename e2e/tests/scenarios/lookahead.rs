@@ -225,6 +225,28 @@ async fn a_probe_asking_for_everything_never_sees_past_the_clock() {
             }
         }
     }
+    for step in probe {
+        for point in step.report["macro"].as_array().expect("macro points") {
+            let published = date(point[3].as_str().expect("published"));
+            let available = stamp(point[4].as_str().expect("available at"));
+            assert!(
+                published < step.clock.exchange_date() && available <= step.clock,
+                "macro point {point} seen at {}",
+                step.clock
+            );
+        }
+    }
+    for case in daily["macro"].as_array().expect("macro cases") {
+        let step = at(probe, &case["clock"]);
+        let mut latest: BTreeMap<&str, Value> = BTreeMap::new();
+        for point in step.report["macro"].as_array().expect("macro points") {
+            latest.insert(
+                point[0].as_str().expect("series"),
+                json!([point[1], point[2]]),
+            );
+        }
+        assert_eq!(json!(latest), case["latest"], "{case}");
+    }
     assert_filled_at(&spine.orders(runs["probe"].id).await, &daily["fills"]);
 
     for (wake, count) in minute["step_counts"].as_object().expect("step counts") {

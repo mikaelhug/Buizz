@@ -97,6 +97,7 @@ Outside `on_step` only `params`, `universe`, `state`, `portfolio` and `position`
 | `ctx.history(symbols, tf="1d", bars=1, adjust="raw")` | The last `bars` (1 to 10000) bars per symbol visible at the clock, as numpy arrays (`start` in ns, `open`, `high`, `low`, `close`, `volume`). Each call is a round trip to the spine |
 | `ctx.fundamentals(symbols, metrics)` | Every fundamental fact visible at the clock for the given metrics (`Metric` names, below) |
 | `ctx.universe_at(on, top_dollar_volume)` | The symbols a `top_dollar_volume` universe of that size held on the date `on`, see below |
+| `ctx.macro(series, start, end)` | The rate and macro observations dated `start` to `end` as known at the clock (`MacroPoint`: `series`, `date`, `value`, `published`, `available_at`), see below |
 | `ctx.calendar(start, end)` | The exchange sessions (`Session(date, open, close)`) dated `start` to `end`, as the calendar was published at the clock, see below |
 | `ctx.state` | A dict that survives restarts, see below |
 
@@ -122,6 +123,27 @@ from datetime import date
 
 months = [date(year, month, 1) for year in range(2017, 2024) for month in range(1, 13)]
 training = {month: ctx.universe_at(month, 1000) for month in months}
+```
+
+**Rates and macro series.** `ctx.macro(series, start, end)` returns the observations of `MacroSeries` dated `start` to `end`, each as the latest vintage published before the current session, so revisions arrive when they were published and never earlier. `available_at` is the open of the first session after `published`. Values are `Decimal` percent, except the CPI index.
+
+| Series | Meaning | Frequency |
+|---|---|---|
+| `treasury_3m` | US Treasury 3-month par yield, the rate the metrics use; published the evening of its date | daily |
+| `tb3ms` | 3-month T-bill, secondary market (FRED `TB3MS`), Welch–Goyal `tbl` | monthly average, dated the 1st |
+| `gs10` | 10-year Treasury, constant maturity (FRED `GS10`) | monthly average |
+| `aaa`, `baa` | Moody's seasoned Aaa and Baa corporate bond yields (FRED `AAA`, `BAA`), Graham's AAA rule and Welch–Goyal `dfy = baa − aaa` | monthly average |
+| `cpiaucns` | CPI-U, all items, not seasonally adjusted, 1982–84 = 100 (FRED `CPIAUCNS`) | monthly |
+
+The FRED series need `FRED_API_KEY` on the spine; without it they are empty. Graham's CPI-scaled size floor:
+
+```python
+from datetime import date
+
+year = ctx.session.date.year - 1
+cpi = ctx.macro(["cpiaucns"], date(year, 1, 1), date(year, 12, 1))
+if len(cpi) == 12:
+    floor = 100_000_000 * float(sum(point.value for point in cpi) / 12) / 41.8
 ```
 
 `to_ns(moment)` turns a timezone-aware `datetime` into the nanoseconds of `History.start`, for example `history.start >= to_ns(ctx.session.open)`.

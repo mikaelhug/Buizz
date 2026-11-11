@@ -431,7 +431,7 @@ export interface components {
             ingest_enabled: boolean;
         };
         /** @enum {string} */
-        DataSource: "alpaca" | "alpaca_stream" | "tiingo" | "edgar" | "treasury" | "fixture";
+        DataSource: "alpaca" | "alpaca_stream" | "tiingo" | "edgar" | "treasury" | "fred" | "fixture";
         DataWarning: (components["schemas"]["CoverageGap"] & {
             /** @enum {string} */
             type: "coverage_gap";
@@ -451,7 +451,7 @@ export interface components {
             type: "overlap_rejected";
         };
         /** @enum {string} */
-        Dataset: "instruments" | "calendar" | "bars1d" | "bars1m" | "corporate_actions" | "fundamentals" | "rates";
+        Dataset: "instruments" | "calendar" | "bars1d" | "bars1m" | "corporate_actions" | "fundamentals" | "rates" | "macro";
         /** @enum {string} */
         DesiredState: "running" | "paused" | "stopped";
         EquityPoint: {

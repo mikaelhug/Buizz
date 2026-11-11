@@ -51,6 +51,7 @@ async fn an_empty_spine_backfills_backs_off_rejects_a_bad_tiingo_tail_and_restar
             ("corporate_actions", Some(JobOutcome::Backoff)),
             ("fundamentals", ok),
             ("rates", ok),
+            ("macro", ok),
             ("state_snapshot", ok),
             ("tiingo_history", Some(JobOutcome::Failed)),
         ]),

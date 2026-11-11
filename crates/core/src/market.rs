@@ -357,6 +357,60 @@ pub struct RiskFreeRate {
     pub percent: Decimal,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub enum MacroSeries {
+    #[serde(rename = "treasury_3m")]
+    Treasury3m,
+    #[serde(rename = "tb3ms")]
+    Tb3ms,
+    #[serde(rename = "gs10")]
+    Gs10,
+    #[serde(rename = "aaa")]
+    Aaa,
+    #[serde(rename = "baa")]
+    Baa,
+    #[serde(rename = "cpiaucns")]
+    Cpiaucns,
+}
+
+impl MacroSeries {
+    pub const FRED: [Self; 5] = [
+        Self::Tb3ms,
+        Self::Gs10,
+        Self::Aaa,
+        Self::Baa,
+        Self::Cpiaucns,
+    ];
+
+    pub fn fred_id(self) -> Option<&'static str> {
+        match self {
+            Self::Treasury3m => None,
+            Self::Tb3ms => Some("TB3MS"),
+            Self::Gs10 => Some("GS10"),
+            Self::Aaa => Some("AAA"),
+            Self::Baa => Some("BAA"),
+            Self::Cpiaucns => Some("CPIAUCNS"),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct MacroObservation {
+    pub series: MacroSeries,
+    pub date: NaiveDate,
+    pub published: NaiveDate,
+    pub value: Option<Decimal>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MacroPoint {
+    pub series: MacroSeries,
+    pub date: NaiveDate,
+    pub value: Decimal,
+    pub published: NaiveDate,
+    pub available_at: Timestamp,
+}
+
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, ToSchema,
 )]
@@ -367,6 +421,7 @@ pub enum DataSource {
     Tiingo,
     Edgar,
     Treasury,
+    Fred,
     Fixture,
 }
 
@@ -382,6 +437,7 @@ pub enum Dataset {
     CorporateActions,
     Fundamentals,
     Rates,
+    Macro,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]

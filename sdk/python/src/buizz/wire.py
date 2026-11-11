@@ -13,6 +13,7 @@ type Timeframe = Literal["1d", "1m"]
 type Adjust = Literal["raw", "split", "all"]
 type LogLevel = Literal["debug", "info", "warn", "error"]
 type EndReason = Literal["completed", "paused", "stopped", "risk_limit", "failed", "disconnected"]
+type MacroSeries = Literal["treasury_3m", "tb3ms", "gs10", "aaa", "baa", "cpiaucns"]
 type Metric = Literal[
     "revenue",
     "cost_of_revenue",
@@ -182,7 +183,19 @@ class UniverseResult(msgspec.Struct, frozen=True, tag_field="kind", tag="univers
     symbols: list[str]
 
 
-type Result = HistoryResult | FundamentalsResult | CalendarResult | UniverseResult
+class MacroFact(msgspec.Struct, frozen=True):
+    series: MacroSeries
+    date: date
+    value: Decimal
+    published: date
+    available_at: int
+
+
+class MacroResult(msgspec.Struct, frozen=True, tag_field="kind", tag="macro"):
+    points: list[MacroFact]
+
+
+type Result = HistoryResult | FundamentalsResult | CalendarResult | UniverseResult | MacroResult
 
 
 class Data(msgspec.Struct, frozen=True, tag_field="type", tag="data"):
@@ -228,7 +241,13 @@ class UniverseRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="univer
     top_dollar_volume: int
 
 
-type Request = HistoryRequest | FundamentalsRequest | CalendarRequest | UniverseRequest
+class MacroRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="macro"):
+    series: list[MacroSeries]
+    start: date = msgspec.field(name="from")
+    end: date = msgspec.field(name="to")
+
+
+type Request = HistoryRequest | FundamentalsRequest | CalendarRequest | UniverseRequest | MacroRequest
 
 
 class Query(msgspec.Struct, frozen=True, tag_field="type", tag="query"):

@@ -1,0 +1,13 @@
+{
+  "id": 6,
+  "request": {
+    "from": "2024-10-01",
+    "kind": "macro",
+    "series": [
+      "treasury_3m",
+      "cpiaucns"
+    ],
+    "to": "2024-11-21"
+  },
+  "type": "query"
+}

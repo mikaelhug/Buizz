@@ -211,5 +211,15 @@ async fn answer(
                 .map_err(|error| error.to_string())?;
             Ok(DataResult::Universe { symbols })
         }
+        QueryRequest::Macro { series, from, to } => {
+            if from > to {
+                return Err(format!("macro from {from} is after to {to}"));
+            }
+            let points = market
+                .macro_points(series, from, to, clock)
+                .await
+                .map_err(|error| error.to_string())?;
+            Ok(DataResult::Macro { points })
+        }
     }
 }

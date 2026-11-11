@@ -15,6 +15,7 @@ use buizz_sources::Sources;
 use buizz_sources::alpaca::{self, AlpacaClient};
 use buizz_sources::alpaca_stream::SYMBOL_CAP;
 use buizz_sources::edgar::EdgarClient;
+use buizz_sources::fred::FredClient;
 use buizz_sources::tiingo::TiingoClient;
 use buizz_sources::treasury::TreasuryClient;
 use buizz_state::StateStore;
@@ -63,6 +64,7 @@ async fn main() -> Result<()> {
         alpaca: config.alpaca.clone().map(AlpacaClient::new).transpose()?,
         tiingo: config.tiingo.clone().map(TiingoClient::new).transpose()?,
         edgar: config.edgar.clone().map(EdgarClient::new).transpose()?,
+        fred: config.fred.clone().map(FredClient::new).transpose()?,
         treasury: TreasuryClient::new(config.treasury.clone())?,
     };
     let feed = FeedManager::new(

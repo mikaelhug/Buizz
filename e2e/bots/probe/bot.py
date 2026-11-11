@@ -36,12 +36,25 @@ class Probe(Bot):
                 universes[day] = ctx.universe_at(date.fromisoformat(day), ctx.params["universe_top"])
             except SpineError as error:
                 universes[day] = error.code
+        series = ctx.params.get("macro", [])
+        start, end = (date.fromisoformat(ctx.params.get(key, "2000-01-01")) for key in ("macro_from", "macro_to"))
+        macro = [
+            [
+                point.series,
+                point.date.isoformat(),
+                float(point.value),
+                point.published.isoformat(),
+                f"{point.available_at:{STAMP}}",
+            ]
+            for point in (ctx.macro(series, start, end) if series else [])
+        ]
         report = {
             "clock": clock,
             "history": history,
             "fundamentals": fundamentals,
             "calendar": calendar,
             "universe": universes,
+            "macro": macro,
         }
         ctx.log(json.dumps(report))
         if clock in ctx.params.get("order_at", []):

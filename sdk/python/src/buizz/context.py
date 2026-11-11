@@ -26,6 +26,9 @@ from buizz.wire import (
     Limit,
     LogLevel,
     LogLine,
+    MacroRequest,
+    MacroResult,
+    MacroSeries,
     Market,
     Metric,
     OrderRequest,
@@ -56,6 +59,7 @@ SHARE_LIMIT = 2**63
 DECIMAL_MAX = Decimal(2**96 - 1)
 DECIMAL_MIN = Decimal("1e-28")
 METRICS: frozenset[str] = frozenset(get_args(Metric.__value__))
+MACRO_SERIES: frozenset[str] = frozenset(get_args(MacroSeries.__value__))
 TIMEFRAMES: frozenset[str] = frozenset(get_args(Timeframe.__value__))
 ADJUSTMENTS: frozenset[str] = frozenset(get_args(Adjust.__value__))
 STATE_SCALARS = (str, bool)
@@ -183,6 +187,14 @@ class FundamentalPoint(msgspec.Struct, frozen=True):
     value: Decimal
     form: str
     filed: date
+    available_at: datetime
+
+
+class MacroPoint(msgspec.Struct, frozen=True):
+    series: MacroSeries
+    date: date
+    value: Decimal
+    published: date
     available_at: datetime
 
 
@@ -347,6 +359,19 @@ class Context:
         if not isinstance(result, UniverseResult):
             raise ProtocolError(f"universe query answered with {type(result).__name__}")
         return result.symbols
+
+    def macro(self, series: list[MacroSeries], start: date, end: date) -> list[MacroPoint]:
+        self._current("ctx.macro")
+        unknown = [name for name in series if name not in MACRO_SERIES]
+        if unknown:
+            raise ValueError(f"unknown macro series {unknown}; the series are {sorted(MACRO_SERIES)}")
+        result = self._query(MacroRequest(series, day("start", start), day("end", end)))
+        if not isinstance(result, MacroResult):
+            raise ProtocolError(f"macro query answered with {type(result).__name__}")
+        return [
+            MacroPoint(point.series, point.date, point.value, point.published, from_ns(point.available_at))
+            for point in result.points
+        ]
 
     def order(
         self,

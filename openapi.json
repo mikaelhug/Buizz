@@ -1130,6 +1130,7 @@
           "tiingo",
           "edgar",
           "treasury",
+          "fred",
           "fixture"
         ]
       },
@@ -1221,7 +1222,8 @@
           "bars1m",
           "corporate_actions",
           "fundamentals",
-          "rates"
+          "rates",
+          "macro"
         ]
       },
       "DesiredState": {

@@ -13,6 +13,7 @@ pub(crate) const BARS_1D: &str = "bars_1d";
 pub(crate) const CORPORATE_ACTIONS: &str = "corporate_actions";
 pub(crate) const FUNDAMENTALS: &str = "fundamentals";
 pub(crate) const RATES: &str = "rates";
+pub(crate) const MACRO: &str = "macro";
 pub(crate) const STATE_SNAPSHOT: &str = "state_snapshot";
 pub(crate) const TIINGO_HISTORY: &str = "tiingo_history";
 
@@ -23,7 +24,7 @@ const SHORT_RETRY: Duration = HOUR;
 const FIRST_FAILURE_RETRY: Duration = Duration::from_secs(5 * 60);
 const STALE_AFTER_INTERVALS: i32 = 3;
 
-pub(crate) const JOBS: [JobSpec; 8] = [
+pub(crate) const JOBS: [JobSpec; 9] = [
     JobSpec {
         name: CALENDAR,
         every: DAY,
@@ -46,6 +47,10 @@ pub(crate) const JOBS: [JobSpec; 8] = [
     },
     JobSpec {
         name: RATES,
+        every: DAY,
+    },
+    JobSpec {
+        name: MACRO,
         every: DAY,
     },
     JobSpec {

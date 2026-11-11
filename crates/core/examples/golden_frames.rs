@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use buizz_core::market::{
     Adjustment, CorporateAction, CorporateActionKind, Feed, FundamentalMetric, FundamentalPoint,
-    PeriodType, Session, Symbol, Timeframe,
+    MacroPoint, MacroSeries, PeriodType, Session, Symbol, Timeframe,
 };
 use buizz_core::order::{
     Fill, OrderId, OrderRequest, OrderSize, OrderStatus, OrderType, OrderUpdate, Side, TimeInForce,
@@ -399,6 +399,45 @@ fn main() {
             id: 5,
             result: DataResult::Universe {
                 symbols: vec![Symbol::new("SPY"), aaa.clone()],
+            },
+        }),
+    );
+
+    write(
+        &dir,
+        "query_macro",
+        &BotMessage::Query(Query {
+            id: 6,
+            request: QueryRequest::Macro {
+                series: vec![MacroSeries::Treasury3m, MacroSeries::Cpiaucns],
+                from: date("2024-10-01"),
+                to: date("2024-11-21"),
+            },
+        }),
+    );
+
+    write(
+        &dir,
+        "data_macro",
+        &SpineMessage::Data(Data {
+            id: 6,
+            result: DataResult::Macro {
+                points: vec![
+                    MacroPoint {
+                        series: MacroSeries::Treasury3m,
+                        date: date("2024-11-20"),
+                        value: money("4.50"),
+                        published: date("2024-11-20"),
+                        available_at: at("2024-11-21T14:30:00Z"),
+                    },
+                    MacroPoint {
+                        series: MacroSeries::Cpiaucns,
+                        date: date("2024-10-01"),
+                        value: money("315.664"),
+                        published: date("2024-11-13"),
+                        available_at: at("2024-11-14T14:30:00Z"),
+                    },
+                ],
             },
         }),
     );

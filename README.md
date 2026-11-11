@@ -65,6 +65,8 @@ The spine (`cargo run -p buizz-spine`) reads these environment variables. Empty 
 | `SEC_USER_AGENT` | unset | Enables SEC EDGAR fundamentals; the SEC requires a contact in the User-Agent, for example `name email@example.com` |
 | `SEC_DATA_URL`, `SEC_WWW_URL` | `https://data.sec.gov`, `https://www.sec.gov` | EDGAR endpoints |
 | `TREASURY_URL` | `https://home.treasury.gov` | US Treasury rates endpoint |
+| `FRED_API_KEY` | unset | Enables the FRED macro series for bots (`ctx.macro`); a free key from fred.stlouisfed.org. Without it the `macro` job reports that FRED is not configured |
+| `FRED_URL` | `https://api.stlouisfed.org` | FRED endpoint |
 | `RUST_LOG` | `info` | Log filter |
 
 `just dev` sets `BUIZZ_ADMIN_PASSWORD=buizz-dev-admin`, `BUIZZ_SECURE_COOKIES=false`, `BUIZZ_INGEST=false`, `BUIZZ_BIND=127.0.0.1:8080` and `BUIZZ_FIXTURE_DIR=fixtures/market`.
