@@ -1,11 +1,10 @@
 use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
-use buizz_core::api::{
-    ApiError, BotDetail, BotStatus, BotSummary, RunSummary, SparkPoint, StartBacktest,
-};
-use buizz_core::run::{BotManifest, DesiredState, EquityPoint, Mode, RunStatus};
+use buizz_core::api::{ApiError, BotDetail, BotStatus, BotSummary, RunSummary, StartBacktest};
+use buizz_core::run::{BotManifest, DesiredState, Mode, RunStatus};
 use buizz_state::RunFilter;
+use futures::future::{try_join, try_join_all};
 
 use crate::AppState;
 use crate::error::Failure;
@@ -13,7 +12,7 @@ use crate::extract::{JsonBody, Path};
 use crate::time::exchange_today;
 
 const RECENT_RUNS: u32 = 50;
-const SPARKLINE_POINTS: usize = 60;
+const SPARKLINE_POINTS: u32 = 60;
 
 fn bot_status(runs: &[RunSummary], live: Option<&RunSummary>) -> BotStatus {
     if let Some(live) = live {
@@ -35,20 +34,6 @@ fn bot_status(runs: &[RunSummary], live: Option<&RunSummary>) -> BotStatus {
     }
 }
 
-fn sparkline(points: &[EquityPoint]) -> Vec<SparkPoint> {
-    let step = points.len().div_ceil(SPARKLINE_POINTS).max(1);
-    let last = points.len().saturating_sub(1);
-    points
-        .iter()
-        .enumerate()
-        .filter(|(index, _)| index % step == 0 || *index == last)
-        .map(|(_, point)| SparkPoint {
-            at: point.at,
-            equity: point.equity,
-        })
-        .collect()
-}
-
 async fn recent_runs(app: &AppState, bot: &str) -> Result<Vec<RunSummary>, Failure> {
     let filter = RunFilter {
         bot: Some(bot.to_owned()),
@@ -68,10 +53,13 @@ async fn summarize(
         .iter()
         .find(|run| run.mode == Mode::Live && !run.status.is_finished());
     let focus = live.or_else(|| runs.iter().find(|run| run.equity.is_some()));
-    let sparkline = match focus {
-        Some(run) => sparkline(&app.state.equity(run.id).await?),
-        None => Vec::new(),
+    let sparkline = async {
+        match focus {
+            Some(run) => app.state.sparkline(run.id, SPARKLINE_POINTS).await,
+            None => Ok(Vec::new()),
+        }
     };
+    let (sparkline, holdout_runs) = try_join(sparkline, app.state.holdout_runs(name)).await?;
     let stats = runs
         .iter()
         .find_map(|run| run.metrics.clone().map(|metrics| (run.id, metrics)));
@@ -85,7 +73,7 @@ async fn summarize(
         sparkline,
         stats_run: stats.as_ref().map(|(id, _)| *id),
         stats: stats.map(|(_, metrics)| metrics),
-        holdout_runs: app.state.holdout_runs(name).await?,
+        holdout_runs,
         last_run_at: runs.first().map(|run| run.created_at),
     })
 }
@@ -96,11 +84,11 @@ pub(crate) async fn list_bots(
     State(app): State<AppState>,
 ) -> Result<Json<Vec<BotSummary>>, Failure> {
     let scan = app.runner.bots();
-    let mut summaries = Vec::with_capacity(scan.bots.len());
-    for bot in &scan.bots {
+    let summaries = try_join_all(scan.bots.iter().map(|bot| async {
         let runs = recent_runs(&app, &bot.name).await?;
-        summaries.push(summarize(&app, &bot.name, &bot.manifest, &runs).await?);
-    }
+        summarize(&app, &bot.name, &bot.manifest, &runs).await
+    }))
+    .await?;
     Ok(Json(summaries))
 }
 
