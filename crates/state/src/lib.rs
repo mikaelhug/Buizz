@@ -1,4 +1,10 @@
+mod codec;
+mod db;
+mod jobs;
+mod runs;
+
 use std::path::Path;
+use std::sync::Arc;
 
 use buizz_core::api::RunSummary;
 use buizz_core::ledger::{LedgerEntry, Portfolio};
@@ -11,6 +17,8 @@ use buizz_core::run::{
 };
 use buizz_core::time::Timestamp;
 use rust_decimal::Decimal;
+
+use crate::db::Db;
 
 pub const SCHEMA: &str = include_str!("../schema.sql");
 pub const FILE_NAME: &str = "state.db";
@@ -25,6 +33,8 @@ pub enum StateError {
     UnknownRun(RunId),
     #[error("step {step_seq} of run {run_id} is not the successor of the last committed step")]
     StaleStep { run_id: RunId, step_seq: u64 },
+    #[error("bot {0} already has a live run")]
+    LiveRunExists(String),
     #[error("state store has shut down")]
     Closed,
 }
@@ -84,131 +94,199 @@ pub struct RunOutcome {
 }
 
 #[derive(Clone)]
-pub struct StateStore {}
+pub struct StateStore {
+    db: Arc<Db>,
+}
 
 impl StateStore {
-    pub async fn open(_path: &Path) -> Result<Self> {
-        unimplemented!()
+    pub async fn open(path: &Path) -> Result<Self> {
+        Ok(Self {
+            db: Arc::new(Db::open(path).await?),
+        })
     }
 
-    pub async fn create_run(&self, _run: NewRun) -> Result<RunId> {
-        unimplemented!()
+    pub async fn create_run(&self, run: NewRun) -> Result<RunId> {
+        self.db
+            .transaction(move |transaction| runs::create(transaction, &run))
+            .await
     }
 
-    pub async fn run(&self, _run_id: RunId) -> Result<Option<RunSummary>> {
-        unimplemented!()
+    pub async fn run(&self, run_id: RunId) -> Result<Option<RunSummary>> {
+        self.db
+            .read(move |connection| runs::get(connection, run_id))
+            .await
     }
 
-    pub async fn runs(&self, _filter: RunFilter) -> Result<Vec<RunSummary>> {
-        unimplemented!()
+    pub async fn runs(&self, filter: RunFilter) -> Result<Vec<RunSummary>> {
+        self.db
+            .read(move |connection| runs::list(connection, &filter))
+            .await
     }
 
     pub async fn set_status(
         &self,
-        _run_id: RunId,
-        _status: RunStatus,
-        _message: Option<String>,
-        _at: Timestamp,
+        run_id: RunId,
+        status: RunStatus,
+        message: Option<String>,
+        at: Timestamp,
     ) -> Result<()> {
-        unimplemented!()
+        self.db
+            .transaction(move |transaction| {
+                runs::set_status(transaction, run_id, status, message.as_deref(), at)
+            })
+            .await
     }
 
-    pub async fn set_desired(&self, _run_id: RunId, _desired: DesiredState) -> Result<()> {
-        unimplemented!()
+    pub async fn set_desired(&self, run_id: RunId, desired: DesiredState) -> Result<()> {
+        self.db
+            .transaction(move |transaction| runs::set_desired(transaction, run_id, desired))
+            .await
     }
 
-    pub async fn commit_step(&self, _commit: StepCommit) -> Result<()> {
-        unimplemented!()
+    pub async fn commit_step(&self, commit: StepCommit) -> Result<()> {
+        self.db
+            .transaction(move |transaction| runs::commit_step(transaction, &commit))
+            .await
     }
 
-    pub async fn checkpoint(&self, _run_id: RunId) -> Result<Option<Checkpoint>> {
-        unimplemented!()
+    pub async fn checkpoint(&self, run_id: RunId) -> Result<Option<Checkpoint>> {
+        self.db
+            .read(move |connection| runs::checkpoint(connection, run_id))
+            .await
     }
 
-    pub async fn finish_run(&self, _run_id: RunId, _outcome: RunOutcome) -> Result<()> {
-        unimplemented!()
+    pub async fn finish_run(&self, run_id: RunId, outcome: RunOutcome) -> Result<()> {
+        self.db
+            .transaction(move |transaction| runs::finish(transaction, run_id, &outcome))
+            .await
     }
 
-    pub async fn append_events(&self, _run_id: RunId, _events: Vec<RunEvent>) -> Result<()> {
-        unimplemented!()
+    pub async fn append_events(&self, run_id: RunId, events: Vec<RunEvent>) -> Result<()> {
+        self.db
+            .transaction(move |transaction| runs::insert_events(transaction, run_id, &events))
+            .await
     }
 
-    pub async fn ledger(&self, _run_id: RunId) -> Result<Vec<LedgerEntry>> {
-        unimplemented!()
+    pub async fn ledger(&self, run_id: RunId) -> Result<Vec<LedgerEntry>> {
+        self.db
+            .read(move |connection| runs::ledger(connection, run_id))
+            .await
     }
 
-    pub async fn portfolio(&self, _run_id: RunId) -> Result<Portfolio> {
-        unimplemented!()
+    pub async fn portfolio(&self, run_id: RunId) -> Result<Portfolio> {
+        self.db
+            .read(move |connection| runs::portfolio(connection, run_id))
+            .await
     }
 
     pub async fn orders(
         &self,
-        _run_id: RunId,
-        _after: Option<u64>,
-        _limit: u32,
+        run_id: RunId,
+        after: Option<u64>,
+        limit: u32,
     ) -> Result<Vec<Order>> {
-        unimplemented!()
+        self.db
+            .read(move |connection| runs::orders(connection, run_id, after, limit))
+            .await
     }
 
-    pub async fn fills(&self, _run_id: RunId) -> Result<Vec<Fill>> {
-        unimplemented!()
+    pub async fn fills(&self, run_id: RunId) -> Result<Vec<Fill>> {
+        self.db
+            .read(move |connection| runs::fills(connection, run_id))
+            .await
     }
 
-    pub async fn equity(&self, _run_id: RunId) -> Result<Vec<EquityPoint>> {
-        unimplemented!()
+    pub async fn equity(&self, run_id: RunId) -> Result<Vec<EquityPoint>> {
+        self.db
+            .read(move |connection| runs::equity(connection, run_id))
+            .await
     }
 
     pub async fn events(
         &self,
-        _run_id: RunId,
-        _after: Option<u64>,
-        _limit: u32,
+        run_id: RunId,
+        after: Option<u64>,
+        limit: u32,
     ) -> Result<Vec<RunEvent>> {
-        unimplemented!()
+        self.db
+            .read(move |connection| runs::events(connection, run_id, after, limit))
+            .await
     }
 
-    pub async fn holdout_runs(&self, _bot: &str) -> Result<u32> {
-        unimplemented!()
+    pub async fn holdout_runs(&self, bot: &str) -> Result<u32> {
+        let bot = bot.to_owned();
+        self.db
+            .read(move |connection| runs::holdout_runs(connection, &bot))
+            .await
     }
 
-    pub async fn start_job(&self, _job: &str, _at: Timestamp) -> Result<i64> {
-        unimplemented!()
+    pub async fn start_job(&self, job: &str, at: Timestamp) -> Result<i64> {
+        let job = job.to_owned();
+        self.db
+            .transaction(move |transaction| jobs::start_job(transaction, &job, at))
+            .await
     }
 
     pub async fn finish_job(
         &self,
-        _job_run_id: i64,
-        _at: Timestamp,
-        _outcome: JobOutcome,
-        _rows: u64,
-        _message: Option<String>,
+        job_run_id: i64,
+        at: Timestamp,
+        outcome: JobOutcome,
+        rows: u64,
+        message: Option<String>,
     ) -> Result<()> {
-        unimplemented!()
+        self.db
+            .transaction(move |transaction| {
+                jobs::finish_job(
+                    transaction,
+                    job_run_id,
+                    at,
+                    outcome,
+                    rows,
+                    message.as_deref(),
+                )
+            })
+            .await
     }
 
     pub async fn latest_jobs(&self) -> Result<Vec<JobRun>> {
-        unimplemented!()
+        self.db.read(jobs::latest_jobs).await
     }
 
-    pub async fn last_job_success(&self, _job: &str) -> Result<Option<JobRun>> {
-        unimplemented!()
+    pub async fn last_job_success(&self, job: &str) -> Result<Option<JobRun>> {
+        let job = job.to_owned();
+        self.db
+            .read(move |connection| jobs::last_job_success(connection, &job))
+            .await
     }
 
-    pub async fn record_fetch(&self, _fetch: SourceFetch) -> Result<()> {
-        unimplemented!()
+    pub async fn record_fetch(&self, fetch: SourceFetch) -> Result<()> {
+        self.db
+            .transaction(move |transaction| jobs::record_fetch(transaction, &fetch))
+            .await
     }
 
     pub async fn recent_fetches(
         &self,
-        _source: DataSource,
-        _dataset: Dataset,
-        _symbol: Option<Symbol>,
-        _limit: u32,
+        source: DataSource,
+        dataset: Dataset,
+        symbol: Option<Symbol>,
+        limit: u32,
     ) -> Result<Vec<SourceFetch>> {
-        unimplemented!()
+        self.db
+            .read(move |connection| {
+                jobs::recent_fetches(connection, source, dataset, symbol.as_ref(), limit)
+            })
+            .await
     }
 
-    pub async fn snapshot(&self, _destination: &Path) -> Result<()> {
-        unimplemented!()
+    pub async fn snapshot(&self, destination: &Path) -> Result<()> {
+        let destination = destination.to_path_buf();
+        self.db
+            .read(move |connection| {
+                connection.execute("VACUUM INTO ?", [destination.to_string_lossy()])?;
+                Ok(())
+            })
+            .await
     }
 }
