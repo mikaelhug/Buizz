@@ -21,7 +21,7 @@ use buizz_market::{MarketError, MarketStore};
 use buizz_sources::Sources;
 use buizz_sources::http::SourceError;
 use buizz_state::{StateError, StateStore};
-use chrono::{NaiveDate, NaiveTime, TimeDelta, Utc};
+use chrono::{NaiveDate, NaiveTime, TimeDelta};
 use tokio::sync::{Mutex, broadcast};
 use tokio::task::JoinHandle;
 
@@ -169,7 +169,7 @@ impl Ingest {
             interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
             loop {
                 interval.tick().await;
-                if let Err(error) = ingest.tick(wall_clock()).await {
+                if let Err(error) = ingest.tick(Timestamp::now()).await {
                     tracing::error!(%error, "ingest tick failed");
                 }
             }
@@ -219,10 +219,6 @@ impl Ingest {
             .filter_map(|row| Some((row.symbol.clone()?, row)))
             .collect())
     }
-}
-
-pub(crate) fn wall_clock() -> Timestamp {
-    Timestamp::from_datetime(Utc::now()).expect("current time fits in nanoseconds")
 }
 
 pub(crate) fn day_start(date: NaiveDate) -> Timestamp {

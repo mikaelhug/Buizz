@@ -1,12 +1,13 @@
 use std::collections::BTreeMap;
 
 use buizz_core::market::{DataSource, Dataset, Feed, Symbol, Timeframe};
+use buizz_core::time::Timestamp;
 use buizz_sources::alpaca::BarsRequest;
 use buizz_sources::http::SourceError;
 use chrono::{NaiveDate, TimeDelta};
 
 use crate::fetch::FetchKey;
-use crate::{Ingest, IngestError, day_start, wall_clock};
+use crate::{Ingest, IngestError, day_start};
 
 const SYMBOLS_PER_REQUEST: usize = 50;
 
@@ -22,7 +23,7 @@ impl Ingest {
             .alpaca
             .as_ref()
             .ok_or(IngestError::Unconfigured("Alpaca"))?;
-        let now = wall_clock();
+        let now = Timestamp::now();
         if let Some(until) = self
             .backoff_until(now, DataSource::Alpaca, Dataset::Bars1m, None)
             .await?

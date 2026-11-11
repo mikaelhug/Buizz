@@ -25,6 +25,10 @@ impl Timestamp {
         self.0
     }
 
+    pub fn now() -> Self {
+        Self::from_datetime(Utc::now()).expect("the current time fits in i64 nanoseconds")
+    }
+
     pub fn from_datetime(datetime: DateTime<Utc>) -> Option<Self> {
         datetime.timestamp_nanos_opt().map(Self)
     }

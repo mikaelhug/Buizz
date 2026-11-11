@@ -5,7 +5,7 @@ use buizz_core::market::{
     Symbol,
 };
 use buizz_core::time::Timestamp;
-use chrono::{NaiveDate, Utc};
+use chrono::NaiveDate;
 use duckdb::{Appender, Connection, Transaction, params};
 
 use crate::codec::{Dec, Ts, action_columns, feed_name, wire_name};
@@ -56,7 +56,7 @@ fn write_batch(
     let rows = write(&transaction, batch_id)?;
     let source = wire_name(&source);
     let dataset = wire_name(&dataset);
-    let now = Utc::now();
+    let now = Ts(Timestamp::now());
     transaction.execute(
         "INSERT INTO ingest_batch (id, source, dataset, created_at, rows) VALUES (?, ?, ?, ?, ?)",
         params![batch_id, source, dataset, now, rows],

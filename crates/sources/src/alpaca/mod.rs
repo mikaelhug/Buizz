@@ -4,7 +4,7 @@ use buizz_core::market::{
     Bar, Calendar, CorporateAction, Feed, Instrument, Session, Symbol, Timeframe,
 };
 use buizz_core::time::Timestamp;
-use chrono::{NaiveDate, TimeDelta, Utc};
+use chrono::{NaiveDate, TimeDelta};
 use serde::de::DeserializeOwned;
 
 use crate::http::{HttpClient, RateLimit, SourceError};
@@ -75,8 +75,7 @@ impl AlpacaClient {
         let to = match request.feed {
             Feed::Sip => {
                 let delay = TimeDelta::from_std(SIP_DELAY).expect("SIP delay fits a time delta");
-                let latest = Timestamp::from_datetime(Utc::now()).map(|now| now - delay);
-                latest.map_or(request.to, |latest| request.to.min(latest))
+                request.to.min(Timestamp::now() - delay)
             }
             Feed::Iex => request.to,
         };
