@@ -10,7 +10,7 @@ use crate::fetch::{Batch, FetchKey, Work};
 use crate::{Ingest, IngestError, day_start};
 
 const OVERLAP_WINDOW_DAYS: i64 = 45;
-const SYMBOLS_PER_RUN: u64 = 40;
+const SYMBOLS_PER_RUN: u64 = 3;
 const MONTH: TimeDelta = TimeDelta::days(30);
 const DAY: TimeDelta = TimeDelta::days(1);
 
