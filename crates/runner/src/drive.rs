@@ -727,7 +727,8 @@ impl Driver {
 
     async fn launch(&mut self) -> Flow<()> {
         if self.engine.drawdown_stop().is_some() {
-            return Ok(());
+            self.enter_next_session().await?;
+            return self.lease_stream().await;
         }
         if let Some(message) = self.outdated().await? {
             return match self.run.mode {
