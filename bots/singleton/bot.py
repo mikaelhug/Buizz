@@ -1,11 +1,19 @@
 import math
-from collections import defaultdict
 from datetime import date
 from typing import NamedTuple
 
 import numpy as np
+from buizz_bots.fundamentals import (
+    Annual,
+    adjusted_shares,
+    amount,
+    consecutive_fiscal_ends,
+    domestic_annual,
+    histories_since,
+    traded_today,
+)
 
-from buizz import Bot, Context, FundamentalPoint, History, Metric, run, split_ratio, to_ns
+from buizz import Bot, Context, FundamentalPoint, History, Metric, run
 
 METRICS: list[Metric] = [
     "shares_outstanding",
@@ -15,13 +23,7 @@ METRICS: list[Metric] = [
     "operating_cash_flow",
     "capex",
 ]
-DOMESTIC_ANNUAL_FORMS = {"10-K", "10-K/A"}
 YEARS_NEEDED = 2
-MIN_GAP_DAYS = 300
-MAX_GAP_DAYS = 430
-MAX_STALENESS_DAYS = 548
-
-Annual = dict[tuple[str, Metric], dict[date, FundamentalPoint]]
 
 
 class Candidate(NamedTuple):
@@ -39,22 +41,6 @@ class Signal(NamedTuple):
     buyback_to_fcf: float | None
 
 
-def domestic_annual(points: list[FundamentalPoint]) -> Annual:
-    annual: Annual = defaultdict(dict)
-    for point in points:
-        if point.period_type != "FY" or point.form not in DOMESTIC_ANNUAL_FORMS:
-            continue
-        if point.metric == "shares_outstanding" and point.period_start is not None:
-            continue
-        annual[point.symbol, point.metric][point.period_end] = point
-    return annual
-
-
-def amount(annual: Annual, symbol: str, metric: Metric, period_end: date) -> float | None:
-    point = annual.get((symbol, metric), {}).get(period_end)
-    return None if point is None else float(point.value)
-
-
 def buyback_to_fcf(annual: Annual, symbol: str, period_end: date) -> float | None:
     repurchases = amount(annual, symbol, "share_repurchases", period_end)
     operating = amount(annual, symbol, "operating_cash_flow", period_end)
@@ -67,12 +53,10 @@ def buyback_to_fcf(annual: Annual, symbol: str, period_end: date) -> float | Non
 def candidate(annual: Annual, symbol: str, today: date) -> Candidate | None:
     shares = annual.get((symbol, "shares_outstanding"), {})
     equity = annual.get((symbol, "equity"), {})
-    fiscal_ends = sorted(set(shares) & set(equity), reverse=True)
-    if len(fiscal_ends) < YEARS_NEEDED or (today - fiscal_ends[0]).days > MAX_STALENESS_DAYS:
+    fiscal_ends = consecutive_fiscal_ends(set(shares) & set(equity), today, YEARS_NEEDED)
+    if fiscal_ends is None:
         return None
-    latest, prior = fiscal_ends[0], fiscal_ends[1]
-    if not MIN_GAP_DAYS <= (latest - prior).days <= MAX_GAP_DAYS:
-        return None
+    latest, prior = fiscal_ends
     preferred = amount(annual, symbol, "preferred_stock", latest) or 0.0
     book_equity = float(equity[latest].value) - preferred
     if book_equity <= 0 or shares[latest].value <= 0 or shares[prior].value <= 0:
@@ -80,13 +64,8 @@ def candidate(annual: Annual, symbol: str, today: date) -> Candidate | None:
     return Candidate(symbol, shares[latest], shares[prior], book_equity, buyback_to_fcf(annual, symbol, latest))
 
 
-def adjusted_shares(point: FundamentalPoint, raw: History, adjusted: History) -> float | None:
-    ratio = split_ratio(raw, adjusted, point.filed)
-    return None if ratio is None else float(point.value) * ratio
-
-
-def signal(found: Candidate, raw: History, adjusted: History, session_open_ns: int) -> Signal | None:
-    if len(raw.close) == 0 or raw.start[-1] < session_open_ns:
+def signal(ctx: Context, found: Candidate, raw: History, adjusted: History) -> Signal | None:
+    if not traded_today(ctx, raw):
         return None
     latest = adjusted_shares(found.latest, raw, adjusted)
     prior = adjusted_shares(found.prior, raw, adjusted)
@@ -109,16 +88,12 @@ def qualifiers_of(ctx: Context) -> dict[str, str]:
     if not candidates:
         return {}
     oldest = min(min(found.latest.filed, found.prior.filed) for found in candidates)
-    bars = len(ctx.calendar(oldest, today)) + 1
-    symbols = [found.symbol for found in candidates]
-    raw = ctx.history(symbols, "1d", bars, "raw")
-    adjusted = ctx.history(symbols, "1d", bars, "split")
-    session_open_ns = to_ns(ctx.session.open)
+    raw, adjusted = histories_since(ctx, [found.symbol for found in candidates], oldest)
     signals = [
         measured
         for found in candidates
         if found.symbol in raw
-        and (measured := signal(found, raw[found.symbol], adjusted[found.symbol], session_open_ns)) is not None
+        and (measured := signal(ctx, found, raw[found.symbol], adjusted[found.symbol])) is not None
     ]
     if not signals:
         return {}
@@ -156,13 +131,8 @@ class Singleton(Bot):
         if qualifiers:
             cohorts[month] = sorted(qualifiers)
         formed_in = {symbol: formed for formed, members in cohorts.items() for symbol in members}
-        session_open_ns = to_ns(ctx.session.open)
         latest_bars = ctx.history(sorted(formed_in), "1d", 1, "raw") if formed_in else {}
-        trading = [
-            symbol
-            for symbol, history in latest_bars.items()
-            if len(history.start) and history.start[-1] >= session_open_ns
-        ]
+        trading = [symbol for symbol, history in latest_bars.items() if traded_today(ctx, history)]
         weight = 1 / max(len(trading), 1)
         ctx.rebalance(
             dict.fromkeys(trading, weight),
