@@ -34,7 +34,9 @@ export function BotDetail({ name, runId, tab }: { name: string; runId: number | 
   const selected = runId ?? summary.live_run ?? summary.stats_run ?? runs[0]?.id;
   const showRun = (run: Run) => {
     detail.reload();
-    navigate({ page: "bot", name, run: run.id });
+    if (run.id !== selected) {
+      navigate({ page: "bot", name, run: run.id });
+    }
   };
 
   return (

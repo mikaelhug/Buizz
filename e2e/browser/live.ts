@@ -41,7 +41,7 @@ function minutes({ from, through }: Released): string[] {
 async function pauseAndResumeThenStop(page: Page): Promise<{ paused: Released; resumed: Released }> {
   const card = (name: string) => page.locator("article.bot-card").filter({ has: page.getByRole("link", { name, exact: true }) });
   for (const name of ["tape_twin", "tape"]) {
-    await card(name).getByRole("button", { name: "Live" }).click();
+    await card(name).getByRole("button", { name: "Live", exact: true }).click();
     await pill(card(name), "live").waitFor();
   }
   await card("tape").getByRole("link", { name: "tape", exact: true }).click();
@@ -55,7 +55,7 @@ async function pauseAndResumeThenStop(page: Page): Promise<{ paused: Released; r
   await pill(orders, "filled").first().waitFor();
   await pill(resting, "working").waitFor();
 
-  await head.getByRole("button", { name: "Pause" }).click();
+  await head.getByRole("button", { name: "Pause", exact: true }).click();
   await pill(head, "paused").waitFor();
   await pill(run, "paused").waitFor();
   await pill(resting, "cancelled").waitFor();
@@ -64,7 +64,7 @@ async function pauseAndResumeThenStop(page: Page): Promise<{ paused: Released; r
   const markedThrough = shown(new Date(Date.parse(paused.through) + MINUTE_MS));
   await run.locator(".facts div", { hasText: "Clock" }).locator("dd", { hasText: markedThrough }).waitFor();
 
-  await head.getByRole("button", { name: "Live" }).click();
+  await head.getByRole("button", { name: "Live", exact: true }).click();
   await pill(head, "live").waitFor();
   await pill(run, "running").waitFor();
   const resumed = await release(60);
@@ -77,10 +77,10 @@ async function pauseAndResumeThenStop(page: Page): Promise<{ paused: Released; r
     throw new Error(`the bot saw bars from its paused interval: ${leaked.join(", ")}`);
   }
 
-  await head.getByRole("button", { name: "Stop" }).click();
+  await head.getByRole("button", { name: "Stop", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Stop run" }).click();
   await pill(run, "cancelled").waitFor();
-  await head.getByRole("button", { name: "Live" }).waitFor();
+  await head.getByRole("button", { name: "Live", exact: true }).waitFor();
   return { paused, resumed };
 }
 
