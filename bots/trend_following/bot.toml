@@ -1,0 +1,9 @@
+description = "Moskowitz-Ooi-Pedersen time-series momentum: long or short each asset on the sign of its 12-month excess return, sized to 40% ex-ante volatility, averaged across assets"
+command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
+timeframe = "1d"
+wake = "bar"
+universe = { symbols = ["SPY", "IWM", "EFA", "EEM", "EWJ", "TLT", "IEF", "LQD", "GLD", "SLV", "USO", "DBA", "UUP", "FXE", "BIL"] }
+params = { assets = ["SPY", "IWM", "EFA", "EEM", "EWJ", "TLT", "IEF", "LQD", "GLD", "SLV", "USO", "DBA", "UUP", "FXE"], cash = "BIL", lookback_months = 12, asset_vol = 0.40, vol_com_days = 60, max_gross = 4.0 }
+
+[risk]
+max_gross_exposure = 4.0
