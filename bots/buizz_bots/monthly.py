@@ -8,6 +8,7 @@ import numpy.typing as npt
 from buizz import Context, History
 
 MAX_SESSIONS_PER_MONTH = 23
+MOMENTUM_MONTHS = 12
 
 
 def session_days(history: History) -> npt.NDArray[np.datetime64]:
@@ -54,3 +55,15 @@ def close_on(history: History, day: date) -> float | None:
 def trailing_return(history: History, since: date, today: date) -> float | None:
     start, end = close_on(history, since), close_on(history, today)
     return None if start is None or end is None else end / start - 1
+
+
+def momentum(history: History, today: date) -> float | None:
+    closes = month_end_closes(history, today)
+    if closes.size < MOMENTUM_MONTHS + 1 or closes[-MOMENTUM_MONTHS - 1] <= 0:
+        return None
+    return float(closes[-2] / closes[-MOMENTUM_MONTHS - 1] - 1)
+
+
+def momentum_sessions(ctx: Context) -> int:
+    today = ctx.session.date
+    return len(ctx.calendar(first_of_month(today, MOMENTUM_MONTHS), today))

@@ -16,18 +16,21 @@ from buizz_bots.fundamentals import (
     adjusted_shares,
     amount,
     amount_or_zero,
+    by_symbol,
     current_debt,
     domestic_annual,
     gross_profit,
     in_dollars,
+    latest_filing,
+    latest_shares,
     total_debt,
     traded_today,
     with_fourth_quarters,
     year_end_shares,
 )
-from buizz_bots.monthly import month_end_closes
+from buizz_bots.monthly import momentum
+from buizz_bots.ranks import MIN_CROSS_SECTION, rank_z
 from buizz_bots.sessions import last_session_of_month
-from scipy.stats import rankdata
 
 from buizz import Bot, Context, FundamentalPoint, History, MacroPoint, Metric, run
 
@@ -63,13 +66,11 @@ MARKET = "VTI"
 CHUNK = 200
 DOLLAR_VOLUME_SESSIONS = 20
 YEAR_TOLERANCE_DAYS = 45
-MOMENTUM_MONTHS = 12
 EVOL_QUARTERS = 60
 EVOL_MIN_QUARTERS = 12
 GROWTH_YEARS = 5
 YEAR_LAGS = (0, 1, GROWTH_YEARS, GROWTH_YEARS + 1)
 BREAKPOINTS = (0.3, 0.7)
-MIN_CROSS_SECTION = 2
 
 Quarterly = dict[date, float]
 AnnualCache = dict[str, tuple[date | None, Annual]]
@@ -161,22 +162,6 @@ def working_capital(annual: Annual, symbol: str, end: date) -> float | None:
         + current_debt(annual, symbol, end)
         + amount_or_zero(annual, symbol, "income_taxes_payable", end)
     )
-
-
-def latest_shares(points: list[FundamentalPoint], today: date) -> FundamentalPoint | None:
-    counts = [
-        point
-        for point in points
-        if point.metric == "shares_outstanding"
-        and point.period_start is None
-        and point.form in DOMESTIC_FORMS
-        and in_dollars(point)
-        and point.value > 0
-    ]
-    if not counts:
-        return None
-    newest = max(counts, key=lambda point: (point.period_end, point.filed))
-    return newest if (today - newest.period_end).days <= MAX_STALENESS_DAYS else None
 
 
 def fiscal_year(annual: Annual, symbol: str, end: date, shares: float | None) -> Year | None:
@@ -418,13 +403,6 @@ def annual_rate(rates: RateHistory, end: date) -> float | None:
     return float(rates.cumulative[upper] - rates.cumulative[lower]) / (upper - lower) / 100
 
 
-def momentum(history: History, today: date) -> float | None:
-    closes = month_end_closes(history, today)
-    if closes.size < MOMENTUM_MONTHS + 1 or closes[-MOMENTUM_MONTHS - 1] <= 0:
-        return None
-    return float(closes[-2] / closes[-MOMENTUM_MONTHS - 1] - 1)
-
-
 def fiscal_year_ends(annual: Annual, symbol: str, today: date) -> dict[int, date]:
     ends = [end for end in annual.get((symbol, "total_assets"), {}) if end <= today]
     recent = max(ends, default=None)
@@ -506,18 +484,6 @@ def firm_of(
         beta,
         measures,
     )
-
-
-def rank_z(values: dict[str, float]) -> dict[str, float]:
-    if len(values) < MIN_CROSS_SECTION:
-        return {}
-    symbols = sorted(values)
-    ranks = rankdata([values[symbol] for symbol in symbols])
-    spread = float(np.std(ranks))
-    if spread == 0:
-        return {}
-    scores = (ranks - ranks.mean()) / spread
-    return dict(zip(symbols, scores.tolist(), strict=True))
 
 
 def composite(parts: list[dict[str, float]]) -> dict[str, float]:
@@ -613,10 +579,6 @@ def one_line_per_company(firms: list[Firm]) -> list[Firm]:
     return sorted(lines.values(), key=lambda firm: firm.symbol)
 
 
-def latest_annual_filing(points: list[FundamentalPoint]) -> date | None:
-    return max((point.filed for point in points if point.form in DOMESTIC_ANNUAL_FORMS), default=None)
-
-
 def years_in_use(fresh: Annual, symbol: str, today: date) -> Annual:
     ends = set(fiscal_year_ends(fresh, symbol, today).values())
     return {
@@ -649,11 +611,11 @@ def firms_of(ctx: Context, cache: AnnualCache) -> list[Firm]:
     for offset in range(0, len(universe), CHUNK):
         chunk = universe[offset : offset + CHUNK]
         points = ctx.fundamentals(chunk, QUARTERLY_METRICS)
-        by_symbol: dict[str, list[FundamentalPoint]] = defaultdict(list)
-        for point in points:
-            by_symbol[point.symbol].append(point)
-        annual = annual_of(ctx, points, {symbol: latest_annual_filing(by_symbol[symbol]) for symbol in chunk}, cache)
-        oldest = oldest_filed(by_symbol, annual, today)
+        own = by_symbol(points)
+        annual = annual_of(
+            ctx, points, {symbol: latest_filing(own[symbol], DOMESTIC_ANNUAL_FORMS) for symbol in chunk}, cache
+        )
+        oldest = oldest_filed(own, annual, today)
         if not oldest:
             continue
         bars = max(len(ctx.calendar(min(oldest.values()), today)) + 1, DOLLAR_VOLUME_SESSIONS)
@@ -665,7 +627,7 @@ def firms_of(ctx: Context, cache: AnnualCache) -> list[Firm]:
             firm = firm_of(
                 ctx,
                 symbol,
-                by_symbol[symbol],
+                own[symbol],
                 annual,
                 raw[symbol],
                 split[symbol],
