@@ -9,7 +9,7 @@ use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Router, serve};
-use buizz_core::api::SpineEvent;
+use buizz_core::api::{JobView, SpineEvent};
 use buizz_core::market::{AssetClass, DataSource, Dataset, Symbol, Timeframe};
 use buizz_core::ops::{FetchStatus, JobOutcome};
 use buizz_core::time::Timestamp;
@@ -526,12 +526,15 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
     assert_eq!(fetch.status, FetchStatus::RateLimited);
     assert!(fetch.retry_after.unwrap() >= limited_at + TimeDelta::hours(2));
 
+    let bars = |views: Vec<JobView>| views.into_iter().find(|view| view.name == "bars_1d");
+    let paused = bars(ingest.job_views(limited_at).await.unwrap()).unwrap();
+    assert_eq!(paused.next_due, fetch.retry_after);
     let hits = fake.hits("bars");
     let retried = ingest
         .tick(limited_at + TimeDelta::minutes(61))
         .await
         .unwrap();
-    assert!(retried.ran.contains(&("bars_1d", JobOutcome::Backoff)));
+    assert!(!retried.ran.iter().any(|(job, _)| *job == "bars_1d"));
     assert_eq!(fake.hits("bars"), hits);
 
     fake.rate_limit_bars.store(false, Ordering::SeqCst);

@@ -79,6 +79,7 @@ pub struct IngestConfig {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct JobSpec {
     pub name: &'static str,
+    pub source: Option<DataSource>,
     pub every: Duration,
 }
 
@@ -122,6 +123,7 @@ impl Ingest {
         let finished_at = || now + TimeDelta::from_std(started.elapsed()).unwrap_or_default();
         let latest = self.state.latest_jobs().await?;
         let failures = self.state.failure_streaks().await?;
+        let limits = self.rate_limits().await?;
         let mut report = TickReport::default();
         for spec in JOBS {
             if self.stopping() {
@@ -129,7 +131,8 @@ impl Ingest {
             }
             let previous = latest.iter().find(|run| run.job == spec.name);
             let streak = failures.get(spec.name).copied().unwrap_or(0);
-            if due_at(&spec, previous, streak).is_some_and(|due| due > now) {
+            let limited = spec.source.and_then(|source| limits.get(&source).copied());
+            if due_at(&spec, previous, streak, limited).is_some_and(|due| due > now) {
                 continue;
             }
             let run_id = self.state.start_job(spec.name, now).await?;
@@ -162,18 +165,30 @@ impl Ingest {
     pub async fn job_views(&self, now: Timestamp) -> Result<Vec<JobView>, IngestError> {
         let latest = self.state.latest_jobs().await?;
         let failures = self.state.failure_streaks().await?;
+        let limits = self.rate_limits().await?;
         let mut views = Vec::with_capacity(JOBS.len());
         for spec in JOBS {
             let previous = latest.iter().find(|run| run.job == spec.name);
             let streak = failures.get(spec.name).copied().unwrap_or(0);
+            let limited = spec.source.and_then(|source| limits.get(&source).copied());
             let success = self.state.last_job_success(spec.name).await?;
-            let view = schedule::view(&spec, previous, streak, success.as_ref(), now);
+            let view = schedule::view(&spec, previous, streak, limited, success.as_ref(), now);
             views.push(JobView {
                 stale: self.config.enabled && view.stale,
                 ..view
             });
         }
         Ok(views)
+    }
+
+    async fn rate_limits(&self) -> Result<BTreeMap<DataSource, Timestamp>, IngestError> {
+        let mut limits = BTreeMap::new();
+        for source in JOBS.iter().filter_map(|spec| spec.source) {
+            if let Some(until) = self.state.rate_limited_until(source).await? {
+                limits.insert(source, until);
+            }
+        }
+        Ok(limits)
     }
 
     pub fn events(&self) -> broadcast::Receiver<SpineEvent> {
