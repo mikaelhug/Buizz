@@ -370,7 +370,7 @@ function Overview({ run }: { run: Run }) {
         <StaleFailure resource={curve} />
         {curve.data ? (
           curve.data.points.length > 0 ? (
-            <EquityChart runId={run.id} points={curve.data.points} benchmark={curve.data.benchmark} />
+            <EquityChart runId={run.id} points={curve.data.points} benchmark={curve.data.benchmark} bot={run.bot} benchmarkSymbol={run.config.benchmark} />
           ) : (
             <p className="empty chart-empty">
               {awaitingData(run) ? "Waiting for market data. Equity is marked once the first bar arrives." : run.finished_at ? "This run recorded no equity." : "No equity yet. The curve draws as the run marks each session."}
