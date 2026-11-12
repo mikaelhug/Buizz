@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use axum::extract::ws::{Message, WebSocket};
+use buizz_core::market::{FundamentalMetric, HISTORY_START, MacroSeries};
 use buizz_core::protocol::{
     self, Ack, BarBuffer, BotMessage, Data, DataResult, End, EndReason, ErrorCode, Hello,
     PROTOCOL_VERSION, ProtocolError, Query, QueryRequest, Ready, SpineMessage, Step,
@@ -8,6 +9,7 @@ use buizz_core::protocol::{
 use buizz_core::run::{UNIVERSE_SESSIONS, UniverseSpec};
 use buizz_core::time::Timestamp;
 use buizz_core::visibility::calendar_known_through;
+use buizz_core::wire;
 use buizz_market::{HistoryRequest, MarketStore};
 
 const MAX_HISTORY_BARS: u32 = 10_000;
@@ -26,6 +28,7 @@ pub(crate) enum LinkError {
 pub(crate) struct BotLink {
     socket: WebSocket,
     timeout: Duration,
+    unbacked: Vec<(String, String)>,
 }
 
 impl BotLink {
@@ -34,7 +37,11 @@ impl BotLink {
         ready: Ready,
         timeout: Duration,
     ) -> Result<Self, LinkError> {
-        let mut link = Self { socket, timeout };
+        let mut link = Self {
+            socket,
+            timeout,
+            unbacked: Vec::new(),
+        };
         match link.receive().await? {
             BotMessage::Hello(Hello { protocol, .. }) if protocol == PROTOCOL_VERSION => {}
             BotMessage::Hello(Hello { protocol, .. }) => {
@@ -65,8 +72,15 @@ impl BotLink {
         loop {
             match self.receive().await? {
                 BotMessage::Query(Query { id, request }) => {
+                    let asked = Asked::of(&request);
                     let answer = match answer(market, request, clock).await {
-                        Ok(result) => SpineMessage::Data(Data { id, result }),
+                        Ok(result) => {
+                            if let Some(asked) = asked {
+                                let unbacked = asked.unbacked(market, &result, clock).await;
+                                self.unbacked.extend(unbacked);
+                            }
+                            SpineMessage::Data(Data { id, result })
+                        }
                         Err(message) => SpineMessage::Error(ProtocolError {
                             id: Some(id),
                             code: ErrorCode::BadQuery,
@@ -91,6 +105,10 @@ impl BotLink {
                 }
             }
         }
+    }
+
+    pub(crate) fn take_unbacked(&mut self) -> Vec<(String, String)> {
+        std::mem::take(&mut self.unbacked)
     }
 
     pub(crate) async fn end(mut self, reason: EndReason, message: Option<String>) {
@@ -145,6 +163,70 @@ impl BotLink {
             }
         }
     }
+}
+
+enum Asked {
+    Fundamentals(Vec<FundamentalMetric>),
+    Macro(Vec<MacroSeries>),
+}
+
+impl Asked {
+    fn of(request: &QueryRequest) -> Option<Self> {
+        match request {
+            QueryRequest::Fundamentals { metrics, .. } => Some(Self::Fundamentals(metrics.clone())),
+            QueryRequest::Macro { series, .. } => Some(Self::Macro(series.clone())),
+            _ => None,
+        }
+    }
+
+    async fn unbacked(
+        self,
+        market: &MarketStore,
+        result: &DataResult,
+        clock: Timestamp,
+    ) -> Vec<(String, String)> {
+        let mut unbacked = Vec::new();
+        match (self, result) {
+            (Self::Fundamentals(metrics), DataResult::Fundamentals { points }) => {
+                for metric in metrics {
+                    if !points.iter().any(|point| point.metric == metric) {
+                        let metric = name(&metric);
+                        unbacked.push((
+                            format!("fundamentals {metric}"),
+                            format!(
+                                "the bot asked for {metric} fundamentals and none of its symbols has any filed before {clock}"
+                            ),
+                        ));
+                    }
+                }
+            }
+            (Self::Macro(series), DataResult::Macro { points }) => {
+                for series in series {
+                    if points.iter().any(|point| point.series == series) {
+                        continue;
+                    }
+                    let earlier = market
+                        .macro_points(vec![series], HISTORY_START, clock.exchange_date(), clock)
+                        .await;
+                    if earlier.is_ok_and(|earlier| earlier.is_empty()) {
+                        let series = name(&series);
+                        unbacked.push((
+                            format!("macro {series}"),
+                            format!(
+                                "the bot asked for the {series} macro series and none of it was published before {clock}"
+                            ),
+                        ));
+                    }
+                }
+            }
+            _ => {}
+        }
+        unbacked
+    }
+}
+
+fn name<T: serde::Serialize + std::fmt::Debug>(value: &T) -> String {
+    wire::name(value).unwrap_or_else(|_| format!("{value:?}"))
 }
 
 async fn answer(

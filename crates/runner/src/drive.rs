@@ -422,6 +422,7 @@ struct Driver {
     equity_shown_at: Option<tokio::time::Instant>,
     unshown_equity: Option<EquityPoint>,
     day_mark: Option<Timestamp>,
+    unbacked: BTreeSet<String>,
 }
 
 impl Driver {
@@ -484,6 +485,7 @@ impl Driver {
             timeline,
             committer: Committer::spawn(Arc::clone(&inner), run.id, run.mode, last_step),
             day_mark,
+            unbacked: BTreeSet::new(),
             pending: Pending::default(),
             frame,
             after,
@@ -1366,6 +1368,12 @@ impl Driver {
         match answered {
             None => self.reconcile().await,
             Some(Ok(ack)) => {
+                let unbacked = self.link.as_mut().map(BotLink::take_unbacked);
+                for (asked, message) in unbacked.into_iter().flatten() {
+                    if self.unbacked.insert(asked) {
+                        self.note(RunEventKind::DataWarning { message });
+                    }
+                }
                 self.live_slot = None;
                 self.arrived_while_deciding = asked.zip(self.visible_through());
                 self.frame.discard();

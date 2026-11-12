@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use buizz_core::api::{OrderView, RunSummary};
 use buizz_core::market::Session;
 use buizz_core::order::OrderStatus;
+use buizz_core::run::RunEventKind;
 use buizz_core::time::Timestamp;
 use chrono::TimeDelta;
 use serde_json::{Value, json};
@@ -247,6 +248,23 @@ async fn a_probe_asking_for_everything_never_sees_past_the_clock() {
         }
         assert_eq!(json!(latest), case["latest"], "{case}");
     }
+    let unpublished: Vec<String> = spine
+        .events(runs["probe"].id)
+        .await
+        .into_iter()
+        .filter_map(|event| match event.kind {
+            RunEventKind::DataWarning { message } if message.contains("macro series") => {
+                Some(message)
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        unpublished.len(),
+        1,
+        "gs10 is first published after the run starts, and is flagged once: {unpublished:?}"
+    );
+    assert!(unpublished[0].contains("gs10"), "{unpublished:?}");
     assert_filled_at(&spine.orders(runs["probe"].id).await, &daily["fills"]);
 
     for (wake, count) in minute["step_counts"].as_object().expect("step counts") {
