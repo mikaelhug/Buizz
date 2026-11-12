@@ -3,36 +3,159 @@
   padding: var(--sp-3);
 }
 
-.legend {
-  position: absolute;
-  top: var(--sp-4);
-  left: var(--sp-5);
-  z-index: 2;
+.equity {
+  margin: 0;
+}
+
+.chart-toolbar {
   display: flex;
-  gap: var(--sp-4);
-  color: var(--text-2);
-  font-size: var(--fs-sm);
-  font-weight: var(--fw-medium);
-  pointer-events: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
 }
 
-.swatch::before {
-  content: "";
-  display: inline-block;
-  width: 14px;
-  height: 0;
-  margin-right: 6px;
-  vertical-align: middle;
-  border-top: 2px solid var(--accent);
-  border-radius: 1px;
+.chart-toolbar-end {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-left: auto;
 }
 
-.swatch-bench::before {
-  border-top: 2px dashed var(--bench);
+.chart-toggle.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.chart-stage {
+  position: relative;
 }
 
 .equity-chart {
+  position: relative;
+  z-index: 0;
   height: 420px;
+  border-radius: var(--r-sm);
+}
+
+.chart-stage-tall .equity-chart {
+  height: 500px;
+}
+
+.equity-chart:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.chart-legend {
+  position: absolute;
+  top: 24px;
+  left: var(--sp-3);
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(4, auto);
+  column-gap: var(--sp-3);
+  row-gap: 1px;
+  padding: var(--sp-1) var(--sp-2) var(--sp-1) var(--sp-1);
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  line-height: 18px;
+  pointer-events: none;
+}
+
+.legend-time {
+  grid-column: 1 / -1;
+  min-height: 18px;
+  padding-left: var(--sp-1);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.legend-row {
+  display: contents;
+  white-space: nowrap;
+}
+
+.legend-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 var(--sp-1);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-weight: var(--fw-medium);
+  text-align: left;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.legend-toggle:hover {
+  background: var(--surface-2);
+}
+
+.legend-off > :not(.legend-toggle),
+.legend-off .legend-name {
+  opacity: 0.45;
+}
+
+.legend-off .legend-name {
+  text-decoration: line-through;
+}
+
+.legend-swatch {
+  display: inline-block;
+  width: 16px;
+  height: 0;
+  border-top: 2px solid var(--accent);
+}
+
+.legend-swatch-benchmark {
+  border-top: 2px dashed var(--bench);
+}
+
+.legend-value,
+.legend-change,
+.legend-drawdown {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.legend-value {
+  color: var(--text);
+}
+
+.legend-drawdown {
+  color: var(--muted);
+}
+
+.legend-key {
+  font-size: var(--fs-2xs);
+  letter-spacing: 0.04em;
+}
+
+.legend-note {
+  display: block;
+  grid-column: 1 / -1;
+  padding-left: var(--sp-1);
+  color: var(--muted);
+}
+
+.legend-note .num {
+  color: var(--text);
+}
+
+.legend-mark-stop {
+  color: var(--down);
+}
+
+.legend-mark-breach {
+  color: var(--warn);
 }
 
 .chart-empty {
@@ -42,8 +165,40 @@
 }
 
 @media (max-width: 640px) {
+  .chart-toolbar-end {
+    margin-left: 0;
+  }
+
+  .chart-legend {
+    position: static;
+    margin-bottom: var(--sp-1);
+    padding: 0;
+    background: none;
+    font-size: var(--fs-xs);
+    line-height: 16px;
+    grid-template-columns: minmax(0, 1fr) repeat(3, auto);
+    column-gap: var(--sp-2);
+  }
+
+  .legend-toggle {
+    min-width: 0;
+  }
+
+  .legend-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .legend-note {
+    white-space: normal;
+  }
+
   .equity-chart {
     height: 320px;
+  }
+
+  .chart-stage-tall .equity-chart {
+    height: 380px;
   }
 
   .chart-empty {

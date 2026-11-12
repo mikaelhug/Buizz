@@ -90,6 +90,7 @@ Known parity gap, stated honestly: live minute bars are IEX (partial volume), ba
 
 - Bot grid: one card per bot with status, equity sparkline, Live/Pause; hover shows key stats; filter by status and name, sort by status, name or last run.
 - Bot detail: equity vs SPY with an underwater (drawdown) pane, metrics beside the benchmark's, monthly returns, closed trades (round trips with entry and exit reasons, P&L and holding time), orders with reasons, positions, logs, run history, "Backtest" with period presets or a custom range.
+- Run chart: equity against the benchmark's buy and hold from the same starting capital (the close before the first session), with drawdown-from-peak and optional gross-exposure panes. A crosshair legend gives values, return since the start of the visible range and drawdown for both, and toggles each series. Range presets (1M to 5Y, YTD, All), a $, % or log scale, wheel, drag, pinch and keyboard zoom and pan, and markers for drawdown stops, risk breaches, pauses and resumes. It reads as a text summary to screen readers.
 - Leaderboard: bots compared on the same preset period and cost model only, ranked against the benchmark's buy and hold over that period. Runs ended by the drawdown stop stay on it. Each row shows its trial count (completed backtests of that bot) and its badges; trade statistics from fewer than 30 trades are greyed, and Sharpe carries its standard error on hover.
 - Data health: job runs, staleness, coverage, feed slots (e.g. 22/30).
 - Single admin login (password → HttpOnly session cookie).
