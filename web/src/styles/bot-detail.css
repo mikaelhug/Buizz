@@ -6,6 +6,11 @@
   margin-bottom: var(--sp-4);
 }
 
+.detail-head > .crumbs {
+  flex: 1 0 100%;
+  margin-bottom: calc(var(--sp-2) * -1);
+}
+
 .detail-title {
   display: flex;
   flex-wrap: wrap;
@@ -470,7 +475,7 @@
   z-index: 2;
 }
 
-.panel-head .info {
+.panel-head > .info {
   margin-left: calc(var(--sp-2) * -1);
 }
 
@@ -712,4 +717,9 @@
   color: var(--muted);
   font-size: var(--fs-sm);
   font-weight: var(--fw-regular);
+}
+
+.view-switch .count-live {
+  color: var(--up);
+  font-weight: var(--fw-medium);
 }

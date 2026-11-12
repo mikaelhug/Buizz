@@ -21,6 +21,25 @@ export function goLive(name: string, fromRun?: number): Promise<Run> {
   return must(api.POST("/api/bots/{name}/live", { params: { path: { name } }, body: fromRun === undefined ? {} : { from_run: fromRun } }));
 }
 
+export function pauseRun(id: number): Promise<Run> {
+  return must(api.POST("/api/runs/{id}/pause", { params: { path: { id } } }));
+}
+
+export function resumeRun(id: number): Promise<Run> {
+  return must(api.POST("/api/runs/{id}/resume", { params: { path: { id } } }));
+}
+
+export function undoPause(runs: Run[]): { text: string; run: () => void } {
+  return {
+    text: "Undo",
+    run: () =>
+      void Promise.all(runs.map((run) => resumeRun(run.id))).then(
+        () => notify(runs.length === 1 ? `${runs[0]?.bot} live again` : `${runs.length} runs live again`, "success"),
+        (error: unknown) => notify(errorMessage(error)),
+      ),
+  };
+}
+
 export function BotActions({ name, live: liveRun, onChanged }: Props) {
   const [busy, setBusy] = useState(false);
   const [stopping, setStopping] = useState<Run>();
@@ -30,7 +49,7 @@ export function BotActions({ name, live: liveRun, onChanged }: Props) {
     setBusy(true);
     try {
       const run = await pending();
-      notify(`${name} ${done} · run #${run.id}`, "success");
+      notify(`${name} ${done} · run #${run.id}`, "success", done === "paused" ? undoPause([run]) : undefined);
       onChanged(run);
       return true;
     } catch (error) {
@@ -45,8 +64,7 @@ export function BotActions({ name, live: liveRun, onChanged }: Props) {
     if (!liveRun) {
       return act(() => goLive(name), "live");
     }
-    const params = { params: { path: { id: liveRun.id } } };
-    return act(() => must(live ? api.POST("/api/runs/{id}/pause", params) : api.POST("/api/runs/{id}/resume", params)), live ? "paused" : "live");
+    return act(() => (live ? pauseRun(liveRun.id) : resumeRun(liveRun.id)), live ? "paused" : "live");
   };
 
   return (

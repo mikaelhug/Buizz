@@ -4,7 +4,7 @@ import { Modal } from "../ui/Dialog";
 import { Info } from "../ui/Popover";
 import { notify } from "../ui/Toaster";
 
-type Preset = Exclude<Schemas["PeriodPreset"], "holdout">;
+export type Preset = Exclude<Schemas["PeriodPreset"], "holdout">;
 
 export const SWEEP_PRESETS: readonly Preset[] = ["1y", "3y", "5y", "10y"];
 const MAX_VARIANTS = 256;

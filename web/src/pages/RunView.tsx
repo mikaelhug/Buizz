@@ -2,7 +2,7 @@ import { type KeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useStat
 import { api, must, mustSucceed, type Schemas } from "../api/client";
 import { useSpineEvents } from "../api/stream";
 import { ABSENT, fmt, label, tone } from "../lib/format";
-import { BOT_TABS, type BotTab, href, navigate, type Route } from "../lib/route";
+import { BOT_TABS, type BotTab, href, navigate, type Route, useQueryParam } from "../lib/route";
 import { appendPoints } from "../lib/series";
 import { useFrameBatch } from "../lib/useFrameBatch";
 import { PAGE_SIZE, usePaged } from "../lib/usePaged";
@@ -33,7 +33,7 @@ const TAB_LABELS: Record<BotTab, string> = {
   orders: "Orders",
   events: "Positions & events",
   logs: "Logs",
-  runs: "Runs",
+  runs: "History",
 };
 
 type Props = {
@@ -420,6 +420,7 @@ function Overview({ run, symbol, closeHref }: { run: Run; symbol: string | undef
     () => (curve.data ? monthlyCalendar(curve.data.points, curve.data.benchmark, run.config.start_cash) : undefined),
     [curve.data, run.config.start_cash],
   );
+  const metrics = run.metrics ?? curve.data?.interim_metrics;
   const benchmark = curve.data && (run.finished_at || run.mode === "live") ? { symbol: run.config.benchmark, metrics: curve.data.benchmark_metrics } : undefined;
 
   return (
@@ -465,10 +466,12 @@ function Overview({ run, symbol, closeHref }: { run: Run; symbol: string | undef
           <SymbolChart key={symbol} runId={run.id} symbol={symbol} sync={sync} />
         </section>
       )}
-      <section className="panel metrics-panel">
-        <h2 className="visually-hidden">Metrics</h2>
-        <MetricGroups metrics={run.metrics ?? curve.data?.interim_metrics} benchmark={benchmark} months={calendar?.range} />
-      </section>
+      {metrics && metrics.sessions > 0 && (
+        <section className="panel metrics-panel">
+          <h2 className="visually-hidden">Metrics</h2>
+          <MetricGroups metrics={metrics} benchmark={benchmark} months={calendar?.range} />
+        </section>
+      )}
       {calendar && <MonthlyReturns calendar={calendar} benchmarkSymbol={run.config.benchmark} />}
       <Setup run={run} />
     </div>
@@ -670,7 +673,7 @@ function Orders({ runId, active, symbolHref }: { runId: number; active: boolean;
   );
   const sorting = useSort("orders", ORDER_COLUMNS, { key: "decided", descending: true });
   const flash = useFlash(orders.data?.items, (order) => order.id);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useQueryParam("orders");
   const patch = (id: number, update: (order: Order) => Order) => {
     if (!orders.data?.items.some((order) => order.id === id)) {
       orders.reload();
@@ -831,7 +834,7 @@ function Events({ runId }: { runId: number }) {
   );
   const sorting = useSort("events", EVENT_COLUMNS, { key: "time", descending: true });
   const flash = useFlash(events.data?.items, (event) => event.seq);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useQueryParam("events");
 
   useSpineEvents((event) => {
     if (event.type === "log" && event.run_id === runId && (!kinds || kinds.includes(event.event.kind.type))) {

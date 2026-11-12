@@ -1,0 +1,131 @@
+.compare {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.compare > .page-head {
+  margin-bottom: 0;
+}
+
+.compare-empty {
+  padding: var(--sp-5);
+}
+
+.compare-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.compare-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 32px;
+  padding: 0 var(--sp-1) 0 var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  font-size: var(--fs-sm);
+}
+
+.compare-chip-name {
+  color: var(--text);
+  font-weight: var(--fw-semibold);
+}
+
+.compare-swatch {
+  display: inline-block;
+  flex: none;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border-radius: 3px;
+  background: var(--chip);
+  vertical-align: -1px;
+}
+
+.compare-remove {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  color: var(--muted);
+  font-size: var(--fs-lg);
+  line-height: 1;
+  place-items: center;
+}
+
+.compare-remove:hover {
+  background: var(--surface-2);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.compare-chart {
+  position: relative;
+}
+
+.compare-legend {
+  top: 8px;
+  grid-template-columns: repeat(3, auto);
+  justify-content: start;
+}
+
+.compare-legend .compare-swatch {
+  align-self: center;
+  margin-right: 0;
+}
+
+.compare-host {
+  height: 400px;
+}
+
+.compare-table th[scope="row"] {
+  color: var(--text-2);
+  font-weight: var(--fw-medium);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.compare-table th[scope="col"] {
+  white-space: nowrap;
+}
+
+.compare-table td.compare-best {
+  background: color-mix(in srgb, var(--up-bg) 70%, transparent);
+}
+
+.compare-table td.compare-best .num {
+  font-weight: var(--fw-semibold);
+}
+
+.compare-delta {
+  display: block;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+
+.compare-table tr.compare-param > * {
+  background: var(--surface-2);
+}
+
+.compare-note {
+  margin: var(--sp-3) 0 0;
+  font-size: var(--fs-sm);
+}
+
+@media (max-width: 640px) {
+  .compare-host {
+    height: 300px;
+  }
+
+  .compare-legend {
+    position: static;
+    margin-bottom: var(--sp-2);
+  }
+}

@@ -3,6 +3,7 @@ import { api, errorMessage, must, type Schemas } from "../api/client";
 import { useSpineEvents } from "../api/stream";
 import { fmt, label, paramsText } from "../lib/format";
 import { href, navigate } from "../lib/route";
+import { BulkBar, CompareButton, SelectAll, SelectBox, useSelection } from "../ui/Selection";
 import { useFrameBatch } from "../lib/useFrameBatch";
 import { useResource } from "../lib/useResource";
 import { Failure, Loading, StaleFailure } from "../ui/Feedback";
@@ -12,7 +13,8 @@ import { StatusPill } from "../ui/Status";
 import { moveBetweenRows, openRow, SortHeader, type SortColumns, useFlash, useSort } from "../ui/Table";
 import { notify } from "../ui/Toaster";
 import { goLive } from "./BotActions";
-import { isPreset, SweepDialog } from "./SweepDialog";
+import { launchSweep } from "./Launch";
+import { isPreset } from "./SweepDialog";
 import "../styles/research.css";
 
 type Run = Schemas["RunSummary"];
@@ -84,7 +86,6 @@ type Props = { name: string; preset: string | undefined; defaults: Params; live:
 
 export function Research({ name, preset: requested, defaults, live }: Props) {
   const research = useResource(() => must(api.GET("/api/bots/{name}/research", { params: { path: { name } } })), [name]);
-  const [sweeping, setSweeping] = useState(false);
   const reloadOnce = useFrameBatch<unknown>(() => research.reload());
 
   useSpineEvents((event) => {
@@ -131,7 +132,7 @@ export function Research({ name, preset: requested, defaults, live }: Props) {
               Cancel {queued} queued
             </button>
           )}
-          <button type="button" className="btn btn-sm btn-primary" onClick={() => setSweeping(true)}>
+          <button type="button" className="btn btn-sm btn-primary" onClick={() => launchSweep(name, sweepPreset)}>
             Sweep
           </button>
         </div>
@@ -156,19 +157,6 @@ export function Research({ name, preset: requested, defaults, live }: Props) {
           </nav>
           <PresetView key={shown.preset} name={name} research={shown} defaults={defaults} liveVariants={liveVariants} trials={trials.variants} gate={shown.preset === gatePreset} />
         </>
-      )}
-      {sweeping && (
-        <SweepDialog
-          name={name}
-          defaults={defaults}
-          preset={sweepPreset}
-          onClose={() => setSweeping(false)}
-          onStarted={(_, preset) => {
-            setSweeping(false);
-            research.reload();
-            navigate({ page: "research", name, preset });
-          }}
-        />
       )}
     </div>
   );
@@ -425,6 +413,8 @@ function VariantTable({ name, variants, axes, defaults, plateau, liveVariants, b
   };
   const sorting = useSort(`research-${name}`, columns, { key: "neighbourhood", descending: true });
   const flash = useFlash(variants, (variant) => variant.run_id);
+  const ordered = sorting.order(variants);
+  const chosen = useSelection(ordered.map((variant) => variant.run_id));
 
   return (
     <section className="panel" aria-label="Variants">
@@ -436,7 +426,7 @@ function VariantTable({ name, variants, axes, defaults, plateau, liveVariants, b
         <table className="table fin research-table">
           <thead>
             <tr>
-              <SortHeader sorting={sorting} column="run">
+              <SortHeader sorting={sorting} column="run" select={<SelectAll selection={chosen} label="Select every variant" />}>
                 Run
               </SortHeader>
               {axes.length === 0 ? (
@@ -475,13 +465,14 @@ function VariantTable({ name, variants, axes, defaults, plateau, liveVariants, b
             </tr>
           </thead>
           <tbody onKeyDown={moveBetweenRows}>
-            {sorting.order(variants).map((variant) => {
+            {ordered.map((variant) => {
               const target = href({ page: "bot", name, run: variant.run_id });
               const passes = variant.failed_checks.length === 0;
               const isLive = liveVariants.has(key(variant.params));
               return (
                 <tr key={variant.run_id} className={variant.run_id === plateau ? "clickable selected" : "clickable"} onClick={openRow(target)} {...flash.row(variant.run_id)}>
                   <td>
+                    <SelectBox selection={chosen} value={variant.run_id} label={`Select run #${variant.run_id}`} />
                     <a href={target}>#{variant.run_id}</a>
                   </td>
                   {axes.length === 0 ? (
@@ -531,6 +522,11 @@ function VariantTable({ name, variants, axes, defaults, plateau, liveVariants, b
             })}
           </tbody>
         </table>
+      </div>
+      <div className="bulk-dock">
+        <BulkBar selection={chosen} noun={chosen.keys.length === 1 ? "variant" : "variants"}>
+          <CompareButton runs={chosen.keys} />
+        </BulkBar>
       </div>
     </section>
   );

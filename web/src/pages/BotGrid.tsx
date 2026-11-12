@@ -2,19 +2,20 @@ import { useState } from "react";
 import { api, errorMessage, must, type Schemas } from "../api/client";
 import { type SpineEvent, useSpineEvents } from "../api/stream";
 import { fmt, label, paramsText } from "../lib/format";
-import { href, navigate } from "../lib/route";
+import { href, useQueryParam } from "../lib/route";
 import { useFrameBatch } from "../lib/useFrameBatch";
 import { useResource } from "../lib/useResource";
 import { Failure, Loading, StaleFailure } from "../ui/Feedback";
 import { Icon } from "../ui/Icon";
 import { LIVE_COLUMNS, type Live, type LiveKey, LiveHeader, liveSortColumns } from "../ui/LiveTable";
 import { Info } from "../ui/Popover";
-import { matches, SortHeader, type SortColumns, useSort } from "../ui/Table";
+import { matches, PageSearch, SortHeader, type SortColumns, useSort } from "../ui/Table";
+import { BulkBar, CompareButton, SelectAll, SelectBox, useSelection } from "../ui/Selection";
 import { type Mark, Sparkline } from "../ui/Sparkline";
 import { notify } from "../ui/Toaster";
-import { BacktestDialog } from "./BacktestDialog";
-import { BotActions, isRunning } from "./BotActions";
-import { SweepDialog } from "./SweepDialog";
+import { BotActions, goLive, isRunning, pauseRun, resumeRun, undoPause } from "./BotActions";
+import { launchBacktest, launchSweep } from "./Launch";
+import { type Preset, SWEEP_PRESETS } from "./SweepDialog";
 import "../styles/board.css";
 import "../styles/bots.css";
 
@@ -66,7 +67,7 @@ function patchRun(bots: Bot[], run: Run, update: (live: Live) => Live): Bot[] {
 export function BotGrid() {
   const bots = useResource(() => must(api.GET("/api/bots")), []);
   const [marks, setMarks] = useState<Record<number, Mark>>({});
-  const [filter, setFilter] = useState("");
+  const [filter, setFilter] = useQueryParam("q");
   const liveSorting = useSort("bots-live", LIVE_SORT, { key: "attention", descending: false });
   const idleSorting = useSort("bots-idle", IDLE_SORT, { key: "stage", descending: false });
 
@@ -119,20 +120,24 @@ export function BotGrid() {
     }
   });
 
+  const live = liveSorting.order(liveRuns.filter((entry) => matches(filter, entry.run.bot)));
+  const idle = idleSorting.order((bots.data ?? []).filter((bot) => bot.live.length === 0 && matches(filter, bot.name)));
+  const liveChosen = useSelection(live.map((entry) => entry.run.id));
+  const idleChosen = useSelection(idle.map((bot) => bot.name));
+
   if (!bots.data) {
     return bots.error ? <Failure message={bots.error} onRetry={bots.reload} /> : <Loading shape="table" />;
   }
   if (bots.data.length === 0) {
     return <p className="empty">No bots yet. Add a bot folder under bots/ and it shows up here.</p>;
   }
-  const live = liveSorting.order(liveRuns.filter((entry) => matches(filter, entry.run.bot)));
-  const idle = idleSorting.order(bots.data.filter((bot) => bot.live.length === 0 && matches(filter, bot.name)));
+  const chosenRuns = live.filter((entry) => liveChosen.has(entry.run.id)).map((entry) => entry.run);
 
   return (
     <div className="bots">
       <header className="page-head">
         <h1>Bots</h1>
-        <input className="input input-sm page-filter" type="search" placeholder="Search bots" aria-label="Search bots" value={filter} onChange={(event) => setFilter(event.target.value)} />
+        <PageSearch label="Search bots" value={filter} onChange={setFilter} />
       </header>
       <StaleFailure resource={bots} />
       <section className="bots-section" aria-label="Live">
@@ -153,7 +158,7 @@ export function BotGrid() {
             <table className="table board">
               <thead>
                 <tr>
-                  <LiveHeader sorting={liveSorting} column="bot" className="board-name" />
+                  <LiveHeader sorting={liveSorting} column="bot" className="board-name" select={<SelectAll selection={liveChosen} label="Select every live run" />} />
                   {LIVE_SHOWN.map((key) => (
                     <LiveHeader key={key} sorting={liveSorting} column={key} />
                   ))}
@@ -170,8 +175,9 @@ export function BotGrid() {
               </thead>
               <tbody>
                 {live.map((entry) => (
-                  <tr key={entry.run.id} className={attention(entry) === 0 ? "attention" : undefined}>
+                  <tr key={entry.run.id} className={[attention(entry) === 0 ? "attention" : "", liveChosen.has(entry.run.id) ? "chosen" : ""].join(" ").trim() || undefined}>
                     <th scope="row" className="board-name">
+                      <SelectBox selection={liveChosen} value={entry.run.id} label={`Select ${entry.run.bot} run #${entry.run.id}`} />
                       {LIVE_COLUMNS.bot.cell(entry)}
                       {liveParams(entry, defaults.get(entry.run.bot)) && <span className="variant-params mono">{liveParams(entry, defaults.get(entry.run.bot))}</span>}
                       {attention(entry) < 2 && (
@@ -215,6 +221,7 @@ export function BotGrid() {
                       sorting={idleSorting}
                       column={key}
                       className={key === "name" ? "board-name" : undefined}
+                      select={key === "name" && <SelectAll selection={idleChosen} label="Select every bot not live" />}
                       info={key === "stage" && <Info label="Stage">{STAGE_ABOUT}</Info>}
                     >
                       {IDLE_LABELS[key]}
@@ -227,8 +234,9 @@ export function BotGrid() {
               </thead>
               <tbody>
                 {idle.map((bot) => (
-                  <tr key={bot.name}>
+                  <tr key={bot.name} className={idleChosen.has(bot.name) ? "chosen" : undefined}>
                     <th scope="row" className="board-name">
+                      <SelectBox selection={idleChosen} value={bot.name} label={`Select ${bot.name}`} />
                       <a href={href({ page: "bot", name: bot.name })}>{bot.name}</a>
                     </th>
                     <td>
@@ -245,8 +253,13 @@ export function BotGrid() {
                     <td className="num muted">{fmt.local(bot.last_run_at)}</td>
                     <td className="actions-cell">
                       <span className="bot-actions">
-                        <BacktestButton name={bot.name} />
-                        <SweepButton bot={bot} />
+                        <button type="button" className="btn btn-sm" onClick={() => launchBacktest(bot.name)}>
+                          <Icon name="play" />
+                          Backtest
+                        </button>
+                        <button type="button" className="btn btn-sm btn-ghost" onClick={() => launchSweep(bot.name)}>
+                          Sweep
+                        </button>
                         <BotActions name={bot.name} live={undefined} onChanged={changed} />
                       </span>
                     </td>
@@ -257,66 +270,104 @@ export function BotGrid() {
           </div>
         )}
       </section>
+      <div className="bulk-dock">
+        <BulkBar selection={liveChosen} noun={chosenRuns.length === 1 ? "live run" : "live runs"}>
+          <LiveBulk runs={chosenRuns} onDone={liveChosen.clear} />
+        </BulkBar>
+        <BulkBar selection={idleChosen} noun={idleChosen.keys.length === 1 ? "bot" : "bots"}>
+          <IdleBulk names={idleChosen.keys} onDone={idleChosen.clear} />
+        </BulkBar>
+      </div>
     </div>
   );
 }
 
-function BacktestButton({ name }: { name: string }) {
-  const [detail, setDetail] = useState<Schemas["BotDetail"]>();
-  const [busy, setBusy] = useState(false);
+async function settle<S, T>(items: S[], name: (item: S) => string, start: (item: S) => Promise<T>): Promise<T[]> {
+  const outcomes = await Promise.allSettled(items.map(start));
+  outcomes.forEach((outcome, index) => {
+    const item = items[index];
+    if (outcome.status === "rejected" && item !== undefined) {
+      notify(`${name(item)}: ${errorMessage(outcome.reason)}`);
+    }
+  });
+  return outcomes.flatMap((outcome) => (outcome.status === "fulfilled" ? [outcome.value] : []));
+}
 
-  const open = async () => {
+function counted(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}
+
+function LiveBulk({ runs, onDone }: { runs: Run[]; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const running = runs.filter(isRunning);
+  const paused = runs.filter((run) => !isRunning(run));
+
+  const apply = async (chosen: Run[], act: (id: number) => Promise<Run>, done: string) => {
     setBusy(true);
-    try {
-      setDetail(await must(api.GET("/api/bots/{name}", { params: { path: { name } } })));
-    } catch (error) {
-      notify(`${name}: ${errorMessage(error)}`);
-    } finally {
-      setBusy(false);
+    const changed = await settle(chosen, (run) => `${run.bot} #${run.id}`, (run) => act(run.id));
+    setBusy(false);
+    if (changed.length > 0) {
+      notify(`${counted(changed.length, "run")} ${done}`, "success", done === "paused" ? undoPause(changed) : undefined);
+      onDone();
     }
   };
 
   return (
     <>
-      <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void open()}>
-        <Icon name="play" />
-        Backtest
-      </button>
-      {detail && (
-        <BacktestDialog
-          name={name}
-          holdoutRuns={detail.holdout_runs}
-          risk={detail.manifest.risk ?? {}}
-          onClose={() => setDetail(undefined)}
-          onStarted={(run) => {
-            setDetail(undefined);
-            navigate({ page: "bot", name, run: run.id });
-          }}
-        />
+      {running.length > 0 && (
+        <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void apply(running, pauseRun, "paused")}>
+          <Icon name="pause" />
+          Pause {running.length}
+        </button>
       )}
+      {paused.length > 0 && (
+        <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void apply(paused, resumeRun, "live again")}>
+          <Icon name="play" />
+          Resume {paused.length}
+        </button>
+      )}
+      <CompareButton runs={runs.map((run) => run.id)} />
     </>
   );
 }
 
-function SweepButton({ bot }: { bot: Bot }) {
-  const [open, setOpen] = useState(false);
+function IdleBulk({ names, onDone }: { names: string[]; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+
+  const backtest = async (preset: Preset) => {
+    setBusy(true);
+    const started = await settle(names, String, (name) => must(api.POST("/api/bots/{name}/backtests", { params: { path: { name } }, body: { preset } })));
+    setBusy(false);
+    if (started.length > 0) {
+      notify(`${counted(started.length, "backtest")} queued on ${preset}`, "success");
+      onDone();
+    }
+  };
+
+  const live = async () => {
+    setBusy(true);
+    const started = await settle(names, String, (name) => goLive(name));
+    setBusy(false);
+    if (started.length > 0) {
+      notify(`${counted(started.length, "bot")} live`, "success");
+      onDone();
+    }
+  };
+
   return (
     <>
-      <button type="button" className="btn btn-sm btn-ghost" onClick={() => setOpen(true)}>
-        Sweep
+      <span className="segmented segmented-sm" role="group" aria-label="Backtest the selected bots">
+        <span className="segmented-label">Backtest</span>
+        {SWEEP_PRESETS.map((preset) => (
+          <button key={preset} type="button" disabled={busy} onClick={() => void backtest(preset)}>
+            {preset}
+          </button>
+        ))}
+      </span>
+      <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void live()}>
+        <Icon name="play" />
+        Go live
       </button>
-      {open && (
-        <SweepDialog
-          name={bot.name}
-          defaults={bot.params as Record<string, unknown>}
-          preset={bot.screening?.preset === "holdout" || !bot.screening ? "10y" : bot.screening.preset}
-          onClose={() => setOpen(false)}
-          onStarted={(_, preset) => {
-            setOpen(false);
-            navigate({ page: "research", name: bot.name, preset });
-          }}
-        />
-      )}
     </>
   );
 }
