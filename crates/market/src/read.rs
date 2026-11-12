@@ -1107,7 +1107,14 @@ pub(crate) fn macro_points(
         let rows = statement
             .query_map(
                 params![wire_name(&metric), wire_name(&scope), from, to, cutoff],
-                |row| Ok((*id, row.get(0)?, row.get(1)?, row.get::<_, Dec>(2)?.0)),
+                |row| {
+                    Ok((
+                        *id,
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get::<_, Dec>(2)?.0.normalize(),
+                    ))
+                },
             )?
             .collect::<duckdb::Result<Vec<_>>>()?;
         known.extend(rows);

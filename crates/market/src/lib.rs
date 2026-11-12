@@ -913,7 +913,7 @@ mod tests {
             .unwrap()
             .collect::<duckdb::Result<_>>()
             .unwrap();
-        assert_eq!(revisions.len(), 11);
+        assert_eq!(revisions.len(), 12);
         let missing: Vec<&String> = revisions
             .iter()
             .filter(|table| !APPENDED.iter().any(|(backed_up, _)| backed_up == table))

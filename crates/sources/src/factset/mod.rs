@@ -83,15 +83,10 @@ impl Issue {
             )?;
             (date, String::new())
         };
-        let url = if path.starts_with("http://") {
-            path.replacen("http://", "https://", 1)
-        } else {
-            path
-        };
         Some(Self {
             report: format!("{date}{version}"),
             issue_date: date,
-            url,
+            url: path,
         })
     }
 }

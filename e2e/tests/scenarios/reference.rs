@@ -146,7 +146,7 @@ async fn bots_see_index_membership_profiles_and_earnings_as_of_their_clock() {
     );
     assert_eq!(
         at("2024-11-25T21:00:00Z")["forward_pe"],
-        json!([["2024-11-22", "22.0", "2024-11-22", "2024-11-25T14:30:00Z"]]),
+        json!([["2024-11-22", "22", "2024-11-22", "2024-11-25T14:30:00Z"]]),
         "its forward P/E is known from Monday's open"
     );
     assert_eq!(at("2024-11-26T21:00:00Z")["earnings"], json!([]));
