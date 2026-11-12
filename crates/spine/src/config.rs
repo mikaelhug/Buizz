@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use buizz_core::market::Symbol;
 use buizz_sources::alpaca::{self, AlpacaConfig};
-use buizz_sources::alpaca_stream::{self, StreamConfig};
+use buizz_sources::alpaca_stream::{self, STREAM_KEYS_ENV, StreamConfig, stream_keys};
 use buizz_sources::cboe::{self, CboeConfig};
 use buizz_sources::edgar::{self, EdgarConfig};
 use buizz_sources::fed::{self, FedConfig};
@@ -27,7 +27,7 @@ pub struct Config {
     pub secure_cookies: bool,
     pub ingest: bool,
     pub alpaca: Option<AlpacaConfig>,
-    pub stream_url: String,
+    pub streams: Vec<StreamConfig>,
     pub news_url: String,
     pub tiingo: Option<TiingoConfig>,
     pub edgar: Option<EdgarConfig>,
@@ -110,6 +110,10 @@ impl Config {
             }),
             _ => None,
         };
+        let stream_accounts = match var(STREAM_KEYS_ENV) {
+            Some(keys) => stream_keys(&keys)?,
+            None => alpaca.iter().cloned().collect(),
+        };
         Ok(Self {
             bind,
             data_dir: data_dir(),
@@ -120,7 +124,7 @@ impl Config {
             secure_cookies: flag("BUIZZ_SECURE_COOKIES", true)?,
             ingest: flag("BUIZZ_INGEST", true)?,
             alpaca,
-            stream_url: var_or("ALPACA_STREAM_URL", alpaca_stream::STREAM_URL),
+            streams: stream_accounts.into_iter().map(StreamConfig::new).collect(),
             news_url: var_or("ALPACA_NEWS_URL", alpaca_stream::NEWS_URL),
             tiingo: var("TIINGO_API_KEY").map(|api_key| TiingoConfig {
                 base_url: var_or("TIINGO_URL", tiingo::BASE_URL),
@@ -170,18 +174,9 @@ impl Config {
     }
 
     pub fn news_stream(&self) -> Option<StreamConfig> {
-        self.stream().map(|stream| StreamConfig {
-            url: self.news_url.clone(),
-            ..stream
-        })
-    }
-
-    pub fn stream(&self) -> Option<StreamConfig> {
         self.alpaca.clone().map(|alpaca| StreamConfig {
-            alpaca,
-            url: self.stream_url.clone(),
-            reconnect_initial: std::time::Duration::from_secs(1),
-            reconnect_max: std::time::Duration::from_secs(60),
+            url: self.news_url.clone(),
+            ..StreamConfig::new(alpaca)
         })
     }
 }

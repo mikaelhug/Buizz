@@ -64,8 +64,8 @@ async fn spine() -> Spine {
     };
     let feed = FeedManager::new(
         FeedConfig {
-            cap: 1,
-            stream: None,
+            symbols_per_connection: 1,
+            streams: Vec::new(),
         },
         market.clone(),
         None,

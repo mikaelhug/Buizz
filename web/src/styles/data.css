@@ -80,6 +80,31 @@
   background: var(--up);
 }
 
+.connections {
+  margin: 0 0 var(--sp-3);
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-sm);
+}
+
+.connections li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-1) 0;
+}
+
+.connection-name {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-weight: var(--fw-medium);
+}
+
+.connection-use {
+  margin-left: auto;
+}
+
 .holders {
   margin: 0;
   padding: 0;

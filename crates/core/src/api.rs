@@ -259,11 +259,19 @@ pub struct FeedHolder {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
-pub struct FeedSlots {
+pub struct FeedConnection {
     pub cap: u32,
     pub used: u32,
     pub connected: bool,
     pub error: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct FeedSlots {
+    pub cap: u32,
+    pub used: u32,
+    pub error: Option<String>,
+    pub connections: Vec<FeedConnection>,
     pub holders: Vec<FeedHolder>,
 }
 
