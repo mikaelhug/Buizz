@@ -11,7 +11,7 @@ use crate::{Ingest, IngestError, Priced, day_start};
 const SYMBOLS_PER_REQUEST: usize = 1_000;
 const REQUESTS_PER_RUN: usize = 600;
 const SETTLE_MARGIN: TimeDelta = TimeDelta::minutes(15);
-const REVISED_SESSIONS: usize = 2;
+const SETTLING: TimeDelta = TimeDelta::hours(24);
 const MAX_LAG_SESSIONS: usize = 20;
 const DORMANT_RETRY: TimeDelta = TimeDelta::days(7);
 
@@ -37,7 +37,14 @@ impl Ingest {
             return Ok(Work::waiting("no settled session in the calendar"));
         };
         let target = sessions[target_index];
-        let revised_from = sessions[target_index.saturating_sub(REVISED_SESSIONS - 1)].date;
+        let closed = &sessions[..=target_index];
+        let settling = closed.partition_point(|session| session.close + SETTLING <= now);
+        let settling_from = closed.get(settling).map(|session| session.date);
+        let current_from = settling_from.unwrap_or(target.date);
+        let next_session = |last: NaiveDate| {
+            let next = closed.partition_point(|session| session.date <= last);
+            closed.get(next).map(|session| session.date)
+        };
         let dormant_before = sessions[target_index.saturating_sub(MAX_LAG_SESSIONS)].date;
         let symbols = self.priced_symbols().await?;
         if symbols.is_empty() {
@@ -52,7 +59,11 @@ impl Ingest {
         for Priced { symbol, active, .. } in symbols {
             let last = covered.get(&symbol).map(|coverage| coverage.last);
             let from = match last {
-                Some(last) if last >= dormant_before => revised_from.min(last + TimeDelta::days(1)),
+                Some(last) if last >= dormant_before => match (settling_from, next_session(last)) {
+                    (Some(settling), next) => next.map_or(settling, |next| next.min(settling)),
+                    (None, Some(next)) => next,
+                    (None, None) => continue,
+                },
                 _ if self.dormant_checked(now, &symbol, active).await? => continue,
                 _ => {
                     dormant.insert(symbol.clone());
@@ -62,7 +73,7 @@ impl Ingest {
             groups.entry(from).or_default().push(symbol);
         }
         let mut groups: Vec<(NaiveDate, Vec<Symbol>)> = groups.into_iter().collect();
-        groups.sort_by_key(|(from, _)| (*from != revised_from, *from));
+        groups.sort_by_key(|(from, _)| (*from != current_from, *from));
         let mut batch = Batch::default();
         let mut requests = 0;
         let mut current = true;
@@ -86,7 +97,7 @@ impl Ingest {
                 loop {
                     if requests == REQUESTS_PER_RUN || self.stopping() {
                         batch.more_remains("symbols");
-                        current &= from != revised_from;
+                        current &= from != current_from;
                         break 'groups;
                     }
                     requests += 1;
@@ -114,7 +125,7 @@ impl Ingest {
                             if batch.source_error(&label, &error) {
                                 break 'groups;
                             }
-                            current &= from != revised_from;
+                            current &= from != current_from;
                             continue 'chunks;
                         }
                     }

@@ -458,7 +458,9 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
     assert_eq!(spy[0].close, (alpaca_close(date(SPY_REVISED)) + 1).into());
 
     let second_at = first_at + TimeDelta::hours(25);
+    let bar_requests = fake.hits("bars");
     let second = ingest.tick(second_at).await.unwrap();
+    assert_eq!(fake.hits("bars"), bar_requests);
     assert_eq!(
         second.ran,
         vec![
@@ -502,7 +504,7 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
 
     *fake.closed.lock().unwrap() = Some(date("2025-01-09"));
     fake.fail_bars.store(true, Ordering::SeqCst);
-    let failed_at = first_at + TimeDelta::hours(49);
+    let failed_at = first_at + TimeDelta::hours(72);
     let failed = ingest.tick(failed_at).await.unwrap();
     assert!(failed.ran.contains(&("calendar", JobOutcome::Ok)));
     assert_eq!(rows(&market).await.sessions, backfilled.sessions - 1);
@@ -512,10 +514,10 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
         .tick(failed_at + TimeDelta::minutes(6))
         .await
         .unwrap();
-    assert_eq!(recovered.ran, vec![("bars_1d", JobOutcome::Noop)]);
+    assert_eq!(recovered.ran, vec![("bars_1d", JobOutcome::Ok)]);
 
     fake.rate_limit_bars.store(true, Ordering::SeqCst);
-    let limited_at = first_at + TimeDelta::hours(55) + TimeDelta::minutes(10);
+    let limited_at = failed_at + TimeDelta::hours(6) + TimeDelta::minutes(10);
     let limited = ingest.tick(limited_at).await.unwrap();
     assert!(limited.ran.contains(&("bars_1d", JobOutcome::Backoff)));
     let fetch = state
@@ -540,10 +542,10 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
     fake.rate_limit_bars.store(false, Ordering::SeqCst);
     fake.listed_later.store(true, Ordering::SeqCst);
     fake.action_requests.lock().unwrap().clear();
-    let inside_sip_delay = stamp("2024-07-09T20:10:00Z");
+    let inside_sip_delay = stamp("2024-07-10T20:10:00Z");
     let later = ingest.tick(inside_sip_delay).await.unwrap();
     assert!(later.ran.contains(&("bars_1d", JobOutcome::Ok)));
-    assert!(fake.last_bars.lock().unwrap()["end"].starts_with("2024-07-08"));
+    assert!(fake.last_bars.lock().unwrap()["end"].starts_with("2024-07-09"));
     let action_starts: Vec<(String, String)> = fake
         .action_requests
         .lock()
@@ -558,7 +560,7 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
     assert_eq!(
         action_starts,
         vec![
-            (String::new(), "2024-03-11".to_owned()),
+            (String::new(), "2024-03-12".to_owned()),
             ("MSFT".to_owned(), "2015-12-02".to_owned()),
         ]
     );
