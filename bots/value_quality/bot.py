@@ -1,7 +1,8 @@
 import numpy as np
 import numpy.typing as npt
+from buizz_bots.fundamentals import adjusted_shares, in_dollars
 
-from buizz import Bot, Context, FundamentalPoint, Metric, run, split_ratio
+from buizz import Bot, Context, FundamentalPoint, Metric, run
 
 METRICS: list[Metric] = ["net_income", "equity", "long_term_debt", "shares_outstanding"]
 REQUIRED: list[Metric] = ["net_income", "equity", "shares_outstanding"]
@@ -11,7 +12,7 @@ HISTORY_BARS = 600
 def latest_points(points: list[FundamentalPoint]) -> dict[tuple[str, Metric], FundamentalPoint]:
     newest: dict[tuple[str, Metric], FundamentalPoint] = {}
     for point in points:
-        if point.metric == "net_income" and point.period_type != "FY":
+        if (point.metric == "net_income" and point.period_type != "FY") or not in_dollars(point):
             continue
         key = (point.symbol, point.metric)
         current = newest.get(key)
@@ -44,14 +45,14 @@ class ValueQuality(Bot):
         rows: list[tuple[str, float, float, float]] = []
         for symbol in eligible:
             shares = latest[symbol, "shares_outstanding"]
-            ratio = split_ratio(raw[symbol], adjusted[symbol], shares.period_end)
-            if ratio is None:
+            share_count = adjusted_shares(shares, raw[symbol], adjusted[symbol])
+            if share_count is None:
                 continue
             net_income = float(latest[symbol, "net_income"].value)
             equity = float(latest[symbol, "equity"].value)
             debt_point = latest.get((symbol, "long_term_debt"))
             debt = 0.0 if debt_point is None else float(debt_point.value)
-            market_cap = float(shares.value) * ratio * ctx.bars[symbol].close
+            market_cap = share_count * ctx.bars[symbol].close
             rows.append((symbol, net_income / market_cap, net_income / equity, debt / equity))
         if not rows:
             return

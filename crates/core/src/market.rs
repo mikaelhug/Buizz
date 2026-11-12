@@ -372,6 +372,7 @@ pub struct FundamentalPoint {
     pub period_start: Option<NaiveDate>,
     pub period_end: NaiveDate,
     pub value: Decimal,
+    pub unit: String,
     pub form: String,
     pub filed: NaiveDate,
     pub available_at: Timestamp,

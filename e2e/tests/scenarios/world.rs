@@ -55,6 +55,7 @@ pub struct Filing<'a> {
     pub accession: &'a str,
     pub form: &'a str,
     pub items: &'a str,
+    pub report_date: &'a str,
     pub accepted: Timestamp,
 }
 
@@ -68,7 +69,7 @@ pub fn submissions(cik: u32, sic: &str, filings: &[Filing<'_>]) -> Value {
             "recent": {
                 "accessionNumber": column(|filing| json!(filing.accession)),
                 "filingDate": column(|filing| json!(filing.accepted.exchange_date())),
-                "reportDate": column(|filing| json!(filing.accepted.exchange_date())),
+                "reportDate": column(|filing| json!(filing.report_date)),
                 "acceptanceDateTime": column(|filing| json!(filing.accepted.to_string())),
                 "form": column(|filing| json!(filing.form)),
                 "items": column(|filing| json!(filing.items)),

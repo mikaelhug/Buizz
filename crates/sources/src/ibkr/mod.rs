@@ -41,7 +41,7 @@ impl IbkrClient {
         }
     }
 
-    pub async fn us_borrow(&self) -> Result<Vec<BorrowAvailability>, SourceError> {
+    pub async fn us_borrow(&self) -> Result<BorrowFile, SourceError> {
         let payload = tokio::time::timeout(TIMEOUT, self.download(US_FILE))
             .await
             .map_err(|_| SourceError::Ftp(format!("{US_FILE} took longer than {TIMEOUT:?}")))??;
@@ -80,7 +80,12 @@ fn rate(text: &str) -> Result<Option<Decimal>, SourceError> {
     }
 }
 
-pub fn normalize_borrow(payload: &[u8]) -> Result<Vec<BorrowAvailability>, SourceError> {
+pub struct BorrowFile {
+    pub records: Vec<BorrowAvailability>,
+    pub malformed_rows: usize,
+}
+
+pub fn normalize_borrow(payload: &[u8]) -> Result<BorrowFile, SourceError> {
     let text = String::from_utf8_lossy(payload);
     let mut lines = text.lines().map(str::trim_end);
     let header = lines.next().ok_or_else(|| decode("empty"))?;
@@ -96,44 +101,60 @@ pub fn normalize_borrow(payload: &[u8]) -> Result<Vec<BorrowAvailability>, Sourc
     if !columns.split('|').take(COLUMNS.len()).eq(COLUMNS) {
         return Err(decode(format!("columns {columns:?}")));
     }
-    let mut records = Vec::new();
+    let mut file = BorrowFile {
+        records: Vec::new(),
+        malformed_rows: 0,
+    };
     for (rows, line) in lines.enumerate() {
         if let Some(count) = line.strip_prefix("#EOF|") {
-            return if count.parse::<usize>() == Ok(rows) {
-                Ok(records)
-            } else {
-                Err(decode(format!("{rows} rows but the trailer says {count}")))
-            };
+            if count.parse::<usize>() != Ok(rows) {
+                return Err(decode(format!("{rows} rows but the trailer says {count}")));
+            }
+            if file.malformed_rows * 2 > rows {
+                return Err(decode(format!(
+                    "{} of {rows} rows are malformed",
+                    file.malformed_rows
+                )));
+            }
+            return Ok(file);
         }
-        let fields: Vec<&str> = line.split('|').collect();
-        let [symbol, currency, _, con_id, _, rebate, fee, available, ..] = fields.as_slice() else {
-            return Err(decode(format!("row {line:?}")));
-        };
-        let symbol = symbol.replace(' ', ".");
-        if *currency != "USD"
-            || !symbol
-                .chars()
-                .all(|letter| letter.is_ascii_alphanumeric() || letter == '.')
-        {
-            continue;
+        match record(line, at) {
+            Ok(Some(record)) => file.records.push(record),
+            Ok(None) => {}
+            Err(_) => file.malformed_rows += 1,
         }
-        let (available, available_or_more) = match available.strip_prefix('>') {
-            Some(floor) => (floor, true),
-            None => (*available, false),
-        };
-        records.push(BorrowAvailability {
-            symbol: Symbol::new(&symbol),
-            at,
-            con_id: con_id
-                .parse()
-                .map_err(|_| decode(format!("contract id {con_id:?}")))?,
-            rebate_rate: rate(rebate)?,
-            fee_rate: rate(fee)?,
-            available: available
-                .parse()
-                .map_err(|_| decode(format!("available {available:?}")))?,
-            available_or_more,
-        });
     }
     Err(decode("no #EOF trailer, the download is incomplete"))
+}
+
+fn record(line: &str, at: Timestamp) -> Result<Option<BorrowAvailability>, SourceError> {
+    let fields: Vec<&str> = line.split('|').collect();
+    let [symbol, currency, _, con_id, _, rebate, fee, available, ..] = fields.as_slice() else {
+        return Err(decode(format!("row {line:?}")));
+    };
+    let symbol = symbol.replace(' ', ".");
+    if *currency != "USD"
+        || !symbol
+            .chars()
+            .all(|letter| letter.is_ascii_alphanumeric() || letter == '.')
+    {
+        return Ok(None);
+    }
+    let (available, available_or_more) = match available.strip_prefix('>') {
+        Some(floor) => (floor, true),
+        None => (*available, false),
+    };
+    Ok(Some(BorrowAvailability {
+        symbol: Symbol::new(&symbol),
+        at,
+        con_id: con_id
+            .parse()
+            .map_err(|_| decode(format!("contract id {con_id:?}")))?,
+        rebate_rate: rate(rebate)?,
+        fee_rate: rate(fee)?,
+        available: available
+            .parse()
+            .map_err(|_| decode(format!("available {available:?}")))?,
+        available_or_more,
+    }))
 }

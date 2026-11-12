@@ -593,6 +593,12 @@ impl MarketStore {
             .await
     }
 
+    pub async fn earnings_accessions(&self, symbol: Symbol) -> Result<BTreeSet<String>> {
+        self.readers
+            .run(move |connection| read::earnings_accessions(connection, &symbol))
+            .await
+    }
+
     pub async fn latest_borrow(&self) -> Result<Option<Timestamp>> {
         self.readers
             .run(|connection| read::latest_borrow(connection))

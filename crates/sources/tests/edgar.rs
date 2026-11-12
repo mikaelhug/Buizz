@@ -176,6 +176,25 @@ fn a_later_filing_in_a_preferred_concept_keeps_the_original_filing() {
     assert_eq!(facts.len(), 2);
 }
 
+#[test]
+fn a_filer_with_one_earnings_per_share_tag_has_diluted_eps_in_its_reporting_currency() {
+    let payload = r#"{"cik":2,"facts":{"us-gaap":{
+        "EarningsPerShareBasicAndDiluted":{"units":{"JPY/shares":[
+            {"start":"2023-04-01","end":"2024-03-31","val":312.5,"fy":2023,"fp":"FY","form":"10-K","filed":"2024-06-20","accn":"0000000002-24-000001"}
+        ]}}
+    }}}"#;
+    let facts = normalize_company_facts(
+        &Symbol::new("XYZ"),
+        payload.as_bytes(),
+        &weekday_calendar(2024, 2024),
+    )
+    .unwrap();
+    let eps = select(&facts, FundamentalMetric::EpsDiluted, PeriodType::Annual);
+    assert_eq!(eps.len(), 1);
+    assert_eq!(eps[0].value, Decimal::new(3125, 1));
+    assert_eq!(eps[0].unit, "JPY/shares");
+}
+
 #[tokio::test]
 async fn submissions_give_the_sic_code_and_every_results_announcement() {
     let url = serve_sec().await;

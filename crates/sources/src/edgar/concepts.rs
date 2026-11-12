@@ -19,8 +19,14 @@ pub const US_GAAP_PRIMARY: &[Entry] = &[
         Currency,
     ),
     ("SalesRevenueNet", M::Revenue, Currency),
+    (
+        "RevenueFromContractWithCustomerIncludingAssessedTax",
+        M::Revenue,
+        Currency,
+    ),
     ("CostOfRevenue", M::CostOfRevenue, Currency),
     ("CostOfGoodsAndServicesSold", M::CostOfRevenue, Currency),
+    ("CostOfGoodsSold", M::CostOfRevenue, Currency),
     ("GrossProfit", M::GrossProfit, Currency),
     (
         "ResearchAndDevelopmentExpense",
@@ -35,8 +41,14 @@ pub const US_GAAP_PRIMARY: &[Entry] = &[
     ("OperatingExpenses", M::OperatingExpenses, Currency),
     ("OperatingIncomeLoss", M::OperatingIncome, Currency),
     ("InterestExpense", M::InterestExpense, Currency),
+    ("InterestExpenseNonoperating", M::InterestExpense, Currency),
     (
         "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
+        M::PretaxIncome,
+        Currency,
+    ),
+    (
+        "IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments",
         M::PretaxIncome,
         Currency,
     ),
@@ -44,6 +56,11 @@ pub const US_GAAP_PRIMARY: &[Entry] = &[
     ("NetIncomeLoss", M::NetIncome, Currency),
     ("ProfitLoss", M::NetIncome, Currency),
     ("EarningsPerShareDiluted", M::EpsDiluted, CurrencyPerShare),
+    (
+        "EarningsPerShareBasicAndDiluted",
+        M::EpsDiluted,
+        CurrencyPerShare,
+    ),
     ("Assets", M::TotalAssets, Currency),
     ("AssetsCurrent", M::CurrentAssets, Currency),
     (
@@ -61,7 +78,17 @@ pub const US_GAAP_PRIMARY: &[Entry] = &[
     ("Liabilities", M::TotalLiabilities, Currency),
     ("StockholdersEquity", M::Equity, Currency),
     (
+        "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
+        M::Equity,
+        Currency,
+    ),
+    (
         "NetCashProvidedByUsedInOperatingActivities",
+        M::OperatingCashFlow,
+        Currency,
+    ),
+    (
+        "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
         M::OperatingCashFlow,
         Currency,
     ),
@@ -70,7 +97,17 @@ pub const US_GAAP_PRIMARY: &[Entry] = &[
         M::DepreciationAmortization,
         Currency,
     ),
+    (
+        "DepreciationAndAmortization",
+        M::DepreciationAmortization,
+        Currency,
+    ),
     ("ShareBasedCompensation", M::StockBasedComp, Currency),
+    (
+        "AllocatedShareBasedCompensationExpense",
+        M::StockBasedComp,
+        Currency,
+    ),
     (
         "PaymentsToAcquirePropertyPlantAndEquipment",
         M::Capex,
@@ -82,7 +119,17 @@ pub const US_GAAP_PRIMARY: &[Entry] = &[
         Currency,
     ),
     (
+        "NetCashProvidedByUsedInInvestingActivitiesContinuingOperations",
+        M::InvestingCashFlow,
+        Currency,
+    ),
+    (
         "NetCashProvidedByUsedInFinancingActivities",
+        M::FinancingCashFlow,
+        Currency,
+    ),
+    (
+        "NetCashProvidedByUsedInFinancingActivitiesContinuingOperations",
         M::FinancingCashFlow,
         Currency,
     ),
@@ -154,12 +201,14 @@ pub const US_GAAP_PRIMARY: &[Entry] = &[
 pub const IFRS_PRIMARY: &[Entry] = &[
     ("Revenue", M::Revenue, Currency),
     ("RevenueFromContractsWithCustomers", M::Revenue, Currency),
+    ("CostOfSales", M::CostOfRevenue, Currency),
     ("GrossProfit", M::GrossProfit, Currency),
     (
         "ProfitLossFromOperatingActivities",
         M::OperatingIncome,
         Currency,
     ),
+    ("ProfitLossBeforeTax", M::PretaxIncome, Currency),
     (
         "IncomeTaxExpenseContinuingOperations",
         M::IncomeTax,
@@ -176,6 +225,16 @@ pub const IFRS_PRIMARY: &[Entry] = &[
         Currency,
     ),
     ("ProfitLoss", M::NetIncome, Currency),
+    (
+        "DilutedEarningsLossPerShare",
+        M::EpsDiluted,
+        CurrencyPerShare,
+    ),
+    (
+        "BasicAndDilutedEarningsLossPerShare",
+        M::EpsDiluted,
+        CurrencyPerShare,
+    ),
     ("Assets", M::TotalAssets, Currency),
     ("Liabilities", M::TotalLiabilities, Currency),
     ("CurrentAssets", M::CurrentAssets, Currency),

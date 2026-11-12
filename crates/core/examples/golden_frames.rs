@@ -337,6 +337,7 @@ fn main() {
                     period_start: Some(date("2023-01-01")),
                     period_end: date("2023-12-31"),
                     value: money("410000000"),
+                    unit: "USD".to_owned(),
                     form: "10-K".to_owned(),
                     filed: date("2024-02-15"),
                     available_at: at("2024-02-16T14:30:00Z"),

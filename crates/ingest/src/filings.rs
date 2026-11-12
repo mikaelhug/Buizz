@@ -107,13 +107,7 @@ impl Ingest {
         symbol: &Symbol,
         releases: Vec<EarningsRelease>,
     ) -> Result<u64, IngestError> {
-        let stored: BTreeSet<String> = self
-            .market
-            .earnings_releases(vec![symbol.clone()], Timestamp::MAX)
-            .await?
-            .into_iter()
-            .map(|release| release.accession)
-            .collect();
+        let stored = self.market.earnings_accessions(symbol.clone()).await?;
         let fresh: Vec<EarningsRelease> = releases
             .into_iter()
             .filter(|release| {

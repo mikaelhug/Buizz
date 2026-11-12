@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use buizz_core::api::RunSummary;
 use buizz_core::run::{RunBadge, RunEventKind};
 use buizz_core::time::Timestamp;
-use buizz_sources::wikipedia::{SP500_CHANGES, SP500_CONSTITUENTS};
+use buizz_sources::wikipedia::{SP500_CHANGES, SP500_CONSTITUENTS, SP500_MEMBERS};
 use serde_json::{Value, json};
 
 use crate::fake::FakeProviders;
@@ -12,17 +12,24 @@ use crate::world::{Company, Filing, World, stamp, submissions};
 
 const RESULTS: &str = "0009999001-24-000050";
 
-const CONSTITUENTS: &str = r#"Intro.
-{| class="wikitable sortable" id="constituents"
+fn constituents() -> String {
+    let unpriced: String = (2..*SP500_MEMBERS.start())
+        .map(|n| format!("\n|-\n|| {{{{NyseSymbol|Z{n:03}}}}}\n|| [[Unpriced Fixture {n}]]"))
+        .collect();
+    format!(
+        r#"Intro.
+{{| class="wikitable sortable" id="constituents"
 |-
 ! Symbol !! Security
 |-
-|| {{NyseSymbol|AAA}}
+|| {{{{NyseSymbol|AAA}}}}
 || [[Alpha Fixture Corp]]
 |-
-|| {{NasdaqSymbol|BBB}}
-|| [[Beta Fixture Inc]]
-|}"#;
+|| {{{{NasdaqSymbol|BBB}}}}
+|| [[Beta Fixture Inc]]{unpriced}
+|}}"#
+    )
+}
 
 const CHANGES: &str = r#"Intro.
 {| class="wikitable sortable" id="changes"
@@ -51,12 +58,21 @@ fn world(mut world: World) -> World {
                 accession: RESULTS,
                 form: "8-K",
                 items: "2.02,9.01",
+                report_date: "2024-11-26",
                 accepted: stamp("2024-11-26T21:30:00Z"),
+            },
+            Filing {
+                accession: "0009999001-24-000051",
+                form: "8-K/A",
+                items: "2.02,9.01",
+                report_date: "2024-11-26",
+                accepted: stamp("2024-11-29T14:00:00Z"),
             },
             Filing {
                 accession: "0009999001-24-000049",
                 form: "8-K",
                 items: "8.01",
+                report_date: "2024-11-22",
                 accepted: stamp("2024-11-22T13:00:00Z"),
             },
         ],
@@ -69,7 +85,7 @@ fn world(mut world: World) -> World {
         older_filings: Vec::new(),
     });
     world.wikipedia = BTreeMap::from([
-        (SP500_CONSTITUENTS.to_owned(), CONSTITUENTS.to_owned()),
+        (SP500_CONSTITUENTS.to_owned(), constituents()),
         (SP500_CHANGES.to_owned(), CHANGES.to_owned()),
     ]);
     world
@@ -128,6 +144,11 @@ async fn bots_see_index_membership_profiles_and_earnings_as_of_their_clock() {
         json!([RESULTS]),
         "a release accepted after the close is seen on the next step"
     );
+    assert_eq!(
+        at("2024-12-02T21:00:00Z")["earnings"],
+        json!([RESULTS]),
+        "an 8-K/A amending the release is not a second earnings event"
+    );
     for badge in [
         RunBadge::ThinIndexHistory,
         RunBadge::SurvivorshipBiased,
@@ -144,9 +165,13 @@ async fn bots_see_index_membership_profiles_and_earnings_as_of_their_clock() {
             _ => None,
         })
         .collect();
-    assert_eq!(
-        warnings,
-        ["CCC has no 1d bars from 2024-11-20 to 2024-11-24"]
+    let (removed, unpriced) = warnings.split_first().expect("data warnings");
+    assert_eq!(removed, "CCC has no 1d bars from 2024-11-20 to 2024-11-24");
+    assert_eq!(unpriced.len(), SP500_MEMBERS.start() - 2);
+    assert!(
+        unpriced.iter().all(|warning| warning.starts_with('Z')
+            && warning.ends_with("has no 1d bars from 2024-11-20 to 2024-12-04")),
+        "{unpriced:?}"
     );
 
     let (_, stocks) = backtest(&spine, "reference_stocks").await;

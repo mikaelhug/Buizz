@@ -12,6 +12,7 @@
         "period_start": "2023-01-01",
         "period_type": "FY",
         "symbol": "BBB",
+        "unit": "USD",
         "value": "410000000"
       }
     ]

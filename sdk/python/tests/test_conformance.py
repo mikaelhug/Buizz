@@ -168,7 +168,7 @@ def test_bot_replies_match_the_golden_frames(monkeypatch: pytest.MonkeyPatch) ->
     assert isinstance(observed["bars"]["AAA"], Bar)
     assert observed["bars"]["BBB"].close == 48.8
     assert observed["history"].close.tolist() == [98.0, 97.0]
-    assert observed["fundamentals"][0].value == Decimal(410000000)
+    assert (observed["fundamentals"][0].value, observed["fundamentals"][0].unit) == (Decimal(410000000), "USD")
     assert [(s.date, s.close.hour) for s in observed["calendar"]] == [(date(2024, 11, 29), 18), (date(2024, 12, 2), 21)]
     assert observed["universe_at"] == ["SPY", "AAA"]
     assert [(p.series, p.value, p.available_at.day) for p in observed["macro"]] == [
