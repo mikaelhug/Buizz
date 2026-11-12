@@ -66,26 +66,31 @@ class NoiseBoundary(Bot):
             return
 
         lookback: int = ctx.params["lookback"]
-        if "moves" not in ctx.state:
+        today = session.date.isoformat()
+        previous = ctx.calendar(session.date - timedelta(days=10), session.date - timedelta(days=1))[-1].date
+        if ctx.state.get("moves_session") not in (today, previous.isoformat()):
             ctx.state["moves"] = recorded_moves(ctx, lookback)
+        ctx.state["moves_session"] = today
         moves: dict[str, list[float]] = ctx.state["moves"]
 
         history = ctx.history([SYMBOL], "1m", elapsed // MINUTE)[SYMBOL]
         inside = within(history, session)
+        if not inside.any():
+            ctx.log(f"no {SYMBOL} minute bars in {session.date} by {ctx.clock:%H:%M}: no decision", level="warn")
+            return
         opening = float(history.open[inside][0])
         price = float(history.close[inside][-1])
         typical = (history.high[inside] + history.low[inside] + history.close[inside]) / 3
         vwap = float(np.sum(typical * history.volume[inside]) / np.sum(history.volume[inside]))
 
-        today = session.date.isoformat()
         if ctx.state.get("day") != today:
             self.size_the_day(ctx, today, opening)
         shares: int = ctx.state["shares"]
-        previous_close: float = ctx.state["previous_close"]
 
         key = mark_key(session, ctx.clock)
         recorded = moves.setdefault(key, [])
         if len(recorded) == lookback and shares > 0:
+            previous_close: float = ctx.state["previous_close"]
             sigma = float(np.mean(recorded)) * ctx.params["vol_multiplier"]
             upper = max(opening, previous_close) * (1 + sigma)
             lower = min(opening, previous_close) * (1 - sigma)
@@ -99,9 +104,9 @@ class NoiseBoundary(Bot):
         ctx.state["day"] = today
         ctx.state["shares"] = 0
         ctx.state["leverage"] = 0.0
-        ctx.state["previous_close"] = float(closes[-1])
         if len(closes) <= window:
             return
+        ctx.state["previous_close"] = float(closes[-1])
         daily_vol = float(np.std(closes[1:] / closes[:-1] - 1, ddof=1))
         leverage = min(float(ctx.params["max_leverage"]), ctx.params["target_daily_vol"] / daily_vol)
         ctx.state["leverage"] = leverage
