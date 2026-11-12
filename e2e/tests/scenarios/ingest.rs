@@ -50,7 +50,7 @@ async fn an_empty_spine_backfills_backs_off_rejects_a_bad_tiingo_tail_and_restar
             ("index_membership", ok),
             ("bars_1d", ok),
             ("corporate_actions", Some(JobOutcome::Backoff)),
-            ("sec_index", Some(JobOutcome::Noop)),
+            ("sec_index", Some(JobOutcome::Waiting)),
             ("fundamentals", ok),
             ("filings", ok),
             ("rates", ok),
