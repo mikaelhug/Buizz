@@ -1,0 +1,6 @@
+description = "Singleton cannibals: the heaviest share-count shrinkers among the cheapest book-to-market stocks, each held 48 months"
+command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
+timeframe = "1d"
+wake = "bar"
+universe = { top_dollar_volume = 3000, asset_class = "stock" }
+params = { issuance_bottom = 0.10, value_top = 0.20, hold_months = 48 }
