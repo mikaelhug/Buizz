@@ -14,7 +14,6 @@ import "../styles/board.css";
 type League = Schemas["League"];
 
 const TRACKING_SESSIONS = 20;
-const LUCK = 0.05;
 
 const SHOWN = [
   "excess_cagr",
@@ -142,8 +141,8 @@ export function League() {
       ) : (
         <>
           <p className="league-luck">
-            {fmt.integer(started)} live {started === 1 ? "run has" : "runs have"} been started, so about {fmt.ratio(started * LUCK)} would look significant by luck alone;
-            a run is proven only at confidence 1 − 0.05 ÷ {fmt.integer(started)}.
+            {fmt.integer(started)} live {started === 1 ? "run has" : "runs have"} been started. With that many tries, roughly 1 in 20 would look like a winner by luck alone,
+            so a run counts as proven only at confidence 1 − 0.05 ÷ {fmt.integer(started)}.
           </p>
           <section className="league-group" aria-label="Ranked">
             {shown(ranked).length > 0 ? (
