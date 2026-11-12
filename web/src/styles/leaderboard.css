@@ -83,6 +83,10 @@
   margin: 0;
 }
 
+.board .sortable .info::after {
+  content: none;
+}
+
 .board .group-start {
   box-shadow: inset 1px 0 0 var(--grid);
 }
