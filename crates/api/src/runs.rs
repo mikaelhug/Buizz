@@ -316,6 +316,14 @@ pub(crate) async fn run_chart(
     ) else {
         return Ok(Json(empty));
     };
+    let traded = app.state.symbol_fills(id, symbol.clone()).await?;
+    let listed_on = traded
+        .iter()
+        .map(|(fill, _)| fill.at)
+        .filter(|at| *at <= clock)
+        .max()
+        .unwrap_or(clock)
+        .exchange_date();
     let chart = app
         .market
         .chart(ChartRequest {
@@ -326,12 +334,10 @@ pub(crate) async fn run_chart(
             before: query.before,
             bars: CHART_BARS,
             as_of: clock,
+            listed_on,
         })
         .await?;
-    let fills = app
-        .state
-        .symbol_fills(id, symbol.clone())
-        .await?
+    let fills = traded
         .into_iter()
         .map(|(fill, reason)| {
             let (factor, _) = AdjustmentFactor::cumulative(fill.at.exchange_date(), &chart.splits);

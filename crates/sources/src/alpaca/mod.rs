@@ -72,6 +72,14 @@ pub struct BarsRequest {
     pub from: Timestamp,
     pub to: Timestamp,
     pub feed: Feed,
+    pub tickers: Tickers,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Tickers {
+    Today,
+    On(NaiveDate),
+    AsTraded,
 }
 
 pub struct BarPage {
@@ -165,6 +173,11 @@ impl AlpacaClient {
             ("limit", MAX_PAGE_LIMIT.to_string()),
             ("sort", "asc".to_owned()),
         ];
+        match request.tickers {
+            Tickers::Today => {}
+            Tickers::On(date) => query.push(("asof", date.to_string())),
+            Tickers::AsTraded => query.push(("asof", "-".to_owned())),
+        }
         if let Some(token) = token {
             query.push(("page_token", token));
         }

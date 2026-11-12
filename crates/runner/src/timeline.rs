@@ -1,6 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::sync::Arc;
 
-use buizz_core::market::{Bar, Calendar, CorporateAction, Instrument, Session, Symbol, Timeframe};
+use buizz_core::listing::Listings;
+use buizz_core::market::{
+    Bar, Calendar, CorporateAction, CorporateActionKind, Instrument, Session, Symbol, Timeframe,
+};
 use buizz_core::run::{Mode, RATE_LOOKBACK_DAYS, RunConfig, UNIVERSE_SESSIONS, UniverseSpec, Wake};
 use buizz_core::time::Timestamp;
 use buizz_core::visibility::bar_visible_at;
@@ -51,7 +55,10 @@ impl Fetched {
             .actions
             .iter()
             .filter(|action| held.contains(&action.symbol))
-            .filter_map(|action| action.kind.delivered().cloned())
+            .filter_map(|action| match &action.kind {
+                CorporateActionKind::NameChange { new_symbol } => Some(new_symbol.clone()),
+                kind => kind.delivered().cloned(),
+            })
             .collect();
         self.average_daily_volume
             .retain(|symbol, _| tracked.contains(symbol));
@@ -80,6 +87,7 @@ pub(crate) struct Timeline {
     end: Option<NaiveDate>,
     calendar: Calendar,
     instruments: BTreeMap<Symbol, Instrument>,
+    listings: Arc<Listings>,
     session: SessionData,
     upcoming: Option<Upcoming>,
     tracked: BTreeSet<Symbol>,
@@ -100,6 +108,7 @@ impl Timeline {
             end: config.end,
             calendar: Calendar::default(),
             instruments: BTreeMap::new(),
+            listings: Arc::default(),
             session: SessionData::default(),
             upcoming: None,
             tracked: BTreeSet::new(),
@@ -119,6 +128,7 @@ impl Timeline {
             .into_iter()
             .map(|instrument| (instrument.symbol.clone(), instrument))
             .collect();
+        self.listings = self.market.listings();
         Ok(())
     }
 
@@ -127,7 +137,19 @@ impl Timeline {
     }
 
     pub(crate) fn instrument(&self, symbol: &Symbol) -> Option<&Instrument> {
-        self.instruments.get(symbol)
+        let key = match self.session.date {
+            Some(date) => self.listings.listing(symbol, date)?,
+            None => symbol.clone(),
+        };
+        self.instruments.get(&key)
+    }
+
+    fn ended(&self, symbol: &Symbol, listed_on: NaiveDate, by: NaiveDate) -> bool {
+        self.listings
+            .listing(symbol, listed_on)
+            .and_then(|key| self.instruments.get(&key))
+            .and_then(|instrument| instrument.last_session)
+            .is_some_and(|last| last < by)
     }
 
     pub(crate) fn tracked(&self) -> &BTreeSet<Symbol> {
@@ -193,25 +215,23 @@ impl Timeline {
             None => self.fetch(session.date, held.clone()).await?,
         };
         fetched.narrow(held);
-        let listed = |symbol: &Symbol| {
-            self.instruments
-                .get(symbol)
-                .and_then(|instrument| instrument.last_session)
-                .is_none_or(|last| last >= session.date)
-        };
+        let previous = self
+            .calendar
+            .previous_before(session.date)
+            .map_or(session.date, |previous| previous.date);
         self.session = SessionData {
             date: Some(session.date),
             universe: fetched
                 .universe
                 .into_iter()
-                .filter(|symbol| listed(symbol))
+                .filter(|symbol| !self.ended(symbol, session.date, session.date))
                 .collect(),
             actions: fetched.actions,
             average_daily_volume: fetched.average_daily_volume,
             delisted: fetched
                 .tracked
                 .iter()
-                .filter(|symbol| !listed(symbol))
+                .filter(|symbol| self.ended(symbol, previous, session.date))
                 .cloned()
                 .collect(),
             risk_free_rate: fetched.risk_free_rate,
@@ -245,7 +265,7 @@ impl Timeline {
             let tracked: BTreeSet<Symbol> = universe.iter().cloned().chain(held).collect();
             let symbols: Vec<Symbol> = tracked.iter().cloned().collect();
             let actions = market
-                .corporate_actions(symbols.clone(), actions_from, date)
+                .traded_actions(symbols.clone(), actions_from, date)
                 .await?;
             let average_daily_volume = market
                 .average_daily_volume(symbols, date, adv_sessions)
@@ -288,7 +308,7 @@ impl Timeline {
         let through = point.visible_at - TimeDelta::seconds(60) + TIMESTAMP_RESOLUTION;
         let minutes = self
             .market
-            .bars_between(
+            .traded_bars(
                 Timeframe::Minute,
                 self.tracked.iter().cloned().collect(),
                 point.session.open,
@@ -334,7 +354,7 @@ impl Timeline {
             let through = at - TimeDelta::seconds(60) + TIMESTAMP_RESOLUTION;
             let minutes = self
                 .market
-                .bars_between(Timeframe::Minute, symbols.clone(), session.open, through)
+                .traded_bars(Timeframe::Minute, symbols.clone(), session.open, through)
                 .await?;
             closes.extend(minutes.into_iter().map(|bar| (bar.symbol, bar.close)));
         }
@@ -354,7 +374,7 @@ impl Timeline {
         symbols: Vec<Symbol>,
     ) -> Result<Vec<Bar>, MarketError> {
         self.market
-            .bars_between(
+            .traded_bars(
                 Timeframe::Day,
                 symbols,
                 session.open,
@@ -461,7 +481,7 @@ async fn load(
     to: Timestamp,
 ) -> Result<Loaded, MarketError> {
     let bars = market
-        .bars_between(timeframe, tracked.iter().cloned().collect(), from, to)
+        .traded_bars(timeframe, tracked.iter().cloned().collect(), from, to)
         .await?;
     Ok(Loaded {
         symbols: tracked.clone(),

@@ -11,13 +11,13 @@ use axum::routing::get;
 use axum::{Router, serve};
 use buizz_core::api::{JobView, SpineEvent};
 use buizz_core::market::{
-    AssetClass, BorrowAvailability, DataSource, Dataset, IndexHistory, IndexMember, MacroSeries,
-    StockIndex, Symbol, Timeframe,
+    Adjustment, AssetClass, BorrowAvailability, DataSource, Dataset, IndexHistory, IndexMember,
+    MacroSeries, StockIndex, Symbol, Timeframe,
 };
 use buizz_core::ops::{FetchStatus, JobOutcome};
 use buizz_core::time::Timestamp;
 use buizz_ingest::{Ingest, IngestConfig, TickReport};
-use buizz_market::MarketStore;
+use buizz_market::{HistoryRequest, MarketStore};
 use buizz_sources::Sources;
 use buizz_sources::alpaca::{AlpacaClient, AlpacaConfig};
 use buizz_sources::cboe::{CboeClient, CboeConfig};
@@ -55,6 +55,9 @@ const SPY_REVISED: &str = "2024-07-05";
 const HOLIDAY: &str = "2024-07-04";
 const UNKNOWN: &str = "BADX";
 const DELISTED_MEMBER: &str = "K";
+const REUSED: &str = "STI";
+const ENDED_LAST_BAR: &str = "2016-03-31";
+const REUSED_FIRST_BAR: &str = "2016-04-20";
 
 #[derive(Default)]
 struct Fake {
@@ -167,8 +170,19 @@ async fn bars(State(fake): State<Arc<Fake>>, Query(params): Query<Params>) -> Re
         date(ALPACA_FIRST_BAR) + TimeDelta::days(1),
         date(CALENDAR_END),
     );
+    let ended = || requested(REUSED, date(ALPACA_FIRST_BAR), date(ENDED_LAST_BAR));
+    let today = || requested(REUSED, date(REUSED_FIRST_BAR), date(ALPACA_LAST_BAR));
+    let reused = match params.get("asof").map(String::as_str) {
+        None => today(),
+        Some("-") => [ended(), today()]
+            .into_iter()
+            .filter(|rows| !rows.is_empty())
+            .collect::<Vec<_>>()
+            .join(","),
+        Some(_) => ended(),
+    };
     json(format!(
-        r#"{{"bars":{{"AAPL":[{aapl}],"SPY":[{spy}],"{DELISTED_MEMBER}":[{delisted}]}},"next_page_token":null}}"#
+        r#"{{"bars":{{"AAPL":[{aapl}],"SPY":[{spy}],"{DELISTED_MEMBER}":[{delisted}],"{REUSED}":[{reused}]}},"next_page_token":null}}"#
     ))
 }
 
@@ -601,6 +615,74 @@ async fn a_delisted_member_alpaca_prices_only_when_asked_alone_stays_tradable_un
         Some((false, Some(date(ALPACA_LAST_BAR))))
     );
     assert_eq!(listing("SPY"), Some((true, None)));
+}
+
+#[tokio::test]
+async fn a_member_whose_ticker_a_later_company_took_is_priced_as_alpaca_mapped_it_then() {
+    let fake = Arc::new(Fake::default());
+    let url = serve_fakes(fake.clone()).await;
+    let directory = tempfile::tempdir().unwrap();
+    let (market, _state, ingest) = spine(directory.path(), &url).await;
+    let first_at = stamp("2024-07-05T21:00:00Z");
+    let mut members = sp500(&["SPY"]);
+    members.members.push(IndexMember {
+        index: StockIndex::Sp500,
+        symbol: Symbol::new(REUSED),
+        start: Some(date("2010-01-04")),
+        end: Some(date("2016-04-01")),
+    });
+    market
+        .replace_index_history(DataSource::Wikipedia, members, first_at.exchange_date())
+        .await
+        .unwrap();
+    ingest.tick(first_at).await.unwrap();
+
+    let ended = Symbol::ended(&Symbol::new(REUSED), date(ENDED_LAST_BAR));
+    let listing = market
+        .instruments()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|instrument| instrument.symbol == ended)
+        .map(|instrument| {
+            (
+                instrument.asset_class,
+                instrument.active,
+                instrument.last_session,
+            )
+        });
+    assert_eq!(
+        listing,
+        Some((AssetClass::Stock, false, Some(date(ENDED_LAST_BAR))))
+    );
+    let closes = |as_of: &'static str| {
+        let market = market.clone();
+        async move {
+            market
+                .history(HistoryRequest {
+                    symbols: vec![Symbol::new(REUSED)],
+                    timeframe: Timeframe::Day,
+                    bars: 100,
+                    adjust: Adjustment::Raw,
+                    as_of: stamp(as_of),
+                })
+                .await
+                .unwrap()
+                .iter()
+                .map(|row| row.start.exchange_date())
+                .collect::<Vec<_>>()
+        }
+    };
+    assert_eq!(
+        closes("2016-03-31T21:00:00Z").await,
+        weekdays(date(ALPACA_FIRST_BAR), date(ENDED_LAST_BAR)),
+        "the company that traded as STI in March 2016"
+    );
+    assert_eq!(
+        closes("2016-04-29T21:00:00Z").await,
+        weekdays(date(REUSED_FIRST_BAR), date(ALPACA_LAST_BAR)),
+        "the company that took STI later"
+    );
 }
 
 #[tokio::test]

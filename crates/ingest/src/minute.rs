@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use buizz_core::market::{Bar, DataSource, Dataset, Feed, Symbol, Timeframe};
 use buizz_core::time::Timestamp;
-use buizz_sources::alpaca::BarsRequest;
+use buizz_sources::alpaca::{BarsRequest, Tickers};
 use buizz_sources::http::SourceError;
 use chrono::{NaiveDate, TimeDelta};
 
@@ -38,6 +38,7 @@ impl Ingest {
             .into());
         }
         let calendar = self.market.calendar(from, to).await?;
+        let listings = self.market.listings();
         let mut grouped: BTreeMap<(NaiveDate, NaiveDate), Vec<Symbol>> = BTreeMap::new();
         for gap in gaps {
             grouped
@@ -47,12 +48,17 @@ impl Ingest {
         }
         for ((gap_from, gap_to), group) in grouped {
             for chunk in group.chunks(SYMBOLS_PER_REQUEST) {
+                let keys: BTreeMap<&Symbol, Symbol> = chunk
+                    .iter()
+                    .filter_map(|ticker| Some((ticker, listings.listing(ticker, gap_from)?)))
+                    .collect();
                 let request = BarsRequest {
                     symbols: chunk.to_vec(),
                     timeframe: Timeframe::Minute,
                     from: day_start(gap_from),
                     to: day_start(gap_to + TimeDelta::days(1)),
                     feed: Feed::Sip,
+                    tickers: Tickers::On(gap_from),
                 };
                 let key = FetchKey::new(
                     DataSource::Alpaca,
@@ -72,7 +78,10 @@ impl Ingest {
                     };
                     let fetched = page.bars.len();
                     let mut bars = std::mem::take(&mut carried);
-                    bars.extend(page.bars);
+                    bars.extend(page.bars.into_iter().filter_map(|bar| {
+                        let symbol = keys.get(&bar.symbol)?.clone();
+                        Some(Bar { symbol, ..bar })
+                    }));
                     if page.next.is_some() {
                         carried = split_last_day(&mut bars);
                     }

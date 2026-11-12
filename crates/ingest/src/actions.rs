@@ -1,5 +1,6 @@
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::HashSet;
 
+use buizz_core::listing::Listings;
 use buizz_core::market::{CorporateAction, CorporateActionKind, DataSource, Dataset, Symbol};
 use buizz_core::time::Timestamp;
 use buizz_market::ActionWindow;
@@ -13,75 +14,6 @@ const PROCESS_DATE_SLACK: TimeDelta = TimeDelta::days(30);
 const REFRESH_WINDOW: TimeDelta = TimeDelta::days(90);
 const ANNOUNCED_HORIZON: TimeDelta = TimeDelta::days(90);
 const BACKFILL_REQUESTS_PER_RUN: usize = 40;
-
-#[derive(Default)]
-pub(crate) struct Renames(BTreeMap<Symbol, Vec<(NaiveDate, Symbol)>>);
-
-impl Renames {
-    pub(crate) fn new<'a>(actions: impl IntoIterator<Item = &'a CorporateAction>) -> Self {
-        let mut renames: BTreeMap<Symbol, Vec<(NaiveDate, Symbol)>> = BTreeMap::new();
-        for action in actions {
-            if let CorporateActionKind::NameChange { new_symbol } = &action.kind
-                && *new_symbol != action.symbol
-            {
-                renames
-                    .entry(action.symbol.clone())
-                    .or_default()
-                    .push((action.ex_date, new_symbol.clone()));
-            }
-        }
-        for changes in renames.values_mut() {
-            changes.sort();
-        }
-        Self(renames)
-    }
-
-    pub(crate) fn current(&self, symbol: &Symbol, on: NaiveDate) -> Symbol {
-        let (mut symbol, mut on) = (symbol.clone(), on);
-        let mut seen = BTreeSet::new();
-        while seen.insert(symbol.clone()) {
-            let Some((date, renamed)) = self
-                .0
-                .get(&symbol)
-                .and_then(|changes| changes.iter().find(|(date, _)| *date >= on))
-            else {
-                break;
-            };
-            (symbol, on) = (renamed.clone(), *date);
-        }
-        symbol
-    }
-
-    fn former(&self, symbols: &[Symbol]) -> Vec<Symbol> {
-        let mut wanted: BTreeSet<Symbol> = symbols.iter().cloned().collect();
-        loop {
-            let before = wanted.len();
-            for (old, changes) in &self.0 {
-                if changes.iter().any(|(_, new)| wanted.contains(new)) {
-                    wanted.insert(old.clone());
-                }
-            }
-            if wanted.len() == before {
-                return wanted.into_iter().collect();
-            }
-        }
-    }
-
-    pub(crate) fn rekey(&self, mut action: CorporateAction) -> CorporateAction {
-        let on = action.ex_date;
-        action.symbol = self.current(&action.symbol, on);
-        match &mut action.kind {
-            CorporateActionKind::SpinOff { new_symbol, .. } => {
-                *new_symbol = self.current(new_symbol, on);
-            }
-            CorporateActionKind::StockMerger { acquirer, .. } => {
-                *acquirer = self.current(acquirer, on);
-            }
-            _ => {}
-        }
-        action
-    }
-}
 
 impl Ingest {
     pub(crate) async fn corporate_actions(&self, now: Timestamp) -> Result<Work, IngestError> {
@@ -107,7 +39,7 @@ impl Ingest {
         if self.name_changes(now, alpaca, &mut batch, through).await? {
             return Ok(batch.finish("corporate actions"));
         }
-        let renames = Renames::new(&self.market.actions_reaching_other_symbols().await?);
+        let renames = Listings::new(&self.market.actions_reaching_other_symbols().await?, []);
         let covered = self
             .symbol_coverage(Dataset::CorporateActions, DataSource::Alpaca)
             .await?;
@@ -248,62 +180,11 @@ impl Ingest {
             .await?;
         self.record_fetched(now, &key, count).await?;
         batch.success(summary.rows);
+        let withdrawn = self
+            .market
+            .withdraw_shadowed_bars(DataSource::Alpaca, history_start, today)
+            .await?;
+        batch.success(withdrawn.rows);
         Ok(false)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn date(text: &str) -> NaiveDate {
-        text.parse().unwrap()
-    }
-
-    fn renamed(old: &str, new: &str, on: &str) -> CorporateAction {
-        CorporateAction {
-            symbol: Symbol::new(old),
-            ex_date: date(on),
-            kind: CorporateActionKind::NameChange {
-                new_symbol: Symbol::new(new),
-            },
-        }
-    }
-
-    #[test]
-    fn an_action_is_keyed_by_the_ticker_its_company_trades_under_today() {
-        let renames = Renames::new(&[
-            renamed("SYMC", "NLOK", "2019-11-04"),
-            renamed("NLOK", "GEN", "2022-11-08"),
-            renamed("FB", "META", "2022-06-09"),
-            renamed("UTX", "RTX", "2020-04-03"),
-        ]);
-        let spin_off = renames.rekey(CorporateAction {
-            symbol: Symbol::new("UTX"),
-            ex_date: date("2020-04-03"),
-            kind: CorporateActionKind::SpinOff {
-                new_symbol: Symbol::new("OTIS"),
-                old_rate: 2.into(),
-                new_rate: 1.into(),
-            },
-        });
-        assert_eq!(spin_off.symbol, Symbol::new("RTX"));
-        assert_eq!(
-            renames.current(&Symbol::new("NLOK"), date("2020-02-03")),
-            Symbol::new("GEN")
-        );
-        assert_eq!(
-            renames.current(&Symbol::new("FB"), date("2021-12-14")),
-            Symbol::new("META")
-        );
-        assert_eq!(
-            renames.current(&Symbol::new("FB"), date("2025-09-25")),
-            Symbol::new("FB"),
-            "a dividend of the fund that took the ticker later stays with it"
-        );
-        assert_eq!(
-            renames.former(&[Symbol::new("GEN")]),
-            vec![Symbol::new("GEN"), Symbol::new("NLOK"), Symbol::new("SYMC")]
-        );
     }
 }

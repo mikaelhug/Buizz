@@ -7,7 +7,7 @@ use buizz_core::api::FeedSlots;
 use buizz_core::market::{Bar, DataSource, Dataset, Feed, Symbol, Timeframe};
 use buizz_core::time::Timestamp;
 use buizz_market::MarketStore;
-use buizz_sources::alpaca::{AlpacaClient, BarsRequest, SIP_DELAY};
+use buizz_sources::alpaca::{AlpacaClient, BarsRequest, SIP_DELAY, Tickers};
 use buizz_sources::alpaca_stream::{self, StreamConfig, StreamEvent, StreamHandle};
 use chrono::{NaiveTime, TimeDelta};
 use futures::future::BoxFuture;
@@ -548,6 +548,7 @@ pub(crate) async fn fetch_minutes(
         from,
         to,
         feed,
+        tickers: Tickers::Today,
     };
     let mut bars = alpaca
         .bars(&request(Feed::Sip, from, sip_until), &calendar)

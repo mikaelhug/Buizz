@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use buizz_core::listing::Listings;
 use buizz_core::market::{
     Adjustment, AdjustmentFactor, AssetClass, Bar, Calendar, Company, CorporateAction,
     CorporateActionKind, Coverage, DataSource, Dataset, EarningsInsight, EarningsRelease,
@@ -70,6 +71,63 @@ pub(crate) fn instruments(connection: &Connection) -> Result<Vec<Instrument>> {
     Ok(instruments)
 }
 
+pub(crate) fn listings(connection: &Connection) -> Result<Listings> {
+    let renames = select_actions(connection, "kind = 'name_change'", Params::new())?;
+    let mut statement =
+        connection.prepare_cached("SELECT symbol FROM instrument WHERE contains(symbol, '@')")?;
+    let keys = statement
+        .query_map([], |row| Ok(row.get::<_, Sym>(0)?.0))?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    Ok(Listings::new(&renames, &keys))
+}
+
+pub(crate) fn listed_on(calendar: &Calendar, at: Timestamp) -> NaiveDate {
+    let opened = calendar
+        .sessions()
+        .partition_point(|session| session.open <= at);
+    opened.checked_sub(1).map_or_else(
+        || at.exchange_date(),
+        |index| calendar.sessions()[index].date,
+    )
+}
+
+pub(crate) type Resolved = BTreeMap<Symbol, Symbol>;
+
+pub(crate) fn resolve(listings: &Listings, symbols: &[Symbol], on: NaiveDate) -> Resolved {
+    symbols
+        .iter()
+        .filter_map(|ticker| Some((ticker.clone(), listings.listing(ticker, on)?)))
+        .collect()
+}
+
+pub(crate) fn keys(resolved: &Resolved) -> Vec<Symbol> {
+    unique(&resolved.values().cloned().collect::<Vec<_>>())
+}
+
+pub(crate) fn relabel<T: Clone>(
+    resolved: &Resolved,
+    rows: Vec<T>,
+    symbol: impl Fn(&mut T) -> &mut Symbol,
+) -> Vec<T> {
+    let mut tickers: BTreeMap<&Symbol, Vec<&Symbol>> = BTreeMap::new();
+    for (ticker, key) in resolved {
+        tickers.entry(key).or_default().push(ticker);
+    }
+    let mut relabeled: Vec<(Symbol, T)> = Vec::new();
+    for mut row in rows {
+        let Some(asked) = tickers.get(symbol(&mut row)) else {
+            continue;
+        };
+        for ticker in asked {
+            let mut copy = row.clone();
+            *symbol(&mut copy) = (*ticker).clone();
+            relabeled.push(((*ticker).clone(), copy));
+        }
+    }
+    relabeled.sort_by(|a, b| a.0.cmp(&b.0));
+    relabeled.into_iter().map(|(_, row)| row).collect()
+}
+
 pub(crate) struct BarQuery<'a> {
     pub timeframe: Timeframe,
     pub symbols: &'a [Symbol],
@@ -136,6 +194,43 @@ pub(crate) fn bars(connection: &Connection, query: &BarQuery<'_>) -> Result<Vec<
     Ok(bars)
 }
 
+pub(crate) fn traded_bars(
+    connection: &Connection,
+    listings: &Listings,
+    query: &BarQuery<'_>,
+) -> Result<Vec<Bar>> {
+    let first = query.from.unwrap_or(query.to).exchange_date();
+    let last = query.to.exchange_date();
+    let mut spans: BTreeMap<Symbol, Vec<(&Symbol, NaiveDate, NaiveDate)>> = BTreeMap::new();
+    for ticker in query.symbols {
+        for (from, to, key) in listings.segments(ticker, first, last) {
+            spans.entry(key).or_default().push((ticker, from, to));
+        }
+    }
+    let keys: Vec<Symbol> = spans.keys().cloned().collect();
+    let stored = bars(
+        connection,
+        &BarQuery {
+            symbols: &keys,
+            ..*query
+        },
+    )?;
+    let mut traded = Vec::new();
+    for bar in stored {
+        let date = bar.start.exchange_date();
+        for (ticker, from, to) in spans.get(&bar.symbol).into_iter().flatten() {
+            if (*from..=*to).contains(&date) {
+                traded.push(Bar {
+                    symbol: (*ticker).clone(),
+                    ..bar.clone()
+                });
+            }
+        }
+    }
+    traded.sort_by(|a, b| (a.start, &a.symbol).cmp(&(b.start, &b.symbol)));
+    Ok(traded)
+}
+
 fn unique(symbols: &[Symbol]) -> Vec<Symbol> {
     symbols
         .iter()
@@ -154,6 +249,7 @@ fn is_visible(calendar: &Calendar, timeframe: Timeframe, bar: &Bar, as_of: Times
 fn visible_bars(
     connection: &Connection,
     calendar: &Calendar,
+    listings: &Listings,
     timeframe: Timeframe,
     symbols: Vec<Symbol>,
     count: usize,
@@ -166,7 +262,7 @@ fn visible_bars(
         Timeframe::Day => count + 1,
         Timeframe::Minute => (count + 1).div_ceil(MINUTES_PER_SESSION) + 1,
     };
-    let listed_since = listings_started(connection, calendar, &symbols, as_of)?;
+    let listed_since = listings_started(connection, calendar, listings, &symbols, as_of)?;
     let mut pending = symbols;
     let mut visible = BTreeMap::new();
     while !pending.is_empty() {
@@ -215,18 +311,92 @@ fn visible_bars(
 fn listings_started(
     connection: &Connection,
     calendar: &Calendar,
-    symbols: &[Symbol],
+    listings: &Listings,
+    keys: &[Symbol],
     as_of: Timestamp,
 ) -> Result<BTreeMap<Symbol, Timestamp>> {
     let mut started = BTreeMap::new();
-    for action in corporate_actions(connection, symbols, HISTORY_START, as_of.exchange_date())? {
+    let actions = listing_actions(
+        connection,
+        calendar,
+        keys,
+        HISTORY_START,
+        as_of.exchange_date(),
+    )?;
+    for action in actions {
+        let taken_over = matches!(action.kind, CorporateActionKind::NameChange { .. })
+            && listings.renamed_into(&action.symbol, action.ex_date);
         if let Some(since) = corporate_action_visible_at(action.ex_date, calendar)
-            .filter(|visible_at| action.kind.ends_listing() && *visible_at <= as_of)
+            .filter(|visible_at| action.kind.ends_listing() && !taken_over && *visible_at <= as_of)
         {
             started.insert(action.symbol, since);
         }
     }
     Ok(started)
+}
+
+fn listing_actions(
+    connection: &Connection,
+    calendar: &Calendar,
+    keys: &[Symbol],
+    from: NaiveDate,
+    to: NaiveDate,
+) -> Result<Vec<CorporateAction>> {
+    let mut ended: BTreeMap<Symbol, Vec<(NaiveDate, &Symbol)>> = BTreeMap::new();
+    for key in keys {
+        if let Some((ticker, last)) = key.ended_listing() {
+            let until = calendar.next_after(last).map_or(last, |next| next.date);
+            ended.entry(ticker).or_default().push((until, key));
+        }
+    }
+    let stored: Vec<Symbol> = keys.iter().chain(ended.keys()).cloned().collect();
+    let mut actions = Vec::new();
+    for action in corporate_actions(connection, &unique(&stored), from, to)? {
+        let owner = ended.get(&action.symbol).and_then(|ends| {
+            ends.iter()
+                .find(|(until, _)| action.ex_date <= *until)
+                .map(|(_, key)| (*key).clone())
+        });
+        if let Some(key) = owner {
+            actions.push(CorporateAction {
+                symbol: key,
+                ..action.clone()
+            });
+        }
+        if keys.contains(&action.symbol) {
+            actions.push(action);
+        }
+    }
+    actions.sort_by(|a, b| (&a.symbol, a.ex_date).cmp(&(&b.symbol, b.ex_date)));
+    Ok(actions)
+}
+
+pub(crate) fn traded_actions(
+    connection: &Connection,
+    calendar: &Calendar,
+    listings: &Listings,
+    symbols: &[Symbol],
+    from: NaiveDate,
+    to: NaiveDate,
+) -> Result<Vec<CorporateAction>> {
+    let symbols = unique(symbols);
+    let renamed = |action: &CorporateAction| matches!(&action.kind, CorporateActionKind::NameChange { new_symbol } if *new_symbol != action.symbol);
+    let resolved = resolve(listings, &symbols, from.pred_opt().unwrap_or(from));
+    let keyed: Vec<CorporateAction> =
+        listing_actions(connection, calendar, &keys(&resolved), from, to)?
+            .into_iter()
+            .filter(|action| !matches!(action.kind, CorporateActionKind::NameChange { .. }))
+            .collect();
+    let mut actions = relabel(&resolved, keyed, |action| &mut action.symbol);
+    actions.extend(
+        corporate_actions(connection, &symbols, from, to)?
+            .into_iter()
+            .filter(renamed),
+    );
+    actions.sort_by(|a, b| {
+        (&a.symbol, a.ex_date, renamed(a)).cmp(&(&b.symbol, b.ex_date, renamed(b)))
+    });
+    Ok(actions)
 }
 
 fn to_f64(value: Decimal) -> f64 {
@@ -249,9 +419,17 @@ fn adjusted_row(bar: Bar, factors: &[AdjustmentFactor]) -> BarRow {
 pub(crate) fn chart(
     connection: &Connection,
     calendar: &Calendar,
+    listings: &Listings,
     request: &ChartRequest,
 ) -> Result<ChartBars> {
-    let symbols = [request.symbol.clone()];
+    let Some(key) = listings.listing(&request.symbol, request.listed_on) else {
+        return Ok(ChartBars {
+            bars: Vec::new(),
+            older: false,
+            splits: Vec::new(),
+        });
+    };
+    let keys = [key.clone()];
     let (to, to_inclusive) = match request.before.filter(|before| *before <= request.as_of) {
         Some(before) => (before, false),
         None => (request.as_of, true),
@@ -260,7 +438,7 @@ pub(crate) fn chart(
         connection,
         &BarQuery {
             timeframe: request.timeframe,
-            symbols: &symbols,
+            symbols: &keys,
             from: Some(
                 request
                     .after
@@ -281,17 +459,23 @@ pub(crate) fn chart(
     let splits = adjustment_factors(
         connection,
         calendar,
-        &symbols,
+        &keys,
         Adjustment::Split,
         request.from.exchange_date(),
         request.as_of,
     )?
-    .remove(&request.symbol)
+    .remove(&key)
     .unwrap_or_default();
     Ok(ChartBars {
         bars: visible
             .into_iter()
-            .map(|bar| adjusted_row(bar, &splits))
+            .map(|bar| {
+                let bar = Bar {
+                    symbol: request.symbol.clone(),
+                    ..bar
+                };
+                adjusted_row(bar, &splits)
+            })
             .collect(),
         older,
         splits,
@@ -301,17 +485,21 @@ pub(crate) fn chart(
 pub(crate) fn history(
     connection: &Connection,
     calendar: &Calendar,
+    listings: &Listings,
     request: &HistoryRequest,
 ) -> Result<Vec<BarRow>> {
     let count = request.bars as usize;
     if count == 0 {
         return Ok(Vec::new());
     }
+    let on = listed_on(calendar, request.as_of);
+    let resolved = resolve(listings, &unique(&request.symbols), on);
     let visible = visible_bars(
         connection,
         calendar,
+        listings,
         request.timeframe,
-        unique(&request.symbols),
+        keys(&resolved),
         count,
         request.as_of,
     )?;
@@ -323,23 +511,26 @@ pub(crate) fn history(
     let Some(earliest) = earliest else {
         return Ok(Vec::new());
     };
-    let symbols: Vec<Symbol> = visible.keys().cloned().collect();
+    let priced: Vec<Symbol> = visible.keys().cloned().collect();
     let factors = adjustment_factors(
         connection,
         calendar,
-        &symbols,
+        &priced,
         request.adjust,
         earliest,
         request.as_of,
     )?;
-    let mut rows: Vec<BarRow> = visible
-        .into_values()
-        .flatten()
-        .map(|bar| {
-            let symbol_factors = factors.get(&bar.symbol).map_or(&[][..], Vec::as_slice);
-            adjusted_row(bar, symbol_factors)
-        })
-        .collect();
+    let mut rows: Vec<BarRow> = Vec::new();
+    for (ticker, key) in &resolved {
+        let key_factors = factors.get(key).map_or(&[][..], Vec::as_slice);
+        for bar in visible.get(key).into_iter().flatten() {
+            let bar = Bar {
+                symbol: ticker.clone(),
+                ..bar.clone()
+            };
+            rows.push(adjusted_row(bar, key_factors));
+        }
+    }
     rows.sort_by(|left, right| (left.start, &left.symbol).cmp(&(right.start, &right.symbol)));
     Ok(rows)
 }
@@ -347,14 +538,17 @@ pub(crate) fn history(
 pub(crate) fn split_adjusted_closes(
     connection: &Connection,
     calendar: &Calendar,
+    listings: &Listings,
     symbols: &[Symbol],
     as_of: Timestamp,
 ) -> Result<BTreeMap<Symbol, Decimal>> {
+    let resolved = resolve(listings, &unique(symbols), listed_on(calendar, as_of));
     let visible = visible_bars(
         connection,
         calendar,
+        listings,
         Timeframe::Day,
-        unique(symbols),
+        keys(&resolved),
         1,
         as_of,
     )?;
@@ -375,16 +569,15 @@ pub(crate) fn split_adjusted_closes(
         earliest,
         as_of,
     )?;
-    Ok(visible
-        .into_values()
-        .flatten()
-        .map(|bar| {
-            let symbol_factors = factors.get(&bar.symbol).map_or(&[][..], Vec::as_slice);
-            let (price, _) =
-                AdjustmentFactor::cumulative(bar.start.exchange_date(), symbol_factors);
-            (bar.symbol, bar.close * price)
-        })
-        .collect())
+    let mut closes = BTreeMap::new();
+    for (ticker, key) in &resolved {
+        let key_factors = factors.get(key).map_or(&[][..], Vec::as_slice);
+        if let Some(bar) = visible.get(key).and_then(|bars| bars.last()) {
+            let (price, _) = AdjustmentFactor::cumulative(bar.start.exchange_date(), key_factors);
+            closes.insert(ticker.clone(), bar.close * price);
+        }
+    }
+    Ok(closes)
 }
 
 fn adjustment_factors(
@@ -402,7 +595,7 @@ fn adjustment_factors(
         return Ok(BTreeMap::new());
     }
     let actions: Vec<CorporateAction> =
-        corporate_actions(connection, symbols, after, as_of.exchange_date())?
+        listing_actions(connection, calendar, symbols, after, as_of.exchange_date())?
             .into_iter()
             .filter(|action| {
                 corporate_action_visible_at(action.ex_date, calendar)
@@ -694,11 +887,13 @@ fn sessions_before(calendar: &Calendar, before: NaiveDate, count: u32) -> &[Sess
 pub(crate) fn average_daily_volume(
     connection: &Connection,
     calendar: &Calendar,
+    listings: &Listings,
     symbols: &[Symbol],
     before: NaiveDate,
     sessions: u32,
 ) -> Result<BTreeMap<Symbol, u64>> {
-    let symbols = unique(symbols);
+    let resolved = resolve(listings, &unique(symbols), before);
+    let keys = keys(&resolved);
     let Some(first) = sessions_before(calendar, before, sessions).first() else {
         return Ok(BTreeMap::new());
     };
@@ -709,7 +904,7 @@ pub(crate) fn average_daily_volume(
         connection,
         &BarQuery {
             timeframe: Timeframe::Day,
-            symbols: &symbols,
+            symbols: &keys,
             from: Some(first.open),
             to: as_of,
             to_inclusive: false,
@@ -719,7 +914,7 @@ pub(crate) fn average_daily_volume(
     let factors = adjustment_factors(
         connection,
         calendar,
-        &symbols,
+        &keys,
         Adjustment::Split,
         first.date,
         as_of,
@@ -732,25 +927,29 @@ pub(crate) fn average_daily_volume(
         total.0 += Decimal::from(bar.volume) * volume;
         total.1 += 1;
     }
-    Ok(totals
+    Ok(resolved
         .into_iter()
-        .filter_map(|(symbol, (sum, days))| {
-            (sum / Decimal::from(days))
+        .filter_map(|(ticker, key)| {
+            let (sum, days) = totals.get(&key)?;
+            (sum / Decimal::from(*days))
                 .round()
                 .to_u64()
-                .map(|average| (symbol, average))
+                .map(|average| (ticker, average))
         })
         .collect())
 }
 
+pub(crate) type Listed = (Symbol, Symbol);
+
 pub(crate) fn top_dollar_volume(
     connection: &Connection,
     calendar: &Calendar,
+    listings: &Listings,
     count: u32,
     asset_class: Option<AssetClass>,
     before: NaiveDate,
     sessions: u32,
-) -> Result<Vec<Symbol>> {
+) -> Result<Vec<Listed>> {
     let Some(first) = sessions_before(calendar, before, sessions).first() else {
         return Ok(Vec::new());
     };
@@ -758,49 +957,76 @@ pub(crate) fn top_dollar_volume(
         "SELECT b.symbol FROM bar_1d b LEFT JOIN instrument i ON i.symbol = b.symbol \
          WHERE b.date >= ? AND b.date < ? AND (? IS NULL OR i.asset_class = ?) \
          AND (i.last_session IS NULL OR i.last_session >= ?) \
-         GROUP BY b.symbol ORDER BY avg(CAST(b.close AS DOUBLE) * b.volume) DESC, b.symbol \
-         LIMIT ?",
+         GROUP BY b.symbol ORDER BY avg(CAST(b.close AS DOUBLE) * b.volume) DESC, b.symbol",
     )?;
     let class = asset_class.as_ref().map(crate::codec::wire_name);
-    let symbols = statement
-        .query_map(
-            params![first.date, before, class, class, before, u64::from(count)],
-            |row| Ok(row.get::<_, Sym>(0)?.0),
-        )?
+    let keys = statement
+        .query_map(params![first.date, before, class, class, before], |row| {
+            Ok(row.get::<_, Sym>(0)?.0)
+        })?
         .collect::<duckdb::Result<Vec<_>>>()?;
-    Ok(symbols)
+    Ok(keys
+        .into_iter()
+        .filter_map(|key| Some((listings.ticker_of(&key, before)?, key)))
+        .take(count as usize)
+        .collect())
 }
 
 pub(crate) fn index_universe(
     connection: &Connection,
     calendar: &Calendar,
+    listings: &Listings,
     index: StockIndex,
     before: NaiveDate,
     sessions: u32,
-) -> Result<Vec<Symbol>> {
+) -> Result<Vec<Listed>> {
     let Some(first) = sessions_before(calendar, before, sessions).first() else {
         return Ok(Vec::new());
     };
     let mut statement = connection.prepare_cached(
-        "SELECT DISTINCT m.symbol FROM index_member m \
-         WHERE m.index_name = ? AND (m.start_date IS NULL OR m.start_date <= ?) \
-         AND (m.end_date IS NULL OR ? < m.end_date) \
-         AND EXISTS (SELECT 1 FROM bar_1d b WHERE b.symbol = m.symbol \
-         AND b.date >= ? AND b.date < ?) ORDER BY m.symbol",
+        "SELECT symbol, end_date FROM index_member WHERE index_name = ? \
+         AND (start_date IS NULL OR start_date <= ?) AND (end_date IS NULL OR ? < end_date)",
     )?;
-    let symbols = statement
+    let members = statement
         .query_map(
-            params![
-                crate::codec::wire_name(&index),
-                before,
-                before,
-                first.date,
-                before
-            ],
-            |row| Ok(row.get::<_, Sym>(0)?.0),
+            params![crate::codec::wire_name(&index), before, before],
+            |row| Ok((row.get::<_, Sym>(0)?.0, row.get::<_, Option<NaiveDate>>(1)?)),
         )?
         .collect::<duckdb::Result<Vec<_>>>()?;
-    Ok(symbols)
+    let listed: BTreeSet<Listed> = members
+        .into_iter()
+        .filter_map(|(symbol, end)| {
+            let ticker = listings.ticker(&symbol, before, end);
+            let key = listings.listing(&ticker, before)?;
+            Some((ticker, key))
+        })
+        .collect();
+    let keys = unique(
+        &listed
+            .iter()
+            .map(|(_, key)| key.clone())
+            .collect::<Vec<_>>(),
+    );
+    if keys.is_empty() {
+        return Ok(Vec::new());
+    }
+    let sql = format!(
+        "SELECT DISTINCT symbol FROM bar_1d WHERE symbol IN ({}) AND date >= ? AND date < ?",
+        placeholders(keys.len())
+    );
+    let mut params = symbol_params(&keys);
+    params.push(Box::new(first.date));
+    params.push(Box::new(before));
+    let mut statement = connection.prepare_cached(&sql)?;
+    let priced = statement
+        .query_map(params_from_iter(params.iter()), |row| {
+            Ok(row.get::<_, Sym>(0)?.0)
+        })?
+        .collect::<duckdb::Result<BTreeSet<_>>>()?;
+    Ok(listed
+        .into_iter()
+        .filter(|(_, key)| priced.contains(key))
+        .collect())
 }
 
 pub(crate) fn index_history(
@@ -1400,20 +1626,30 @@ fn listing_bounds(
 pub(crate) fn coverage_gaps(
     connection: &Connection,
     calendar: &Calendar,
+    listings: &Listings,
     symbols: &[Symbol],
     timeframe: Timeframe,
     from: NaiveDate,
     to: NaiveDate,
 ) -> Result<Vec<CoverageGap>> {
-    let symbols = unique(symbols);
     let sessions = calendar.between(from, to);
     let (Some(first), Some(last)) = (sessions.first(), sessions.last()) else {
         return Ok(Vec::new());
     };
-    if symbols.is_empty() {
+    let spans: Vec<(Symbol, NaiveDate, NaiveDate, Symbol)> = unique(symbols)
+        .into_iter()
+        .flat_map(|ticker| {
+            listings
+                .segments(&ticker, first.date, last.date)
+                .into_iter()
+                .map(move |(lo, hi, key)| (ticker.clone(), lo, hi, key))
+        })
+        .collect();
+    let keys = unique(&spans.iter().map(|span| span.3.clone()).collect::<Vec<_>>());
+    if keys.is_empty() {
         return Ok(Vec::new());
     }
-    let mut params = symbol_params(&symbols);
+    let mut params = symbol_params(&keys);
     let sql = match timeframe {
         Timeframe::Day => {
             params.push(Box::new(first.date));
@@ -1421,7 +1657,7 @@ pub(crate) fn coverage_gaps(
             format!(
                 "SELECT DISTINCT symbol, date FROM bar_1d \
                  WHERE symbol IN ({}) AND date BETWEEN ? AND ?",
-                placeholders(symbols.len())
+                placeholders(keys.len())
             )
         }
         Timeframe::Minute => {
@@ -1437,7 +1673,7 @@ pub(crate) fn coverage_gaps(
                  WHERE b.symbol IN ({}) AND b.start >= ? AND b.start < ? \
                  AND c.date BETWEEN ? AND ? AND b.feed = 'sip' \
                  AND i.created_at >= c.close + to_microseconds(?)",
-                placeholders(symbols.len())
+                placeholders(keys.len())
             )
         }
     };
@@ -1447,20 +1683,21 @@ pub(crate) fn coverage_gaps(
             Ok((row.get::<_, Sym>(0)?.0, row.get::<_, NaiveDate>(1)?))
         })?
         .collect::<duckdb::Result<BTreeSet<_>>>()?;
-    let bounds = listing_bounds(connection, calendar, &symbols)?;
+    let bounds = listing_bounds(connection, calendar, &keys)?;
     let mut gaps = Vec::new();
-    for symbol in symbols {
-        let (listed, delisted) = bounds.get(&symbol).copied().unwrap_or_default();
+    for (ticker, lo, hi, key) in spans {
+        let (listed, delisted) = bounds.get(&key).copied().unwrap_or_default();
         let mut open_gap: Option<(NaiveDate, NaiveDate)> = None;
         let listed_sessions = sessions.iter().filter(|session| {
-            listed.is_none_or(|listed| listed <= session.date)
+            (lo..=hi).contains(&session.date)
+                && listed.is_none_or(|listed| listed <= session.date)
                 && delisted.is_none_or(|delisted| session.date <= delisted)
         });
         for session in listed_sessions {
-            if present.contains(&(symbol.clone(), session.date)) {
+            if present.contains(&(key.clone(), session.date)) {
                 if let Some((gap_from, gap_to)) = open_gap.take() {
                     gaps.push(CoverageGap {
-                        symbol: symbol.clone(),
+                        symbol: ticker.clone(),
                         timeframe,
                         from: gap_from,
                         to: gap_to,
@@ -1476,13 +1713,103 @@ pub(crate) fn coverage_gaps(
         }
         if let Some((gap_from, gap_to)) = open_gap {
             gaps.push(CoverageGap {
-                symbol,
+                symbol: ticker,
                 timeframe,
                 from: gap_from,
                 to: gap_to,
             });
         }
     }
+    Ok(gaps)
+}
+
+pub(crate) fn unpriced_members(
+    connection: &Connection,
+    calendar: &Calendar,
+    listings: &Listings,
+    index: StockIndex,
+    from: NaiveDate,
+    to: NaiveDate,
+) -> Result<Vec<CoverageGap>> {
+    let Some(history) = index_history(connection, index)? else {
+        return Ok(Vec::new());
+    };
+    let mut spans: Vec<(Symbol, NaiveDate, NaiveDate, Option<Symbol>)> = Vec::new();
+    for member in history.members {
+        let last = member
+            .end
+            .and_then(|end| end.pred_opt())
+            .unwrap_or(to)
+            .min(to);
+        let first = member.start.unwrap_or(from).max(from);
+        let mut tickers: Vec<(NaiveDate, Symbol)> = Vec::new();
+        for session in calendar.between(first, last) {
+            let ticker = listings.ticker(&member.symbol, session.date, member.end);
+            if tickers.last().is_none_or(|(_, current)| *current != ticker) {
+                tickers.push((session.date, ticker));
+            }
+        }
+        for (index, (start, ticker)) in tickers.iter().enumerate() {
+            let end = tickers
+                .get(index + 1)
+                .and_then(|(next, _)| next.pred_opt())
+                .unwrap_or(last);
+            let mut covered = *start;
+            for (lo, hi, key) in listings.segments(ticker, *start, end) {
+                if covered < lo {
+                    spans.push((ticker.clone(), covered, lo.pred_opt().unwrap_or(lo), None));
+                }
+                spans.push((ticker.clone(), lo, hi, Some(key)));
+                covered = hi.succ_opt().unwrap_or(hi);
+            }
+            if covered <= end {
+                spans.push((ticker.clone(), covered, end, None));
+            }
+        }
+    }
+    if spans.is_empty() {
+        return Ok(Vec::new());
+    }
+    let sql = format!(
+        "WITH span (id, ticker, lo, hi, listing) AS (VALUES {}), \
+         session AS (SELECT date, row_number() OVER (ORDER BY date) AS ordinal FROM calendar), \
+         missing AS (SELECT s.id, s.ticker, c.date, \
+           c.ordinal - row_number() OVER (PARTITION BY s.id ORDER BY c.date) AS island \
+           FROM span s JOIN session c ON c.date BETWEEN s.lo AND s.hi \
+           LEFT JOIN instrument i ON i.symbol = s.listing \
+           WHERE (i.last_session IS NULL OR c.date <= i.last_session) \
+           AND NOT EXISTS (SELECT 1 FROM bar_1d b WHERE b.symbol = s.listing AND b.date = c.date)) \
+         SELECT ticker, min(date) AS first, max(date) FROM missing \
+         GROUP BY id, ticker, island ORDER BY ticker, first",
+        vec!["(?, ?, CAST(? AS DATE), CAST(? AS DATE), ?)"; spans.len()].join(", ")
+    );
+    let params: Params = spans
+        .iter()
+        .zip(0_u64..)
+        .flat_map(|((ticker, lo, hi, key), id)| {
+            [
+                Box::new(id) as Box<dyn ToSql>,
+                Box::new(ticker.as_str().to_owned()),
+                Box::new(*lo),
+                Box::new(*hi),
+                Box::new(
+                    key.as_ref()
+                        .map_or_else(String::new, |key| key.as_str().to_owned()),
+                ),
+            ]
+        })
+        .collect();
+    let mut statement = connection.prepare_cached(&sql)?;
+    let gaps = statement
+        .query_map(params_from_iter(params.iter()), |row| {
+            Ok(CoverageGap {
+                symbol: row.get::<_, Sym>(0)?.0,
+                timeframe: Timeframe::Day,
+                from: row.get(1)?,
+                to: row.get(2)?,
+            })
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
     Ok(gaps)
 }
 

@@ -11,7 +11,7 @@ use buizz_core::market::{
     AssetClass, Calendar, CorporateActionKind, Feed, Session, Symbol, Timeframe,
 };
 use buizz_core::time::Timestamp;
-use buizz_sources::alpaca::{AlpacaClient, AlpacaConfig, BarsRequest};
+use buizz_sources::alpaca::{AlpacaClient, AlpacaConfig, BarsRequest, Tickers};
 use buizz_sources::http::SourceError;
 use chrono::{NaiveDate, NaiveTime};
 use rust_decimal::Decimal;
@@ -126,6 +126,7 @@ fn request(timeframe: Timeframe, symbols: &[&str], to: Timestamp) -> BarsRequest
         from: at("2024-07-01", "00:00"),
         to,
         feed: Feed::Sip,
+        tickers: Tickers::Today,
     }
 }
 

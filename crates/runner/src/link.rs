@@ -314,7 +314,7 @@ async fn answer(
         }
         QueryRequest::Instruments { symbols } => {
             let instruments = market
-                .instrument_profiles(symbols)
+                .instrument_profiles(symbols, clock)
                 .await
                 .map_err(|error| error.to_string())?;
             Ok(DataResult::Instruments { instruments })

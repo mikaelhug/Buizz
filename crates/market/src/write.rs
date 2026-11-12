@@ -39,6 +39,7 @@ pub(crate) fn prepare(connection: &Connection) -> Result<()> {
     connection.execute_batch(
         "CREATE TEMP TABLE bar_span (symbol VARCHAR, lo TIMESTAMP, hi TIMESTAMP); \
          CREATE TEMP TABLE action_scope (symbol VARCHAR); \
+         CREATE TEMP TABLE shadow_span (ticker VARCHAR, lo DATE, hi DATE, listing VARCHAR); \
          CREATE TEMP TABLE report_scope (report VARCHAR); \
          CREATE TEMP TABLE coverage_stage AS SELECT * FROM main.coverage LIMIT 0",
     )?;
@@ -299,6 +300,44 @@ pub(crate) fn daily_bars(
                 },
             )?;
             replace_staged(transaction, "bar_1d", batch_id)
+        },
+    )
+}
+
+pub(crate) fn shadowed_bars(
+    connection: &mut Connection,
+    source: DataSource,
+    shadowed: Vec<(Symbol, NaiveDate, NaiveDate, Symbol)>,
+) -> Result<WriteSummary> {
+    write_batch(
+        connection,
+        source,
+        Dataset::Bars1d,
+        Coverage::new(),
+        |transaction, batch_id| {
+            transaction.execute("DELETE FROM shadow_span", [])?;
+            let mut appender =
+                transaction.appender_to_catalog_and_db("shadow_span", "temp", "main")?;
+            for (ticker, lo, hi, listing) in &shadowed {
+                appender.append_row(params![ticker.as_str(), lo, hi, listing.as_str()])?;
+            }
+            appender.flush()?;
+            drop(appender);
+            let withdrawn = transaction.execute(
+                "INSERT INTO main.bar_1d_revision SELECT b.*, ? FROM main.bar_1d b \
+                 JOIN shadow_span s ON b.symbol = s.ticker AND b.date BETWEEN s.lo AND s.hi \
+                 WHERE EXISTS (SELECT 1 FROM main.bar_1d k WHERE k.symbol = s.listing \
+                 AND k.date = b.date AND k.open = b.open AND k.high = b.high AND k.low = b.low \
+                 AND k.close = b.close AND k.volume = b.volume)",
+                params![batch_id],
+            )?;
+            transaction.execute(
+                "DELETE FROM main.bar_1d b WHERE EXISTS (SELECT 1 FROM main.bar_1d_revision r \
+                 WHERE r.superseded_by = ? AND r.symbol = b.symbol AND r.date = b.date)",
+                params![batch_id],
+            )?;
+            transaction.execute("DELETE FROM shadow_span", [])?;
+            Ok(withdrawn as u64)
         },
     )
 }

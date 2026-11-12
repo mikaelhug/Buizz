@@ -398,7 +398,9 @@ impl Ingest {
             .instruments()
             .await?
             .into_iter()
-            .filter(|instrument| instrument.exchange != OTC)
+            .filter(|instrument| {
+                instrument.exchange != OTC && instrument.symbol.ended_listing().is_none()
+            })
             .map(|instrument| (instrument.symbol.clone(), instrument))
             .collect();
         let symbols: BTreeSet<&Symbol> = instruments

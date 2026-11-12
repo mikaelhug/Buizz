@@ -1,9 +1,12 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use buizz_core::market::{DataSource, Dataset, Feed, Symbol, Timeframe};
+use buizz_core::market::{
+    AssetClass, Bar, Calendar, DataSource, Dataset, Feed, Instrument, Session, StockIndex, Symbol,
+    Timeframe,
+};
 use buizz_core::ops::FetchStatus;
 use buizz_core::time::Timestamp;
-use buizz_sources::alpaca::{BarsRequest, HISTORY_START, SIP_DELAY};
+use buizz_sources::alpaca::{AlpacaClient, BarsRequest, HISTORY_START, SIP_DELAY, Tickers};
 use buizz_sources::http::SourceError;
 use chrono::{NaiveDate, TimeDelta};
 
@@ -19,6 +22,8 @@ const REFUSED_REQUEST: [u16; 2] = [400, 422];
 const DORMANT_RETRY: TimeDelta = TimeDelta::days(7);
 const INDEX_RANKS: usize = CORE_ETFS.len() + 1;
 const ALONE_PER_RUN: usize = 20;
+const RECOVERED_PER_RUN: usize = 20;
+const RECOVERY_RETRY: TimeDelta = TimeDelta::days(30);
 
 impl Ingest {
     pub(crate) async fn daily_bars(&self, now: Timestamp) -> Result<Work, IngestError> {
@@ -124,6 +129,7 @@ impl Ingest {
                     from: day_start(from),
                     to: target.close,
                     feed: Feed::Sip,
+                    tickers: Tickers::Today,
                 };
                 let key = FetchKey::new(
                     DataSource::Alpaca,
@@ -204,7 +210,165 @@ impl Ingest {
                 .advance_watermark(Timeframe::Day, target.close)
                 .await?;
         }
+        if requests + 2 <= REQUESTS_PER_RUN
+            && !self.stopping()
+            && self
+                .rate_limited_until(now, DataSource::Alpaca)
+                .await?
+                .is_none()
+        {
+            let budget = (REQUESTS_PER_RUN - requests) / 2;
+            self.recover_listings(
+                now,
+                alpaca,
+                &calendar,
+                &target,
+                budget.min(RECOVERED_PER_RUN),
+                &mut batch,
+            )
+            .await?;
+        }
         Ok(batch.finish("daily bars"))
+    }
+
+    async fn recover_listings(
+        &self,
+        now: Timestamp,
+        alpaca: &AlpacaClient,
+        calendar: &Calendar,
+        target: &Session,
+        budget: usize,
+        batch: &mut Batch,
+    ) -> Result<(), IngestError> {
+        let floor = self.config.history_start.max(HISTORY_START);
+        let gaps = self
+            .market
+            .unpriced_members(StockIndex::Sp500, floor, target.date)
+            .await?;
+        let mut attempted = 0;
+        let mut recovered = 0;
+        for gap in gaps {
+            let tried = self
+                .state
+                .recent_fetches(
+                    DataSource::Alpaca,
+                    Dataset::Bars1d,
+                    Some(gap.symbol.clone()),
+                    10,
+                )
+                .await?
+                .iter()
+                .any(|fetch| {
+                    (fetch.requested_from, fetch.requested_to) == (Some(gap.from), Some(gap.to))
+                        && read(fetch)
+                        && fetch.at + RECOVERY_RETRY > now
+                });
+            if tried {
+                continue;
+            }
+            if attempted == budget || self.stopping() {
+                break;
+            }
+            attempted += 1;
+            let key = FetchKey::new(
+                DataSource::Alpaca,
+                Dataset::Bars1d,
+                Some(&gap.symbol),
+                Some((gap.from, gap.to)),
+            );
+            let ask = |tickers| listing_bars(alpaca, calendar, &gap.symbol, floor, target, tickers);
+            let (traded, mapped) =
+                match (ask(Tickers::AsTraded).await, ask(Tickers::On(gap.to)).await) {
+                    (Ok(traded), Ok(mapped)) => (traded, mapped),
+                    (Err(error), _) | (_, Err(error)) => {
+                        self.record_failure(now, &key, &error).await?;
+                        if batch.source_error(gap.symbol.as_str(), &error) {
+                            break;
+                        }
+                        continue;
+                    }
+                };
+            let traded: BTreeMap<Timestamp, Bar> =
+                traded.into_iter().map(|bar| (bar.start, bar)).collect();
+            let listing: Vec<Bar> = mapped
+                .into_iter()
+                .filter(|bar| traded.get(&bar.start) == Some(bar))
+                .collect();
+            let Some(final_bar) = listing.last().cloned() else {
+                self.record_fetched(now, &key, 0).await?;
+                continue;
+            };
+            let last = final_bar.start.exchange_date();
+            let stored = |symbol: Symbol| async move {
+                let bars = self
+                    .market
+                    .bars_between(Timeframe::Day, vec![symbol], day_start(floor), target.close)
+                    .await?;
+                Ok::<_, IngestError>(
+                    bars.into_iter()
+                        .map(|bar| (bar.start, bar))
+                        .collect::<BTreeMap<Timestamp, Bar>>(),
+                )
+            };
+            let renamed = self
+                .market
+                .listings()
+                .listing(&gap.symbol, gap.from)
+                .filter(|listed| *listed != gap.symbol);
+            let still_listed = last >= target.date
+                || stored(gap.symbol.clone()).await?.get(&final_bar.start) == Some(&final_bar);
+            let stored_as = match renamed {
+                Some(renamed) => renamed,
+                None if still_listed => gap.symbol.clone(),
+                None => {
+                    let ended = Symbol::ended(&gap.symbol, last);
+                    self.market
+                        .upsert_instruments(
+                            DataSource::Alpaca,
+                            vec![Instrument {
+                                symbol: ended.clone(),
+                                name: String::new(),
+                                exchange: String::new(),
+                                asset_class: AssetClass::Stock,
+                                active: false,
+                                shortable: false,
+                                first_session: None,
+                                last_session: Some(last),
+                            }],
+                        )
+                        .await?;
+                    ended
+                }
+            };
+            let present = stored(stored_as.clone()).await?;
+            let missing: Vec<Bar> = listing
+                .into_iter()
+                .filter(|bar| !present.contains_key(&bar.start))
+                .map(|bar| Bar {
+                    symbol: stored_as.clone(),
+                    ..bar
+                })
+                .collect();
+            let count = missing.len();
+            if count > 0 {
+                let rows = self
+                    .market
+                    .upsert_bars(DataSource::Alpaca, Timeframe::Day, missing)
+                    .await?
+                    .rows;
+                batch.success(rows);
+                recovered += 1;
+            }
+            self.record_fetched(now, &key, count).await?;
+        }
+        if recovered > 0 {
+            let withdrawn = self
+                .market
+                .withdraw_shadowed_bars(DataSource::Alpaca, floor, target.date)
+                .await?;
+            batch.success(withdrawn.rows);
+        }
+        Ok(())
     }
 
     async fn empty_only_among_many(&self, symbol: &Symbol) -> Result<bool, IngestError> {
@@ -233,5 +397,33 @@ fn refused_request(error: &SourceError) -> bool {
         SourceError::Decode(_) => true,
         SourceError::Status { status, .. } => REFUSED_REQUEST.contains(status),
         _ => false,
+    }
+}
+
+async fn listing_bars(
+    alpaca: &AlpacaClient,
+    calendar: &Calendar,
+    ticker: &Symbol,
+    from: NaiveDate,
+    target: &Session,
+    tickers: Tickers,
+) -> Result<Vec<Bar>, SourceError> {
+    let request = BarsRequest {
+        symbols: vec![ticker.clone()],
+        timeframe: Timeframe::Day,
+        from: day_start(from),
+        to: target.close,
+        feed: Feed::Sip,
+        tickers,
+    };
+    let mut bars = Vec::new();
+    let mut token = None;
+    loop {
+        let page = alpaca.bars_page(&request, calendar, token.take()).await?;
+        bars.extend(page.bars);
+        match page.next {
+            Some(next) => token = Some(next),
+            None => return Ok(bars),
+        }
     }
 }

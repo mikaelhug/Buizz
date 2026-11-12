@@ -13,7 +13,7 @@ use axum::extract::ws::WebSocket;
 use buizz_core::api::{
     ProcessSlots, RunSummary, SparkPoint, SpineEvent, StartBacktest, StartSweep, SweepStarted,
 };
-use buizz_core::market::{Dataset, Instrument, StockIndex, Symbol, Timeframe};
+use buizz_core::market::{Instrument, StockIndex, Symbol, Timeframe};
 use buizz_core::money::CASH_DECIMALS;
 use buizz_core::ops::{CoverageGap, DataWarning};
 use buizz_core::performance::Metrics;
@@ -869,39 +869,7 @@ async fn index_check(
         )
     })?;
     let end = config.end.unwrap_or(config.start);
-    let priced: BTreeMap<Symbol, (NaiveDate, NaiveDate)> = market
-        .coverage()
-        .await?
-        .into_iter()
-        .filter(|row| row.dataset == Dataset::Bars1d)
-        .filter_map(|row| Some((row.symbol?, (row.first, row.last))))
-        .fold(BTreeMap::new(), |mut spans, (symbol, (first, last))| {
-            let span = spans.entry(symbol).or_insert((first, last));
-            *span = (span.0.min(first), span.1.max(last));
-            spans
-        });
-    let unpriced = history
-        .members
-        .iter()
-        .filter_map(|member| {
-            let from = member
-                .start
-                .map_or(config.start, |start| start.max(config.start));
-            let to = member
-                .end
-                .and_then(|member_end| member_end.pred_opt())
-                .map_or(end, |last| last.min(end));
-            let priced = priced
-                .get(&member.symbol)
-                .is_some_and(|(first, last)| *first <= to && from <= *last);
-            (from <= to && !priced).then(|| CoverageGap {
-                symbol: member.symbol.clone(),
-                timeframe: Timeframe::Day,
-                from,
-                to,
-            })
-        })
-        .collect();
+    let unpriced = market.unpriced_members(index, config.start, end).await?;
     Ok(IndexCheck {
         thin: history
             .reliable_from

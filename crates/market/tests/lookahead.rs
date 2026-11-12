@@ -1,11 +1,13 @@
 use std::path::{Path, PathBuf};
 
 use buizz_core::market::{
-    Adjustment, Bar, CorporateAction, CorporateActionKind, DataSource, Feed, FundamentalFact,
-    FundamentalMetric, InsiderFiling, InsiderOwner, InsiderTransaction, NewsArticle, PeriodType,
-    Session, Symbol, Timeframe,
+    Adjustment, AssetClass, Bar, CorporateAction, CorporateActionKind, DataSource, Feed,
+    FundamentalFact, FundamentalMetric, IndexHistory, IndexMember, InsiderFiling, InsiderOwner,
+    InsiderTransaction, Instrument, NewsArticle, PeriodType, Session, StockIndex, Symbol,
+    Timeframe,
 };
 use buizz_core::protocol::BarRow;
+use buizz_core::run::UniverseSpec;
 use buizz_core::time::Timestamp;
 use buizz_market::{ActionWindow, ChartBars, ChartRequest, FILE_NAME, HistoryRequest, MarketStore};
 use chrono::{Datelike, NaiveDate, TimeDelta};
@@ -400,6 +402,7 @@ async fn a_price_chart_stops_at_the_clock_and_adjusts_only_for_splits_visible_by
             before: before.map(stamp),
             bars,
             as_of: stamp(as_of),
+            listed_on: stamp(as_of).exchange_date(),
         })
     };
     let opens = |chart: &ChartBars| chart.bars.iter().map(|bar| bar.open).collect::<Vec<_>>();
@@ -764,5 +767,233 @@ async fn reorganizations_adjust_history_once_priced_and_a_reused_ticker_starts_a
         &[5.0, 5.0],
         1e-9,
         "the listing that later reuses the ticker starts after the merger",
+    );
+}
+
+#[tokio::test]
+async fn a_ticker_names_the_company_that_traded_under_it_at_the_clock() {
+    let (_dir, store) = november_2026().await;
+    let ended = Symbol::ended(&Symbol::new("STI"), "2026-11-04".parse().unwrap());
+    let instrument = |symbol: &Symbol, asset_class, last_session: Option<&str>| Instrument {
+        symbol: symbol.clone(),
+        name: symbol.to_string(),
+        exchange: String::new(),
+        asset_class,
+        active: last_session.is_none(),
+        shortable: true,
+        first_session: None,
+        last_session: last_session.map(|date| date.parse().unwrap()),
+    };
+    store
+        .upsert_instruments(
+            DataSource::Fixture,
+            vec![
+                instrument(&Symbol::new("FB"), AssetClass::Etf, None),
+                instrument(&Symbol::new("META"), AssetClass::Stock, None),
+                instrument(&Symbol::new("METV"), AssetClass::Etf, None),
+                instrument(&Symbol::new("STI"), AssetClass::Stock, None),
+                instrument(&ended, AssetClass::Stock, Some("2026-11-04")),
+            ],
+        )
+        .await
+        .unwrap();
+    let daily = |symbol: &Symbol, dates: &[&str], close: i64| -> Vec<Bar> {
+        dates
+            .iter()
+            .map(|date| Bar {
+                symbol: symbol.clone(),
+                start: format!("{date}T14:30:00Z").parse().unwrap(),
+                open: Decimal::from(close),
+                high: Decimal::from(close),
+                low: Decimal::from(close),
+                close: Decimal::from(close),
+                volume: 1_000,
+                feed: Feed::Sip,
+            })
+            .collect()
+    };
+    let facebook = ["2026-11-02", "2026-11-03", "2026-11-04", "2026-11-05"];
+    let later = [
+        "2026-11-06",
+        "2026-11-09",
+        "2026-11-10",
+        "2026-11-11",
+        "2026-11-12",
+    ];
+    let bars = [
+        daily(&Symbol::new("META"), &facebook, 100),
+        daily(&Symbol::new("META"), &later, 110),
+        daily(&Symbol::new("FB"), &facebook, 100),
+        daily(&Symbol::new("FB"), &["2026-11-11", "2026-11-12"], 25),
+        daily(&Symbol::new("METV"), &facebook, 15),
+        daily(&ended, &facebook[..3], 40),
+        daily(&Symbol::new("STI"), &["2026-11-11", "2026-11-12"], 4),
+    ]
+    .concat();
+    store
+        .upsert_bars(DataSource::Fixture, Timeframe::Day, bars)
+        .await
+        .unwrap();
+    let renamed = |old: &str, new: &str, date: &str| CorporateAction {
+        symbol: Symbol::new(old),
+        ex_date: date.parse().unwrap(),
+        kind: CorporateActionKind::NameChange {
+            new_symbol: Symbol::new(new),
+        },
+    };
+    store
+        .replace_name_changes(
+            DataSource::Fixture,
+            vec![
+                renamed("META", "METV", "2026-11-04"),
+                renamed("FB", "META", "2026-11-06"),
+            ],
+            ActionWindow {
+                symbols: Vec::new(),
+                from: "2026-11-02".parse().unwrap(),
+                through: "2026-11-13".parse().unwrap(),
+                covered_to: None,
+            },
+        )
+        .await
+        .unwrap();
+    let member = |symbol: &str, end: Option<&str>| IndexMember {
+        index: StockIndex::Sp500,
+        symbol: Symbol::new(symbol),
+        start: Some("2026-11-02".parse().unwrap()),
+        end: end.map(|date| date.parse().unwrap()),
+    };
+    store
+        .replace_index_history(
+            DataSource::Fixture,
+            IndexHistory {
+                index: StockIndex::Sp500,
+                members: vec![member("META", None), member("STI", Some("2026-11-05"))],
+                changes: 2,
+                reliable_from: None,
+            },
+            "2026-11-13".parse().unwrap(),
+        )
+        .await
+        .unwrap();
+    let closes = |symbol: &'static str, clock: &'static str| {
+        let store = store.clone();
+        async move {
+            history(
+                &store,
+                &[symbol],
+                Timeframe::Day,
+                20,
+                Adjustment::Raw,
+                clock.parse().unwrap(),
+            )
+            .await
+            .iter()
+            .map(|row| (row.symbol.to_string(), row.close))
+            .collect::<Vec<_>>()
+        }
+    };
+    let series = |symbol: &str, closes: &[f64]| -> Vec<(String, f64)> {
+        closes
+            .iter()
+            .map(|close| (symbol.to_owned(), *close))
+            .collect()
+    };
+
+    assert_eq!(
+        closes("FB", "2026-11-05T21:00:00Z").await,
+        series("FB", &[100.0; 4]),
+        "before its rename FB is the company that trades as META today"
+    );
+    assert_eq!(
+        closes("META", "2026-11-03T21:00:00Z").await,
+        series("META", &[15.0, 15.0]),
+        "before the fund gave META up, META is the fund"
+    );
+    assert_eq!(
+        closes("META", "2026-11-12T21:00:00Z").await,
+        series(
+            "META",
+            &[
+                100.0, 100.0, 100.0, 100.0, 110.0, 110.0, 110.0, 110.0, 110.0
+            ]
+        ),
+        "the fund leaving the ticker does not cut the company's history"
+    );
+    assert_eq!(
+        closes("FB", "2026-11-12T21:00:00Z").await,
+        series("FB", &[25.0, 25.0]),
+        "after the rename FB is the fund that took the ticker"
+    );
+    assert_eq!(
+        closes("STI", "2026-11-04T21:00:00Z").await,
+        series("STI", &[40.0, 40.0, 40.0])
+    );
+    assert_eq!(
+        closes("STI", "2026-11-12T21:00:00Z").await,
+        series("STI", &[4.0, 4.0])
+    );
+
+    let index = UniverseSpec::Index {
+        index: StockIndex::Sp500,
+    };
+    let members = |date: &'static str| {
+        let (store, index) = (store.clone(), index.clone());
+        async move {
+            store
+                .universe(&index, date.parse().unwrap(), 3)
+                .await
+                .unwrap()
+        }
+    };
+    assert_eq!(
+        members("2026-11-04").await,
+        vec![Symbol::new("FB"), Symbol::new("STI")]
+    );
+    assert_eq!(members("2026-11-10").await, vec![Symbol::new("META")]);
+
+    let class = |clock: &'static str| {
+        let store = store.clone();
+        async move {
+            store
+                .instrument_profiles(vec![Symbol::new("FB")], clock.parse().unwrap())
+                .await
+                .unwrap()
+                .into_iter()
+                .map(|profile| (profile.symbol, profile.asset_class))
+                .collect::<Vec<_>>()
+        }
+    };
+    assert_eq!(
+        class("2026-11-05T21:00:00Z").await,
+        [(Symbol::new("FB"), AssetClass::Stock)]
+    );
+    assert_eq!(
+        class("2026-11-12T21:00:00Z").await,
+        [(Symbol::new("FB"), AssetClass::Etf)]
+    );
+
+    let withdrawn = store
+        .withdraw_shadowed_bars(
+            DataSource::Fixture,
+            "2026-11-02".parse().unwrap(),
+            "2026-11-13".parse().unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(withdrawn.rows, 4, "FB's copies of the company's bars");
+    let stored_fb = store
+        .bars_between(
+            Timeframe::Day,
+            vec![Symbol::new("FB")],
+            "2026-11-01T00:00:00Z".parse().unwrap(),
+            "2026-11-14T00:00:00Z".parse().unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(stored_fb.len(), 2);
+    assert_eq!(
+        closes("FB", "2026-11-05T21:00:00Z").await,
+        series("FB", &[100.0; 4])
     );
 }

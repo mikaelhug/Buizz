@@ -204,7 +204,7 @@ async fn bots_see_index_membership_profiles_and_earnings_as_of_their_clock() {
         "{unpublished:?}"
     );
     let (removed, unpriced) = warnings.split_first().expect("data warnings");
-    assert_eq!(removed, "CCC has no 1d bars from 2024-11-20 to 2024-11-24");
+    assert_eq!(removed, "CCC has no 1d bars from 2024-11-20 to 2024-11-22");
     assert_eq!(unpriced.len(), SP500_MEMBERS.start() - 2);
     assert!(
         unpriced.iter().all(|warning| warning.starts_with('Z')

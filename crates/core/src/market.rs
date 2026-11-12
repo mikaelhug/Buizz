@@ -22,6 +22,15 @@ impl Symbol {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+
+    pub fn ended(ticker: &Symbol, last_session: NaiveDate) -> Self {
+        Self(format!("{ticker}@{last_session}"))
+    }
+
+    pub fn ended_listing(&self) -> Option<(Symbol, NaiveDate)> {
+        let (ticker, last_session) = self.0.split_once('@')?;
+        Some((Self(ticker.to_owned()), last_session.parse().ok()?))
+    }
 }
 
 impl fmt::Display for Symbol {

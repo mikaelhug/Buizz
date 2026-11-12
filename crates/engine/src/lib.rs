@@ -19,7 +19,7 @@ use chrono::{Datelike, NaiveDate, TimeDelta};
 use rust_decimal::{Decimal, RoundingStrategy};
 use serde::{Deserialize, Serialize};
 
-pub const ENGINE_VERSION: u32 = 8;
+pub const ENGINE_VERSION: u32 = 9;
 
 #[derive(Debug, thiserror::Error)]
 pub enum EngineError {
@@ -434,8 +434,7 @@ impl Engine {
                 self.split(cycle.start, &action.symbol, old_rate, new_rate);
                 continue;
             }
-            let closes = action.kind.ends_listing()
-                && !matches!(action.kind, CorporateActionKind::NameChange { .. });
+            let closes = action.kind.ends_listing();
             if closes {
                 self.close_where(cycle.start, OrderStatus::Cancelled, |order| {
                     order.symbol == action.symbol
@@ -484,9 +483,13 @@ impl Engine {
                     delivered: None,
                     cash_rate: Decimal::ZERO,
                 },
-                CorporateActionKind::Split { .. }
-                | CorporateActionKind::StockDividend { .. }
-                | CorporateActionKind::NameChange { .. } => continue,
+                CorporateActionKind::NameChange { new_symbol } => Terms {
+                    delivered: Some((new_symbol, Decimal::ONE, Decimal::ONE)),
+                    cash_rate: Decimal::ZERO,
+                },
+                CorporateActionKind::Split { .. } | CorporateActionKind::StockDividend { .. } => {
+                    continue;
+                }
             };
             self.reorganize(cycle, action, held, if closes { 0 } else { held }, terms);
         }
@@ -1476,6 +1479,15 @@ mod tests {
         assert_eq!(engine.portfolio().qty(&aaa), 0);
         assert_eq!(engine.portfolio().cash, cash);
         assert_eq!(engine.portfolio().equity(), cash);
+
+        let (engine, cash, _) = hold_through(CorporateActionKind::NameChange {
+            new_symbol: bbb.clone(),
+        });
+        let portfolio = engine.portfolio();
+        assert_eq!(portfolio.qty(&aaa), 0, "the old ticker no longer trades");
+        assert_eq!(portfolio.qty(&bbb), 101, "the renamed shares are held");
+        assert_eq!(portfolio.cash, cash);
+        assert_eq!(portfolio.equity(), cash + Decimal::from(101 * 31));
     }
 
     #[test]
