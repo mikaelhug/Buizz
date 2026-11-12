@@ -1,0 +1,6 @@
+description = "Retail buy-the-dip ladder: day limit buys 2/4/6% below the prior close of SPY and QQQ, each rung sold at +3% on its own cost or at the open after five sessions"
+command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
+timeframe = "1d"
+wake = "bar"
+universe = { symbols = ["SPY", "QQQ"] }
+params = { rungs = [0.02, 0.04, 0.06], rung_weight = 0.16, take_profit = 0.03, max_hold = 5 }
