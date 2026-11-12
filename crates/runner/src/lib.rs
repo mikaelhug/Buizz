@@ -101,6 +101,7 @@ pub(crate) struct Inner {
     events: broadcast::Sender<SpineEvent>,
     tokens: Mutex<HashMap<String, RunId>>,
     runs: Mutex<HashMap<RunId, RunHandle>>,
+    live_stats: tokio::sync::Mutex<()>,
 }
 
 impl Inner {
@@ -168,6 +169,7 @@ impl Runner {
                 events: broadcast::Sender::new(EVENT_BUFFER),
                 tokens: Mutex::default(),
                 runs: Mutex::default(),
+                live_stats: tokio::sync::Mutex::default(),
             }),
         }
     }

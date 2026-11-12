@@ -207,6 +207,7 @@ async fn live_stats(
 }
 
 pub(crate) async fn live_session(inner: &Inner, run_id: RunId) {
+    let _recording = inner.live_stats.lock().await;
     if let Err(error) = record_live_session(inner, run_id).await {
         tracing::warn!(run = %run_id, %error, "cannot record the live session stats");
     }
