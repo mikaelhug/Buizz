@@ -44,6 +44,8 @@ export function BotDetail({ name, view }: Props) {
   const live = summary.live.map((entry) => entry.run);
   const selected = runView && (runView.runId ?? live[0]?.id ?? summary.backtest?.run_id ?? runs.find((run) => run.status === "completed" && run.metrics)?.id ?? runs[0]?.id);
   const shownLive = live.find((run) => run.id === selected) ?? (live.length === 1 ? live[0] : undefined);
+  const shownRun = runs.find((run) => run.id === selected);
+  const promotable = shownRun?.mode === "backtest" && shownRun.status === "completed";
   const showRun = (run: Run) => {
     detail.reload();
     if (run.id !== selected) {
@@ -69,7 +71,7 @@ export function BotDetail({ name, view }: Props) {
           {holdoutRuns > 0 && <HoldoutBadge runs={holdoutRuns} />}
         </div>
         <div className="detail-actions">
-          <BotActions name={name} live={shownLive} onChanged={showRun} />
+          {(shownLive || !promotable) && <BotActions name={name} live={shownLive} onChanged={showRun} />}
           <button type="button" className="btn btn-sm" onClick={() => launchSweep(name)} aria-keyshortcuts="s">
             Sweep
           </button>
@@ -112,6 +114,7 @@ export function BotDetail({ name, view }: Props) {
           botHash={detail.data.bot_hash}
           recent={runs}
           liveParams={new Set(live.map((run) => JSON.stringify(run.config.params)))}
+          gate={summary.backtest?.run_id === selected ? summary.backtest.failed_checks : undefined}
           runs={<RunHistory selected={selected} name={name} />}
         />
       )}

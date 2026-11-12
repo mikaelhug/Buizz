@@ -40,7 +40,7 @@ export function undoPause(runs: Run[]): { text: string; run: () => void } {
   };
 }
 
-export function BotActions({ name, live: liveRun, onChanged }: Props) {
+export function useLiveControls(name: string, liveRun: Run | undefined, onChanged: (run: Run) => void) {
   const [busy, setBusy] = useState(false);
   const [stopping, setStopping] = useState<Run>();
   const live = isRunning(liveRun);
@@ -67,34 +67,48 @@ export function BotActions({ name, live: liveRun, onChanged }: Props) {
     return act(() => (live ? pauseRun(liveRun.id) : resumeRun(liveRun.id)), live ? "paused" : "live");
   };
 
+  const dialog = stopping && (
+    <StopDialog
+      name={name}
+      run={stopping}
+      busy={busy}
+      onCancel={() => setStopping(undefined)}
+      onStop={(reason) =>
+        void act(() => must(api.POST("/api/runs/{id}/cancel", { params: { path: { id: stopping.id } }, body: reason ? { reason } : {} })), reason ? "retired" : "stopped").then(
+          (stopped) => stopped && setStopping(undefined),
+        )
+      }
+    />
+  );
+
+  return {
+    busy,
+    live,
+    toggleText: live ? "Pause" : liveRun ? "Live" : "Go live",
+    toggle: () => void toggle(),
+    stop: liveRun ? () => setStopping(liveRun) : undefined,
+    dialog,
+  };
+}
+
+export function BotActions({ name, live: liveRun, onChanged }: Props) {
+  const controls = useLiveControls(name, liveRun, onChanged);
   return (
     <span className="bot-actions">
-      {liveRun && (
-        <button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={() => setStopping(liveRun)}>
+      {controls.stop && (
+        <button type="button" className="btn btn-sm btn-ghost" disabled={controls.busy} onClick={controls.stop}>
           Stop
         </button>
       )}
-      <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void toggle()}>
-        <Icon name={live ? "pause" : "play"} />
-        {live ? "Pause" : liveRun ? "Live" : "Go live"}
+      <button type="button" className="btn btn-sm" disabled={controls.busy} onClick={controls.toggle}>
+        <Icon name={controls.live ? "pause" : "play"} />
+        {controls.toggleText}
       </button>
       <Info label="Live, Pause and Stop">
         Go live starts a live paper run with the bot's default params; a variant goes live from its backtest under Research. Live resumes a paused run.
         Pause cancels working orders and stops the bot while its equity keeps marking. Stop ends the live run for good; with a reason it is retired.
       </Info>
-      {stopping && (
-        <StopDialog
-          name={name}
-          run={stopping}
-          busy={busy}
-          onCancel={() => setStopping(undefined)}
-          onStop={(reason) =>
-            void act(() => must(api.POST("/api/runs/{id}/cancel", { params: { path: { id: stopping.id } }, body: reason ? { reason } : {} })), reason ? "retired" : "stopped").then(
-              (stopped) => stopped && setStopping(undefined),
-            )
-          }
-        />
-      )}
+      {controls.dialog}
     </span>
   );
 }

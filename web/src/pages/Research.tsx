@@ -22,7 +22,7 @@ type PresetResearch = Schemas["PresetResearch"];
 type Variant = Schemas["VariantResult"];
 type Params = Record<string, unknown>;
 
-const CHECKS: Record<Schemas["GateCheck"], string> = {
+export const CHECKS: Record<Schemas["GateCheck"], string> = {
   not_completed: "not completed",
   data_warnings: "data warnings",
   drawdown_stop: "drawdown stop",
@@ -190,23 +190,6 @@ function PresetView({ name, research, defaults, liveVariants, trials, gate }: Pr
 
   return (
     <>
-      <section className="panel" aria-label="Spread">
-        <header className="panel-head">
-          <h2>Spread of {variants.length} {variants.length === 1 ? "variant" : "variants"}</h2>
-          <span className="muted">
-            {gate ? "The screening gate is judged on this period" : "A shorter period than the one the gate is judged on"}
-            <Info label="Screening gate">{GATE_ABOUT}</Info>
-          </span>
-        </header>
-        <Spread research={research} trials={trials} />
-        {best && (
-          <p className="research-best">
-            Best Sharpe <strong className="num">{fmt.ratio(sharpe(best))}</strong> at <span className="mono">{variantText(best.params, defaults)}</span>, and its
-            neighbourhood median is <strong className="num">{fmt.ratio(best.neighbourhood_sharpe)}</strong>
-            <Info label="Neighbourhood median">{NEIGHBOURHOOD_ABOUT}</Info>
-          </p>
-        )}
-      </section>
       <section className="panel research-suggest" aria-label="Suggested variant">
         {plateau ? (
           <>
@@ -230,6 +213,23 @@ function PresetView({ name, research, defaults, liveVariants, trials, gate }: Pr
         )}
       </section>
       {axes.length >= 1 && axes.length <= 2 && variants.length > 1 && <Heatmap name={name} variants={variants} axes={axes} plateau={research.plateau} />}
+      <section className="panel" aria-label="Spread">
+        <header className="panel-head">
+          <h2>Spread of {variants.length} {variants.length === 1 ? "variant" : "variants"}</h2>
+          <span className="muted">
+            {gate ? "The screening gate is judged on this period" : "A shorter period than the one the gate is judged on"}
+            <Info label="Screening gate">{GATE_ABOUT}</Info>
+          </span>
+        </header>
+        <Spread research={research} trials={trials} />
+        {best && (
+          <p className="research-best">
+            Best Sharpe <strong className="num">{fmt.ratio(sharpe(best))}</strong> at <span className="mono">{variantText(best.params, defaults)}</span>, and its
+            neighbourhood median is <strong className="num">{fmt.ratio(best.neighbourhood_sharpe)}</strong>
+            <Info label="Neighbourhood median">{NEIGHBOURHOOD_ABOUT}</Info>
+          </p>
+        )}
+      </section>
       <VariantTable name={name} variants={variants} axes={axes} defaults={defaults} plateau={research.plateau} liveVariants={liveVariants} busy={busy} onLive={(variant) => void live(variant)} />
     </>
   );
@@ -510,7 +510,20 @@ function VariantTable({ name, variants, axes, defaults, plateau, liveVariants, b
                     ) : passes ? (
                       <span className="pill pill-ok">pass</span>
                     ) : (
-                      <span className="gate-fails">{variant.failed_checks.map((check) => CHECKS[check]).join(", ")}</span>
+                      variant.failed_checks.length === 1 ? (
+                      <span className="gate-fails">{CHECKS[variant.failed_checks[0] ?? "not_completed"]}</span>
+                    ) : (
+                      <span className="gate-fails">
+                        fails {variant.failed_checks.length} checks
+                        <Info label={`Run #${variant.run_id} fails`}>
+                          <ul className="gate-list">
+                            {variant.failed_checks.map((check) => (
+                              <li key={check}>{CHECKS[check]}</li>
+                            ))}
+                          </ul>
+                        </Info>
+                      </span>
+                    )
                     )}
                     {variant.run_id === plateau && <span className="pill pill-plateau">plateau</span>}
                   </td>

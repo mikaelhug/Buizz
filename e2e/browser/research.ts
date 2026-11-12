@@ -2,8 +2,9 @@ import type { Page } from "playwright-core";
 import { pill, signedIn } from "./session.ts";
 
 async function twoVariantsLive(page: Page): Promise<{ params: string[] }> {
-  const screened = page.getByRole("region", { name: "Not live" }).locator("tbody tr").filter({ has: page.getByRole("link", { name: "sma_cross", exact: true }) });
-  await screened.getByRole("link", { name: "1y", exact: true }).waitFor();
+  const list = page.getByRole("region", { name: "Bot list", exact: true });
+  const screened = list.locator("tbody tr").filter({ has: page.getByRole("link", { name: "sma_cross", exact: true }) });
+  await screened.getByText(/^backtest 1y/).waitFor();
   await screened.getByRole("img", { name: /^Since / }).waitFor();
   await page.keyboard.press("ControlOrMeta+k");
   await page.getByRole("combobox", { name: /^Search pages/ }).fill("Research sma_cross");
@@ -35,12 +36,15 @@ async function twoVariantsLive(page: Page): Promise<{ params: string[] }> {
   }
 
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Bots", exact: true }).click();
-  const live = page.getByRole("region", { name: "Live", exact: true }).locator("tbody tr").filter({ has: page.getByRole("link", { name: "sma_cross", exact: true }) });
+  const live = list.locator("tbody tr").filter({ has: page.getByRole("link", { name: "sma_cross", exact: true }) });
   await live.nth(1).waitFor();
   const params = await live.locator(".variant-params").allTextContents();
-  await live.first().getByRole("button", { name: "Pause", exact: true }).click();
+  await live.first().getByRole("button", { name: /^Actions for sma_cross run #/ }).click();
+  await page.getByRole("menuitem", { name: "Pause", exact: true }).click();
   await pill(live.first(), "paused").waitFor();
-  await live.nth(1).getByRole("button", { name: "Pause", exact: true }).waitFor();
+  if ((await pill(live.nth(1), "paused").count()) !== 0) {
+    throw new Error("pausing one variant paused the other");
+  }
   return { params };
 }
 

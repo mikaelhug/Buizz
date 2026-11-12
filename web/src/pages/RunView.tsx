@@ -10,7 +10,7 @@ import { useResource } from "../lib/useResource";
 import { chartSync } from "../ui/chart/sync";
 import { EquityChart } from "../ui/EquityChart";
 import { Failure, LoadMore, Loading, StaleFailure } from "../ui/Feedback";
-import { MetricGroups, MetricValue } from "../ui/Metrics";
+import { METRICS, MetricGroups, MetricValue } from "../ui/Metrics";
 import { monthlyCalendar, MonthlyReturns } from "../ui/MonthlyReturns";
 import { Info, Popover } from "../ui/Popover";
 import { RunBadges, StatusPill } from "../ui/Status";
@@ -19,6 +19,7 @@ import { matches, moveBetweenRows, openRow, SortHeader, type SortColumns, TableF
 import { Icon } from "../ui/Icon";
 import { notify } from "../ui/Toaster";
 import { goLive } from "./BotActions";
+import { CHECKS } from "./Research";
 import { Trades } from "./Trades";
 
 type Run = Schemas["RunSummary"];
@@ -48,10 +49,11 @@ type Props = {
   botHash: string;
   recent: Run[];
   liveParams: ReadonlySet<string>;
+  gate: Schemas["GateCheck"][] | undefined;
   runs: ReactNode;
 };
 
-export function RunView({ name, runId, pinned, tab, symbol, botHash, recent, liveParams, runs }: Props) {
+export function RunView({ name, runId, pinned, tab, symbol, botHash, recent, liveParams, gate, runs }: Props) {
   const run = useResource(() => must(api.GET("/api/runs/{id}", { params: { path: { id: runId } } })), [runId]);
   const tabRoute = (target: BotTab): Route => ({ page: "bot", name, ...(pinned ? { run: runId } : {}), tab: target });
   const tabHref = (target: BotTab) => href(tabRoute(target));
@@ -88,7 +90,7 @@ export function RunView({ name, runId, pinned, tab, symbol, botHash, recent, liv
       <RunBar run={run.data} name={name} tab={tab} botHash={botHash} recent={recent} liveParams={liveParams} logsHref={tabHref("logs")} runsHref={tabHref("runs")} />
       <Tabs tab={tab} routeFor={tabRoute} />
       <div className="tab-panel" role="tabpanel" id="run-tabpanel" aria-labelledby={`tab-${tab}`}>
-        {tab === "overview" && <Overview run={run.data} symbol={symbol} closeHref={tabHref("overview")} />}
+        {tab === "overview" && <Overview run={run.data} symbol={symbol} gate={gate} closeHref={tabHref("overview")} />}
         {tab === "trades" && <Trades runId={runId} positionsHref={tabHref("events")} symbolHref={symbolHref} />}
         {tab === "orders" && <Orders runId={runId} active={!run.data.finished_at} symbolHref={symbolHref} />}
         {tab === "events" && (
@@ -404,7 +406,87 @@ function isMark(event: Schemas["RunEvent"]): boolean {
   return MARK_KINDS.some((kind) => kind === event.kind.type);
 }
 
-function Overview({ run, symbol, closeHref }: { run: Run; symbol: string | undefined; closeHref: string }) {
+function signedYearly(value: number): string {
+  return `${fmt.change(Math.abs(value))}/yr`.replace(/^[+-]/, "");
+}
+
+function Headline({ run, metrics, benchmark, gate }: { run: Run; metrics: Schemas["Metrics"] | null | undefined; benchmark: Schemas["Metrics"] | undefined; gate: Schemas["GateCheck"][] | undefined }) {
+  const stats = run.live_stats;
+  if (run.mode === "live") {
+    if (!stats || stats.sessions === 0) {
+      return <p className="run-headline">Live since {run.config.start}; its first session close shows how it compares with total-return SPY.</p>;
+    }
+    return (
+      <p className="run-headline">
+        Live for {fmt.integer(stats.sessions)} {stats.sessions === 1 ? "session" : "sessions"} since {run.config.start}:{" "}
+        <strong className={tone(stats.excess_cagr)}>
+          {stats.excess_cagr >= 0 ? "beats" : "trails"} total-return SPY by {signedYearly(stats.excess_cagr)}
+        </strong>
+        {stats.sessions < 252 && ` (annualized from ${fmt.integer(stats.sessions)} sessions)`}, verdict {label(stats.verdict)}.
+      </p>
+    );
+  }
+  if (!metrics || metrics.sessions === 0) {
+    return null;
+  }
+  const span = `${run.config.start} to ${run.config.end ?? "now"}`;
+  const cagr = metrics.cagr;
+  const spyCagr = benchmark?.cagr;
+  const excess = cagr === null || cagr === undefined || spyCagr === null || spyCagr === undefined ? undefined : cagr - spyCagr;
+  const own = metrics.total_return;
+  const spy = benchmark?.total_return;
+  const returnGap = own === null || own === undefined || spy === null || spy === undefined ? undefined : own - spy;
+  const drawdowns = `max drawdown ${METRICS.max_drawdown.render(metrics.max_drawdown)} vs ${METRICS.max_drawdown.render(benchmark?.max_drawdown)}`;
+  return (
+    <p className="run-headline">
+      {run.finished_at ? "Backtest" : "Backtest so far"}, {span}:{" "}
+      {excess !== undefined ? (
+        <>
+          <strong className={tone(excess)}>
+            {excess >= 0 ? "beats" : "trails"} total-return SPY by {signedYearly(excess)}
+          </strong>{" "}
+          (CAGR {fmt.change(cagr)} vs {fmt.change(spyCagr)}), {drawdowns}.
+        </>
+      ) : returnGap !== undefined ? (
+        <>
+          <strong className={tone(returnGap)}>
+            {returnGap >= 0 ? "ahead of" : "behind"} total-return SPY by {fmt.change(Math.abs(returnGap)).replace(/^[+-]/, "")}
+          </strong>{" "}
+          (return {fmt.change(metrics.total_return)} vs {fmt.change(benchmark?.total_return)}; CAGR needs a year), {drawdowns}.
+        </>
+      ) : (
+        <>return {fmt.change(metrics.total_return)}.</>
+      )}
+      {gate && <GateLine gate={gate} />}
+    </p>
+  );
+}
+
+const GATE_SHOWN = 2;
+
+function GateLine({ gate }: { gate: Schemas["GateCheck"][] }) {
+  if (gate.length === 0) {
+    return " Passes the screening gate.";
+  }
+  const shown = gate.slice(0, GATE_SHOWN).map((check) => CHECKS[check]);
+  const more = gate.length - shown.length;
+  return (
+    <>
+      {` Fails the screening gate: ${shown.join("; ")}${more > 0 ? ` and ${more} more` : ""}.`}
+      {more > 0 && (
+        <Info label="Screening gate">
+          <ul className="gate-list">
+            {gate.map((check) => (
+              <li key={check}>{CHECKS[check]}</li>
+            ))}
+          </ul>
+        </Info>
+      )}
+    </>
+  );
+}
+
+function Overview({ run, symbol, gate, closeHref }: { run: Run; symbol: string | undefined; gate: Schemas["GateCheck"][] | undefined; closeHref: string }) {
   const path = { params: { path: { id: run.id } } };
   const curve = useResource<Curve>(() => must(api.GET("/api/runs/{id}/equity", path)), [run.id]);
   const marks = useResource(() => markEvents(run.id), [run.id]);
@@ -450,6 +532,7 @@ function Overview({ run, symbol, closeHref }: { run: Run; symbol: string | undef
 
   return (
     <div className="overview">
+      <Headline run={run} metrics={metrics} benchmark={curve.data?.benchmark_metrics} gate={gate} />
       <section className="panel chart-panel" aria-label="Equity">
         <StaleFailure resource={curve} />
         {curve.data ? (
@@ -506,8 +589,11 @@ function Overview({ run, symbol, closeHref }: { run: Run; symbol: string | undef
 function Setup({ run }: { run: Run }) {
   const params = Object.entries(run.config.params).map(([key, value]): Row => [key, <span className="num">{paramValue(value)}</span>]);
   return (
-    <section className="panel">
-      <h2>Setup</h2>
+    <details className="panel setup-panel">
+      <summary>
+        <h2>Setup</h2>
+        <span className="muted">params, costs, risk limits and market</span>
+      </summary>
       <div className="setup">
         <section>
           <h3>Params</h3>
@@ -534,7 +620,7 @@ function Setup({ run }: { run: Run }) {
           />
         </section>
       </div>
-    </section>
+    </details>
   );
 }
 
