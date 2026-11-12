@@ -34,3 +34,26 @@ async fn a_version_1_store_opens_in_place_with_its_data() {
     assert_eq!(bars.len(), 1);
     assert_eq!(bars[0].close.to_string(), "226.340000");
 }
+
+#[tokio::test]
+async fn the_daily_watermark_survives_a_restart() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join(FILE_NAME);
+    let through: Timestamp = "2024-07-05T20:00:00Z".parse().unwrap();
+    let market = MarketStore::open(&path, 1).await.unwrap();
+    assert_eq!(market.watermarks().borrow().day, None);
+    market
+        .advance_watermark(Timeframe::Day, through)
+        .await
+        .unwrap();
+    market
+        .advance_watermark(Timeframe::Minute, through)
+        .await
+        .unwrap();
+    market.checkpoint().await.unwrap();
+    drop(market);
+
+    let reopened = MarketStore::open(&path, 1).await.unwrap();
+    let watermarks = *reopened.watermarks().borrow();
+    assert_eq!((watermarks.day, watermarks.minute), (Some(through), None));
+}

@@ -81,7 +81,7 @@ CREATE TABLE IF NOT EXISTS job_run (
     job TEXT NOT NULL,
     started_at INTEGER NOT NULL,
     finished_at INTEGER,
-    outcome TEXT CHECK (outcome IN ('ok', 'partial', 'noop', 'backoff', 'failed')),
+    outcome TEXT CHECK (outcome IN ('ok', 'partial', 'noop', 'waiting', 'backoff', 'failed')),
     rows INTEGER NOT NULL DEFAULT 0,
     message TEXT
 ) STRICT;
@@ -107,3 +107,5 @@ CREATE INDEX IF NOT EXISTS source_fetch_by_key ON source_fetch (source, dataset,
 
 CREATE INDEX IF NOT EXISTS source_fetch_rate_limits ON source_fetch (source, retry_after)
     WHERE status = 'rate_limited';
+
+CREATE TABLE IF NOT EXISTS market_reset (at INTEGER NOT NULL) STRICT;

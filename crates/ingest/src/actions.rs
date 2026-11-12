@@ -29,7 +29,7 @@ impl Ingest {
             .map(|priced| priced.symbol)
             .collect();
         if symbols.is_empty() {
-            return Ok(Work::noop("no instruments to price"));
+            return Ok(Work::waiting("no instruments to price"));
         }
         let today = now.exchange_date();
         let through = today + ANNOUNCED_HORIZON;

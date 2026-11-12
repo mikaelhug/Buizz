@@ -255,7 +255,7 @@ impl AlpacaClient {
             .header("APCA-API-KEY-ID", &self.config.key_id)
             .header("APCA-API-SECRET-KEY", &self.config.secret_key)
             .query(query);
-        let body = self.http.send(request).await?.bytes().await?;
+        let body = self.http.fetch(request).await?;
         serde_json::from_slice(&body).map_err(|error| SourceError::Decode(error.to_string()))
     }
 

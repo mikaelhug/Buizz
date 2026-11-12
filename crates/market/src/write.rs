@@ -33,7 +33,8 @@ pub(crate) fn prepare(connection: &Connection) -> Result<()> {
     }
     connection.execute_batch(
         "CREATE TEMP TABLE bar_span (symbol VARCHAR, lo TIMESTAMP, hi TIMESTAMP); \
-         CREATE TEMP TABLE action_scope (symbol VARCHAR)",
+         CREATE TEMP TABLE action_scope (symbol VARCHAR); \
+         CREATE TEMP TABLE coverage_stage AS SELECT * FROM main.coverage LIMIT 0",
     )?;
     Ok(())
 }
@@ -68,16 +69,20 @@ fn write_batch(
         "INSERT INTO ingest_batch (id, source, dataset, created_at, rows) VALUES (?, ?, ?, ?, ?)",
         params![batch_id, source, dataset, now, rows],
     )?;
-    let mut upsert = transaction.prepare(
-        "INSERT INTO coverage VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (dataset, symbol, source) \
-         DO UPDATE SET first = least(coverage.first, excluded.first), \
-         last = greatest(coverage.last, excluded.last), updated_at = excluded.updated_at",
-    )?;
+    transaction.execute("DELETE FROM coverage_stage", [])?;
+    let mut appender = transaction.appender_to_catalog_and_db("coverage_stage", "temp", "main")?;
     for (symbol, (first, last)) in coverage {
         let symbol = symbol.as_ref().map_or("", Symbol::as_str);
-        upsert.execute(params![dataset, symbol, source, first, last, now])?;
+        appender.append_row(params![dataset, symbol, source, first, last, now])?;
     }
-    drop(upsert);
+    appender.flush()?;
+    drop(appender);
+    transaction.execute(
+        "INSERT INTO coverage SELECT * FROM coverage_stage ON CONFLICT (dataset, symbol, source) \
+         DO UPDATE SET first = least(coverage.first, excluded.first), \
+         last = greatest(coverage.last, excluded.last), updated_at = excluded.updated_at",
+        [],
+    )?;
     transaction.commit()?;
     Ok(WriteSummary { batch_id, rows })
 }
@@ -753,6 +758,14 @@ pub(crate) fn index_history(
             Ok(history.members.len() as u64)
         },
     )
+}
+
+pub(crate) fn daily_watermark(connection: &Connection, through: Timestamp) -> Result<()> {
+    connection.execute(
+        "INSERT OR REPLACE INTO daily_watermark (through) VALUES (?)",
+        params![Ts(through)],
+    )?;
+    Ok(())
 }
 
 pub(crate) fn borrow_availability(

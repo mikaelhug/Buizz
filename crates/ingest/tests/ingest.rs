@@ -9,11 +9,14 @@ use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Router, serve};
-use buizz_core::api::SpineEvent;
-use buizz_core::market::{AssetClass, DataSource, Dataset, Symbol, Timeframe};
+use buizz_core::api::{JobView, SpineEvent};
+use buizz_core::market::{
+    AssetClass, BorrowAvailability, DataSource, Dataset, IndexHistory, IndexMember, StockIndex,
+    Symbol, Timeframe,
+};
 use buizz_core::ops::{FetchStatus, JobOutcome};
 use buizz_core::time::Timestamp;
-use buizz_ingest::{Ingest, IngestConfig};
+use buizz_ingest::{Ingest, IngestConfig, TickReport};
 use buizz_market::MarketStore;
 use buizz_sources::Sources;
 use buizz_sources::alpaca::{AlpacaClient, AlpacaConfig};
@@ -40,6 +43,8 @@ const ALPACA_FIRST_BAR: &str = "2016-03-01";
 const CALENDAR_END: &str = "2025-06-30";
 const ALPACA_LAST_BAR: &str = "2016-04-29";
 const SPY_REVISED: &str = "2024-07-05";
+const HOLIDAY: &str = "2024-07-04";
+const UNKNOWN: &str = "BADX";
 
 #[derive(Default)]
 struct Fake {
@@ -113,6 +118,9 @@ async fn bars(State(fake): State<Arc<Fake>>, Query(params): Query<Params>) -> Re
     if fake.fail_bars.load(Ordering::SeqCst) {
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
+    if params["symbols"].split(',').any(|symbol| symbol == UNKNOWN) {
+        return (StatusCode::UNPROCESSABLE_ENTITY, "invalid symbol").into_response();
+    }
     *fake.last_bars.lock().unwrap() = params.clone();
     let requested = |symbol: &str, first: NaiveDate, last: NaiveDate| {
         if !params["symbols"].split(',').any(|listed| listed == symbol) {
@@ -146,7 +154,7 @@ async fn bars(State(fake): State<Arc<Fake>>, Query(params): Query<Params>) -> Re
 }
 
 async fn assets(State(fake): State<Arc<Fake>>) -> Response {
-    let later = r#",{"class":"us_equity","exchange":"NASDAQ","symbol":"MSFT","name":"Microsoft Corporation Common Stock","status":"active","shortable":true}]"#;
+    let later = r#",{"class":"us_equity","exchange":"NASDAQ","symbol":"BADX","name":"Bad Ticker","status":"active","shortable":false},{"class":"us_equity","exchange":"NASDAQ","symbol":"MSFT","name":"Microsoft Corporation Common Stock","status":"active","shortable":true}]"#;
     if fake.listed_later.load(Ordering::SeqCst) {
         json(ASSETS.trim_end().trim_end_matches(']').to_owned() + later)
     } else {
@@ -199,6 +207,14 @@ async fn company_facts(Path(file): Path<String>) -> Response {
     }
 }
 
+async fn daily_index(Path((_, _, file)): Path<(String, String, String)>) -> Response {
+    if file == format!("master.{}.idx", HOLIDAY.replace('-', "")) {
+        StatusCode::NOT_FOUND.into_response()
+    } else {
+        String::new().into_response()
+    }
+}
+
 async fn yields() -> Response {
     YIELDS.to_owned().into_response()
 }
@@ -216,6 +232,10 @@ async fn serve_fakes(fake: Arc<Fake>) -> String {
             get(|| async { json(FUND_TICKERS.to_owned()) }),
         )
         .route("/api/xbrl/companyfacts/{file}", get(company_facts))
+        .route(
+            "/Archives/edgar/daily-index/{year}/{quarter}/{file}",
+            get(daily_index),
+        )
         .route(
             "/submissions/CIK0000320193.json",
             get(|| async { json(SUBMISSIONS.to_owned()) }),
@@ -314,21 +334,15 @@ async fn rows(market: &MarketStore) -> Rows {
     }
 }
 
-#[tokio::test]
-async fn ticks_backfill_back_off_and_settle_into_noops() {
-    let fake = Arc::new(Fake::default());
-    let url = serve_fakes(fake.clone()).await;
-    let directory = tempfile::tempdir().unwrap();
-    let market = MarketStore::open(&directory.path().join("market.duckdb"), 2)
+async fn spine(directory: &std::path::Path, url: &str) -> (MarketStore, StateStore, Ingest) {
+    let market = MarketStore::open(&directory.join("market.duckdb"), 2)
         .await
         .unwrap();
-    let state = StateStore::open(&directory.path().join("state.db"))
-        .await
-        .unwrap();
+    let state = StateStore::open(&directory.join("state.db")).await.unwrap();
     let ingest = Ingest::new(
         IngestConfig {
             tick: Duration::from_secs(60),
-            snapshot_dir: directory.path().join("snapshots"),
+            snapshot_dir: directory.join("snapshots"),
             snapshot_keep: 1,
             history_start: date(HISTORY_START),
             enabled: true,
@@ -336,8 +350,140 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
         },
         market.clone(),
         state.clone(),
-        sources(&url),
+        sources(url),
     );
+    (market, state, ingest)
+}
+
+fn sp500(members: &[&str]) -> IndexHistory {
+    IndexHistory {
+        index: StockIndex::Sp500,
+        members: members
+            .iter()
+            .map(|symbol| IndexMember {
+                index: StockIndex::Sp500,
+                symbol: Symbol::new(symbol),
+                start: Some(date("2010-01-04")),
+                end: None,
+            })
+            .collect(),
+        changes: u32::try_from(members.len()).unwrap(),
+        reliable_from: Some(date("2011-01-03")),
+    }
+}
+
+fn borrow(at: Timestamp) -> Vec<BorrowAvailability> {
+    vec![BorrowAvailability {
+        symbol: Symbol::new("SPY"),
+        at,
+        con_id: 756733,
+        rebate_rate: None,
+        fee_rate: None,
+        available: 10_000_000,
+        available_or_more: true,
+    }]
+}
+
+#[tokio::test]
+async fn a_market_backup_restores_into_an_empty_store_and_ingest_starts_over() {
+    let fake = Arc::new(Fake::default());
+    let url = serve_fakes(fake.clone()).await;
+    let lost = tempfile::tempdir().unwrap();
+    let (market, state, ingest) = spine(lost.path(), &url).await;
+    let first_at = stamp("2024-07-05T21:00:00Z");
+    let source = DataSource::Wikipedia;
+    market
+        .replace_index_history(source, sp500(&["SPY"]), first_at.exchange_date())
+        .await
+        .unwrap();
+    market
+        .append_borrow_availability(DataSource::InteractiveBrokers, borrow(first_at))
+        .await
+        .unwrap();
+    ingest.tick(first_at).await.unwrap();
+    let second_at = first_at + TimeDelta::hours(25);
+    market
+        .replace_index_history(source, sp500(&["SPY", "AAPL"]), second_at.exchange_date())
+        .await
+        .unwrap();
+    market
+        .append_borrow_availability(DataSource::InteractiveBrokers, borrow(second_at))
+        .await
+        .unwrap();
+    fake.revised.store(true, Ordering::SeqCst);
+    let second = ingest.tick(second_at).await.unwrap();
+    assert!(second.ran.contains(&("market_snapshot", JobOutcome::Ok)));
+    let backup = lost.path().join("snapshots/market");
+    assert_eq!(std::fs::read_dir(&backup).unwrap().count(), 2);
+    let full = |market: MarketStore, name: &'static str| {
+        let into = lost.path().join(name);
+        async move {
+            std::fs::create_dir_all(&into).unwrap();
+            market.export_unrecoverable(into, 0).await.unwrap().unwrap()
+        }
+    };
+    let original = full(market.clone(), "original").await;
+    let replacement = tempfile::tempdir().unwrap();
+    state
+        .snapshot(&replacement.path().join("state.db"))
+        .await
+        .unwrap();
+    drop((ingest, market, state));
+
+    let (market, state, ingest) = spine(replacement.path(), &url).await;
+    let reset_at = second_at + TimeDelta::hours(1);
+    let restored = buizz_ingest::restore(&market, &state, backup.clone(), reset_at)
+        .await
+        .unwrap();
+    assert_eq!((restored.parts, restored.batches), (2, original.through));
+    assert_eq!(full(market.clone(), "restored").await, original);
+    let members = market
+        .index_history(StockIndex::Sp500)
+        .await
+        .unwrap()
+        .unwrap()
+        .members;
+    assert_eq!(members.len(), 2);
+    assert_eq!(market.latest_borrow().await.unwrap(), Some(second_at));
+    let borrow_coverage = market
+        .coverage()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|row| row.dataset == Dataset::Borrow)
+        .map(|row| (row.first, row.last));
+    assert_eq!(
+        borrow_coverage,
+        Some((first_at.exchange_date(), second_at.exchange_date()))
+    );
+    assert!(
+        buizz_ingest::restore(&market, &state, backup, reset_at)
+            .await
+            .is_err()
+    );
+
+    let tiingo_hits = fake.hits("tiingo");
+    let started_over = ingest.tick(reset_at + TimeDelta::minutes(1)).await.unwrap();
+    assert!(started_over.ran.contains(&("calendar", JobOutcome::Ok)));
+    assert!(started_over.ran.contains(&("bars_1d", JobOutcome::Ok)));
+    assert_eq!(
+        rows(&market).await.bars,
+        weekdays(date(ALPACA_FIRST_BAR), date(ALPACA_LAST_BAR)).len()
+    );
+    assert_eq!(fake.hits("tiingo"), tiingo_hits);
+    let next = market
+        .upsert_instruments(DataSource::Fixture, Vec::new())
+        .await
+        .unwrap();
+    assert!(next.batch_id > original.through);
+}
+
+#[tokio::test]
+async fn ticks_backfill_back_off_and_settle_into_noops() {
+    let fake = Arc::new(Fake::default());
+    let url = serve_fakes(fake.clone()).await;
+    let directory = tempfile::tempdir().unwrap();
+    let (market, state, ingest) = spine(directory.path(), &url).await;
     let mut events = ingest.events();
 
     let first_at = stamp("2024-07-05T21:00:00Z");
@@ -391,6 +537,14 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
     assert_eq!(backfilled.actions, 2);
     assert_eq!(backfilled.rates, 4);
     assert!(market.watermarks().borrow().day.is_some());
+    let filings_read_through = market
+        .coverage()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|row| row.dataset == Dataset::SecFilings)
+        .map(|row| row.last);
+    assert_eq!(filings_read_through, Some(date(SPY_REVISED)));
     let facts = state.latest_jobs().await.unwrap();
     assert!(
         facts
@@ -422,7 +576,25 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
     }
     assert_eq!(failed_events, 1);
 
-    let second = ingest.tick(first_at + TimeDelta::hours(48)).await.unwrap();
+    std::fs::create_dir_all(directory.path().join("snapshots/stale.partial")).unwrap();
+    fake.revised.store(true, Ordering::SeqCst);
+    let revised = ingest.tick(first_at + TimeDelta::hours(6)).await.unwrap();
+    assert!(revised.ran.contains(&("bars_1d", JobOutcome::Ok)));
+    let spy = market
+        .bars_between(
+            Timeframe::Day,
+            vec![Symbol::new("SPY")],
+            stamp("2024-07-05T00:00:00Z"),
+            stamp("2024-07-06T00:00:00Z"),
+        )
+        .await
+        .unwrap();
+    assert_eq!(spy[0].close, (alpaca_close(date(SPY_REVISED)) + 1).into());
+
+    let second_at = first_at + TimeDelta::hours(25);
+    let bar_requests = fake.hits("bars");
+    let second = ingest.tick(second_at).await.unwrap();
+    assert_eq!(fake.hits("bars"), bar_requests);
     assert_eq!(
         second.ran,
         vec![
@@ -443,22 +615,47 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
         ]
     );
     assert_eq!(rows(&market).await, backfilled);
+    let calendar = ingest
+        .job_views(second_at)
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|view| view.name == "calendar")
+        .unwrap();
+    assert_eq!(calendar.next_due, Some(second_at + TimeDelta::days(1)));
     assert_eq!(fake.last_bars.lock().unwrap()["symbols"], "SPY");
     assert_eq!(fake.hits("tiingo"), 1);
-    let mut snapshots: Vec<_> = std::fs::read_dir(directory.path().join("snapshots"))
-        .unwrap()
-        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
-        .collect();
-    snapshots.sort();
-    assert_eq!(snapshots, ["market-2024-07-07", "state-2024-07-07.db"]);
-    let borrow = directory
-        .path()
-        .join("snapshots/market-2024-07-07/borrow_availability.parquet");
-    assert!(borrow.exists());
+    let listing = |path: &str| {
+        let mut names: Vec<String> = std::fs::read_dir(directory.path().join(path))
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+            .collect();
+        names.sort();
+        names
+    };
+    assert_eq!(listing("snapshots"), ["market", "state-2024-07-06.db"]);
+    let parts = listing("snapshots/market");
+    assert_eq!(parts.len(), 2);
+    let (first_from, first_through) = parts[0].split_once('-').unwrap();
+    let (second_from, _) = parts[1].split_once('-').unwrap();
+    assert_eq!(first_from.parse::<i64>().unwrap(), 1);
+    assert_eq!(
+        second_from.parse::<i64>().unwrap(),
+        first_through.parse::<i64>().unwrap() + 1
+    );
+    assert!(
+        directory
+            .path()
+            .join("snapshots/market")
+            .join(&parts[1])
+            .join("bar_1d_revision.parquet")
+            .exists()
+    );
+    assert!(!directory.path().join("snapshots/stale.partial").exists());
 
     *fake.closed.lock().unwrap() = Some(date("2025-01-09"));
     fake.fail_bars.store(true, Ordering::SeqCst);
-    let failed_at = first_at + TimeDelta::hours(49);
+    let failed_at = first_at + TimeDelta::hours(72);
     let failed = ingest.tick(failed_at).await.unwrap();
     assert!(failed.ran.contains(&("calendar", JobOutcome::Ok)));
     assert_eq!(rows(&market).await.sessions, backfilled.sessions - 1);
@@ -468,10 +665,10 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
         .tick(failed_at + TimeDelta::minutes(6))
         .await
         .unwrap();
-    assert_eq!(recovered.ran, vec![("bars_1d", JobOutcome::Noop)]);
+    assert_eq!(recovered.ran, vec![("bars_1d", JobOutcome::Ok)]);
 
     fake.rate_limit_bars.store(true, Ordering::SeqCst);
-    let limited_at = first_at + TimeDelta::hours(55);
+    let limited_at = failed_at + TimeDelta::hours(6) + TimeDelta::minutes(10);
     let limited = ingest.tick(limited_at).await.unwrap();
     assert!(limited.ran.contains(&("bars_1d", JobOutcome::Backoff)));
     let fetch = state
@@ -482,32 +679,42 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
     assert_eq!(fetch.status, FetchStatus::RateLimited);
     assert!(fetch.retry_after.unwrap() >= limited_at + TimeDelta::hours(2));
 
+    let bars = |views: Vec<JobView>| views.into_iter().find(|view| view.name == "bars_1d");
+    let paused = bars(ingest.job_views(limited_at).await.unwrap()).unwrap();
+    assert_eq!(paused.next_due, fetch.retry_after);
     let hits = fake.hits("bars");
     let retried = ingest
         .tick(limited_at + TimeDelta::minutes(61))
         .await
         .unwrap();
-    assert!(retried.ran.contains(&("bars_1d", JobOutcome::Backoff)));
+    assert!(!retried.ran.iter().any(|(job, _)| *job == "bars_1d"));
     assert_eq!(fake.hits("bars"), hits);
 
     fake.rate_limit_bars.store(false, Ordering::SeqCst);
-    fake.revised.store(true, Ordering::SeqCst);
     fake.listed_later.store(true, Ordering::SeqCst);
     fake.action_requests.lock().unwrap().clear();
-    let inside_sip_delay = stamp("2024-07-08T20:10:00Z");
-    let revised = ingest.tick(inside_sip_delay).await.unwrap();
-    assert!(revised.ran.contains(&("bars_1d", JobOutcome::Ok)));
-    assert!(fake.last_bars.lock().unwrap()["end"].starts_with(SPY_REVISED));
-    let spy = market
-        .bars_between(
-            Timeframe::Day,
-            vec![Symbol::new("SPY")],
-            stamp("2024-07-05T00:00:00Z"),
-            stamp("2024-07-06T00:00:00Z"),
-        )
-        .await
-        .unwrap();
-    assert_eq!(spy[0].close, (alpaca_close(date(SPY_REVISED)) + 1).into());
+    let inside_sip_delay = stamp("2024-07-10T20:10:00Z");
+    let later = ingest.tick(inside_sip_delay).await.unwrap();
+    assert!(later.ran.contains(&("bars_1d", JobOutcome::Ok)));
+    assert!(fake.last_bars.lock().unwrap()["end"].starts_with("2024-07-09"));
+    assert_eq!(
+        market.watermarks().borrow().day,
+        Some(stamp("2024-07-09T20:00:00Z"))
+    );
+    let latest = |symbol: &str| {
+        let state = state.clone();
+        let symbol = Symbol::new(symbol);
+        async move {
+            state
+                .recent_fetches(DataSource::Alpaca, Dataset::Bars1d, Some(symbol), 1)
+                .await
+                .unwrap()
+                .remove(0)
+                .status
+        }
+    };
+    assert_eq!(latest(UNKNOWN).await, FetchStatus::Rejected);
+    assert_eq!(latest("MSFT").await, FetchStatus::Empty);
     let action_starts: Vec<(String, String)> = fake
         .action_requests
         .lock()
@@ -522,8 +729,31 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
     assert_eq!(
         action_starts,
         vec![
-            (String::new(), "2024-03-10".to_owned()),
-            ("MSFT".to_owned(), "2015-12-02".to_owned()),
+            (String::new(), "2024-03-12".to_owned()),
+            ("BADX,MSFT".to_owned(), "2015-12-02".to_owned()),
         ]
     );
+
+    let killed_at = inside_sip_delay + TimeDelta::hours(2);
+    state.start_job("tiingo_history", killed_at).await.unwrap();
+    let ran_tiingo =
+        |report: TickReport| report.ran.iter().any(|(job, _)| *job == "tiingo_history");
+    let crashed = ingest
+        .tick(killed_at + TimeDelta::minutes(1))
+        .await
+        .unwrap();
+    assert!(!ran_tiingo(crashed));
+    let backed_off = ingest
+        .tick(killed_at + TimeDelta::minutes(6))
+        .await
+        .unwrap();
+    assert!(ran_tiingo(backed_off));
+
+    let month_later = ingest.tick(first_at + TimeDelta::days(31)).await.unwrap();
+    assert!(
+        month_later
+            .ran
+            .contains(&("tiingo_history", JobOutcome::Noop))
+    );
+    assert_eq!(fake.hits("tiingo"), 1);
 }

@@ -31,6 +31,10 @@ impl Work {
         Self::of(JobOutcome::Noop, 0, message)
     }
 
+    pub fn waiting(message: impl Into<String>) -> Self {
+        Self::of(JobOutcome::Waiting, 0, message)
+    }
+
     pub fn backoff(rows: u64, message: impl Into<String>) -> Self {
         Self::of(JobOutcome::Backoff, rows, message)
     }
@@ -92,10 +96,6 @@ impl Batch {
             self.failure(label, error);
             false
         }
-    }
-
-    pub fn clean(&self) -> bool {
-        self.failures.is_empty() && self.rate_limited.is_none()
     }
 
     pub fn finish(self, what: &str) -> Work {
@@ -180,7 +180,28 @@ impl Attempt {
     }
 }
 
+pub(crate) fn read(fetch: &SourceFetch) -> bool {
+    matches!(fetch.status, FetchStatus::Ok | FetchStatus::Empty)
+}
+
+pub(crate) fn waiting(fetch: &SourceFetch, now: Timestamp) -> bool {
+    fetch.retry_after.is_some_and(|until| until > now)
+}
+
 impl Ingest {
+    pub(crate) async fn latest_fetch(
+        &self,
+        source: DataSource,
+        dataset: Dataset,
+        symbol: &Symbol,
+    ) -> Result<Option<SourceFetch>, IngestError> {
+        Ok(self
+            .state
+            .recent_fetches(source, dataset, Some(symbol.clone()), 1)
+            .await?
+            .pop())
+    }
+
     async fn record(
         &self,
         now: Timestamp,

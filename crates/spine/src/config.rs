@@ -68,6 +68,10 @@ fn admin_password(value: Option<String>) -> Result<String> {
     Ok(password)
 }
 
+pub fn data_dir() -> PathBuf {
+    var_or("BUIZZ_DATA_DIR", "data").into()
+}
+
 pub fn spine_url(bound: SocketAddr) -> String {
     let ip = match bound.ip() {
         IpAddr::V4(ip) if ip.is_unspecified() => IpAddr::V4(Ipv4Addr::LOCALHOST),
@@ -92,7 +96,7 @@ impl Config {
         };
         Ok(Self {
             bind,
-            data_dir: var_or("BUIZZ_DATA_DIR", "data").into(),
+            data_dir: data_dir(),
             bots_dir: var_or("BUIZZ_BOTS_DIR", "bots").into(),
             web_dir: var("BUIZZ_WEB_DIR").map(PathBuf::from),
             fixture_dir: var("BUIZZ_FIXTURE_DIR").map(PathBuf::from),

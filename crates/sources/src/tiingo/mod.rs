@@ -21,7 +21,7 @@ pub const REQUESTS_PER_DAY: u32 = 700;
 pub const SYMBOLS_PER_MONTH: u32 = 350;
 pub const KEY_ENV: &str = "TIINGO_API_KEY";
 pub const URL_ENV: &str = "TIINGO_URL";
-pub const MIN_OVERLAP: usize = 20;
+const MIN_OVERLAP: usize = 20;
 const MAX_MEDIAN_DIFFERENCE: Decimal = Decimal::from_parts(5, 0, 0, false, 2);
 
 #[derive(Clone, PartialEq, Eq)]
@@ -112,7 +112,7 @@ impl TiingoClient {
             .get(url)
             .header(AUTHORIZATION, format!("Token {}", self.api_key))
             .query(&[("startDate", from.to_string()), ("endDate", to.to_string())]);
-        let body = self.http.send(request).await?.bytes().await?;
+        let body = self.http.fetch(request).await?;
         let rows: Vec<Row> = serde_json::from_slice(&body)
             .map_err(|error| SourceError::Decode(error.to_string()))?;
         rows.into_iter().filter_map(Row::into_daily).collect()

@@ -137,19 +137,17 @@ Out of v1: brokers and real money; options, crypto, FX; tick/quote simulation; e
 
 ## Deployment (after Wave 3, separate repo, with your go-ahead)
 
-Order before deploying, so the data spine never has to be wiped and rebuilt:
-1. Merge the four gap groups and the data-spine durability review (both stores migrate forward, nothing stored is overwritten, backfills resume after a kill, every provider stays at 70% of its limit; see `docs/architecture.md`).
-2. Deploy. Secrets are encrypted with SOPS using the age key on this laptop; provider keys are read from a local file outside the repo and never printed.
+Secrets are encrypted with SOPS using the age key on this laptop; provider keys are read from a local file outside the repo and never printed.
 
 The cluster's spine is the data spine: it runs ingest (including the borrow recorder) and builds the real market history. Once it is reachable on the local network, local development and the bot backlog's 10-year backtests run against it (`BUIZZ_URL`) instead of ingesting on the laptop.
 
 Follows `~/akrell/akrell-apps` conventions (pattern: `apps/base/bande-logs/`, guide: `~/Private/Kubit/docs/apps-repository.md`, workflow: `~/Private/mappr/.github/workflows/release.yaml`):
 - `apps/base/buizz/`: namespace, `buizz-data` PVC (Longhorn, RWO), single-replica `Recreate` Deployment (non-root, read-only root, emptyDir `/tmp`, 60s grace), Service, HTTPRoute `buizz.mikaelhug.se`, ImageRepository.
-- `apps/akrell/buizz/`: `ghcr.sops.yaml`, `buizz.sops.yaml` (`ALPACA_KEY_ID`, `ALPACA_SECRET_KEY`, `TIINGO_API_KEY`, `SEC_USER_AGENT`, `BUIZZ_ADMIN_PASSWORD`), image policy.
+- `apps/akrell/buizz/`: `ghcr.sops.yaml`, `buizz.sops.yaml` (`ALPACA_KEY_ID`, `ALPACA_SECRET_KEY`, `TIINGO_API_KEY`, `SEC_USER_AGENT`, `FRED_API_KEY`, `BUIZZ_ADMIN_PASSWORD`), image policy.
 - Default chosen: public route + app login, as `bro`/`engly`/`vabblarna` do. Say so if you prefer a LAN-only MetalLB IP.
 - The spine runs ingest there, so the `borrow` job records Interactive Brokers' short availability daily from the first deploy; `just dev` runs with ingest off and records nothing.
 - `buizz-data` PVC of 50 GiB; pod requests 1 CPU and 2 GiB, limits 4 CPU and 4 GiB, `BUIZZ_DUCKDB_MEMORY=1GB`, `BUIZZ_DUCKDB_THREADS=2` (sizing in `docs/architecture.md`).
-- Backups: nightly `state.db` snapshots and Parquet copies of the market tables no source can give again (borrow history, revisions, index membership) on the PVC (keep 14). The cluster has one Longhorn replica and no off-cluster backup target, so disk loss still loses run history and the borrow history; the rest of the market data is re-downloadable. Copying `backups/` off the cluster now and then is the cheap protection.
+- Backups: nightly `state.db` snapshots (keep 14) and an incremental Parquet backup of the market tables no source can give again (borrow history, revisions, index membership) on the PVC. The cluster has one Longhorn replica and no off-cluster backup target, so disk loss still loses run history and the borrow history; the rest of the market data is re-downloadable. Copying `backups/` off the cluster now and then is the cheap protection.
 
 ## Needed from you
 

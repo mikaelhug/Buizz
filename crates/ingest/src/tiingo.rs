@@ -7,13 +7,19 @@ use buizz_sources::tiingo::{
 };
 use chrono::TimeDelta;
 
-use crate::fetch::{Batch, FetchKey, Work};
+use crate::fetch::{Batch, FetchKey, Work, read, waiting};
 use crate::{Ingest, IngestError, Priced, day_start};
 
 const OVERLAP_WINDOW_DAYS: i64 = 45;
 const SYMBOLS_PER_RUN: u64 = 3;
 const MONTH: TimeDelta = TimeDelta::days(30);
 const DAY: TimeDelta = TimeDelta::days(1);
+const REJECTION_RETRY: TimeDelta = TimeDelta::days(365);
+
+enum Candidate {
+    Untried,
+    Rejected,
+}
 
 impl Ingest {
     pub(crate) async fn tiingo_history(&self, now: Timestamp) -> Result<Work, IngestError> {
@@ -44,27 +50,35 @@ impl Ingest {
             .min(u64::from(SYMBOLS_PER_MONTH).saturating_sub(monthly.symbols))
             .min(SYMBOLS_PER_RUN);
         let Some(alpaca_floor) = alpaca.values().map(|coverage| coverage.first).min() else {
-            return Ok(Work::noop(
+            return Ok(Work::waiting(
                 "Tiingo history: no Alpaca history to extend yet",
             ));
         };
-        let mut batch = Batch::default();
-        let mut remaining = room;
+        let room = usize::try_from(room).unwrap_or(usize::MAX);
+        let mut untried = Vec::new();
+        let mut rejected = Vec::new();
         for Priced { symbol, .. } in self.priced_symbols().await? {
-            if remaining == 0 || self.stopping() {
+            if untried.len() == room {
                 break;
             }
             let Some(first) = alpaca.get(&symbol).map(|coverage| coverage.first) else {
                 continue;
             };
+            if first != alpaca_floor || calendar.between(history_start, first - DAY).is_empty() {
+                continue;
+            }
+            match self.tiingo_candidate(now, &symbol).await? {
+                Some(Candidate::Untried) => untried.push((symbol, first)),
+                Some(Candidate::Rejected) => rejected.push((symbol, first)),
+                None => {}
+            }
+        }
+        let mut batch = Batch::default();
+        for (symbol, first) in untried.into_iter().chain(rejected).take(room) {
+            if self.stopping() {
+                break;
+            }
             let gap_end = first - DAY;
-            if first != alpaca_floor || calendar.between(history_start, gap_end).is_empty() {
-                continue;
-            }
-            if self.tiingo_settled(now, &symbol).await? {
-                continue;
-            }
-            remaining -= 1;
             let key = FetchKey::new(
                 DataSource::Tiingo,
                 Dataset::Bars1d,
@@ -140,17 +154,26 @@ impl Ingest {
         Ok(batch.finish("Tiingo history"))
     }
 
-    async fn tiingo_settled(&self, now: Timestamp, symbol: &Symbol) -> Result<bool, IngestError> {
-        let latest = self
-            .state
-            .recent_fetches(DataSource::Tiingo, Dataset::Bars1d, Some(symbol.clone()), 1)
-            .await?;
-        Ok(latest.first().is_some_and(|fetch| {
-            fetch.retry_after.is_some_and(|until| until > now)
-                || (matches!(fetch.status, FetchStatus::Ok | FetchStatus::Empty)
-                    && fetch
-                        .requested_from
-                        .is_some_and(|from| from <= self.config.history_start))
-        }))
+    async fn tiingo_candidate(
+        &self,
+        now: Timestamp,
+        symbol: &Symbol,
+    ) -> Result<Option<Candidate>, IngestError> {
+        let Some(fetch) = self
+            .latest_fetch(DataSource::Tiingo, Dataset::Bars1d, symbol)
+            .await?
+        else {
+            return Ok(Some(Candidate::Untried));
+        };
+        let extended = read(&fetch)
+            && fetch
+                .requested_from
+                .is_some_and(|from| from <= self.config.history_start);
+        Ok(match fetch.status {
+            FetchStatus::Rejected if fetch.at + REJECTION_RETRY <= now => Some(Candidate::Rejected),
+            FetchStatus::Rejected => None,
+            _ if extended || waiting(&fetch, now) => None,
+            _ => Some(Candidate::Untried),
+        })
     }
 }

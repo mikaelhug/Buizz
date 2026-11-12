@@ -280,13 +280,24 @@ impl StateStore {
             .await
     }
 
-    pub async fn failure_streaks(&self) -> Result<BTreeMap<String, u32>> {
-        self.db.read(jobs::failure_streaks).await
+    pub async fn failure_streaks(
+        &self,
+        unfinished_before: Timestamp,
+    ) -> Result<BTreeMap<String, u32>> {
+        self.db
+            .read(move |connection| jobs::failure_streaks(connection, unfinished_before))
+            .await
     }
 
     pub async fn rate_limited_until(&self, source: DataSource) -> Result<Option<Timestamp>> {
         self.db
             .read(move |connection| jobs::rate_limited_until(connection, source))
+            .await
+    }
+
+    pub async fn reset_market(&self, at: Timestamp) -> Result<bool> {
+        self.db
+            .transaction(move |transaction| jobs::reset_market(transaction, at))
             .await
     }
 

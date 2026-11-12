@@ -26,25 +26,28 @@ mod fixture;
 mod lane;
 mod migrate;
 mod read;
+mod restore;
 mod write;
+
+pub use restore::Restored;
 
 pub(crate) const SCHEMA: &str = include_str!("../schema.sql");
 pub const FILE_NAME: &str = "market.duckdb";
-const UNRECOVERABLE: [&str; 13] = [
-    "ingest_batch",
-    "borrow_availability",
-    "index_member",
-    "index_history",
-    "instrument_revision",
-    "calendar_revision",
-    "bar_1d_revision",
-    "corporate_action_revision",
-    "rate_daily_revision",
-    "macro_observation_revision",
-    "company_revision",
-    "earnings_release_revision",
-    "index_member_revision",
+const APPENDED: [(&str, &str); 12] = [
+    ("ingest_batch", "id"),
+    ("borrow_availability", "batch_id"),
+    ("instrument_revision", "superseded_by"),
+    ("calendar_revision", "superseded_by"),
+    ("bar_1d_revision", "superseded_by"),
+    ("corporate_action_revision", "superseded_by"),
+    ("rate_daily_revision", "superseded_by"),
+    ("macro_observation_revision", "superseded_by"),
+    ("company_revision", "superseded_by"),
+    ("earnings_release_revision", "superseded_by"),
+    ("index_member_revision", "superseded_by"),
+    ("index_history_revision", "superseded_by"),
 ];
+const REPLACED: [&str; 2] = ["index_member", "index_history"];
 pub const TIMESTAMP_RESOLUTION: TimeDelta = TimeDelta::microseconds(1);
 
 #[derive(Debug, thiserror::Error)]
@@ -57,6 +60,8 @@ pub enum MarketError {
     Io(#[from] std::io::Error),
     #[error("market store schema is version {found}, newer than the {known} this spine knows")]
     NewerSchema { found: i64, known: i64 },
+    #[error("market restore: {0}")]
+    Restore(String),
     #[error("market store setting: {0}")]
     Setting(String),
     #[error("market store has shut down")]
@@ -84,6 +89,12 @@ pub struct ActionWindow {
     pub from: NaiveDate,
     pub through: NaiveDate,
     pub covered_to: Option<NaiveDate>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Export {
+    pub through: i64,
+    pub rows: u64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -122,7 +133,7 @@ pub struct MarketStore {
 impl MarketStore {
     pub async fn open(path: &Path, readers: usize) -> Result<Self> {
         let path = path.to_owned();
-        let (writer, pool, calendar) = tokio::task::spawn_blocking(move || {
+        let (writer, pool, calendar, day) = tokio::task::spawn_blocking(move || {
             let mut writer = Connection::open(path)?;
             migrate::migrate(&mut writer)?;
             write::prepare(&writer)?;
@@ -130,7 +141,8 @@ impl MarketStore {
                 .map(|_| writer.try_clone())
                 .collect::<duckdb::Result<Vec<_>>>()?;
             let calendar = read::calendar(&writer)?;
-            Ok::<_, MarketError>((writer, pool, calendar))
+            let day = read::daily_watermark(&writer)?;
+            Ok::<_, MarketError>((writer, pool, calendar, day))
         })
         .await??;
         Ok(Self {
@@ -138,7 +150,7 @@ impl MarketStore {
             readers: Lane::spawn("market-reader", pool)?,
             shared: Arc::new(Shared {
                 calendar: RwLock::new(Arc::new(calendar)),
-                watermarks: watch::Sender::new(Watermarks::default()),
+                watermarks: watch::Sender::new(Watermarks { day, minute: None }),
             }),
         })
     }
@@ -163,19 +175,70 @@ impl MarketStore {
             .await
     }
 
-    pub async fn export_unrecoverable(&self, directory: PathBuf) -> Result<u64> {
+    pub async fn export_unrecoverable(
+        &self,
+        directory: PathBuf,
+        after: i64,
+    ) -> Result<Option<Export>> {
         self.readers
             .run(move |connection| {
-                let mut rows = 0;
-                for table in UNRECOVERABLE {
+                let transaction = connection.transaction()?;
+                let through: i64 = transaction.query_row(
+                    "SELECT coalesce(max(id), 0) FROM ingest_batch",
+                    [],
+                    |row| row.get(0),
+                )?;
+                if through <= after {
+                    return Ok(None);
+                }
+                let copy = |query: String, table: &str| -> Result<u64> {
                     let path = directory.join(format!("{table}.parquet"));
                     let path = path.to_string_lossy().replace('\'', "''");
-                    rows += connection.execute(
-                        &format!("COPY (SELECT * FROM {table}) TO '{path}' (FORMAT parquet)"),
-                        [],
-                    )? as u64;
+                    Ok(transaction
+                        .execute(&format!("COPY ({query}) TO '{path}' (FORMAT parquet)"), [])?
+                        as u64)
+                };
+                let mut rows = 0;
+                for (table, batch) in APPENDED {
+                    rows += copy(
+                        format!(
+                            "SELECT * FROM {table} WHERE {batch} > {after} AND {batch} <= {through}"
+                        ),
+                        table,
+                    )?;
                 }
-                Ok(rows)
+                let index_changed: bool = transaction.query_row(
+                    "SELECT coalesce(max(batch_id), 0) > ? FROM index_history",
+                    [after],
+                    |row| row.get(0),
+                )?;
+                if index_changed {
+                    for table in REPLACED {
+                        rows += copy(format!("SELECT * FROM {table}"), table)?;
+                    }
+                }
+                Ok(Some(Export { through, rows }))
+            })
+            .await
+    }
+
+    pub async fn restore(&self, backup: PathBuf) -> Result<Restored> {
+        self.writer
+            .run(move |connection| {
+                let parts = restore::parts(&backup)?;
+                restore::restore(connection, &parts)
+            })
+            .await
+    }
+
+    pub async fn is_empty(&self) -> Result<bool> {
+        self.readers
+            .run(|connection| {
+                Ok(
+                    connection.query_row("SELECT count(*) = 0 FROM ingest_batch", [], |row| {
+                        row.get(0)
+                    })?,
+                )
             })
             .await
     }
@@ -411,17 +474,17 @@ impl MarketStore {
     pub async fn advance_watermark(&self, timeframe: Timeframe, through: Timestamp) -> Result<()> {
         let shared = Arc::clone(&self.shared);
         self.writer
-            .run(move |_| {
-                shared.watermarks.send_if_modified(|watermarks| {
-                    let slot = match timeframe {
-                        Timeframe::Day => &mut watermarks.day,
-                        Timeframe::Minute => &mut watermarks.minute,
-                    };
-                    let advanced = slot.is_none_or(|current| current < through);
-                    if advanced {
-                        *slot = Some(through);
-                    }
-                    advanced
+            .run(move |connection| {
+                let current = shared.watermarks.borrow().get(timeframe);
+                if current.is_some_and(|current| current >= through) {
+                    return Ok(());
+                }
+                if timeframe == Timeframe::Day {
+                    write::daily_watermark(connection, through)?;
+                }
+                shared.watermarks.send_modify(|watermarks| match timeframe {
+                    Timeframe::Day => watermarks.day = Some(through),
+                    Timeframe::Minute => watermarks.minute = Some(through),
                 });
                 Ok(())
             })
@@ -673,4 +736,32 @@ fn visible_through(timeframe: Timeframe, bars: &[Bar], calendar: &Calendar) -> O
             Some(bar_visible_at(timeframe, bar.start, session))
         })
         .max()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_revision_table_is_backed_up() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        migrate::migrate(&mut connection).unwrap();
+        let mut statement = connection
+            .prepare(
+                "SELECT table_name FROM duckdb_tables() WHERE schema_name = 'main' \
+                 AND table_name LIKE '%\\_revision' ESCAPE '\\' ORDER BY table_name",
+            )
+            .unwrap();
+        let revisions: Vec<String> = statement
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .collect::<duckdb::Result<_>>()
+            .unwrap();
+        assert_eq!(revisions.len(), 10);
+        let missing: Vec<&String> = revisions
+            .iter()
+            .filter(|table| !APPENDED.iter().any(|(backed_up, _)| backed_up == table))
+            .collect();
+        assert!(missing.is_empty(), "not backed up: {missing:?}");
+    }
 }

@@ -11,6 +11,7 @@ pub enum JobOutcome {
     Ok,
     Partial,
     Noop,
+    Waiting,
     Backoff,
     Failed,
 }

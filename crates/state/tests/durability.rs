@@ -1,5 +1,6 @@
 use buizz_core::ledger::{LedgerEntry, LedgerKind};
 use buizz_core::market::{Feed, Symbol, Timeframe};
+use buizz_core::ops::JobOutcome;
 use buizz_core::order::{Order, OrderId, OrderSize, OrderStatus, OrderType, Side, TimeInForce};
 use buizz_core::run::{
     CostModel, DesiredState, EquityPoint, Mode, RiskLimits, RunConfig, RunEvent, RunEventKind,
@@ -261,6 +262,11 @@ async fn a_state_store_from_before_financing_and_undelivered_steps_takes_both() 
     assert_eq!(portfolio.cash, d("99998.81"));
     let checkpoint = store.checkpoint(run_id).await.unwrap().unwrap();
     assert_eq!(checkpoint.undelivered, Some(vec![7, 2]));
+    let job = store.start_job("borrow", at(1)).await.unwrap();
+    store
+        .finish_job(job, at(1), JobOutcome::Waiting, 0, None)
+        .await
+        .unwrap();
 }
 
 #[tokio::test]

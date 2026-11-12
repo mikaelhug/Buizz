@@ -1,12 +1,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use buizz_core::market::{AssetClass, DataSource, Dataset, Symbol};
-use buizz_core::ops::FetchStatus;
 use buizz_core::time::Timestamp;
 use buizz_sources::edgar::ACCEPTED_FORMS;
 use chrono::{NaiveDate, TimeDelta};
 
-use crate::fetch::{Batch, FetchKey, Work};
+use crate::fetch::{Batch, FetchKey, Work, read, waiting};
 use crate::reference::CALENDAR_HORIZON_DAYS;
 use crate::{Ingest, IngestError, Priced};
 
@@ -124,16 +123,13 @@ impl Ingest {
         last_filed: Option<NaiveDate>,
     ) -> Result<bool, IngestError> {
         let latest = self
-            .state
-            .recent_fetches(DataSource::Edgar, dataset, Some(symbol.clone()), 1)
+            .latest_fetch(DataSource::Edgar, dataset, symbol)
             .await?;
-        Ok(latest.first().is_none_or(|fetch| {
-            let waiting = fetch.retry_after.is_some_and(|until| until > now);
-            let read = matches!(fetch.status, FetchStatus::Ok | FetchStatus::Empty);
-            let fresh = read
+        Ok(latest.is_none_or(|fetch| {
+            let fresh = read(&fetch)
                 && fetch.at + SAFETY_REFRESH > now
                 && last_filed.is_none_or(|filed| filed < fetch.at.exchange_date());
-            !waiting && !fresh
+            !waiting(&fetch, now) && !fresh
         }))
     }
 }

@@ -716,6 +716,12 @@ pub(crate) fn latest_sec_filings(
     Ok(latest)
 }
 
+pub(crate) fn daily_watermark(connection: &Connection) -> Result<Option<Timestamp>> {
+    let mut statement = connection.prepare_cached("SELECT max(through) FROM daily_watermark")?;
+    let through: Option<Ts> = statement.query_row([], |row| row.get(0))?;
+    Ok(through.map(|at| at.0))
+}
+
 pub(crate) fn latest_borrow(connection: &Connection) -> Result<Option<Timestamp>> {
     let mut statement =
         connection.prepare_cached("SELECT max(recorded_at) FROM borrow_availability")?;

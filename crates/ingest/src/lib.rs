@@ -25,7 +25,7 @@ use buizz_core::market::{
 };
 use buizz_core::ops::JobOutcome;
 use buizz_core::time::Timestamp;
-use buizz_market::{MarketError, MarketStore};
+use buizz_market::{MarketError, MarketStore, Restored};
 use buizz_sources::Sources;
 use buizz_sources::http::SourceError;
 use buizz_state::{StateError, StateStore};
@@ -79,6 +79,7 @@ pub struct IngestConfig {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct JobSpec {
     pub name: &'static str,
+    pub source: Option<DataSource>,
     pub every: Duration,
 }
 
@@ -96,6 +97,7 @@ pub struct Ingest {
     events: broadcast::Sender<SpineEvent>,
     gate: Arc<Mutex<()>>,
     stopping: Arc<AtomicBool>,
+    booted_at: Timestamp,
 }
 
 impl Ingest {
@@ -113,6 +115,7 @@ impl Ingest {
             events: broadcast::Sender::new(EVENT_CAPACITY),
             gate: Arc::new(Mutex::new(())),
             stopping: Arc::default(),
+            booted_at: Timestamp::now(),
         }
     }
 
@@ -121,7 +124,8 @@ impl Ingest {
         let started = tokio::time::Instant::now();
         let finished_at = || now + TimeDelta::from_std(started.elapsed()).unwrap_or_default();
         let latest = self.state.latest_jobs().await?;
-        let failures = self.state.failure_streaks().await?;
+        let failures = self.state.failure_streaks(self.booted_at).await?;
+        let limits = self.rate_limits().await?;
         let mut report = TickReport::default();
         for spec in JOBS {
             if self.stopping() {
@@ -129,7 +133,8 @@ impl Ingest {
             }
             let previous = latest.iter().find(|run| run.job == spec.name);
             let streak = failures.get(spec.name).copied().unwrap_or(0);
-            if due_at(&spec, previous, streak).is_some_and(|due| due > now) {
+            let limited = spec.source.and_then(|source| limits.get(&source).copied());
+            if due_at(&spec, previous, streak, limited).is_some_and(|due| due > now) {
                 continue;
             }
             let run_id = self.state.start_job(spec.name, now).await?;
@@ -161,19 +166,31 @@ impl Ingest {
 
     pub async fn job_views(&self, now: Timestamp) -> Result<Vec<JobView>, IngestError> {
         let latest = self.state.latest_jobs().await?;
-        let failures = self.state.failure_streaks().await?;
+        let failures = self.state.failure_streaks(self.booted_at).await?;
+        let limits = self.rate_limits().await?;
         let mut views = Vec::with_capacity(JOBS.len());
         for spec in JOBS {
             let previous = latest.iter().find(|run| run.job == spec.name);
             let streak = failures.get(spec.name).copied().unwrap_or(0);
+            let limited = spec.source.and_then(|source| limits.get(&source).copied());
             let success = self.state.last_job_success(spec.name).await?;
-            let view = schedule::view(&spec, previous, streak, success.as_ref(), now);
+            let view = schedule::view(&spec, previous, streak, limited, success.as_ref(), now);
             views.push(JobView {
                 stale: self.config.enabled && view.stale,
                 ..view
             });
         }
         Ok(views)
+    }
+
+    async fn rate_limits(&self) -> Result<BTreeMap<DataSource, Timestamp>, IngestError> {
+        let mut limits = BTreeMap::new();
+        for source in JOBS.iter().filter_map(|spec| spec.source) {
+            if let Some(until) = self.state.rate_limited_until(source).await? {
+                limits.insert(source, until);
+            }
+        }
+        Ok(limits)
     }
 
     pub fn events(&self) -> broadcast::Receiver<SpineEvent> {
@@ -204,9 +221,6 @@ impl Ingest {
         }
         let ingest = self.clone();
         Some(tokio::spawn(async move {
-            if let Err(error) = ingest.restore_daily_watermark().await {
-                tracing::error!(%error, "could not restore the daily watermark");
-            }
             let mut interval = tokio::time::interval(ingest.config.tick);
             interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
             loop {
@@ -402,6 +416,18 @@ impl Ingest {
             .filter_map(|row| Some((row.symbol.clone()?, row)))
             .collect())
     }
+}
+
+pub async fn restore(
+    market: &MarketStore,
+    state: &StateStore,
+    backup: PathBuf,
+    at: Timestamp,
+) -> Result<Restored, IngestError> {
+    let restored = market.restore(backup).await?;
+    state.reset_market(at).await?;
+    market.checkpoint().await?;
+    Ok(restored)
 }
 
 pub(crate) fn day_start(date: NaiveDate) -> Timestamp {

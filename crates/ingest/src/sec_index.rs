@@ -1,4 +1,5 @@
 use buizz_core::market::{DataSource, Dataset};
+use buizz_core::ops::JobOutcome;
 use buizz_core::time::Timestamp;
 use chrono::{Datelike, TimeDelta, Weekday};
 
@@ -26,11 +27,9 @@ impl Ingest {
             .map(|row| row.last);
         let mut day = read_through.map_or(today - FIRST_LOOKBACK, |last| last + TimeDelta::days(1));
         let mut batch = Batch::default();
+        let mut unpublished = None;
         while day <= today && !self.stopping() {
             if matches!(day.weekday(), Weekday::Sat | Weekday::Sun) {
-                self.market
-                    .append_sec_filings(DataSource::Edgar, Vec::new(), day)
-                    .await?;
                 day += TimeDelta::days(1);
                 continue;
             }
@@ -42,6 +41,7 @@ impl Ingest {
             );
             match edgar.daily_index(day).await {
                 Ok(Some(filings)) => {
+                    unpublished = None;
                     let fetched = filings.len();
                     let summary = self
                         .market
@@ -57,7 +57,7 @@ impl Ingest {
                     self.record_fetched(now, &key, 0).await?;
                     batch.success(0);
                 }
-                Ok(None) => break,
+                Ok(None) => unpublished = unpublished.or(Some(day)),
                 Err(error) => {
                     self.record_failure(now, &key, &error).await?;
                     batch.source_error(&day.to_string(), &error);
@@ -66,6 +66,12 @@ impl Ingest {
             }
             day += TimeDelta::days(1);
         }
-        Ok(batch.finish("SEC filing index"))
+        let work = batch.finish("SEC filing index");
+        Ok(match unpublished {
+            Some(day) if work.outcome == JobOutcome::Noop => {
+                Work::waiting(format!("SEC filing index: {day} is not published yet"))
+            }
+            _ => work,
+        })
     }
 }
