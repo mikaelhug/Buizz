@@ -97,6 +97,19 @@ Known parity gap, stated honestly: live minute bars are IEX (partial volume), ba
 - Single admin login (password → HttpOnly session cookie).
 - Shell: sticky topbar with the live-updates status in words, a light/dark/system theme menu and a title per page. Definitions open from an `Info` button (a popover), not from `title` alone, so they work on touch and keyboard.
 
+## Next: backtests screen, live paper decides
+
+Approved design. A backtest is a pass/fail screen, never a scoreboard; only live paper results rank bots. Slices ship one at a time; delete each once done.
+
+- Lifecycle is derived from runs, never stored. A version is bot code hash + params; a live run is that version with its own "since live" clock. Stages: draft (no screening backtest at the current hash), screened (a variant passes the gate), live incubating (< 20 sessions), live tracking (inside the backtest's envelope), live falsified (outside it; flagged, retiring is the owner's click), proven (probabilistic Sharpe of daily excess return over SPY ≥ 1 − 0.05/M, M = live runs ever started), retired (live run ended with a reason).
+- Gate (longest pre-holdout preset, default costs, current hash): completed, no data warnings or drawdown stop, ≥ 10 round trips, Sharpe > 0, not dominated by SPY (Sharpe ≥ SPY's or max drawdown lower).
+- Variants: a variant is a run's merged params, coerced to the default's type. Sweeps send a grid in the request (`POST /api/bots/{name}/sweeps`, `buizz sweep --grid`), cartesian product ≤ 256, skip variants already run, same seed, existing backtest queue (slots = CPUs − 1). Trials are counted in SQL over all runs as distinct (hash, variant). Research view: spread, median, gate passes and a luck line (σ·√(2 ln N)); no best-backtest ranking. Go live with the plateau variant (best neighbourhood median), at most 3 live variants per bot, `source_run` recorded.
+- Envelope from the source backtest: 5th percentile of rolling N-session excess return, 95th percentile window drawdown, backtest volatility; falsified at ≥ 20 sessions if excess < band, drawdown deeper, or vol > 1.5×.
+- Live processes live for one session (`EndReason::SessionEnd`, working orders stay in the engine), started through `live_slots` (2), so daily bots are effectively unlimited. `before_close` daily bots fetch session minute bars over REST instead of leasing stream slots. Intraday bots: N Alpaca stream accounts pooled by the feed manager (cap 30 × N); a symbol stays on its connection until released.
+- UI: Bots page is a live-first table (return since live, SPY same window, excess ± SE, drawdown, verdict, sparkline vs SPY; no backtest numbers), not-live bots below with screening summary, Sweep and Go live. League replaces the leaderboard: live runs ≥ 20 sessions ranked by probabilistic Sharpe of excess over SPY, retired runs kept, a "too early" group. Bot detail splits into Live | Research. `SpineEvent::LiveSession` pushes per-session summaries; no full reloads on every run status.
+- Data: state migration adds `run.variant` (generated from `config.params`), `run.source_run`, `run.live_stats` (cache written at each live session close); unique live run per (bot, variant).
+- Slices: (1) live-first Bots view + League, backtest leaderboard deleted; (2) session-scoped live processes + `live_slots`; (3) variants live; (4) sweeps + Research tab; (5) envelope and falsification; (6) N stream accounts + REST minute bars for `before_close` (independent); (7) optional replay of the live window.
+
 ## Added beyond the request
 
 In v1:
