@@ -61,6 +61,7 @@ The spine (`cargo run -p buizz-spine`) reads these environment variables. Empty 
 | `ALPACA_KEY_ID`, `ALPACA_SECRET_KEY` | unset | Alpaca market data credentials; both are needed to enable Alpaca, the live feed and minute-bar backtests |
 | `ALPACA_DATA_URL` | `https://data.alpaca.markets` | Alpaca data endpoint |
 | `ALPACA_TRADING_URL` | `https://paper-api.alpaca.markets` | Alpaca endpoint for the calendar and assets |
+| `ALPACA_STREAM_KEYS` | unset | Alpaca accounts for the real-time bar stream, one `key_id:secret` per line; each account streams 30 symbols on its own connection. Unset, the `ALPACA_KEY_ID` account is the one stream account; set, only the listed accounts stream, while `ALPACA_KEY_ID` stays the key for REST and the news stream |
 | `ALPACA_STREAM_URL` | `wss://stream.data.alpaca.markets/v2/iex` | Alpaca real-time stream |
 | `ALPACA_NEWS_URL` | `wss://stream.data.alpaca.markets/v1beta1/news` | Alpaca real-time news stream, recorded while ingest is on |
 | `TIINGO_API_KEY` | unset | Enables Tiingo daily history from 2000 to Alpaca's 2016 start |

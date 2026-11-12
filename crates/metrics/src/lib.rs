@@ -11,6 +11,10 @@ use buizz_core::time::Timestamp;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
 
+pub use crate::live::{LiveInput, live, live_summary};
+
+mod live;
+
 const TRADING_DAYS: f64 = CostModel::TRADING_DAYS_PER_YEAR as f64;
 const MIN_SPREAD: f64 = f64::EPSILON;
 
@@ -291,14 +295,18 @@ fn profit_factor(trips: &[RoundTrip]) -> Option<f64> {
         .flatten()
 }
 
-fn alpha_beta(input: &MetricsInput<'_>, returns: &[f64]) -> Option<(f64, f64)> {
-    let benchmark = benchmark_returns(input)?;
-    let variance = sample_covariance(&benchmark, &benchmark)?;
+fn beta(returns: &[f64], benchmark: &[f64]) -> Option<f64> {
+    let variance = sample_covariance(benchmark, benchmark)?;
     if variance <= MIN_SPREAD * MIN_SPREAD {
         return None;
     }
+    Some(sample_covariance(returns, benchmark)? / variance)
+}
+
+fn alpha_beta(input: &MetricsInput<'_>, returns: &[f64]) -> Option<(f64, f64)> {
+    let benchmark = benchmark_returns(input)?;
     let returns = returns.get(returns.len().checked_sub(benchmark.len())?..)?;
-    let beta = sample_covariance(returns, &benchmark)? / variance;
+    let beta = beta(returns, &benchmark)?;
     let alpha = (mean(returns) - beta * mean(&benchmark)) * TRADING_DAYS;
     Some((alpha, beta))
 }

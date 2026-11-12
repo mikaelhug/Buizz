@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -12,40 +13,30 @@ use chrono::{NaiveTime, TimeDelta};
 use futures::future::BoxFuture;
 use tokio::sync::watch;
 use tokio::time::Instant;
+use tokio_stream::wrappers::ReceiverStream;
+use tokio_stream::{Stream, StreamExt, StreamMap};
 
 use crate::{FeedError, Inner};
 
+pub const LATE_BAR_GRACE: TimeDelta = TimeDelta::seconds(10);
 const MINUTE: TimeDelta = TimeDelta::minutes(1);
-const LATE_BAR_GRACE: TimeDelta = TimeDelta::seconds(10);
 const BACKFILL_LOOKBACK_LIMIT: TimeDelta = TimeDelta::days(7);
 const RETRY_INITIAL: Duration = Duration::from_secs(1);
 const RETRY_MAX: Duration = Duration::from_secs(60);
 const STORE_RETRY: Duration = Duration::from_secs(5);
 
+type Events = Pin<Box<dyn Stream<Item = Option<StreamEvent>> + Send>>;
+
+fn describe<'a>(problems: impl IntoIterator<Item = &'a Option<String>>) -> Option<String> {
+    let present: Vec<&str> = problems.into_iter().flatten().map(String::as_str).collect();
+    (!present.is_empty()).then(|| present.join("; "))
+}
+
 #[derive(Default)]
 struct Problems {
     stream: Option<String>,
     subscription: Option<String>,
-    calendar: Option<String>,
     backfill: Option<String>,
-    store: Option<String>,
-}
-
-impl Problems {
-    fn describe(&self) -> Option<String> {
-        let present: Vec<&str> = [
-            &self.stream,
-            &self.subscription,
-            &self.calendar,
-            &self.backfill,
-            &self.store,
-        ]
-        .into_iter()
-        .flatten()
-        .map(String::as_str)
-        .collect();
-        (!present.is_empty()).then(|| present.join("; "))
-    }
 }
 
 struct Backfill {
@@ -57,47 +48,81 @@ struct Backfill {
 }
 
 enum Step {
-    Stream(Option<StreamEvent>),
+    Stream(usize, Option<StreamEvent>),
     Leases,
-    Backfilled(Result<Vec<Bar>, FeedError>),
+    Backfilled(usize, Result<Vec<Bar>, FeedError>),
     Wake,
 }
 
-struct Pump {
-    inner: Arc<Inner>,
+struct Rest {
     alpaca: AlpacaClient,
+    market: MarketStore,
+}
+
+#[derive(Default)]
+struct Store {
+    unwritten: VecDeque<(DataSource, Vec<Bar>)>,
+    retry_at: Option<Instant>,
+    published_through: Option<Timestamp>,
+    problem: Option<String>,
+}
+
+impl Store {
+    fn queue(&mut self, source: DataSource, bars: Vec<Bar>) {
+        if !bars.is_empty() {
+            self.unwritten.push_back((source, bars));
+        }
+    }
+}
+
+struct Connection {
     stream: StreamHandle,
     subscribed: BTreeSet<Symbol>,
     connected: bool,
+    closed: bool,
     settled_through: Option<Timestamp>,
-    published_through: Option<Timestamp>,
     pending: BTreeMap<Timestamp, BTreeMap<Symbol, Bar>>,
-    unwritten: VecDeque<(DataSource, Vec<Bar>)>,
-    store_retry_at: Option<Instant>,
     backfill: Option<Backfill>,
     problems: Problems,
 }
 
-pub(crate) async fn run(inner: Arc<Inner>, config: StreamConfig, alpaca: AlpacaClient) {
-    let (stream, mut events) = alpaca_stream::spawn(config);
+struct Pump {
+    inner: Arc<Inner>,
+    rest: Rest,
+    connections: Vec<Connection>,
+    store: Store,
+    calendar_problem: Option<String>,
+}
+
+pub(crate) async fn run(inner: Arc<Inner>, streams: Vec<StreamConfig>, alpaca: AlpacaClient) {
+    let mut events: StreamMap<usize, Events> = StreamMap::new();
+    let mut connections = Vec::new();
+    for (index, config) in streams.into_iter().enumerate() {
+        let (stream, receiver) = alpaca_stream::spawn(config);
+        let ended = ReceiverStream::new(receiver)
+            .map(Some)
+            .chain(tokio_stream::once(None));
+        events.insert(index, Box::pin(ended));
+        connections.push(Connection::new(stream));
+    }
     let mut leases = inner.slots.subscribe();
     let mut pump = Pump {
+        rest: Rest {
+            alpaca,
+            market: inner.market.clone(),
+        },
         inner,
-        alpaca,
-        stream,
-        subscribed: BTreeSet::new(),
-        connected: false,
-        settled_through: None,
-        published_through: None,
-        pending: BTreeMap::new(),
-        unwritten: VecDeque::new(),
-        store_retry_at: None,
-        backfill: None,
-        problems: Problems::default(),
+        connections,
+        store: Store::default(),
+        calendar_problem: None,
     };
-    match stored_through(&pump.inner.market).await {
-        Ok(through) => pump.settled_through = through,
-        Err(error) => pump.problems.store = Some(error.to_string()),
+    match stored_through(&pump.rest.market).await {
+        Ok(through) => {
+            for connection in &mut pump.connections {
+                connection.settled_through = through;
+            }
+        }
+        Err(error) => pump.store.problem = Some(error.to_string()),
     }
     pump.reconcile(&mut leases).await;
     loop {
@@ -106,129 +131,246 @@ pub(crate) async fn run(inner: Arc<Inner>, config: StreamConfig, alpaca: AlpacaC
         pump.publish();
         let wake = pump.wake_at();
         let step = tokio::select! {
-            event = events.recv() => Step::Stream(event),
+            Some((index, event)) = events.next() => Step::Stream(index, event),
             Ok(()) = leases.changed() => Step::Leases,
-            bars = backfilled(&mut pump.backfill) => Step::Backfilled(bars),
+            (index, bars) = backfilled(&mut pump.connections) => Step::Backfilled(index, bars),
             () = sleep_until(wake) => Step::Wake,
         };
         match step {
-            Step::Stream(Some(event)) => pump.on_event(event).await,
-            Step::Stream(None) => {
-                pump.connected = false;
-                pump.flush().await;
-                pump.publish();
-                return;
-            }
+            Step::Stream(index, Some(event)) => pump.on_event(index, event).await,
+            Step::Stream(index, None) => pump.on_closed(index),
             Step::Leases => pump.reconcile(&mut leases).await,
-            Step::Backfilled(bars) => pump.on_backfilled(bars),
+            Step::Backfilled(index, bars) => {
+                let connection = &mut pump.connections[index];
+                connection.on_backfilled(bars, &pump.rest, &mut pump.store);
+            }
             Step::Wake => {}
         }
     }
 }
 
 impl Pump {
-    fn healthy(&self) -> bool {
-        self.connected && self.backfill.is_none()
-    }
-
-    async fn on_event(&mut self, event: StreamEvent) {
+    async fn on_event(&mut self, index: usize, event: StreamEvent) {
+        let connection = &mut self.connections[index];
         match event {
             StreamEvent::Connected => {
-                self.connected = true;
-                self.problems.stream = None;
+                connection.connected = true;
+                connection.problems.stream = None;
                 let now = minute_floor(Timestamp::now());
-                match self.settled_through {
-                    Some(through) => self.request_backfill(self.subscribed.clone(), through, now),
-                    None => self.settled_through = Some(now),
+                match connection.settled_through {
+                    Some(through) => {
+                        let symbols = connection.subscribed.clone();
+                        connection.request_backfill(&self.rest, symbols, through, now);
+                    }
+                    None => connection.settled_through = Some(now),
                 }
             }
-            StreamEvent::Subscribed { .. } => self.problems.subscription = None,
-            StreamEvent::Bar(bar) => self.on_bar(bar).await,
+            StreamEvent::Subscribed { .. } => connection.problems.subscription = None,
+            StreamEvent::Bar(bar) => self.on_bar(index, bar).await,
             StreamEvent::Gap { from, to } => {
-                self.request_backfill(self.subscribed.clone(), from, to);
+                let symbols = connection.subscribed.clone();
+                connection.request_backfill(&self.rest, symbols, from, to);
             }
             StreamEvent::SymbolLimitExceeded => {
-                self.problems.subscription =
+                connection.problems.subscription =
                     Some("Alpaca refused the subscription: symbol limit exceeded".to_owned());
             }
             StreamEvent::Disconnected { reason } => {
-                self.connected = false;
-                self.problems.stream = Some(format!("stream disconnected: {reason}"));
+                connection.connected = false;
+                connection.problems.stream = Some(format!("stream disconnected: {reason}"));
             }
         }
     }
 
+    fn on_closed(&mut self, index: usize) {
+        let connection = &mut self.connections[index];
+        connection.connected = false;
+        connection.closed = true;
+        self.inner.close_connection(index);
+    }
+
     async fn reconcile(&mut self, leases: &mut watch::Receiver<FeedSlots>) {
-        let wanted: BTreeSet<Symbol> = leases
-            .borrow_and_update()
-            .holders
-            .iter()
-            .flat_map(|holder| holder.symbols.iter().cloned())
-            .collect();
-        if wanted == self.subscribed {
-            return;
-        }
-        let removed = self.subscribed.difference(&wanted).cloned().collect();
-        let added: BTreeSet<Symbol> = wanted.difference(&self.subscribed).cloned().collect();
-        let outcome = self
-            .stream
-            .unsubscribe(removed)
-            .await
-            .and(self.stream.subscribe(added.iter().cloned().collect()).await);
-        if let Err(error) = outcome {
-            self.problems.subscription = Some(error.to_string());
-        }
-        self.subscribed = wanted;
-        if !added.is_empty() {
-            self.backfill_session(added).await;
+        leases.mark_unchanged();
+        for (index, wanted) in self.inner.placement().into_iter().enumerate() {
+            let connection = &mut self.connections[index];
+            if wanted == connection.subscribed {
+                continue;
+            }
+            let removed = connection.subscribed.difference(&wanted).cloned().collect();
+            let added: BTreeSet<Symbol> =
+                wanted.difference(&connection.subscribed).cloned().collect();
+            let outcome = connection.stream.unsubscribe(removed).await.and(
+                connection
+                    .stream
+                    .subscribe(added.iter().cloned().collect())
+                    .await,
+            );
+            if let Err(error) = outcome {
+                connection.problems.subscription = Some(error.to_string());
+            }
+            connection.subscribed = wanted;
+            if !added.is_empty() {
+                self.backfill_session(index, added).await;
+            }
         }
     }
 
-    async fn backfill_session(&mut self, symbols: BTreeSet<Symbol>) {
+    async fn backfill_session(&mut self, index: usize, symbols: BTreeSet<Symbol>) {
         let now = Timestamp::now();
         let date = now.exchange_date();
-        let calendar = match self.inner.market.calendar(date, date).await {
+        let calendar = match self.rest.market.calendar(date, date).await {
             Ok(calendar) => calendar,
             Err(error) => {
-                self.problems.calendar = Some(error.to_string());
+                self.calendar_problem = Some(error.to_string());
                 return;
             }
         };
         if let Some(session) = calendar.session(date) {
-            let to = self.settled_through.unwrap_or_else(|| minute_floor(now));
-            self.request_backfill(symbols, session.open, to.min(session.close));
+            let connection = &mut self.connections[index];
+            let to = connection
+                .settled_through
+                .unwrap_or_else(|| minute_floor(now));
+            connection.request_backfill(&self.rest, symbols, session.open, to.min(session.close));
         }
     }
 
-    async fn on_bar(&mut self, bar: Bar) {
+    async fn on_bar(&mut self, index: usize, bar: Bar) {
         let date = bar.start.exchange_date();
         let calendar = self
-            .inner
+            .rest
             .market
             .calendar(date, date)
             .await
             .unwrap_or_default();
         let Some(session) = calendar.session(date) else {
-            self.problems.calendar = Some(format!(
+            self.calendar_problem = Some(format!(
                 "the calendar has no session on {date}, so its live bars are not stored"
             ));
             return;
         };
-        self.problems.calendar = None;
+        self.calendar_problem = None;
         if !(session.open..session.close).contains(&bar.start) {
             return;
         }
-        if self
+        let connection = &mut self.connections[index];
+        if connection
             .settled_through
             .is_some_and(|through| bar.start < through)
         {
-            self.queue(DataSource::AlpacaStream, vec![bar]);
+            self.store.queue(DataSource::AlpacaStream, vec![bar]);
         } else {
-            self.pending
+            connection
+                .pending
                 .entry(bar.start)
                 .or_default()
                 .insert(bar.symbol.clone(), bar);
         }
+    }
+
+    fn settle_minutes(&mut self, now: Timestamp) {
+        for connection in &mut self.connections {
+            let bars = connection.settle(now);
+            self.store.queue(DataSource::AlpacaStream, bars);
+        }
+    }
+
+    fn watermark(&self) -> Option<Timestamp> {
+        let open = self
+            .connections
+            .iter()
+            .filter(|connection| !connection.closed);
+        let streaming: Vec<Option<Timestamp>> = open
+            .clone()
+            .filter(|connection| !connection.subscribed.is_empty())
+            .map(|connection| connection.settled_through)
+            .collect();
+        match streaming.into_iter().min() {
+            Some(slowest) => slowest,
+            None => open
+                .filter_map(|connection| connection.settled_through)
+                .max(),
+        }
+    }
+
+    async fn flush(&mut self) {
+        let store = &mut self.store;
+        if store.retry_at.is_some_and(|at| Instant::now() < at) {
+            return;
+        }
+        let market = &self.rest.market;
+        while let Some((source, bars)) = store.unwritten.front() {
+            if let Err(error) = market
+                .upsert_bars(*source, Timeframe::Minute, bars.clone())
+                .await
+            {
+                tracing::warn!(%error, "writing live minute bars failed");
+                store.problem = Some(format!("writing minute bars failed: {error}"));
+                store.retry_at = Some(Instant::now() + STORE_RETRY);
+                return;
+            }
+            store.unwritten.pop_front();
+        }
+        store.retry_at = None;
+        store.problem = None;
+        let Some(through) = self.watermark() else {
+            return;
+        };
+        let store = &mut self.store;
+        if store.published_through >= Some(through) {
+            return;
+        }
+        match market.advance_watermark(Timeframe::Minute, through).await {
+            Ok(()) => store.published_through = Some(through),
+            Err(error) => store.problem = Some(error.to_string()),
+        }
+    }
+
+    fn publish(&self) {
+        let error = describe([&self.calendar_problem, &self.store.problem]);
+        self.inner.slots.send_if_modified(|slots| {
+            let mut changed = slots.error != error;
+            slots.error = error;
+            for (view, connection) in slots.connections.iter_mut().zip(&self.connections) {
+                let problems = &connection.problems;
+                let error =
+                    describe([&problems.stream, &problems.subscription, &problems.backfill]);
+                changed |= view.connected != connection.connected || view.error != error;
+                view.connected = connection.connected;
+                view.error = error;
+            }
+            changed
+        });
+    }
+
+    fn wake_at(&self) -> Option<Instant> {
+        let retry = self
+            .store
+            .retry_at
+            .filter(|_| !self.store.unwritten.is_empty());
+        self.connections
+            .iter()
+            .filter_map(Connection::settle_at)
+            .chain(retry)
+            .min()
+    }
+}
+
+impl Connection {
+    fn new(stream: StreamHandle) -> Self {
+        Self {
+            stream,
+            subscribed: BTreeSet::new(),
+            connected: false,
+            closed: false,
+            settled_through: None,
+            pending: BTreeMap::new(),
+            backfill: None,
+            problems: Problems::default(),
+        }
+    }
+
+    fn healthy(&self) -> bool {
+        self.connected && self.backfill.is_none()
     }
 
     fn every_subscribed_bar_arrived(&self, minute: Timestamp) -> bool {
@@ -240,14 +382,14 @@ impl Pump {
             })
     }
 
-    fn settle_minutes(&mut self, now: Timestamp) {
+    fn settle(&mut self, now: Timestamp) -> Vec<Bar> {
+        let mut bars = Vec::new();
         if !self.healthy() {
-            return;
+            return bars;
         }
         let Some(mut minute) = self.settled_through else {
-            return;
+            return bars;
         };
-        let mut bars = Vec::new();
         while self.every_subscribed_bar_arrived(minute) || quiet_past_grace(minute, now) {
             if let Some(arrived) = self.pending.remove(&minute) {
                 bars.extend(arrived.into_values());
@@ -255,10 +397,22 @@ impl Pump {
             minute = minute + MINUTE;
         }
         self.settled_through = Some(minute);
-        self.queue(DataSource::AlpacaStream, bars);
+        bars
     }
 
-    fn request_backfill(&mut self, symbols: BTreeSet<Symbol>, from: Timestamp, to: Timestamp) {
+    fn settle_at(&self) -> Option<Instant> {
+        self.settled_through
+            .filter(|_| self.healthy())
+            .map(|minute| instant_at(minute + MINUTE + LATE_BAR_GRACE))
+    }
+
+    fn request_backfill(
+        &mut self,
+        rest: &Rest,
+        symbols: BTreeSet<Symbol>,
+        from: Timestamp,
+        to: Timestamp,
+    ) {
         let floor = minute_floor(Timestamp::now()) - BACKFILL_LOOKBACK_LIMIT;
         let from = self
             .settled_through
@@ -280,12 +434,13 @@ impl Pump {
             None => (symbols, from, to),
         };
         if from < to {
-            self.start_backfill(symbols, from, to, 0);
+            self.start_backfill(rest, symbols, from, to, 0);
         }
     }
 
     fn start_backfill(
         &mut self,
+        rest: &Rest,
         symbols: BTreeSet<Symbol>,
         from: Timestamp,
         to: Timestamp,
@@ -298,8 +453,8 @@ impl Pump {
                 .min(RETRY_MAX),
         };
         let fetch = fetch_minutes(
-            self.alpaca.clone(),
-            self.inner.market.clone(),
+            rest.alpaca.clone(),
+            rest.market.clone(),
             symbols.iter().cloned().collect(),
             from,
             to,
@@ -316,7 +471,12 @@ impl Pump {
         });
     }
 
-    fn on_backfilled(&mut self, fetched: Result<Vec<Bar>, FeedError>) {
+    fn on_backfilled(
+        &mut self,
+        fetched: Result<Vec<Bar>, FeedError>,
+        rest: &Rest,
+        store: &mut Store,
+    ) {
         let Some(done) = self.backfill.take() else {
             return;
         };
@@ -328,8 +488,8 @@ impl Pump {
                     .range(..done.from)
                     .flat_map(|(_, arrived)| arrived.values().cloned())
                     .collect();
-                self.queue(DataSource::AlpacaStream, before_range);
-                self.queue(DataSource::Alpaca, bars);
+                store.queue(DataSource::AlpacaStream, before_range);
+                store.queue(DataSource::Alpaca, bars);
                 self.settled_through = Some(
                     self.settled_through
                         .map_or(done.to, |through| through.max(done.to)),
@@ -342,65 +502,9 @@ impl Pump {
                     "backfill {}..{} failed: {error}",
                     done.from, done.to
                 ));
-                self.start_backfill(done.symbols, done.from, done.to, done.attempt + 1);
+                self.start_backfill(rest, done.symbols, done.from, done.to, done.attempt + 1);
             }
         }
-    }
-
-    fn queue(&mut self, source: DataSource, bars: Vec<Bar>) {
-        if !bars.is_empty() {
-            self.unwritten.push_back((source, bars));
-        }
-    }
-
-    async fn flush(&mut self) {
-        if self.store_retry_at.is_some_and(|at| Instant::now() < at) {
-            return;
-        }
-        let market = &self.inner.market;
-        while let Some((source, bars)) = self.unwritten.front() {
-            if let Err(error) = market
-                .upsert_bars(*source, Timeframe::Minute, bars.clone())
-                .await
-            {
-                tracing::warn!(%error, "writing live minute bars failed");
-                self.problems.store = Some(format!("writing minute bars failed: {error}"));
-                self.store_retry_at = Some(Instant::now() + STORE_RETRY);
-                return;
-            }
-            self.unwritten.pop_front();
-        }
-        self.store_retry_at = None;
-        self.problems.store = None;
-        let Some(through) = self.settled_through else {
-            return;
-        };
-        if self.published_through >= Some(through) {
-            return;
-        }
-        match market.advance_watermark(Timeframe::Minute, through).await {
-            Ok(()) => self.published_through = Some(through),
-            Err(error) => self.problems.store = Some(error.to_string()),
-        }
-    }
-
-    fn publish(&self) {
-        let error = self.problems.describe();
-        self.inner.slots.send_if_modified(|slots| {
-            let changed = slots.connected != self.connected || slots.error != error;
-            slots.connected = self.connected;
-            slots.error = error;
-            changed
-        });
-    }
-
-    fn wake_at(&self) -> Option<Instant> {
-        let settle = self
-            .settled_through
-            .filter(|_| self.healthy())
-            .map(|minute| instant_at(minute + MINUTE + LATE_BAR_GRACE));
-        let retry = self.store_retry_at.filter(|_| !self.unwritten.is_empty());
-        settle.into_iter().chain(retry).min()
     }
 }
 
@@ -408,7 +512,7 @@ fn quiet_past_grace(minute: Timestamp, now: Timestamp) -> bool {
     now >= minute + MINUTE + LATE_BAR_GRACE
 }
 
-async fn fetch_minutes(
+pub(crate) async fn fetch_minutes(
     alpaca: AlpacaClient,
     market: MarketStore,
     symbols: Vec<Symbol>,
@@ -463,11 +567,19 @@ async fn stored_through(market: &MarketStore) -> Result<Option<Timestamp>, FeedE
     Ok(bars.iter().map(|bar| bar.start + MINUTE).max())
 }
 
-async fn backfilled(backfill: &mut Option<Backfill>) -> Result<Vec<Bar>, FeedError> {
-    match backfill {
-        Some(backfill) => (&mut backfill.bars).await,
-        None => std::future::pending().await,
+async fn backfilled(connections: &mut [Connection]) -> (usize, Result<Vec<Bar>, FeedError>) {
+    let running: Vec<_> = connections
+        .iter_mut()
+        .enumerate()
+        .filter_map(|(index, connection)| {
+            let backfill = connection.backfill.as_mut()?;
+            Some(Box::pin(async move { (index, (&mut backfill.bars).await) }))
+        })
+        .collect();
+    if running.is_empty() {
+        return std::future::pending().await;
     }
+    futures::future::select_all(running).await.0
 }
 
 async fn sleep_until(wake: Option<Instant>) {

@@ -8,12 +8,13 @@ use std::ops::RangeInclusive;
 use std::path::Path;
 use std::sync::Arc;
 
-use buizz_core::api::{BotFootprint, BotUsage, RunSummary, SparkPoint};
+use buizz_core::api::{BotFootprint, BotUsage, RunSummary};
+
 use buizz_core::ledger::{LedgerEntry, Portfolio};
 use buizz_core::market::{DataSource, Dataset, Symbol};
 use buizz_core::ops::{JobOutcome, JobRun, SourceFetch};
 use buizz_core::order::{Fill, Order, OrderId};
-use buizz_core::performance::Metrics;
+use buizz_core::performance::{LiveStats, Metrics};
 use buizz_core::run::{
     DesiredState, EquityPoint, Mode, RunBadge, RunConfig, RunEvent, RunEventType, RunId, RunStatus,
 };
@@ -105,6 +106,12 @@ pub struct RunOutcome {
     pub metrics: Option<Metrics>,
     pub message: Option<String>,
     pub badge: Option<RunBadge>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BotActivity {
+    pub last_run_at: Option<Timestamp>,
+    pub screened: bool,
 }
 
 #[derive(Clone)]
@@ -239,12 +246,6 @@ impl StateStore {
             .await
     }
 
-    pub async fn sparkline(&self, run_id: RunId, points: u32) -> Result<Vec<SparkPoint>> {
-        self.db
-            .read(move |connection| runs::sparkline(connection, run_id, points))
-            .await
-    }
-
     pub async fn events(
         &self,
         run_id: RunId,
@@ -261,6 +262,23 @@ impl StateStore {
         let bot = bot.to_owned();
         self.db
             .read(move |connection| runs::holdout_runs(connection, &bot))
+            .await
+    }
+
+    pub async fn set_live_stats(&self, run_id: RunId, stats: LiveStats) -> Result<()> {
+        self.db
+            .transaction(move |transaction| runs::set_live_stats(transaction, run_id, &stats))
+            .await
+    }
+
+    pub async fn live_runs_started(&self) -> Result<u32> {
+        self.db.read(runs::live_runs_started).await
+    }
+
+    pub async fn bot_activity(&self, bot: &str, bot_hash: &str) -> Result<BotActivity> {
+        let (bot, bot_hash) = (bot.to_owned(), bot_hash.to_owned());
+        self.db
+            .read(move |connection| runs::bot_activity(connection, &bot, &bot_hash))
             .await
     }
 

@@ -1,24 +1,24 @@
 import { useState } from "react";
 import { api, errorMessage, must, type Schemas } from "../api/client";
-import { PRESETS, type Preset } from "../lib/route";
 import { Modal } from "../ui/Dialog";
 import { Info } from "../ui/Popover";
 import { notify } from "../ui/Toaster";
 
 type Props = {
-  bot: Schemas["BotSummary"];
+  name: string;
+  holdoutRuns: number;
   risk: Schemas["RiskLimits"];
   onStarted: (run: Schemas["RunSummary"]) => void;
   onClose: () => void;
 };
 
-type Choice = Exclude<Preset, "holdout"> | "custom";
+type Choice = Exclude<Schemas["PeriodPreset"], "holdout"> | "custom";
 
 type Limit = keyof Schemas["RiskLimits"];
 
 type Percents = Record<Limit, string>;
 
-const CHOICES: readonly Choice[] = [...PRESETS.filter((preset) => preset !== "holdout"), "custom"];
+const CHOICES: readonly Choice[] = ["1y", "3y", "5y", "10y", "custom"];
 
 const LIMITS: readonly { key: Limit; label: string; title: string }[] = [
   { key: "max_position_weight", label: "Max position %", title: "Reject orders that grow one position past this share of equity" },
@@ -56,7 +56,7 @@ function request(choice: Choice, period: Schemas["Period"], holdout: boolean): S
   return holdout ? { preset: "holdout", allow_holdout: true } : { preset: choice };
 }
 
-export function BacktestDialog({ bot, risk, onStarted, onClose }: Props) {
+export function BacktestDialog({ name, holdoutRuns, risk, onStarted, onClose }: Props) {
   const [choice, setChoice] = useState<Choice>("5y");
   const [period, setPeriod] = useState<Schemas["Period"]>({ from: "", to: "" });
   const [holdout, setHoldout] = useState(false);
@@ -72,7 +72,7 @@ export function BacktestDialog({ bot, risk, onStarted, onClose }: Props) {
       const body = request(choice, period, holdout);
       const run = await must(
         api.POST("/api/bots/{name}/backtests", {
-          params: { path: { name: bot.name } },
+          params: { path: { name } },
           body: overridden ? { ...body, risk: fractions(limits) } : body,
         }),
       );
@@ -86,7 +86,7 @@ export function BacktestDialog({ bot, risk, onStarted, onClose }: Props) {
 
   return (
     <Modal
-      title={`Backtest ${bot.name}`}
+      title={`Backtest ${name}`}
       confirmLabel={holdout && !custom ? "Run on holdout" : "Run"}
       danger={holdout}
       busy={busy}
@@ -149,7 +149,7 @@ export function BacktestDialog({ bot, risk, onStarted, onClose }: Props) {
           Holdout
         </label>
         <Info label="Holdout">
-          {custom ? "Allow the period to reach into the locked last 12 months" : "Run on the locked last 12 months instead"}; counted per bot ({bot.holdout_runs} so far).
+          {custom ? "Allow the period to reach into the locked last 12 months" : "Run on the locked last 12 months instead"}; counted per bot ({holdoutRuns} so far).
         </Info>
       </span>
       <fieldset className="risk-limits" aria-label="Risk limits">

@@ -18,7 +18,8 @@ pub async fn live_run(spine: &Spine, bot: &str) -> RunSummary {
     let id = bots
         .iter()
         .find(|summary| summary.name == bot)
-        .and_then(|summary| summary.live_run)
+        .and_then(|summary| summary.live.first())
+        .map(|live| live.run.id)
         .unwrap_or_else(|| panic!("{bot} has a live run"));
     spine.run(id).await
 }

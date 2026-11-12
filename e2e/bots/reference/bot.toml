@@ -1,5 +1,5 @@
-description = "Reports the S&P 500 universe, instrument profiles and earnings releases it sees on each daily step"
+description = "Reports the S&P 500 universe, instrument profiles and earnings releases it sees on each daily step, and hedges half its equity in SPY, which is outside that universe"
 command = ["uv", "run", "--frozen", "--quiet", "--project", "../../../sdk/python", "python", "bot.py"]
 timeframe = "1d"
 universe = { index = "sp500" }
-params = { symbols = ["AAA", "BBB", "SPY"] }
+params = { symbols = ["AAA", "BBB", "SPY"], hedge = "SPY" }

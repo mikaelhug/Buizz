@@ -1,0 +1,67 @@
+.bots-empty {
+  margin: 0;
+}
+
+.board tr.attention > .board-name {
+  box-shadow: inset 2px 0 var(--down);
+}
+
+.spark-cell {
+  width: 140px;
+  min-width: 120px;
+}
+
+.sparkline {
+  margin: 0;
+}
+
+.sparkline svg {
+  display: block;
+  width: 100%;
+  height: 28px;
+  overflow: visible;
+}
+
+.sparkline polyline {
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.sparkline-run {
+  stroke: var(--accent);
+}
+
+.sparkline-benchmark {
+  stroke: var(--bench);
+  stroke-dasharray: 3 2;
+}
+
+.sparkline-base {
+  stroke: var(--grid);
+  vector-effect: non-scaling-stroke;
+}
+
+.sparkline-empty {
+  height: 28px;
+  border-bottom: 1px dashed var(--border-strong);
+}
+
+.actions-cell {
+  text-align: right;
+}
+
+.stage {
+  font-size: var(--fs-sm);
+  text-transform: capitalize;
+}
+
+.stage-screened {
+  color: var(--up);
+}
+
+.stage-draft {
+  color: var(--muted);
+}

@@ -1,9 +1,10 @@
 use std::ops::RangeInclusive;
 
-use buizz_core::api::{BotFootprint, BotUsage, RunSummary, SparkPoint};
+use buizz_core::api::{BotFootprint, BotUsage, RunSummary};
 use buizz_core::ledger::{LedgerEntry, LedgerKind, Portfolio};
 use buizz_core::market::Symbol;
 use buizz_core::order::{Fill, Order, OrderId};
+use buizz_core::performance::LiveStats;
 use buizz_core::run::{
     DesiredState, EquityPoint, Reproducibility, RunEvent, RunEventKind, RunEventType, RunId,
     RunStatus,
@@ -17,13 +18,15 @@ use crate::codec::{
     enum_text, int, json_text, read_decimal, read_enum, read_json, read_optional, read_timestamp,
     read_u64,
 };
-use crate::{Checkpoint, NewRun, Result, RunFilter, RunOutcome, StateError, StepCommit};
+use crate::{
+    BotActivity, Checkpoint, NewRun, Result, RunFilter, RunOutcome, StateError, StepCommit,
+};
 
 const LIVE_RUN_CONFLICT: &str = "UNIQUE constraint failed: run.bot";
 
 const RUN_COLUMNS: &str = "id, bot, mode, status, desired, config, created_at, started_at, \
     finished_at, clock, equity, metrics, result_hash, badges, bot_hash, engine_version, seed, \
-    data_watermark, message, bot_processes, bot_seconds, bot_peak_memory";
+    data_watermark, message, live_stats, bot_processes, bot_seconds, bot_peak_memory";
 
 fn tag_of<T: Serialize>(value: &T) -> Result<String> {
     match serde_json::to_value(value)?.get("type") {
@@ -48,6 +51,7 @@ fn run_summary(row: &Row) -> rusqlite::Result<RunSummary> {
         clock: read_optional(row, 9, read_timestamp)?,
         equity: read_optional(row, 10, read_decimal)?,
         metrics: read_optional(row, 11, read_json)?,
+        live_stats: read_optional(row, 19, read_json)?,
         result_hash: row.get(12)?,
         badges: read_json(row, 13)?,
         reproducibility: Some(Reproducibility {
@@ -58,9 +62,9 @@ fn run_summary(row: &Row) -> rusqlite::Result<RunSummary> {
         }),
         message: row.get(18)?,
         usage: BotUsage {
-            processes: row.get(19)?,
-            seconds: row.get(20)?,
-            peak_memory: read_u64(row, 21)?,
+            processes: row.get(20)?,
+            seconds: row.get(21)?,
+            peak_memory: read_u64(row, 22)?,
         },
     })
 }
@@ -508,25 +512,6 @@ pub fn equity(connection: &Connection, run_id: RunId) -> Result<Vec<EquityPoint>
     Ok(points)
 }
 
-pub fn sparkline(connection: &Connection, run_id: RunId, points: u32) -> Result<Vec<SparkPoint>> {
-    let mut statement = connection.prepare_cached(
-        "SELECT at, equity FROM (SELECT at, equity, \
-         ROW_NUMBER() OVER (ORDER BY at) - 1 AS position, COUNT(*) OVER () AS total \
-         FROM equity_point WHERE run_id = ?1) \
-         WHERE position % MAX((total + ?2 - 1) / ?2, 1) = 0 OR position = total - 1 \
-         ORDER BY at",
-    )?;
-    let points = statement
-        .query_map(params![run_id.0, points.max(1)], |row| {
-            Ok(SparkPoint {
-                at: read_timestamp(row, 0)?,
-                equity: read_decimal(row, 1)?,
-            })
-        })?
-        .collect::<rusqlite::Result<_>>()?;
-    Ok(points)
-}
-
 pub fn events(
     connection: &Connection,
     run_id: RunId,
@@ -568,5 +553,35 @@ pub fn holdout_runs(connection: &Connection, bot: &str) -> Result<u32> {
         "SELECT COUNT(*) FROM run WHERE bot = ? AND holdout = 1",
         [bot],
         |row| row.get(0),
+    )?)
+}
+
+pub fn set_live_stats(connection: &Connection, run_id: RunId, stats: &LiveStats) -> Result<()> {
+    let changed = connection.execute(
+        "UPDATE run SET live_stats = ? WHERE id = ?",
+        params![json_text(stats)?, run_id.0],
+    )?;
+    require_changed(changed, run_id)
+}
+
+pub fn live_runs_started(connection: &Connection) -> Result<u32> {
+    Ok(
+        connection.query_row("SELECT COUNT(*) FROM run WHERE mode = 'live'", [], |row| {
+            row.get(0)
+        })?,
+    )
+}
+
+pub fn bot_activity(connection: &Connection, bot: &str, bot_hash: &str) -> Result<BotActivity> {
+    Ok(connection.query_row(
+        "SELECT MAX(created_at), COALESCE(MAX(mode = 'backtest' AND status = 'completed' \
+         AND bot_hash = ?2), 0) FROM run WHERE bot = ?1",
+        params![bot, bot_hash],
+        |row| {
+            Ok(BotActivity {
+                last_run_at: read_optional(row, 0, read_timestamp)?,
+                screened: row.get(1)?,
+            })
+        },
     )?)
 }

@@ -20,6 +20,7 @@ pub const LIVE_SYMBOLS: [&str; 3] = ["AAA", "BBB", "SPY"];
 const LIVE_HISTORY_SESSIONS: i64 = 25;
 const LIVE_OPENED_MINUTES_AGO: i64 = 10;
 const LIVE_SESSION_MINUTES: i64 = 40;
+const LIVE_CLOSING_IN_MINUTES: i64 = 12;
 const LIVE_RELEASED_AHEAD_MINUTES: i64 = 5;
 
 pub fn repository() -> PathBuf {
@@ -146,8 +147,16 @@ impl World {
     }
 
     pub fn live(now: Timestamp) -> Self {
+        Self::live_opened(now, LIVE_OPENED_MINUTES_AGO)
+    }
+
+    pub fn live_closing(now: Timestamp) -> Self {
+        Self::live_opened(now, LIVE_SESSION_MINUTES - LIVE_CLOSING_IN_MINUTES)
+    }
+
+    fn live_opened(now: Timestamp, minutes_ago: i64) -> Self {
         let today = now.exchange_date();
-        let open = minute_floor(now) - TimeDelta::minutes(LIVE_OPENED_MINUTES_AGO);
+        let open = minute_floor(now) - TimeDelta::minutes(minutes_ago);
         let close = open + TimeDelta::minutes(LIVE_SESSION_MINUTES);
         assert_eq!(
             close.exchange_date(),

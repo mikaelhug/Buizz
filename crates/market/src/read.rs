@@ -319,6 +319,49 @@ pub(crate) fn history(
     Ok(rows)
 }
 
+pub(crate) fn split_adjusted_closes(
+    connection: &Connection,
+    calendar: &Calendar,
+    symbols: &[Symbol],
+    as_of: Timestamp,
+) -> Result<BTreeMap<Symbol, Decimal>> {
+    let visible = visible_bars(
+        connection,
+        calendar,
+        Timeframe::Day,
+        unique(symbols),
+        1,
+        as_of,
+    )?;
+    let Some(earliest) = visible
+        .values()
+        .flatten()
+        .map(|bar| bar.start.exchange_date())
+        .min()
+    else {
+        return Ok(BTreeMap::new());
+    };
+    let priced: Vec<Symbol> = visible.keys().cloned().collect();
+    let factors = adjustment_factors(
+        connection,
+        calendar,
+        &priced,
+        Adjustment::Split,
+        earliest,
+        as_of,
+    )?;
+    Ok(visible
+        .into_values()
+        .flatten()
+        .map(|bar| {
+            let symbol_factors = factors.get(&bar.symbol).map_or(&[][..], Vec::as_slice);
+            let (price, _) =
+                AdjustmentFactor::cumulative(bar.start.exchange_date(), symbol_factors);
+            (bar.symbol, bar.close * price)
+        })
+        .collect())
+}
+
 fn adjustment_factors(
     connection: &Connection,
     calendar: &Calendar,

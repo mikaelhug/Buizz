@@ -416,17 +416,6 @@
   }
 }
 
-.skeleton-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: var(--sp-3);
-}
-
-.skeleton-cards > .skeleton {
-  height: 124px;
-  border-radius: var(--r-lg);
-}
-
 .skeleton-table {
   display: grid;
   gap: var(--sp-2);

@@ -300,6 +300,12 @@ impl Engine {
         outbox
     }
 
+    pub fn quote(&mut self, closes: BTreeMap<Symbol, Decimal>) {
+        for (symbol, close) in closes {
+            self.state.last_close.insert(symbol, round_price(close));
+        }
+    }
+
     pub fn closing_auction(&self, session: NaiveDate) -> Vec<Symbol> {
         let symbols: BTreeSet<&Symbol> = self
             .state

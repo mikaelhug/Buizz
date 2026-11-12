@@ -1,5 +1,6 @@
 import numpy as np
 import numpy.typing as npt
+from buizz_bots.switch import hold_only
 
 from buizz import Bot, Context, History, run
 
@@ -77,10 +78,7 @@ class BreadthRegime(Bot):
             hold, why = asset, f"{signal} below {threshold:.0%} but {asset} {close:.2f} above its SMA {sma:.2f}"
         else:
             hold, why = cash, f"{signal} below {threshold:.0%} and {asset} {close:.2f} at or below its SMA {sma:.2f}"
-        held = {symbol for symbol, position in ctx.portfolio.positions.items() if position.qty != 0}
-        if held == {hold}:
-            return
-        ctx.rebalance({hold: 1.0}, reason=why, exit_reason=why)
+        hold_only(ctx, hold, why)
 
 
 if __name__ == "__main__":

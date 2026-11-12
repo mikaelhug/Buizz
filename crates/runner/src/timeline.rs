@@ -300,6 +300,31 @@ impl Timeline {
         Ok(so_far.into_values().collect())
     }
 
+    pub(crate) async fn last_closes(
+        &self,
+        session: &Session,
+        at: Timestamp,
+        symbols: Vec<Symbol>,
+    ) -> Result<BTreeMap<Symbol, Decimal>, MarketError> {
+        let mut closes = BTreeMap::new();
+        if self.timeframe == Timeframe::Minute || !session.is_closed_at(at) {
+            let through = at - TimeDelta::seconds(60) + TIMESTAMP_RESOLUTION;
+            let minutes = self
+                .market
+                .bars_between(Timeframe::Minute, symbols.clone(), session.open, through)
+                .await?;
+            closes.extend(minutes.into_iter().map(|bar| (bar.symbol, bar.close)));
+        }
+        let unpriced: Vec<Symbol> = symbols
+            .into_iter()
+            .filter(|symbol| !closes.contains_key(symbol))
+            .collect();
+        if !unpriced.is_empty() {
+            closes.extend(self.market.split_adjusted_closes(unpriced, at).await?);
+        }
+        Ok(closes)
+    }
+
     pub(crate) async fn official(
         &self,
         session: &Session,

@@ -1,8 +1,8 @@
-description = "Point-in-time S&P 500 breadth regime: after each close, the share of that day's members (ctx.universe_at, delisted members included) above their own 200-day SMA, averaged over 10 sessions; hold SPY while it is at least 50%, below that only while SPY is above its own 200-day SMA, else BIL, trading at the next open"
+description = "Point-in-time S&P 500 breadth regime: after each close, the share of that day's members (ctx.universe_at, delisted members included) above their own 200-day SMA, averaged over 10 sessions; hold SPY while it is at least 50%, below that only while SPY is above its own 200-day SMA, else BIL, trading at the next open. The universe is the point-in-time index, not the two funds it trades, so its runs carry no survivorship badge; SPY and BIL are tradable outside it"
 command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
 timeframe = "1d"
 wake = "bar"
-universe = { symbols = ["SPY", "BIL"] }
+universe = { index = "sp500" }
 params = { asset = "SPY", cash = "BIL", sma_days = 200, smoothing_days = 10, threshold = 0.5 }
 
 [risk]

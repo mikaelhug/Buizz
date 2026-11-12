@@ -1,6 +1,6 @@
 mod wire;
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::convert::Infallible;
 use std::env;
 use std::sync::Arc;
@@ -23,6 +23,7 @@ use crate::http::SourceError;
 
 pub const STREAM_URL: &str = "wss://stream.data.alpaca.markets/v2/iex";
 pub const STREAM_URL_ENV: &str = "ALPACA_STREAM_URL";
+pub const STREAM_KEYS_ENV: &str = "ALPACA_STREAM_KEYS";
 pub const NEWS_URL: &str = "wss://stream.data.alpaca.markets/v1beta1/news";
 pub const SYMBOL_CAP: usize = 30;
 pub const AUTH_TIMEOUT: Duration = Duration::from_secs(10);
@@ -49,6 +50,38 @@ impl StreamConfig {
             reconnect_max: Duration::from_secs(60),
         }
     }
+}
+
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
+pub enum StreamKeysError {
+    #[error("line {0} of {STREAM_KEYS_ENV} is not key_id:secret")]
+    Malformed(usize),
+    #[error(
+        "lines {0} and {1} of {STREAM_KEYS_ENV} name the same key, and Alpaca allows one stream per account"
+    )]
+    Repeated(usize, usize),
+}
+
+pub fn stream_keys(text: &str) -> Result<Vec<AlpacaConfig>, StreamKeysError> {
+    let mut first_line = BTreeMap::new();
+    let mut accounts = Vec::new();
+    for (index, line) in text.lines().enumerate() {
+        let number = index + 1;
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let (key_id, secret) = line
+            .split_once(':')
+            .map(|(key_id, secret)| (key_id.trim(), secret.trim()))
+            .filter(|(key_id, secret)| !key_id.is_empty() && !secret.is_empty())
+            .ok_or(StreamKeysError::Malformed(number))?;
+        if let Some(first) = first_line.insert(key_id.to_owned(), number) {
+            return Err(StreamKeysError::Repeated(first, number));
+        }
+        accounts.push(AlpacaConfig::new(key_id.to_owned(), secret.to_owned()));
+    }
+    Ok(accounts)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

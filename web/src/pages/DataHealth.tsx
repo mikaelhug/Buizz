@@ -106,16 +106,22 @@ function FeedPanel({ feed }: { feed: Resource<Schemas["FeedSlots"]> }) {
   if (!feed.data) {
     return <section className="panel">{feed.error ? <Failure message={feed.error} onRetry={feed.reload} /> : <Loading />}</section>;
   }
-  const { cap, used, connected, error, holders } = feed.data;
+  const { cap, used, error, connections, holders } = feed.data;
   const fill = share(used, cap);
+  const up = connections.filter((connection) => connection.connected).length;
+  const allUp = connections.length > 0 && up === connections.length;
+  const state = connections.length === 0 ? "Not configured" : allUp ? "Connected" : `${up} of ${connections.length} connected`;
+  const onlyConnection = connections.length === 1 ? connections[0] : undefined;
   return (
     <section className="panel">
       <header className="panel-head">
         <h2>Stream slots</h2>
-        <Info label="Stream slots">Real-time IEX minute-bar symbols in use, out of the plan's cap. Live runs hold slots for the symbols they trade.</Info>
-        <span className={`feed-state ${connected ? "up" : "down"}`}>
-          <span className={`stream-dot stream-${connected ? "open" : "down"}`} aria-hidden="true" />
-          {connected ? "Connected" : "Disconnected"}
+        <Info label="Stream slots">
+          Real-time IEX minute-bar symbols in use, out of 30 per Alpaca stream account. Intraday live runs hold slots for the symbols they trade; daily bots that decide before the close fetch their minutes without one.
+        </Info>
+        <span className={`feed-state ${allUp ? "up" : "down"}`}>
+          <span className={`stream-dot stream-${allUp ? "open" : "down"}`} aria-hidden="true" />
+          {state}
         </span>
       </header>
       <StaleFailure resource={feed} />
@@ -132,6 +138,33 @@ function FeedPanel({ feed }: { feed: Resource<Schemas["FeedSlots"]> }) {
       {error && (
         <p className="form-error" role="status">
           {error}
+        </p>
+      )}
+      {connections.length > 1 && (
+        <ul className="connections">
+          {connections.map((connection, index) => (
+            <li key={index}>
+              <span className="connection-name">
+                <span className={`stream-dot stream-${connection.connected ? "open" : "down"}`} aria-hidden="true" />
+                Account {index + 1}
+                <span className="muted">{connection.connected ? "connected" : "disconnected"}</span>
+                <span className="connection-use num">
+                  {connection.used}
+                  <span className="muted">/{connection.cap}</span>
+                </span>
+              </span>
+              {connection.error && (
+                <span className="form-error" role="status">
+                  {connection.error}
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {onlyConnection?.error && (
+        <p className="form-error" role="status">
+          {onlyConnection.error}
         </p>
       )}
       {holders.length === 0 ? (
