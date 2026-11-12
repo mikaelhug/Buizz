@@ -1,0 +1,9 @@
+description = "Yield-curve armed recession switch (Estrella & Mishkin 1998 on the 10y-3m curve; Sahm 2019 rule): at each month's last close the switch is armed when the daily 10-year minus 3-month yield (dgs10 - treasury_3m, the same day's published values) was below zero on any day of the last 730 days. Unarmed it holds SPY. Armed it holds IEF only while a labour trigger fires AND SPY's month-end total-return close is at or below its 10-month SMA, so it returns to SPY once the trigger clears or SPY regains the SMA; trades at the next open. The labour trigger is the Sahm rule computed from the unrate vintage visible at the clock (the latest 3-month average minus the lowest 3-month average of the 12 months before it, at least 0.5 points) or the latest rate above the average of the last 12; SAHMREALTIME itself is not used because its vintages only start 2019. A trigger while SPY is above its SMA keeps SPY, since the re-entry rule would buy it straight back. Valid from 2005-06-29, the first session after dgs10's first ALFRED vintage (2005-06-28); before that the bot holds nothing. Design period 2005-2015, holdout 2016 to now."
+command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
+timeframe = "1d"
+wake = "bar"
+universe = { symbols = ["SPY", "IEF"] }
+params = { asset = "SPY", bonds = "IEF", armed_days = 730, sahm_threshold = 0.5, unrate_months = 12, sma_months = 10 }
+
+[risk]
+max_gross_exposure = 1.0

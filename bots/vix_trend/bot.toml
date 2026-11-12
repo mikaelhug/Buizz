@@ -1,0 +1,9 @@
+description = "VIX term-structure trend filter (a practitioner idea: an inverted VIX curve, spot above 3-month, marks acute stress; the 200-day trend filter as in Faber 2007): after every close hold IEF only when BOTH SPY's total-return close is below its 200-day SMA AND the latest visible VIX/VIX3M ratio is above 1, otherwise SPY; trades at the next open. VIX and VIX3M close at 16:15 ET and are visible from the next open, so the ratio is the previous session's (the latest date with both closes within 10 days). Valid from 2009-09-21, the first session after VIX3M's first close (2009-09-18); before that the bot holds nothing. Design period 2009-2015, holdout 2016 to now."
+command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
+timeframe = "1d"
+wake = "bar"
+universe = { symbols = ["SPY", "IEF"] }
+params = { asset = "SPY", bonds = "IEF", sma_days = 200, stale_days = 10 }
+
+[risk]
+max_gross_exposure = 1.0
