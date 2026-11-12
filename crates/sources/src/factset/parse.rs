@@ -62,7 +62,8 @@ patterns! {
     PAST_AVERAGE = r"average {FPE} over the past (5|five|10|ten) years \({N}\)";
     BRACKETED_AVERAGE = r"\b(5|five|10|ten)-year \({N}\) average";
     TRAILING_PE = r"trailing 12-month P/E ratio (?:for the S&P 500 )?is {N}";
-    CURRENT_GROWTH = r"(?:For {Q}, )?the (?:estimated|blended)(?: \(year-over-year\))? earnings (growth rate|decline) (?:for (?:the S&P 500|{Q}) )?is {N}%";
+    CURRENT_GROWTH = r"(?:For {Q}, )?the (?:estimated|blended)(?: \(year-over-year\))? (earnings|revenue) (growth rate|decline) (?:for (?:the S&P 500|{Q}) )?is (?:now )?{N}%";
+    DECLINES = r"declines? in (?:both )?earnings \({N}%\) and revenues? \({N}%\)";
     PROJECTED_GROWTH = r"For (?:{Q}|CY (\d{4})), analysts are (?:projecting|predicting|expecting|calling for)(?: \(year-over-year\))? earnings growth (?:rate )?of {N}% and revenue growth (?:rate )?of {N}%";
     EPS_BEATS = r"{N}% (?:of (?:S&P 500 )?companies )?ha(?:ve|s) reported (?:(?:actual )?(?:EPS|earnings) above (?:the mean )?estimates?\b|a positive EPS surprise)";
     REVENUE_BEATS = r"{N}% (?:of (?:S&P 500 )?companies )?ha(?:ve|s) reported (?:(?:actual )?(?:sales|revenues?) above (?:the mean )?estimates?\b|a positive (?:revenue|sales) surprise)";
@@ -193,6 +194,14 @@ fn quarter(captures: &Captures<'_>, quarter: usize, year: usize) -> Option<Estim
     ))
 }
 
+fn quarter_before(sentence: &str, captures: &Captures<'_>) -> Option<EstimatePeriod> {
+    let before = &sentence[..captures.get(0)?.start()];
+    SENTENCE_QUARTER
+        .captures_iter(before)
+        .last()
+        .and_then(|captures| quarter(&captures, 1, 2))
+}
+
 fn about_the_index(sentence: &str, before: usize) -> bool {
     let lead = sentence[..before].to_ascii_lowercase();
     let lead = lead.trim_end();
@@ -309,22 +318,33 @@ fn valuation(found: &mut Candidates, sentence: &str, previous: &str, issued: Nai
 
 fn estimates(found: &mut Candidates, sentence: &str) {
     for captures in CURRENT_GROWTH.captures_iter(sentence) {
-        let period = quarter(&captures, 1, 2).or_else(|| quarter(&captures, 4, 5));
-        let growth = group(&captures, 6).map(|value| {
-            if captures[3].eq_ignore_ascii_case("decline") {
+        let period = quarter(&captures, 1, 2).or_else(|| quarter(&captures, 5, 6));
+        let metric = if captures[3].eq_ignore_ascii_case("revenue") {
+            EstimateMetric::RevenueGrowth
+        } else {
+            EstimateMetric::EpsGrowth
+        };
+        let growth = group(&captures, 7).map(|value| {
+            if captures[4].eq_ignore_ascii_case("decline") {
                 -value.abs()
             } else {
                 value
             }
         });
         if period.is_some() {
-            found.add(
-                EstimateMetric::EpsGrowth,
-                EstimateScope::Sp500,
-                period,
-                growth,
-                None,
-            );
+            found.add(metric, EstimateScope::Sp500, period, growth, None);
+        }
+    }
+    for captures in DECLINES.captures_iter(sentence) {
+        let Some(period) = quarter_before(sentence, &captures) else {
+            continue;
+        };
+        for (metric, index) in [
+            (EstimateMetric::EpsGrowth, 1),
+            (EstimateMetric::RevenueGrowth, 2),
+        ] {
+            let decline = group(&captures, index).map(|value| -value.abs());
+            found.add(metric, EstimateScope::Sp500, Some(period), decline, None);
         }
     }
     for captures in PROJECTED_GROWTH.captures_iter(sentence) {
@@ -351,11 +371,7 @@ fn estimates(found: &mut Candidates, sentence: &str) {
         (&*REVENUE_BEATS, EstimateMetric::RevenueBeatPct),
     ] {
         for captures in regex.captures_iter(sentence) {
-            let before = &sentence[..captures.get(0).expect("the match").start()];
-            let period = SENTENCE_QUARTER
-                .captures_iter(before)
-                .last()
-                .and_then(|captures| quarter(&captures, 1, 2));
+            let period = quarter_before(sentence, &captures);
             if period.is_some() {
                 found.add(
                     metric,

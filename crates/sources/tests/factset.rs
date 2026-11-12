@@ -86,6 +86,10 @@ async fn each_era_of_the_report_yields_the_figures_it_states_and_nothing_it_does
         wednesday[&(ForwardPe, TelecomServices, None)],
         stated("16.6")
     );
+    assert_eq!(
+        wednesday[&(RevenueGrowth, Sp500, quarter(2012, 4))],
+        stated("2.3")
+    );
     assert!(
         !wednesday.contains_key(&index(ForwardPe10yAvg)),
         "this issue quotes only the 5-year average"
