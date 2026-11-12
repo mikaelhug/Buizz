@@ -1,9 +1,9 @@
 from collections import Counter
-from datetime import timedelta
 from decimal import Decimal
 from typing import Any, Literal, TypedDict
 
 import numpy as np
+from buizz_bots.sessions import week_ends
 
 from buizz import Bot, Context, CorporateAction, Fill, History, run
 
@@ -41,12 +41,6 @@ def wilder_n(history: History, period: int) -> float | None:
     for value in true_range[period:].tolist():
         n = (n * (period - 1) + value) / period
     return n if n > 0 else None
-
-
-def week_ends(ctx: Context) -> bool:
-    today = ctx.session.date
-    later = ctx.calendar(today, today + timedelta(days=10))[1:]
-    return not later or later[0].date.isocalendar()[:2] != today.isocalendar()[:2]
 
 
 def side_name(side: int) -> str:

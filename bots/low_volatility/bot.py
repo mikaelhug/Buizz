@@ -1,7 +1,9 @@
-from datetime import date, timedelta
+from datetime import date
 
 import numpy as np
 import numpy.typing as npt
+from buizz_bots.monthly import period_end_closes
+from buizz_bots.sessions import last_session_of_month, week_ends
 
 from buizz import Bot, Context, History, run
 
@@ -11,20 +13,17 @@ DAYS_FROM_EPOCH_TO_MONDAY = 3
 
 
 def completed_week_closes(history: History, today: date, week_ends_today: bool) -> npt.NDArray[np.float64]:
-    days = history.start.astype("datetime64[ns]").astype("datetime64[D]")
-    if days.size == 0 or days[-1] != np.datetime64(today):
-        return np.empty(0)
-    weeks = (days.astype(np.int64) + DAYS_FROM_EPOCH_TO_MONDAY) // 7
-    return history.close[np.append(weeks[1:] != weeks[:-1], week_ends_today)]
+    return period_end_closes(
+        history, today, lambda days: (days.astype(np.int64) + DAYS_FROM_EPOCH_TO_MONDAY) // 7, week_ends_today
+    )
 
 
 class LowVolatility(Bot):
     def on_step(self, ctx: Context) -> None:
-        today = ctx.session.date
-        following = ctx.calendar(today, today + timedelta(days=10))[1].date
-        if following.month == today.month:
+        if not last_session_of_month(ctx):
             return
-        week_ends_today = following.isocalendar().week != today.isocalendar().week
+        today = ctx.session.date
+        week_ends_today = week_ends(ctx)
         weeks: int = ctx.params["vol_weeks"]
         decile = float(ctx.params["decile"])
         members = sorted(ctx.universe)
