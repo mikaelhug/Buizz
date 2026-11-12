@@ -18,7 +18,7 @@ use buizz_sources::alpaca::{AlpacaClient, AlpacaConfig};
 use buizz_sources::alpaca_stream::StreamConfig;
 use chrono::{NaiveTime, TimeDelta};
 use tokio::net::TcpListener;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
+use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 
 const DEADLINE: Duration = Duration::from_secs(10);
 
@@ -27,11 +27,19 @@ enum Command {
     Disconnect,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 struct FakeAlpaca {
-    commands: Arc<tokio::sync::Mutex<UnboundedReceiver<Command>>>,
-    stream_frames: Arc<Mutex<Vec<String>>>,
+    connections: Arc<Mutex<HashMap<String, UnboundedSender<Command>>>>,
+    stream_frames: Arc<Mutex<Vec<(String, String)>>>,
     bar_requests: Arc<Mutex<Vec<HashMap<String, String>>>>,
+}
+
+impl FakeAlpaca {
+    fn command(&self, account: &str, command: Command) {
+        self.connections.lock().unwrap()[account]
+            .send(command)
+            .unwrap();
+    }
 }
 
 async fn serve(fake: FakeAlpaca) -> SocketAddr {
@@ -50,18 +58,30 @@ async fn upgrade(State(fake): State<FakeAlpaca>, upgrade: WebSocketUpgrade) -> R
 }
 
 async fn converse(fake: FakeAlpaca, mut socket: WebSocket) {
-    let mut commands = fake.commands.lock().await;
     let connected = r#"[{"T":"success","msg":"connected"}]"#;
     socket.send(Message::text(connected)).await.unwrap();
-    socket.recv().await;
+    let Some(Ok(Message::Text(auth))) = socket.recv().await else {
+        return;
+    };
+    let account = auth
+        .split(r#""key":""#)
+        .nth(1)
+        .and_then(|rest| rest.split('"').next())
+        .unwrap()
+        .to_owned();
     let authenticated = r#"[{"T":"success","msg":"authenticated"}]"#;
     socket.send(Message::text(authenticated)).await.unwrap();
+    let (sender, mut commands) = unbounded_channel();
+    fake.connections
+        .lock()
+        .unwrap()
+        .insert(account.clone(), sender);
     let mut subscribed = BTreeSet::new();
     loop {
         tokio::select! {
             message = socket.recv() => match message {
                 Some(Ok(Message::Text(text))) => {
-                    fake.stream_frames.lock().unwrap().push(text.to_string());
+                    fake.stream_frames.lock().unwrap().push((account.clone(), text.to_string()));
                     let listed = listed_bars(&text);
                     if text.contains(r#""action":"unsubscribe""#) {
                         subscribed.retain(|symbol| !listed.contains(symbol));
@@ -154,14 +174,14 @@ async fn eventually<T, F: Future<Output = Option<T>>>(mut probe: impl FnMut() ->
     .expect("condition holds within the deadline")
 }
 
-fn frames(fake: &FakeAlpaca, action: &str) -> Vec<String> {
+fn frames(fake: &FakeAlpaca, account: &str, action: &str) -> Vec<String> {
     let action = format!(r#""action":"{action}""#);
     fake.stream_frames
         .lock()
         .unwrap()
         .iter()
-        .filter(|frame| frame.contains(&action))
-        .cloned()
+        .filter(|(sent_on, frame)| sent_on == account && frame.contains(&action))
+        .map(|(_, frame)| frame.clone())
         .collect()
 }
 
@@ -169,7 +189,7 @@ async fn closes_at(market: &MarketStore, start: Timestamp) -> Vec<(String, Strin
     market
         .bars_between(
             Timeframe::Minute,
-            symbols(&["AAA", "BBB", "CCC", "DDD"]),
+            symbols(&["AAA", "BBB", "CCC", "DDD", "EEE"]),
             start,
             start + TimeDelta::minutes(1),
         )
@@ -181,23 +201,18 @@ async fn closes_at(market: &MarketStore, start: Timestamp) -> Vec<(String, Strin
 }
 
 #[tokio::test]
-async fn leases_share_stream_slots_and_live_bars_land_with_gaps_backfilled() {
-    let (commands, receiver): (UnboundedSender<Command>, _) = unbounded_channel();
-    let fake = FakeAlpaca {
-        commands: Arc::new(tokio::sync::Mutex::new(receiver)),
-        stream_frames: Arc::default(),
-        bar_requests: Arc::default(),
-    };
+async fn leases_share_two_accounts_and_a_dropped_connection_backfills_only_its_symbols() {
+    let fake = FakeAlpaca::default();
     let address = serve(fake.clone()).await;
-    let alpaca = AlpacaConfig {
+    let account = |key: &str| AlpacaConfig {
         data_url: format!("http://{address}"),
-        ..AlpacaConfig::new("key".to_owned(), "secret".to_owned())
+        ..AlpacaConfig::new(key.to_owned(), "secret".to_owned())
     };
-    let stream = StreamConfig {
+    let stream = |key: &str| StreamConfig {
         url: format!("ws://{address}/stream"),
         reconnect_initial: Duration::from_millis(50),
         reconnect_max: Duration::from_millis(200),
-        ..StreamConfig::new(alpaca.clone())
+        ..StreamConfig::new(account(key))
     };
     let dir = tempfile::tempdir().unwrap();
     let market = MarketStore::open(&dir.path().join(FILE_NAME), 2)
@@ -209,28 +224,29 @@ async fn leases_share_stream_slots_and_live_bars_land_with_gaps_backfilled() {
         .unwrap();
     let feed = FeedManager::new(
         FeedConfig {
-            cap: 3,
-            stream: Some(stream),
+            symbols_per_connection: 2,
+            streams: vec![stream("one"), stream("two")],
         },
         market.clone(),
-        Some(AlpacaClient::new(alpaca).unwrap()),
+        Some(AlpacaClient::new(account("one")).unwrap()),
     );
     let task = feed.spawn();
+    assert_eq!(feed.slots().borrow().cap, 4);
 
     let alpha = feed
         .acquire(RunId(1), "alpha", symbols(&["AAA", "BBB"]))
         .unwrap();
     let mut beta = feed
-        .acquire(RunId(2), "beta", symbols(&["BBB", "CCC"]))
+        .acquire(RunId(2), "beta", symbols(&["BBB", "CCC", "DDD"]))
         .unwrap();
-    let refused = feed.acquire(RunId(3), "gamma", symbols(&["DDD"]));
+    let refused = feed.acquire(RunId(3), "gamma", symbols(&["EEE"]));
     let Err(FeedError::CapExceeded {
         requested,
         available,
         holders,
     }) = refused
     else {
-        panic!("a fourth symbol must exceed the cap of three");
+        panic!("a fifth symbol must exceed two accounts of two");
     };
     assert_eq!((requested, available), (1, 0));
     let named: Vec<_> = holders
@@ -238,44 +254,57 @@ async fn leases_share_stream_slots_and_live_bars_land_with_gaps_backfilled() {
         .map(|holder| (holder.run_id, holder.bot.as_str()))
         .collect();
     assert_eq!(named, [(RunId(1), "alpha"), (RunId(2), "beta")]);
+    let used: Vec<u32> = feed
+        .slots()
+        .borrow()
+        .connections
+        .iter()
+        .map(|connection| connection.used)
+        .collect();
+    assert_eq!(used, [2, 2]);
+
+    let subscribed = |account: &'static str, wanted: &'static [&'static str]| {
+        let fake = fake.clone();
+        async move {
+            let sent = frames(&fake, account, "subscribe").concat();
+            wanted
+                .iter()
+                .all(|symbol| sent.contains(symbol))
+                .then_some(sent)
+        }
+    };
+    let one = eventually(|| subscribed("one", &["AAA", "CCC"])).await;
+    let two = eventually(|| subscribed("two", &["BBB", "DDD"])).await;
+    assert!(!one.contains("BBB") && !one.contains("DDD"), "{one}");
+    assert!(!two.contains("AAA") && !two.contains("CCC"), "{two}");
+
+    drop(alpha);
+    let released = eventually(|| async { frames(&fake, "one", "unsubscribe").pop() }).await;
+    assert!(released.contains("AAA"), "{released}");
+    assert!(frames(&fake, "two", "unsubscribe").is_empty());
     assert_eq!(feed.slots().borrow().used, 3);
 
-    eventually(|| async {
-        let subscribed = frames(&fake, "subscribe").concat();
-        ["AAA", "BBB", "CCC"]
-            .iter()
-            .all(|symbol| subscribed.contains(symbol))
-            .then_some(())
-    })
-    .await;
-    drop(alpha);
-    let released = eventually(|| async { frames(&fake, "unsubscribe").pop() }).await;
-    assert!(released.contains("AAA"), "{released}");
-    assert!(
-        !released.contains("BBB") && !released.contains("CCC"),
-        "{released}"
-    );
-    assert_eq!(feed.slots().borrow().used, 2);
-
     assert!(matches!(
-        beta.cover(symbols(&["BBB", "CCC", "DDD", "EEE"])),
+        beta.cover(symbols(&["BBB", "CCC", "DDD", "EEE", "FFF"])),
         Err(FeedError::CapExceeded {
-            requested: 4,
-            available: 3,
+            requested: 5,
+            available: 4,
             ..
         })
     ));
-    assert_eq!(beta.symbols(), symbols(&["BBB", "CCC"]));
-    let _gamma = feed.acquire(RunId(3), "gamma", symbols(&["DDD"])).unwrap();
-    eventually(|| async {
-        frames(&fake, "subscribe")
-            .concat()
-            .contains("DDD")
-            .then_some(())
+    assert_eq!(beta.symbols(), symbols(&["BBB", "CCC", "DDD"]));
+    let _gamma = feed.acquire(RunId(3), "gamma", symbols(&["EEE"])).unwrap();
+    eventually(|| subscribed("one", &["EEE"])).await;
+    let slots = eventually(|| async {
+        let slots = feed.slots().borrow().clone();
+        slots
+            .connections
+            .iter()
+            .all(|connection| connection.connected && connection.error.is_none())
+            .then_some(slots)
     })
     .await;
-    let slots = feed.slots().borrow().clone();
-    assert_eq!((slots.used, slots.connected, slots.error), (3, true, None));
+    assert_eq!((slots.used, slots.error), (4, None));
     let now = Timestamp::now();
     let session_open = whole_days_around_now()
         .into_iter()
@@ -285,41 +314,60 @@ async fn leases_share_stream_slots_and_live_bars_land_with_gaps_backfilled() {
     eventually(|| async {
         closes_at(&market, session_open)
             .await
-            .contains(&("DDD".to_owned(), "99".to_owned()))
+            .contains(&("EEE".to_owned(), "99".to_owned()))
             .then_some(())
     })
     .await;
 
     let watermarks = market.watermarks();
     let minute = eventually(|| async { watermarks.borrow().minute }).await;
-    for symbol in ["BBB", "CCC", "DDD"] {
-        commands
-            .send(Command::Send(bar_frame(symbol, minute)))
-            .unwrap();
+    for (account, symbol) in [
+        ("one", "CCC"),
+        ("one", "EEE"),
+        ("two", "BBB"),
+        ("two", "DDD"),
+    ] {
+        fake.command(account, Command::Send(bar_frame(symbol, minute)));
     }
     eventually(|| async { (watermarks.borrow().minute > Some(minute)).then_some(()) }).await;
     let streamed = closes_at(&market, minute).await;
-    let expected: Vec<_> = ["BBB", "CCC", "DDD"]
+    let expected: Vec<_> = ["BBB", "CCC", "DDD", "EEE"]
         .map(|symbol| (symbol.to_owned(), "10.55".to_owned()))
         .to_vec();
     assert_eq!(streamed, expected);
 
-    commands.send(Command::Disconnect).unwrap();
+    let requests_before = fake.bar_requests.lock().unwrap().len();
+    fake.command("two", Command::Disconnect);
     let backfilled = eventually(|| async {
-        let request = fake.bar_requests.lock().unwrap().last().cloned()?;
+        let request = fake.bar_requests.lock().unwrap()[requests_before..]
+            .last()
+            .cloned()?;
         let start: Timestamp = request["start"].parse().unwrap();
         let closes = closes_at(&market, start).await;
-        (closes.len() == 3 && closes.iter().all(|(_, close)| close == "99")).then_some(request)
+        let replaced = ["BBB", "DDD"]
+            .iter()
+            .all(|symbol| closes.contains(&((*symbol).to_owned(), "99".to_owned())));
+        replaced.then_some(request)
     })
     .await;
-    assert_eq!(backfilled["symbols"], "BBB,CCC,DDD");
+    assert_eq!(backfilled["symbols"], "BBB,DDD");
     assert_eq!(backfilled["feed"], "iex");
+    assert!(
+        fake.bar_requests.lock().unwrap()[requests_before..]
+            .iter()
+            .all(|request| request["symbols"] == "BBB,DDD"),
+        "only the dropped account's symbols are backfilled"
+    );
     let slots = eventually(|| async {
         let slots = feed.slots().borrow().clone();
-        (slots.connected && slots.error.is_none()).then_some(slots)
+        slots
+            .connections
+            .iter()
+            .all(|connection| connection.connected && connection.error.is_none())
+            .then_some(slots)
     })
     .await;
-    assert_eq!(slots.used, 3);
+    assert_eq!(slots.used, 4);
     assert!(watermarks.borrow().minute > Some(minute));
 
     task.abort();

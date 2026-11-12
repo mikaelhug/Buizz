@@ -35,12 +35,6 @@ use crate::drive::Control;
 const EVENT_BUFFER: usize = 4096;
 const SEED_LIMIT: u64 = 1 << 53;
 const SOCKET_QUEUE: usize = 4;
-const ACTIVE: [RunStatus; 4] = [
-    RunStatus::Queued,
-    RunStatus::Starting,
-    RunStatus::Running,
-    RunStatus::Paused,
-];
 
 #[derive(Debug, thiserror::Error)]
 pub enum RunnerError {
@@ -182,7 +176,7 @@ impl Runner {
         let state = &self.inner.state;
         let mut runs = state
             .runs(RunFilter {
-                statuses: ACTIVE.to_vec(),
+                statuses: RunStatus::ACTIVE.to_vec(),
                 ..RunFilter::default()
             })
             .await?;
@@ -271,11 +265,13 @@ impl Runner {
             if run.desired != DesiredState::Paused {
                 return Err(RunnerError::AlreadyLive(bot.to_owned()));
             }
-            if run.config.needs_minute_bars() {
+            if run.config.timeframe == Timeframe::Minute {
                 let portfolio = self.inner.state.portfolio(run.id).await?;
                 let held = portfolio.open_positions().map(|(symbol, _)| symbol.clone());
                 let universe = universe_at(&self.inner.market, &run.config, today).await?;
                 self.inner.feed.admits(universe.into_iter().chain(held))?;
+            } else if run.config.needs_minute_bars() {
+                self.inner.feed.fetches_minutes()?;
             }
             self.inner
                 .state
@@ -301,11 +297,14 @@ impl Runner {
                 allow_holdout: false,
             },
         )?;
-        let streamed = if config.needs_minute_bars() {
+        let streamed = if config.timeframe == Timeframe::Minute {
             let universe = universe_at(&self.inner.market, &config, today).await?;
             self.inner.feed.admits(universe.clone())?;
             Some(universe)
         } else {
+            if config.needs_minute_bars() {
+                self.inner.feed.fetches_minutes()?;
+            }
             None
         };
         let run = match self
@@ -581,7 +580,7 @@ impl Runner {
             .runs(RunFilter {
                 bot: Some(bot.to_owned()),
                 mode: Some(Mode::Live),
-                statuses: ACTIVE.to_vec(),
+                statuses: RunStatus::ACTIVE.to_vec(),
                 limit: Some(1),
                 ..RunFilter::default()
             })

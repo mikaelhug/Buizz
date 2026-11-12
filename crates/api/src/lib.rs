@@ -163,7 +163,7 @@ async fn bot_socket(
     tags(
         (name = "bots"),
         (name = "runs"),
-        (name = "leaderboard"),
+        (name = "league"),
         (name = "data"),
         (name = "auth"),
         (name = "events"),

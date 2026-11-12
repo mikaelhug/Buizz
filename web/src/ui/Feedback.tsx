@@ -1,8 +1,8 @@
 import { fmt } from "../lib/format";
 
-type Shape = "block" | "chart" | "cards" | "table";
+type Shape = "block" | "chart" | "table";
 
-const REPEATS: Partial<Record<Shape, number>> = { cards: 6, table: 6 };
+const REPEATS: Partial<Record<Shape, number>> = { table: 6 };
 
 export function Loading({ shape = "block" }: { shape?: Shape }) {
   const repeats = REPEATS[shape];

@@ -128,8 +128,8 @@ async fn serve() -> Result<()> {
     };
     let feed = FeedManager::new(
         FeedConfig {
-            cap: SYMBOL_CAP,
-            stream: config.stream(),
+            symbols_per_connection: SYMBOL_CAP,
+            streams: config.streams.clone(),
         },
         market.clone(),
         sources.alpaca.clone(),

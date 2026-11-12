@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS run (
     undelivered BLOB,
     result_hash TEXT,
     metrics TEXT,
+    live_stats TEXT,
     badges TEXT NOT NULL DEFAULT '[]',
     message TEXT
 ) STRICT;

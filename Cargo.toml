@@ -37,6 +37,7 @@ chrono-tz = "0.10.4"
 csv = "1.4.0"
 duckdb = { version = "1.20000.1", features = ["bundled", "chrono"] }
 futures = "0.3.34"
+libm = "0.2.16"
 nix = { version = "0.31.3", features = ["signal", "process"] }
 rand = "0.10.3"
 regex = "1.13.1"
