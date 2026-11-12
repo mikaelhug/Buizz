@@ -131,6 +131,16 @@ impl Ingest {
                     .map_or(AssetClass::Stock, |known| known.asset_class),
             };
         }
+        let rows = self.settle_listing_ends(assets, &stored).await?;
+        batch.success(rows);
+        Ok(batch.finish("instruments"))
+    }
+
+    pub(crate) async fn settle_listing_ends(
+        &self,
+        mut assets: Vec<Instrument>,
+        stored: &BTreeMap<Symbol, Instrument>,
+    ) -> Result<u64, IngestError> {
         let priced = self
             .symbol_coverage(Dataset::Bars1d, DataSource::Alpaca)
             .await?;
@@ -142,7 +152,7 @@ impl Ingest {
                 .filter(|last| Some(*last) < latest)
         };
         for asset in assets.iter_mut().filter(|asset| !asset.active) {
-            asset.last_session = ended(&asset.symbol);
+            asset.last_session = asset.last_session.or_else(|| ended(&asset.symbol));
         }
         let listed: BTreeSet<Symbol> = assets.iter().map(|asset| asset.symbol.clone()).collect();
         let unlisted_members: BTreeSet<Symbol> = self
@@ -170,16 +180,14 @@ impl Ingest {
             .into_iter()
             .filter(|asset| stored.get(&asset.symbol) != Some(asset))
             .collect();
-        let rows = if changed.is_empty() {
+        Ok(if changed.is_empty() {
             0
         } else {
             self.market
                 .upsert_instruments(DataSource::Alpaca, changed)
                 .await?
                 .rows
-        };
-        batch.success(rows);
-        Ok(batch.finish("instruments"))
+        })
     }
 
     pub(crate) async fn rates(&self, now: Timestamp) -> Result<Work, IngestError> {

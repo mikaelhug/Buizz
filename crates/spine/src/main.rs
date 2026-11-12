@@ -97,6 +97,12 @@ async fn serve() -> Result<()> {
     market
         .limit(config.duckdb_memory.clone(), config.duckdb_threads)
         .await?;
+    let ordering = market.clone();
+    tokio::spawn(async move {
+        if let Err(error) = ordering.order_daily_bars().await {
+            tracing::warn!(%error, "cannot put the daily bars in date order");
+        }
+    });
     let market_was_empty = market.is_empty().await?;
     if let Some(fixture_dir) = &config.fixture_dir {
         market.load_fixture(fixture_dir).await?;

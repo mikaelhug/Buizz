@@ -602,7 +602,6 @@ async fn a_delisted_member_alpaca_prices_only_when_asked_alone_stays_tradable_un
         .unwrap();
     ingest.tick(first_at).await.unwrap();
     ingest.tick(first_at + TimeDelta::hours(25)).await.unwrap();
-    ingest.tick(first_at + TimeDelta::hours(49)).await.unwrap();
     let instruments = market.instruments().await.unwrap();
     let listing = |symbol: &str| {
         instruments

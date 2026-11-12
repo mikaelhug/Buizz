@@ -73,6 +73,8 @@ pub enum MarketError {
     Restore(String),
     #[error("market store setting: {0}")]
     Setting(String),
+    #[error("market store catalog: {0}")]
+    Catalog(String),
     #[error("market store has shut down")]
     Closed,
     #[error("market store worker failed: {0}")]
@@ -414,10 +416,20 @@ impl MarketStore {
     ) -> Result<WriteSummary> {
         self.writer
             .run(move |connection| match timeframe {
-                Timeframe::Day => write::daily_bars(connection, source, bars),
+                Timeframe::Day => {
+                    let summary = write::daily_bars(connection, source, bars)?;
+                    if let Err(error) = keep_daily_bars_ordered(connection) {
+                        tracing::warn!(%error, "cannot put the daily bars back in date order");
+                    }
+                    Ok(summary)
+                }
                 Timeframe::Minute => write::minute_bars(connection, source, bars),
             })
             .await
+    }
+
+    pub async fn order_daily_bars(&self) -> Result<()> {
+        self.writer.run(keep_daily_bars_ordered).await
     }
 
     pub async fn replace_corporate_actions(
@@ -845,11 +857,8 @@ impl MarketStore {
                         connection, &calendar, &listings, index, date, sessions,
                     )?,
                 };
-                let delisted: BTreeSet<Symbol> = read::instruments(connection)?
-                    .into_iter()
-                    .filter(|instrument| instrument.last_session.is_some_and(|last| last < date))
-                    .map(|instrument| instrument.symbol)
-                    .collect();
+                let keys: Vec<Symbol> = listed.iter().map(|(_, key)| key.clone()).collect();
+                let delisted = read::delisted_before(connection, &keys, date)?;
                 let mut symbols: Vec<Symbol> = listed
                     .into_iter()
                     .filter(|(_, key)| !delisted.contains(key))
@@ -1092,6 +1101,18 @@ fn visible_through(timeframe: Timeframe, bars: &[Bar], calendar: &Calendar) -> O
             Some(bar_visible_at(timeframe, bar.start, session))
         })
         .max()
+}
+
+fn keep_daily_bars_ordered(connection: &mut Connection) -> Result<()> {
+    let started = std::time::Instant::now();
+    if let Some(rows) = write::order_daily_bars(connection)? {
+        tracing::info!(
+            rows,
+            seconds = started.elapsed().as_secs_f64(),
+            "put the daily bars back in date order"
+        );
+    }
+    Ok(())
 }
 
 #[cfg(test)]

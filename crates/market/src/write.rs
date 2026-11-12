@@ -13,7 +13,7 @@ use chrono::NaiveDate;
 use duckdb::{Appender, Connection, Transaction, params};
 
 use crate::codec::{ActionColumns, Dec, Ts, feed_name, wire_name};
-use crate::{ActionWindow, Result, WriteSummary};
+use crate::{ActionWindow, MarketError, Result, WriteSummary};
 
 const STAGED: [&str; 12] = [
     "instrument",
@@ -302,6 +302,48 @@ pub(crate) fn daily_bars(
             replace_staged(transaction, "bar_1d", batch_id)
         },
     )
+}
+
+const SCATTERED_ROW_GROUPS_TOLERATED: i64 = 1;
+
+pub(crate) fn scattered_daily_row_groups(connection: &Connection) -> Result<i64> {
+    Ok(connection.query_row(
+        "SELECT count(DISTINCT row_group_id) FROM (SELECT row_group_id, \
+         CAST(stats.min AS DATE) AS first, max(CAST(stats.max AS DATE)) OVER (ORDER BY \
+         row_group_id, segment_id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS seen \
+         FROM pragma_storage_info('bar_1d') WHERE column_name = 'date' AND segment_type = 'DATE') \
+         WHERE first < seen - INTERVAL 30 DAY",
+        [],
+        |row| row.get(0),
+    )?)
+}
+
+pub(crate) fn order_daily_bars(connection: &mut Connection) -> Result<Option<u64>> {
+    if scattered_daily_row_groups(connection)? <= SCATTERED_ROW_GROUPS_TOLERATED {
+        return Ok(None);
+    }
+    let definition: String = connection.query_row(
+        "SELECT sql FROM duckdb_tables() WHERE database_name = current_database() \
+         AND schema_name = 'main' AND table_name = 'bar_1d'",
+        [],
+        |row| row.get(0),
+    )?;
+    let columns = definition
+        .strip_prefix("CREATE TABLE bar_1d")
+        .ok_or_else(|| {
+            MarketError::Catalog(format!("unexpected bar_1d definition {definition}"))
+        })?;
+    let transaction = connection.transaction()?;
+    transaction.execute_batch(&format!("CREATE TABLE main.ordered_bar_1d{columns}"))?;
+    let rows = transaction.execute(
+        "INSERT INTO main.ordered_bar_1d SELECT * FROM main.bar_1d ORDER BY date, symbol",
+        [],
+    )?;
+    transaction.execute_batch(
+        "DROP TABLE main.bar_1d; ALTER TABLE main.ordered_bar_1d RENAME TO bar_1d",
+    )?;
+    transaction.commit()?;
+    Ok(Some(rows as u64))
 }
 
 pub(crate) fn shadowed_bars(
@@ -1242,7 +1284,7 @@ pub(crate) fn news_articles(
 
 #[cfg(test)]
 mod tests {
-    use buizz_core::market::{Adjustment, AdjustmentFactor, AssetClass};
+    use buizz_core::market::{Adjustment, AdjustmentFactor, AssetClass, Feed};
     use chrono::NaiveTime;
     use rust_decimal::Decimal;
 
@@ -1360,5 +1402,88 @@ mod tests {
             AdjustmentFactor::for_shares(&split(0), Adjustment::Split).is_none(),
             "a zero rate must not divide"
         );
+    }
+
+    #[test]
+    fn daily_bars_appended_out_of_date_order_are_put_back_in_date_order() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut connection = Connection::open_in_memory().unwrap();
+        let path = directory.path().join("market.duckdb");
+        connection
+            .execute_batch(&format!(
+                "ATTACH '{}' AS market (ROW_GROUP_SIZE 2048); USE market",
+                path.display()
+            ))
+            .unwrap();
+        crate::migrate::migrate(&mut connection).unwrap();
+        prepare(&connection).unwrap();
+        let reader = connection.try_clone().unwrap();
+        reader.execute_batch("USE market").unwrap();
+        let rows_read = |reader: &Connection| -> Vec<String> {
+            let mut statement = reader
+                .prepare_cached(
+                    "SELECT symbol || ' ' || CAST(date AS VARCHAR) || ' ' || CAST(close AS VARCHAR) \
+                     FROM bar_1d ORDER BY symbol, date",
+                )
+                .unwrap();
+            statement
+                .query_map([], |row| row.get(0))
+                .unwrap()
+                .collect::<duckdb::Result<_>>()
+                .unwrap()
+        };
+        let bars = |first: NaiveDate, close: i64| -> Vec<Bar> {
+            first
+                .iter_days()
+                .take(300)
+                .flat_map(|date| {
+                    (0..20).map(move |index| Bar {
+                        symbol: Symbol::new(&format!("S{index:02}")),
+                        start: Timestamp::at_exchange_time(
+                            date,
+                            NaiveTime::from_hms_opt(9, 30, 0).unwrap(),
+                        )
+                        .unwrap(),
+                        open: Decimal::from(close),
+                        high: Decimal::from(close),
+                        low: Decimal::from(close),
+                        close: Decimal::from(close),
+                        volume: 100,
+                        feed: Feed::Sip,
+                    })
+                })
+                .collect()
+        };
+        let source = DataSource::Alpaca;
+        daily_bars(
+            &mut connection,
+            source,
+            bars(NaiveDate::from_ymd_opt(2016, 1, 4).unwrap(), 2),
+        )
+        .unwrap();
+        let recent = rows_read(&reader);
+        daily_bars(
+            &mut connection,
+            source,
+            bars(NaiveDate::from_ymd_opt(2000, 1, 3).unwrap(), 1),
+        )
+        .unwrap();
+        let all = rows_read(&reader);
+        assert_eq!((recent.len(), all.len()), (6_000, 12_000));
+        assert!(scattered_daily_row_groups(&connection).unwrap() > SCATTERED_ROW_GROUPS_TOLERATED);
+
+        assert_eq!(order_daily_bars(&mut connection).unwrap(), Some(12_000));
+        assert_eq!(scattered_daily_row_groups(&connection).unwrap(), 0);
+        assert_eq!(order_daily_bars(&mut connection).unwrap(), None);
+        assert_eq!(rows_read(&reader), all);
+
+        let revised = daily_bars(
+            &mut connection,
+            source,
+            bars(NaiveDate::from_ymd_opt(2016, 1, 4).unwrap(), 3),
+        )
+        .unwrap();
+        assert_eq!(revised.rows, 6_000);
+        assert_eq!(rows_read(&reader).len(), 12_000);
     }
 }

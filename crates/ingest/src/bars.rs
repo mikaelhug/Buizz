@@ -228,6 +228,15 @@ impl Ingest {
             )
             .await?;
         }
+        let stored: BTreeMap<Symbol, Instrument> = self
+            .market
+            .instruments()
+            .await?
+            .into_iter()
+            .map(|instrument| (instrument.symbol.clone(), instrument))
+            .collect();
+        self.settle_listing_ends(stored.values().cloned().collect(), &stored)
+            .await?;
         Ok(batch.finish("daily bars"))
     }
 

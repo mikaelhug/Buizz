@@ -128,6 +128,28 @@ pub(crate) fn relabel<T: Clone>(
     relabeled.into_iter().map(|(_, row)| row).collect()
 }
 
+pub(crate) fn delisted_before(
+    connection: &Connection,
+    symbols: &[Symbol],
+    date: NaiveDate,
+) -> Result<BTreeSet<Symbol>> {
+    if symbols.is_empty() {
+        return Ok(BTreeSet::new());
+    }
+    let mut statement = connection.prepare_cached(&format!(
+        "SELECT symbol FROM instrument WHERE last_session < ? AND symbol IN ({})",
+        placeholders(symbols.len())
+    ))?;
+    let mut params: Params = vec![Box::new(date)];
+    params.extend(symbol_params(symbols));
+    let delisted = statement
+        .query_map(params_from_iter(params.iter()), |row| {
+            Ok(row.get::<_, Sym>(0)?.0)
+        })?
+        .collect::<duckdb::Result<BTreeSet<_>>>()?;
+    Ok(delisted)
+}
+
 pub(crate) struct BarQuery<'a> {
     pub timeframe: Timeframe,
     pub symbols: &'a [Symbol],
