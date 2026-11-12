@@ -29,7 +29,8 @@ async function twoVariantsLive(page: Page): Promise<{ params: string[] }> {
 
   for (let started = 0; started < 2; started++) {
     const research = page.url();
-    await variants.getByRole("button", { name: /^Go live with / }).first().click();
+    await variants.filter({ hasNot: page.locator(".pill-live") }).first().getByRole("button", { name: /^Actions for run #/ }).click();
+    await page.getByRole("menuitem", { name: /^Go live with / }).click();
     await page.waitForFunction((before) => location.href !== before && /\/runs\/\d+$/.test(location.hash), research);
     await page.goBack();
     await variants.locator(".pill-live").nth(started).waitFor();

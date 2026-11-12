@@ -8,6 +8,7 @@ import { useFrameBatch } from "../lib/useFrameBatch";
 import { useResource } from "../lib/useResource";
 import { Failure, Loading, StaleFailure } from "../ui/Feedback";
 import { MetricValue } from "../ui/Metrics";
+import { OverflowMenu } from "../ui/Menu";
 import { Info } from "../ui/Popover";
 import { StatusPill } from "../ui/Status";
 import { moveBetweenRows, openRow, SortHeader, type SortColumns, useFlash, useSort } from "../ui/Table";
@@ -531,11 +532,20 @@ function VariantTable({ name, variants, axes, defaults, plateau, liveVariants, b
                     {isLive ? (
                       <span className="pill pill-live">live</span>
                     ) : (
-                      variant.status === "completed" && (
-                        <button type="button" className="btn btn-xs" disabled={busy} onClick={() => onLive(variant)} aria-label={`Go live with ${variantText(variant.params, defaults)}`}>
-                          Go live
-                        </button>
-                      )
+                      <span className="bot-actions">
+                        {passes && variant.status === "completed" && (
+                          <button type="button" className="btn btn-xs" disabled={busy} onClick={() => onLive(variant)} aria-label={`Go live with ${variantText(variant.params, defaults)}`}>
+                            Go live
+                          </button>
+                        )}
+                        <OverflowMenu
+                          label={`Actions for run #${variant.run_id}`}
+                          actions={[
+                            { text: `Open run #${variant.run_id}`, run: () => navigate({ page: "bot", name, run: variant.run_id }) },
+                            ...(variant.status === "completed" && !busy ? [{ text: `Go live with ${variantText(variant.params, defaults)}`, run: () => onLive(variant) }] : []),
+                          ]}
+                        />
+                      </span>
                     )}
                   </td>
                 </tr>

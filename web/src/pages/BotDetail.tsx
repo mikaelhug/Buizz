@@ -44,8 +44,7 @@ export function BotDetail({ name, view }: Props) {
   const live = summary.live.map((entry) => entry.run);
   const selected = runView && (runView.runId ?? live[0]?.id ?? summary.backtest?.run_id ?? runs.find((run) => run.status === "completed" && run.metrics)?.id ?? runs[0]?.id);
   const shownLive = live.find((run) => run.id === selected) ?? (live.length === 1 ? live[0] : undefined);
-  const shownRun = runs.find((run) => run.id === selected);
-  const promotable = shownRun?.mode === "backtest" && shownRun.status === "completed";
+  const promotable = summary.backtest?.run_id === selected && summary.backtest?.failed_checks.length === 0;
   const showRun = (run: Run) => {
     detail.reload();
     if (run.id !== selected) {

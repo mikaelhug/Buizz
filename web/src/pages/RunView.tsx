@@ -87,7 +87,7 @@ export function RunView({ name, runId, pinned, tab, symbol, botHash, recent, liv
   return (
     <>
       <StaleFailure resource={run} />
-      <RunBar run={run.data} name={name} tab={tab} botHash={botHash} recent={recent} liveParams={liveParams} logsHref={tabHref("logs")} runsHref={tabHref("runs")} />
+      <RunBar run={run.data} name={name} tab={tab} botHash={botHash} recent={recent} liveParams={liveParams} gate={gate} logsHref={tabHref("logs")} runsHref={tabHref("runs")} />
       <Tabs tab={tab} routeFor={tabRoute} />
       <div className="tab-panel" role="tabpanel" id="run-tabpanel" aria-labelledby={`tab-${tab}`}>
         {tab === "overview" && <Overview run={run.data} symbol={symbol} gate={gate} closeHref={tabHref("overview")} />}
@@ -235,12 +235,12 @@ function KeyValues({ rows, mono = false }: { rows: Row[]; mono?: boolean }) {
   );
 }
 
-type RunBarProps = { run: Run; name: string; tab: BotTab; botHash: string; recent: Run[]; liveParams: ReadonlySet<string>; logsHref: string; runsHref: string };
+type RunBarProps = { run: Run; name: string; tab: BotTab; botHash: string; recent: Run[]; liveParams: ReadonlySet<string>; gate: Schemas["GateCheck"][] | undefined; logsHref: string; runsHref: string };
 
-function RunBar({ run, name, tab, botHash, recent, liveParams, logsHref, runsHref }: RunBarProps) {
+function RunBar({ run, name, tab, botHash, recent, liveParams, gate, logsHref, runsHref }: RunBarProps) {
   const repro = reproRows(run, botHash);
   const [starting, setStarting] = useState(false);
-  const promotable = run.mode === "backtest" && run.status === "completed" && !liveParams.has(JSON.stringify(run.config.params));
+  const promotable = run.mode === "backtest" && run.status === "completed" && gate?.length === 0 && !liveParams.has(JSON.stringify(run.config.params));
   const promote = () => {
     setStarting(true);
     goLive(name, run.id).then(

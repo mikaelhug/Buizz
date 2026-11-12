@@ -330,6 +330,21 @@
   }
 }
 
+.metric-more {
+  display: none;
+}
+
+@container page (max-width: 720px) {
+  .metric-groups:not(.open) .metric:not(.metric-headline) {
+    display: none;
+  }
+
+  .metric-more {
+    display: inline-flex;
+    margin-top: var(--sp-3);
+  }
+}
+
 .metric-groups {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
