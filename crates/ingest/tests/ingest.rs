@@ -41,6 +41,7 @@ const CALENDAR_END: &str = "2025-06-30";
 const ALPACA_LAST_BAR: &str = "2016-04-29";
 const SPY_REVISED: &str = "2024-07-05";
 const HOLIDAY: &str = "2024-07-04";
+const UNKNOWN: &str = "BADX";
 
 #[derive(Default)]
 struct Fake {
@@ -114,6 +115,9 @@ async fn bars(State(fake): State<Arc<Fake>>, Query(params): Query<Params>) -> Re
     if fake.fail_bars.load(Ordering::SeqCst) {
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
+    if params["symbols"].split(',').any(|symbol| symbol == UNKNOWN) {
+        return (StatusCode::UNPROCESSABLE_ENTITY, "invalid symbol").into_response();
+    }
     *fake.last_bars.lock().unwrap() = params.clone();
     let requested = |symbol: &str, first: NaiveDate, last: NaiveDate| {
         if !params["symbols"].split(',').any(|listed| listed == symbol) {
@@ -147,7 +151,7 @@ async fn bars(State(fake): State<Arc<Fake>>, Query(params): Query<Params>) -> Re
 }
 
 async fn assets(State(fake): State<Arc<Fake>>) -> Response {
-    let later = r#",{"class":"us_equity","exchange":"NASDAQ","symbol":"MSFT","name":"Microsoft Corporation Common Stock","status":"active","shortable":true}]"#;
+    let later = r#",{"class":"us_equity","exchange":"NASDAQ","symbol":"BADX","name":"Bad Ticker","status":"active","shortable":false},{"class":"us_equity","exchange":"NASDAQ","symbol":"MSFT","name":"Microsoft Corporation Common Stock","status":"active","shortable":true}]"#;
     if fake.listed_later.load(Ordering::SeqCst) {
         json(ASSETS.trim_end().trim_end_matches(']').to_owned() + later)
     } else {
@@ -546,6 +550,24 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
     let later = ingest.tick(inside_sip_delay).await.unwrap();
     assert!(later.ran.contains(&("bars_1d", JobOutcome::Ok)));
     assert!(fake.last_bars.lock().unwrap()["end"].starts_with("2024-07-09"));
+    assert_eq!(
+        market.watermarks().borrow().day,
+        Some(stamp("2024-07-09T20:00:00Z"))
+    );
+    let latest = |symbol: &str| {
+        let state = state.clone();
+        let symbol = Symbol::new(symbol);
+        async move {
+            state
+                .recent_fetches(DataSource::Alpaca, Dataset::Bars1d, Some(symbol), 1)
+                .await
+                .unwrap()
+                .remove(0)
+                .status
+        }
+    };
+    assert_eq!(latest(UNKNOWN).await, FetchStatus::Rejected);
+    assert_eq!(latest("MSFT").await, FetchStatus::Empty);
     let action_starts: Vec<(String, String)> = fake
         .action_requests
         .lock()
@@ -561,7 +583,7 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
         action_starts,
         vec![
             (String::new(), "2024-03-12".to_owned()),
-            ("MSFT".to_owned(), "2015-12-02".to_owned()),
+            ("BADX,MSFT".to_owned(), "2015-12-02".to_owned()),
         ]
     );
 

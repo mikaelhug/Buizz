@@ -3,9 +3,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use buizz_core::market::{DataSource, Dataset, Feed, Symbol, Timeframe};
 use buizz_core::time::Timestamp;
 use buizz_sources::alpaca::{BarsRequest, HISTORY_START, SIP_DELAY};
+use buizz_sources::http::SourceError;
 use chrono::{NaiveDate, TimeDelta};
 
-use crate::fetch::{Batch, FetchKey, Work, read};
+use crate::fetch::{Batch, FetchKey, Work, read, waiting};
 use crate::{Ingest, IngestError, Priced, day_start};
 
 const SYMBOLS_PER_REQUEST: usize = 1_000;
@@ -53,10 +54,21 @@ impl Ingest {
         let covered = self
             .symbol_coverage(Dataset::Bars1d, DataSource::Alpaca)
             .await?;
+        let refused: BTreeSet<Symbol> = self
+            .state
+            .latest_rejections(DataSource::Alpaca, Dataset::Bars1d)
+            .await?
+            .into_iter()
+            .filter(|fetch| waiting(fetch, now))
+            .filter_map(|fetch| fetch.symbol)
+            .collect();
         let floor = self.config.history_start.max(HISTORY_START);
         let mut groups: BTreeMap<NaiveDate, Vec<Symbol>> = BTreeMap::new();
         let mut dormant: BTreeSet<Symbol> = BTreeSet::new();
         for Priced { symbol, active, .. } in symbols {
+            if refused.contains(&symbol) {
+                continue;
+            }
             let last = covered.get(&symbol).map(|coverage| coverage.last);
             let from = match last {
                 Some(last) if last >= dormant_before => match (settling_from, next_session(last)) {
@@ -78,7 +90,13 @@ impl Ingest {
         let mut requests = 0;
         let mut current = true;
         'groups: for (from, group) in groups {
-            'chunks: for chunk in group.chunks(SYMBOLS_PER_REQUEST) {
+            let in_current = from == current_from;
+            let mut pending: Vec<Vec<Symbol>> = group
+                .chunks(SYMBOLS_PER_REQUEST)
+                .rev()
+                .map(<[Symbol]>::to_vec)
+                .collect();
+            'chunks: while let Some(chunk) = pending.pop() {
                 let request = BarsRequest {
                     symbols: chunk.to_vec(),
                     timeframe: Timeframe::Day,
@@ -97,7 +115,7 @@ impl Ingest {
                 loop {
                     if requests == REQUESTS_PER_RUN || self.stopping() {
                         batch.more_remains("symbols");
-                        current &= from != current_from;
+                        current &= !in_current;
                         break 'groups;
                     }
                     requests += 1;
@@ -119,13 +137,31 @@ impl Ingest {
                                 None => break,
                             }
                         }
+                        Err(error) if refused_request(&error) && chunk.len() > 1 => {
+                            let (left, right) = chunk.split_at(chunk.len() / 2);
+                            pending.push(right.to_vec());
+                            pending.push(left.to_vec());
+                            continue 'chunks;
+                        }
+                        Err(error) if refused_request(&error) => {
+                            let symbol = &chunk[0];
+                            let key = FetchKey::new(
+                                DataSource::Alpaca,
+                                Dataset::Bars1d,
+                                Some(symbol),
+                                Some((from, target.date)),
+                            );
+                            self.record_rejection(now, &key, &error.to_string()).await?;
+                            batch.failure(symbol.as_str(), &error);
+                            continue 'chunks;
+                        }
                         Err(error) => {
                             self.record_failure(now, &key, &error).await?;
+                            current &= !in_current;
                             let label = format!("{} symbols from {from}", chunk.len());
                             if batch.source_error(&label, &error) {
                                 break 'groups;
                             }
-                            current &= from != current_from;
                             continue 'chunks;
                         }
                     }
@@ -142,7 +178,7 @@ impl Ingest {
                 }
             }
         }
-        if current && batch.clean() {
+        if current {
             self.market
                 .advance_watermark(Timeframe::Day, target.close)
                 .await?;
@@ -160,5 +196,13 @@ impl Ingest {
             .latest_fetch(DataSource::Alpaca, Dataset::Bars1d, symbol)
             .await?;
         Ok(latest.is_some_and(|fetch| read(&fetch) && (!active || fetch.at + DORMANT_RETRY > now)))
+    }
+}
+
+fn refused_request(error: &SourceError) -> bool {
+    match error {
+        SourceError::Decode(_) => true,
+        SourceError::Status { status, .. } => (400..500).contains(status),
+        _ => false,
     }
 }

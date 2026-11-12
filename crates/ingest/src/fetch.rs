@@ -98,10 +98,6 @@ impl Batch {
         }
     }
 
-    pub fn clean(&self) -> bool {
-        self.failures.is_empty() && self.rate_limited.is_none()
-    }
-
     pub fn finish(self, what: &str) -> Work {
         if let Some(limit) = self.rate_limited {
             return Work::backoff(
