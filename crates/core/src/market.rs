@@ -536,25 +536,50 @@ pub enum MacroSeries {
     Baa,
     #[serde(rename = "cpiaucns")]
     Cpiaucns,
+    #[serde(rename = "unrate")]
+    Unrate,
+    #[serde(rename = "sahmrealtime")]
+    Sahmrealtime,
+    #[serde(rename = "dgs10")]
+    Dgs10,
+    #[serde(rename = "t10y3m")]
+    T10y3m,
+    #[serde(rename = "baa10y")]
+    Baa10y,
+    #[serde(rename = "vix")]
+    Vix,
+    #[serde(rename = "vix3m")]
+    Vix3m,
 }
 
 impl MacroSeries {
-    pub const FRED: [Self; 5] = [
+    pub const FRED: [Self; 10] = [
         Self::Tb3ms,
         Self::Gs10,
         Self::Aaa,
         Self::Baa,
         Self::Cpiaucns,
+        Self::Unrate,
+        Self::Sahmrealtime,
+        Self::Dgs10,
+        Self::T10y3m,
+        Self::Baa10y,
     ];
+    pub const CBOE: [Self; 2] = [Self::Vix, Self::Vix3m];
 
     pub fn fred_id(self) -> Option<&'static str> {
         match self {
-            Self::Treasury3m => None,
+            Self::Treasury3m | Self::Vix | Self::Vix3m => None,
             Self::Tb3ms => Some("TB3MS"),
             Self::Gs10 => Some("GS10"),
             Self::Aaa => Some("AAA"),
             Self::Baa => Some("BAA"),
             Self::Cpiaucns => Some("CPIAUCNS"),
+            Self::Unrate => Some("UNRATE"),
+            Self::Sahmrealtime => Some("SAHMREALTIME"),
+            Self::Dgs10 => Some("DGS10"),
+            Self::T10y3m => Some("T10Y3M"),
+            Self::Baa10y => Some("BAA10Y"),
         }
     }
 }
@@ -576,6 +601,21 @@ pub struct MacroPoint {
     pub available_at: Timestamp,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct FomcMeeting {
+    pub date: NaiveDate,
+    pub scheduled: bool,
+    pub statement_at: Option<Timestamp>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FomcAnnouncement {
+    pub date: NaiveDate,
+    pub scheduled: bool,
+    pub statement_at: Option<Timestamp>,
+    pub available_at: Timestamp,
+}
+
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, ToSchema,
 )]
@@ -591,6 +631,8 @@ pub enum DataSource {
     Wikipedia,
     InteractiveBrokers,
     Nasdaq,
+    Cboe,
+    FederalReserve,
 }
 
 #[derive(
@@ -613,6 +655,7 @@ pub enum Dataset {
     Macro,
     InsiderTrades,
     News,
+    Fomc,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]

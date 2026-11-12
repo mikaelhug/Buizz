@@ -2,9 +2,9 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 use buizz_core::market::{
-    Adjustment, CorporateAction, CorporateActionKind, Feed, FundamentalMetric, FundamentalPoint,
-    InsiderOwner, InsiderTrade, InsiderTransaction, MacroPoint, MacroSeries, NewsArticle,
-    PeriodType, Session, Symbol, Timeframe,
+    Adjustment, CorporateAction, CorporateActionKind, Feed, FomcAnnouncement, FundamentalMetric,
+    FundamentalPoint, InsiderOwner, InsiderTrade, InsiderTransaction, MacroPoint, MacroSeries,
+    NewsArticle, PeriodType, Session, Symbol, Timeframe,
 };
 use buizz_core::order::{
     Fill, OrderId, OrderRequest, OrderSize, OrderStatus, OrderType, OrderUpdate, Side, TimeInForce,
@@ -526,6 +526,34 @@ fn main() {
                     updated_at: at("2024-11-20T15:02:10Z"),
                     received_at: at("2024-11-20T15:02:11Z"),
                     backfilled: false,
+                }],
+            },
+        }),
+    );
+
+    write(
+        &dir,
+        "query_fomc",
+        &BotMessage::Query(Query {
+            id: 9,
+            request: QueryRequest::Fomc {
+                from: date("2024-11-21"),
+                to: date("2024-12-31"),
+            },
+        }),
+    );
+
+    write(
+        &dir,
+        "data_fomc",
+        &SpineMessage::Data(Data {
+            id: 9,
+            result: DataResult::Fomc {
+                announcements: vec![FomcAnnouncement {
+                    date: date("2024-12-18"),
+                    scheduled: true,
+                    statement_at: Some(at("2024-12-18T19:00:00Z")),
+                    available_at: at("2024-01-01T05:00:00Z"),
                 }],
             },
         }),

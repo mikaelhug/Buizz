@@ -15,7 +15,9 @@ use buizz_runner::{Runner, RunnerConfig, RunnerDeps};
 use buizz_sources::Sources;
 use buizz_sources::alpaca::AlpacaClient;
 use buizz_sources::alpaca_stream::SYMBOL_CAP;
+use buizz_sources::cboe::CboeClient;
 use buizz_sources::edgar::EdgarClient;
+use buizz_sources::fed::FedClient;
 use buizz_sources::fred::FredClient;
 use buizz_sources::ibkr::IbkrClient;
 use buizz_sources::nasdaq::NasdaqClient;
@@ -119,6 +121,8 @@ async fn serve() -> Result<()> {
             .transpose()?,
         ibkr: Some(IbkrClient::new(config.ibkr.clone())),
         nasdaq: Some(NasdaqClient::new(config.nasdaq.clone())?),
+        cboe: Some(CboeClient::new(config.cboe.clone())?),
+        fed: Some(FedClient::new(config.fed.clone())?),
     };
     let feed = FeedManager::new(
         FeedConfig {

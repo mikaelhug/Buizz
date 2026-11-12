@@ -23,6 +23,8 @@ from buizz.wire import (
     EarningsRequest,
     EarningsResult,
     Event,
+    FomcRequest,
+    FomcResult,
     FundamentalsRequest,
     FundamentalsResult,
     HistoryRequest,
@@ -318,6 +320,13 @@ class MacroPoint(msgspec.Struct, frozen=True):
     available_at: datetime
 
 
+class FomcAnnouncement(msgspec.Struct, frozen=True):
+    date: date
+    scheduled: bool
+    statement_at: datetime | None
+    available_at: datetime
+
+
 def split_ratio(raw: History, split_adjusted: History, day: date) -> float | None:
     end_of_day = to_ns(datetime.combine(day + timedelta(days=1), time.min, tzinfo=UTC))
     index = int(np.searchsorted(raw.start, end_of_day, side="left")) - 1
@@ -578,6 +587,21 @@ class Context:
         return [
             MacroPoint(point.series, point.date, point.value, point.published, from_ns(point.available_at))
             for point in result.points
+        ]
+
+    def fomc(self, start: date, end: date) -> list[FomcAnnouncement]:
+        self._current("ctx.fomc")
+        result = self._query(FomcRequest(day("start", start), day("end", end)))
+        if not isinstance(result, FomcResult):
+            raise ProtocolError(f"fomc query answered with {type(result).__name__}")
+        return [
+            FomcAnnouncement(
+                frame.date,
+                frame.scheduled,
+                None if frame.statement_at is None else from_ns(frame.statement_at),
+                from_ns(frame.available_at),
+            )
+            for frame in result.announcements
         ]
 
     def order(
