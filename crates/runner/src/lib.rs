@@ -35,12 +35,6 @@ use crate::drive::Control;
 const EVENT_BUFFER: usize = 4096;
 const SEED_LIMIT: u64 = 1 << 53;
 const SOCKET_QUEUE: usize = 4;
-const ACTIVE: [RunStatus; 4] = [
-    RunStatus::Queued,
-    RunStatus::Starting,
-    RunStatus::Running,
-    RunStatus::Paused,
-];
 
 #[derive(Debug, thiserror::Error)]
 pub enum RunnerError {
@@ -182,7 +176,7 @@ impl Runner {
         let state = &self.inner.state;
         let mut runs = state
             .runs(RunFilter {
-                statuses: ACTIVE.to_vec(),
+                statuses: RunStatus::ACTIVE.to_vec(),
                 ..RunFilter::default()
             })
             .await?;
@@ -581,7 +575,7 @@ impl Runner {
             .runs(RunFilter {
                 bot: Some(bot.to_owned()),
                 mode: Some(Mode::Live),
-                statuses: ACTIVE.to_vec(),
+                statuses: RunStatus::ACTIVE.to_vec(),
                 limit: Some(1),
                 ..RunFilter::default()
             })

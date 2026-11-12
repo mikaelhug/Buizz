@@ -196,14 +196,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/leaderboard": {
+    "/api/league": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["leaderboard"];
+        get: operations["league"];
         put?: never;
         post?: never;
         delete?: never;
@@ -407,6 +407,9 @@ export interface components {
         };
         BotDetail: {
             summary: components["schemas"]["BotSummary"];
+            status: components["schemas"]["BotStatus"];
+            /** Format: int32 */
+            holdout_runs: number;
             manifest: components["schemas"]["BotManifest"];
             bot_hash: string;
             runs: components["schemas"]["RunSummary"][];
@@ -424,19 +427,15 @@ export interface components {
             step_timeout?: number;
         };
         /** @enum {string} */
+        BotStage: "draft" | "screened" | "live";
+        /** @enum {string} */
         BotStatus: "idle" | "live" | "paused" | "backtesting" | "stopped" | "error";
         BotSummary: {
             name: string;
             description: string;
             timeframe: components["schemas"]["Timeframe"];
-            status: components["schemas"]["BotStatus"];
-            live_run?: components["schemas"]["RunId"] | null;
-            equity?: string | null;
-            sparkline: components["schemas"]["SparkPoint"][];
-            stats?: components["schemas"]["Metrics"] | null;
-            stats_run?: components["schemas"]["RunId"] | null;
-            /** Format: int32 */
-            holdout_runs: number;
+            stage: components["schemas"]["BotStage"];
+            live: components["schemas"]["LiveSummary"][];
             last_run_at?: components["schemas"]["Timestamp"] | null;
         };
         ChartFill: {
@@ -594,27 +593,51 @@ export interface components {
             next_due?: components["schemas"]["Timestamp"] | null;
             stale: boolean;
         };
-        Leaderboard: {
-            preset: components["schemas"]["PeriodPreset"];
-            period: components["schemas"]["Period"];
-            cost: components["schemas"]["CostModel"];
-            rows: components["schemas"]["LeaderboardRow"][];
-            benchmarks: components["schemas"]["LeaderboardBenchmark"][];
-        };
-        LeaderboardBenchmark: {
-            symbol: components["schemas"]["Symbol"];
-            metrics: components["schemas"]["Metrics"];
-        };
-        LeaderboardRow: {
-            bot: string;
-            run_id: components["schemas"]["RunId"];
-            params: Record<string, never>;
-            metrics: components["schemas"]["Metrics"];
-            badges: components["schemas"]["RunBadge"][];
+        League: {
             /** Format: int32 */
-            trials: number;
-            finished_at: components["schemas"]["Timestamp"];
+            started: number;
+            ranked: components["schemas"]["LiveSummary"][];
+            too_early: components["schemas"]["LiveSummary"][];
         };
+        LivePoint: {
+            at: components["schemas"]["Timestamp"];
+            equity: string;
+            benchmark: string;
+        };
+        LiveStats: {
+            /** Format: date */
+            through: string;
+            /** Format: int32 */
+            sessions: number;
+            /** Format: int32 */
+            paused_sessions: number;
+            /** Format: double */
+            total_return: number;
+            /** Format: double */
+            benchmark_return: number;
+            /** Format: double */
+            excess_return: number;
+            /** Format: double */
+            excess_error?: number | null;
+            /** Format: double */
+            max_drawdown: number;
+            /** Format: double */
+            volatility?: number | null;
+            /** Format: double */
+            beta?: number | null;
+            excess?: components["schemas"]["SharpeMoments"] | null;
+            /** Format: double */
+            probabilistic_sharpe?: number | null;
+            verdict: components["schemas"]["LiveVerdict"];
+            curve: components["schemas"]["LivePoint"][];
+        };
+        LiveSummary: {
+            run: components["schemas"]["RunSummary"];
+            /** Format: int32 */
+            sessions_needed?: number | null;
+        };
+        /** @enum {string} */
+        LiveVerdict: "incubating" | "tracking";
         /** @enum {string} */
         LogLevel: "debug" | "info" | "warn" | "error";
         LoginRequest: {
@@ -873,6 +896,7 @@ export interface components {
             clock?: components["schemas"]["Timestamp"] | null;
             equity?: string | null;
             metrics?: components["schemas"]["Metrics"] | null;
+            live_stats?: components["schemas"]["LiveStats"] | null;
             result_hash?: string | null;
             badges: components["schemas"]["RunBadge"][];
             reproducibility?: components["schemas"]["Reproducibility"] | null;
@@ -880,6 +904,16 @@ export interface components {
         };
         SessionInfo: {
             authenticated: boolean;
+        };
+        SharpeMoments: {
+            /** Format: double */
+            sharpe: number;
+            /** Format: double */
+            skew: number;
+            /** Format: double */
+            kurtosis: number;
+            /** Format: int32 */
+            observations: number;
         };
         /** @enum {string} */
         Side: "buy" | "sell";
@@ -890,9 +924,16 @@ export interface components {
         SpineEvent: {
             run_id: components["schemas"]["RunId"];
             bot: string;
+            mode: components["schemas"]["Mode"];
             status: components["schemas"]["RunStatus"];
             /** @enum {string} */
             type: "run_status";
+        } | {
+            run_id: components["schemas"]["RunId"];
+            bot: string;
+            summary: components["schemas"]["LiveSummary"];
+            /** @enum {string} */
+            type: "live_session";
         } | {
             run_id: components["schemas"]["RunId"];
             bot: string;
@@ -1315,11 +1356,9 @@ export interface operations {
             };
         };
     };
-    leaderboard: {
+    league: {
         parameters: {
-            query: {
-                preset: components["schemas"]["PeriodPreset"];
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -1331,7 +1370,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Leaderboard"];
+                    "application/json": components["schemas"]["League"];
                 };
             };
         };
