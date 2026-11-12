@@ -577,4 +577,12 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
         .await
         .unwrap();
     assert!(ran_tiingo(backed_off));
+
+    let month_later = ingest.tick(first_at + TimeDelta::days(31)).await.unwrap();
+    assert!(
+        month_later
+            .ran
+            .contains(&("tiingo_history", JobOutcome::Noop))
+    );
+    assert_eq!(fake.hits("tiingo"), 1);
 }
