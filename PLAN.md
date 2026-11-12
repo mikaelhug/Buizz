@@ -93,6 +93,7 @@ Known parity gap, stated honestly: live minute bars are IEX (partial volume), ba
 - Leaderboard: bots compared on the same preset period and cost model only, ranked against the benchmark's buy and hold over that period. Runs ended by the drawdown stop stay on it. Each row shows its trial count (completed backtests of that bot) and its badges; trade statistics from fewer than 30 trades are greyed, and Sharpe carries its standard error on hover.
 - Data health: job runs, staleness, coverage, feed slots (e.g. 22/30).
 - Single admin login (password → HttpOnly session cookie).
+- Shell: sticky topbar with the live-updates status in words, a light/dark/system theme menu and a title per page. Definitions open from an `Info` button (a popover), not from `title` alone, so they work on touch and keyboard.
 
 ## Added beyond the request
 

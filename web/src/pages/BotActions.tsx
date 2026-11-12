@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api, errorMessage, must, type Schemas } from "../api/client";
 import { confirmDialog } from "../ui/Dialog";
+import { Icon } from "../ui/Icon";
 import { notify } from "../ui/Toaster";
 
 type Props = {
@@ -55,11 +56,12 @@ export function BotActions({ bot, onChanged }: Props) {
       )}
       <button
         type="button"
-        className={`btn btn-sm ${live ? "btn-pause" : "btn-live"}`}
+        className="btn btn-sm"
         disabled={busy}
         onClick={() => void toggle()}
         title={live ? "Cancel working orders and stop the bot; equity keeps marking" : bot.status === "paused" ? "Resume the paused live run" : "Start a live paper run"}
       >
+        <Icon name={live ? "pause" : "play"} />
         {live ? "Pause" : "Live"}
       </button>
     </span>

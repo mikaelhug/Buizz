@@ -6,6 +6,7 @@ import { href } from "../lib/route";
 import { type Resource, useResource } from "../lib/useResource";
 import { Failure, Loading, StaleFailure } from "../ui/Feedback";
 import { StatusPill } from "../ui/Status";
+import "../styles/data.css";
 
 const COVERAGE_ROWS_SHOWN = 200;
 
@@ -195,7 +196,7 @@ function JobsPanel({ jobs }: { jobs: Resource<Schemas["JobView"][]> }) {
       <h2>Jobs</h2>
       <StaleFailure resource={jobs} />
       {!jobs.data ? (
-        jobs.error ? <Failure message={jobs.error} onRetry={jobs.reload} /> : <Loading />
+        jobs.error ? <Failure message={jobs.error} onRetry={jobs.reload} /> : <Loading shape="table" />
       ) : jobs.data.length === 0 ? (
         <p className="empty">No jobs</p>
       ) : (

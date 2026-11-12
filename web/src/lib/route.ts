@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import type { Schemas } from "../api/client";
 
 export type Preset = Schemas["PeriodPreset"];
@@ -57,4 +57,23 @@ function subscribe(listener: () => void) {
 export function useRoute(): Route {
   const hash = useSyncExternalStore(subscribe, () => window.location.hash);
   return parse(hash);
+}
+
+export function routeTitle(route: Route): string {
+  switch (route.page) {
+    case "bots":
+      return "Bots";
+    case "bot":
+      return route.run === undefined ? route.name : `${route.name} · Run #${route.run}`;
+    case "leaderboard":
+      return `Leaderboard · ${route.preset}`;
+    case "data":
+      return "Data";
+  }
+}
+
+export function useDocumentTitle(title: string) {
+  useEffect(() => {
+    document.title = `${title} · Buizz`;
+  }, [title]);
 }

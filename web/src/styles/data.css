@@ -1,0 +1,81 @@
+.meter {
+  height: 8px;
+  margin-bottom: var(--sp-3);
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--border);
+  overflow: hidden;
+}
+
+.meter > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+
+.meter-hot > span {
+  background: var(--warn);
+}
+
+.slots {
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+}
+
+.holders,
+.warnings {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.holders li,
+.warnings li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  padding: 6px 0;
+  border-bottom: 1px solid var(--grid);
+}
+
+.holders li:last-child,
+.warnings li:last-child {
+  border-bottom: 0;
+}
+
+.holders .symbols {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.warnings .sym {
+  min-width: 44px;
+  font-weight: var(--fw-semibold);
+}
+
+.warnings .badge {
+  margin: 0;
+}
+
+.backfill {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.backfill li {
+  display: grid;
+  grid-template-columns: minmax(0, 14em) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.backfill .meter {
+  margin-bottom: 0;
+}

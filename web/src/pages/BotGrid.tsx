@@ -11,6 +11,7 @@ import { HOVER_METRICS, METRICS, MetricValue } from "../ui/Metrics";
 import { Sparkline } from "../ui/Sparkline";
 import { StatusPill } from "../ui/Status";
 import { BotActions } from "./BotActions";
+import "../styles/grid.css";
 
 type Bot = Schemas["BotSummary"];
 type EquityEvent = Extract<SpineEvent, { type: "equity" }>;
@@ -68,7 +69,7 @@ export function BotGrid() {
   const [order, setOrder] = useState<Order>("attention");
 
   if (!bots.data) {
-    return bots.error ? <Failure message={bots.error} onRetry={bots.reload} /> : <Loading />;
+    return bots.error ? <Failure message={bots.error} onRetry={bots.reload} /> : <Loading shape="cards" />;
   }
   if (bots.data.length === 0) {
     return <p className="empty">No bots in bots/</p>;

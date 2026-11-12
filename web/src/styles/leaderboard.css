@@ -1,0 +1,25 @@
+.sticky-name th:nth-child(2),
+.sticky-name td:nth-child(2) {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--surface);
+}
+
+.sticky-name tbody tr:hover td:nth-child(2) {
+  background: var(--surface-2);
+}
+
+.table td.thin {
+  color: var(--muted);
+}
+
+.table td.thin .num {
+  color: inherit;
+}
+
+.table tr.benchmark-row td {
+  background: var(--surface-2);
+  color: var(--muted);
+  font-style: italic;
+}

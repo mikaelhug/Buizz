@@ -1,10 +1,14 @@
 import { useState } from "react";
 import { api, ApiFailure, errorMessage, mustSucceed } from "../api/client";
+import { useDocumentTitle } from "../lib/route";
+import { BrandMark } from "../ui/Icon";
+import { Info } from "../ui/Popover";
 
 export function Login({ onLoggedIn }: { onLoggedIn: () => void }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
+  useDocumentTitle("Sign in");
 
   const submit = async () => {
     setBusy(true);
@@ -27,7 +31,10 @@ export function Login({ onLoggedIn }: { onLoggedIn: () => void }) {
           void submit();
         }}
       >
-        <h1 className="brand">Buizz</h1>
+        <h1 className="brand">
+          <BrandMark />
+          Buizz
+        </h1>
         <input
           className="input"
           type="password"
@@ -44,7 +51,7 @@ export function Login({ onLoggedIn }: { onLoggedIn: () => void }) {
             {error}
           </p>
         )}
-        <button type="submit" className="btn btn-accent" disabled={busy || password.length === 0}>
+        <button type="submit" className="btn btn-primary" disabled={busy || password.length === 0}>
           Sign in
         </button>
       </form>
@@ -53,13 +60,18 @@ export function Login({ onLoggedIn }: { onLoggedIn: () => void }) {
 }
 
 export function Unreachable({ reason, onRetry }: { reason: string; onRetry: () => void }) {
+  useDocumentTitle("Server unreachable");
   return (
     <main className="login">
       <div className="login-card" role="alert">
-        <h1 className="brand">Buizz</h1>
-        <p className="unreachable" title={reason}>
-          <span className="stream-dot stream-down" />
+        <h1 className="brand">
+          <BrandMark />
+          Buizz
+        </h1>
+        <p className="unreachable">
+          <span className="stream-dot stream-down" aria-hidden="true" />
           Server unreachable
+          <Info label="Server unreachable">{reason}</Info>
         </p>
         <button type="button" className="btn" onClick={onRetry}>
           Retry
