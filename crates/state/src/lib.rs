@@ -15,7 +15,7 @@ use buizz_core::ops::{JobOutcome, JobRun, SourceFetch};
 use buizz_core::order::{Fill, Order, OrderId};
 use buizz_core::performance::Metrics;
 use buizz_core::run::{
-    DesiredState, EquityPoint, Mode, RunBadge, RunConfig, RunEvent, RunId, RunStatus,
+    DesiredState, EquityPoint, Mode, RunBadge, RunConfig, RunEvent, RunEventType, RunId, RunStatus,
 };
 use buizz_core::time::Timestamp;
 use rust_decimal::Decimal;
@@ -210,6 +210,12 @@ impl StateStore {
             .await
     }
 
+    pub async fn symbol_fills(&self, run_id: RunId, symbol: Symbol) -> Result<Vec<(Fill, String)>> {
+        self.db
+            .read(move |connection| runs::symbol_fills(connection, run_id, &symbol))
+            .await
+    }
+
     pub async fn equity(&self, run_id: RunId) -> Result<Vec<EquityPoint>> {
         self.db
             .read(move |connection| runs::equity(connection, run_id))
@@ -227,9 +233,10 @@ impl StateStore {
         run_id: RunId,
         after: Option<u64>,
         limit: u32,
+        types: Vec<RunEventType>,
     ) -> Result<Vec<RunEvent>> {
         self.db
-            .read(move |connection| runs::events(connection, run_id, after, limit))
+            .read(move |connection| runs::events(connection, run_id, after, limit, &types))
             .await
     }
 

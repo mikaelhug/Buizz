@@ -17,7 +17,9 @@ import "../styles/bot-detail.css";
 
 type Run = Schemas["RunSummary"];
 
-export function BotDetail({ name, runId, tab }: { name: string; runId: number | undefined; tab: BotTab }) {
+type Props = { name: string; runId: number | undefined; tab: BotTab; symbol: string | undefined };
+
+export function BotDetail({ name, runId, tab, symbol }: Props) {
   const detail = useResource(() => must(api.GET("/api/bots/{name}", { params: { path: { name } } })), [name]);
   const [backtesting, setBacktesting] = useState(false);
 
@@ -72,6 +74,7 @@ export function BotDetail({ name, runId, tab }: { name: string; runId: number | 
           runId={selected}
           pinned={runId !== undefined}
           tab={tab}
+          symbol={symbol}
           botHash={detail.data.bot_hash}
           recent={runs}
           runs={<RunHistory selected={selected} name={name} />}

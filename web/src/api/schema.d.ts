@@ -260,6 +260,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/runs/{id}/chart/{symbol}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["run_chart"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/runs/{id}/equity": {
         parameters: {
             query?: never;
@@ -422,6 +438,25 @@ export interface components {
             /** Format: int32 */
             holdout_runs: number;
             last_run_at?: components["schemas"]["Timestamp"] | null;
+        };
+        ChartFill: {
+            order_id: components["schemas"]["OrderId"];
+            at: components["schemas"]["Timestamp"];
+            /** Format: int64 */
+            qty: number;
+            price: string;
+            chart_price: string;
+            reason: string;
+        };
+        ChartPosition: {
+            /** Format: int64 */
+            qty: number;
+            avg_cost: string;
+        };
+        ChartSplit: {
+            /** Format: date */
+            ex_date: string;
+            ratio: string;
         };
         CommissionTier: {
             /** Format: int64 */
@@ -712,6 +747,28 @@ export interface components {
             unrealized_pnl: string;
             realized_pnl: string;
             weight: string;
+        };
+        PriceBar: {
+            start: components["schemas"]["Timestamp"];
+            /** Format: double */
+            open: number;
+            /** Format: double */
+            high: number;
+            /** Format: double */
+            low: number;
+            /** Format: double */
+            close: number;
+            /** Format: double */
+            volume: number;
+        };
+        PriceChart: {
+            symbol: components["schemas"]["Symbol"];
+            timeframe: components["schemas"]["Timeframe"];
+            bars: components["schemas"]["PriceBar"][];
+            older: boolean;
+            fills: components["schemas"]["ChartFill"][];
+            splits: components["schemas"]["ChartSplit"][];
+            position?: components["schemas"]["ChartPosition"] | null;
         };
         /** @enum {string} */
         RejectReason: "unknown_symbol" | "duplicate_client_id" | "zero_quantity" | "invalid_limit_price" | "no_price" | "not_shortable" | "max_position_weight" | "max_gross_exposure" | "invalid_size" | "no_stream_slot" | "invalid_stop_price" | "auction_closed" | "auction_unavailable";
@@ -1369,6 +1426,39 @@ export interface operations {
             };
         };
     };
+    run_chart: {
+        parameters: {
+            query?: {
+                after?: components["schemas"]["Timestamp"];
+                before?: components["schemas"]["Timestamp"];
+            };
+            header?: never;
+            path: {
+                id: components["schemas"]["RunId"];
+                symbol: components["schemas"]["Symbol"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PriceChart"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
     run_equity: {
         parameters: {
             query?: never;
@@ -1403,6 +1493,7 @@ export interface operations {
             query?: {
                 after?: number;
                 limit?: number;
+                kind?: ("log" | "status" | "order_rejected" | "risk_breach" | "bot_exited" | "data_warning")[];
             };
             header?: never;
             path: {

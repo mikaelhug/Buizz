@@ -3,10 +3,10 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, PoisonError, RwLock};
 
 use buizz_core::market::{
-    Adjustment, Bar, BorrowAvailability, Calendar, Company, CorporateAction, Coverage, DataSource,
-    EarningsRelease, FundamentalFact, FundamentalMetric, FundamentalPoint, IndexHistory,
-    Instrument, InstrumentProfile, MacroObservation, MacroPoint, MacroSeries, RiskFreeRate,
-    SecFiling, Session, StockIndex, Symbol, Timeframe, Watermarks,
+    Adjustment, AdjustmentFactor, Bar, BorrowAvailability, Calendar, Company, CorporateAction,
+    Coverage, DataSource, EarningsRelease, FundamentalFact, FundamentalMetric, FundamentalPoint,
+    IndexHistory, Instrument, InstrumentProfile, MacroObservation, MacroPoint, MacroSeries,
+    RiskFreeRate, SecFiling, Session, StockIndex, Symbol, Timeframe, Watermarks,
 };
 use buizz_core::ops::{CoverageGap, DataWarning};
 use buizz_core::protocol::BarRow;
@@ -81,6 +81,24 @@ pub struct HistoryRequest {
     pub bars: u32,
     pub adjust: Adjustment,
     pub as_of: Timestamp,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ChartRequest {
+    pub symbol: Symbol,
+    pub timeframe: Timeframe,
+    pub from: Timestamp,
+    pub after: Option<Timestamp>,
+    pub before: Option<Timestamp>,
+    pub bars: usize,
+    pub as_of: Timestamp,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ChartBars {
+    pub bars: Vec<BarRow>,
+    pub older: bool,
+    pub splits: Vec<AdjustmentFactor>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -548,6 +566,13 @@ impl MarketStore {
         let calendar = self.shared.calendar();
         self.readers
             .run(move |connection| read::history(connection, &calendar, &request))
+            .await
+    }
+
+    pub async fn chart(&self, request: ChartRequest) -> Result<ChartBars> {
+        let calendar = self.shared.calendar();
+        self.readers
+            .run(move |connection| read::chart(connection, &calendar, &request))
             .await
     }
 
