@@ -501,14 +501,34 @@ function orderType(type: Schemas["OrderType"]): string {
   }
 }
 
+type Order = Schemas["OrderView"];
+
+function withFill(order: Order, qty: number, price: number): Pick<Order, "filled_qty" | "avg_fill_price"> {
+  const filled = order.filled_qty + qty;
+  const average = (Number(order.avg_fill_price ?? 0) * order.filled_qty + price * qty) / filled;
+  return { filled_qty: filled, avg_fill_price: String(average) };
+}
+
 function Orders({ runId, active }: { runId: number; active: boolean }) {
   const orders = usePaged(
     (after) => must(api.GET("/api/runs/{id}/orders", { params: { path: { id: runId }, query: { limit: PAGE_SIZE, ...(after === undefined ? {} : { after }) } } })),
     [runId],
   );
-  useSpineEvents((event) => {
-    if ((event.type === "order" || event.type === "fill") && event.run_id === runId) {
+  const patch = (id: number, update: (order: Order) => Order) => {
+    if (!orders.data?.items.some((order) => order.id === id)) {
       orders.reload();
+      return;
+    }
+    orders.mutate((current) => ({ ...current, items: current.items.map((order) => (order.id === id ? update(order) : order)) }));
+  };
+
+  useSpineEvents((event) => {
+    if (event.type === "order" && event.run_id === runId) {
+      const { order_id, status, filled_qty, reject_reason, at } = event.order;
+      patch(order_id, (order) => ({ ...order, status, filled_qty, reject_reason: reject_reason ?? null, updated_at: at }));
+    } else if (event.type === "fill" && event.run_id === runId) {
+      const { order_id, qty, price, at } = event.fill;
+      patch(order_id, (order) => (Date.parse(at) > Date.parse(order.updated_at) ? { ...order, ...withFill(order, Math.abs(qty), Number(price)), updated_at: at } : order));
     }
   });
   const count = orders.data?.items.length ?? 0;

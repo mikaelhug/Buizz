@@ -2,6 +2,7 @@ import { useState } from "react";
 import { api, errorMessage, must, type Schemas } from "../api/client";
 import { confirmDialog } from "../ui/Dialog";
 import { Icon } from "../ui/Icon";
+import { Info } from "../ui/Popover";
 import { notify } from "../ui/Toaster";
 
 type Props = {
@@ -50,20 +51,18 @@ export function BotActions({ bot, onChanged }: Props) {
   return (
     <span className="bot-actions">
       {liveRun !== null && liveRun !== undefined && (
-        <button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={() => void stop(liveRun)} title="End the live run for good">
+        <button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={() => void stop(liveRun)}>
           Stop
         </button>
       )}
-      <button
-        type="button"
-        className="btn btn-sm"
-        disabled={busy}
-        onClick={() => void toggle()}
-        title={live ? "Cancel working orders and stop the bot; equity keeps marking" : bot.status === "paused" ? "Resume the paused live run" : "Start a live paper run"}
-      >
+      <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void toggle()}>
         <Icon name={live ? "pause" : "play"} />
         {live ? "Pause" : "Live"}
       </button>
+      <Info label="Live, Pause and Stop">
+        Live starts a live paper run, or resumes a paused one. Pause cancels working orders and stops the bot while its equity keeps marking. Stop ends the
+        live run for good.
+      </Info>
     </span>
   );
 }
