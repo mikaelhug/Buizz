@@ -1,15 +1,14 @@
-from datetime import timedelta
-
 from buizz_bots.monthly import MAX_SESSIONS_PER_MONTH, month_end_closes
+from buizz_bots.sessions import last_session_of_month
 
 from buizz import Bot, Context, run
 
 
 class SectorRotation(Bot):
     def on_step(self, ctx: Context) -> None:
-        today = ctx.session.date
-        if ctx.calendar(today, today + timedelta(days=10))[1].date.month == today.month:
+        if not last_session_of_month(ctx):
             return
+        today = ctx.session.date
         sectors: list[str] = ctx.params["sectors"]
         top = int(ctx.params["top"])
         lookbacks: list[int] = ctx.params["lookbacks_months"]
@@ -55,16 +54,7 @@ class SectorRotation(Bot):
             if risk_off
             else f"T-bills for {top - len(held)} of {top} slots, {len(ranked)} sectors ranked"
         )
-        book = float(ctx.portfolio.equity)
-        weights = {
-            symbol: position.qty * ctx.bars[symbol].close / book for symbol, position in ctx.portfolio.positions.items()
-        }
-        sells_first = sorted(targets, key=lambda symbol: weights.get(symbol, 0.0) - targets[symbol], reverse=True)
-        ctx.rebalance(
-            {symbol: targets[symbol] for symbol in sells_first},
-            reason=reasons,
-            exit_reason="not one of the sectors or cash",
-        )
+        ctx.rebalance(targets, reason=reasons, exit_reason="not one of the sectors or cash")
 
 
 if __name__ == "__main__":
