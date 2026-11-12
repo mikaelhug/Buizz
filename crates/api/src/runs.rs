@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::io::SeekFrom;
 
 use axum::Json;
@@ -7,13 +7,13 @@ use axum::http::header;
 use axum::response::IntoResponse;
 use buizz_core::api::{
     ApiError, ChartFill, ChartPosition, ChartQuery, ChartSplit, EquitySeries, EventsPage,
-    EventsQuery, Leaderboard, LeaderboardBenchmark, LeaderboardQuery, LeaderboardRow, OrderView,
-    OrdersPage, PageQuery, PositionView, PriceBar, PriceChart, RunSummary, RunsQuery, TradeView,
+    EventsQuery, OrderView, OrdersPage, PageQuery, PositionView, PriceBar, PriceChart, RunSummary,
+    RunsQuery, TradeView,
 };
 use buizz_core::market::{Adjustment, AdjustmentFactor, Symbol};
 use buizz_core::money::round_price;
 use buizz_core::order::{Fill, OrderId};
-use buizz_core::run::{BotManifest, CostModel, Mode, Period, RunBadge, RunId, RunStatus};
+use buizz_core::run::RunId;
 use buizz_core::time::Timestamp;
 use buizz_market::{ChartRequest, HistoryRequest};
 use buizz_state::RunFilter;
@@ -29,7 +29,6 @@ const DEFAULT_RUNS: u32 = 100;
 const MAX_RUNS: u32 = 500;
 const DEFAULT_PAGE: u32 = 200;
 const MAX_PAGE: u32 = 1000;
-const LEADERBOARD_RUNS: u32 = 1000;
 const LOG_TAIL_BYTES: u64 = 256 * 1024;
 const WEIGHT_DECIMALS: u32 = 4;
 const CHART_BARS: usize = 5000;
@@ -386,124 +385,4 @@ pub(crate) async fn run_logs(
         Err(error) => return Err(error.into()),
     };
     Ok(([(header::CONTENT_TYPE, "text/plain; charset=utf-8")], text))
-}
-
-fn compared_period(run: &RunSummary, period: Period) -> bool {
-    run.config.start == period.from && run.config.end == Some(period.to)
-}
-
-fn trials(runs: &[RunSummary]) -> HashMap<&str, u32> {
-    let mut counts = HashMap::new();
-    for run in runs {
-        *counts.entry(run.bot.as_str()).or_default() += 1;
-    }
-    counts
-}
-
-async fn benchmarks(
-    app: &AppState,
-    compared: &[&RunSummary],
-) -> Result<Vec<LeaderboardBenchmark>, Failure> {
-    let mut seen = HashSet::new();
-    let mut benchmarks = Vec::new();
-    for run in compared {
-        if !seen.insert(&run.config.benchmark) {
-            continue;
-        }
-        let points = app.runner.benchmark(run).await?;
-        benchmarks.push(LeaderboardBenchmark {
-            symbol: run.config.benchmark.clone(),
-            metrics: app.runner.benchmark_metrics(run, &points).await?,
-        });
-    }
-    Ok(benchmarks)
-}
-
-fn as_configured(run: &RunSummary, manifest: &BotManifest, cost: &CostModel) -> bool {
-    run.config.cost == *cost
-        && run.config.risk == manifest.risk
-        && run.config.params == manifest.params
-}
-
-#[utoipa::path(get, path = "/api/leaderboard", tag = "leaderboard",
-    params(LeaderboardQuery),
-    responses((status = 200, body = Leaderboard)))]
-pub(crate) async fn leaderboard(
-    State(app): State<AppState>,
-    Query(query): Query<LeaderboardQuery>,
-) -> Result<Json<Leaderboard>, Failure> {
-    let cost = CostModel::default();
-    let scan = app.runner.bots();
-    let manifests: HashMap<&str, &BotManifest> = scan
-        .bots
-        .iter()
-        .map(|bot| (bot.name.as_str(), &bot.manifest))
-        .collect();
-    let runs = app
-        .state
-        .runs(RunFilter {
-            mode: Some(Mode::Backtest),
-            statuses: vec![RunStatus::Completed, RunStatus::Failed],
-            limit: Some(LEADERBOARD_RUNS),
-            ..RunFilter::default()
-        })
-        .await?
-        .into_iter()
-        .filter(|run| {
-            run.status == RunStatus::Completed || run.badges.contains(&RunBadge::DrawdownStop)
-        })
-        .collect::<Vec<_>>();
-    let trials = trials(&runs);
-    let mut groups: Vec<(Period, Vec<&RunSummary>)> = Vec::new();
-    let mut seen: HashSet<(Period, &str)> = HashSet::new();
-    let ranked = runs.iter().filter(|run| {
-        manifests
-            .get(run.bot.as_str())
-            .is_some_and(|manifest| as_configured(run, manifest, &cost))
-    });
-    for run in ranked {
-        let period = query.preset.resolve(run.created_at.exchange_date());
-        if !compared_period(run, period)
-            || run.metrics.is_none()
-            || run.finished_at.is_none()
-            || !seen.insert((period, run.bot.as_str()))
-        {
-            continue;
-        }
-        match groups.iter_mut().find(|(group, _)| *group == period) {
-            Some((_, compared)) => compared.push(run),
-            None => groups.push((period, vec![run])),
-        }
-    }
-    let (period, compared) = groups
-        .into_iter()
-        .max_by_key(|(period, compared)| (compared.len(), period.to))
-        .unwrap_or_else(|| {
-            (
-                query.preset.resolve(Timestamp::now().exchange_date()),
-                Vec::new(),
-            )
-        });
-    let benchmarks = benchmarks(&app, &compared).await?;
-    let rows = compared
-        .into_iter()
-        .filter_map(|run| {
-            Some(LeaderboardRow {
-                bot: run.bot.clone(),
-                run_id: run.id,
-                params: run.config.params.clone(),
-                metrics: run.metrics.clone()?,
-                badges: run.badges.clone(),
-                trials: trials.get(run.bot.as_str()).copied().unwrap_or_default(),
-                finished_at: run.finished_at?,
-            })
-        })
-        .collect();
-    Ok(Json(Leaderboard {
-        preset: query.preset,
-        period,
-        cost,
-        rows,
-        benchmarks,
-    }))
 }

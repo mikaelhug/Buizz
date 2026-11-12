@@ -379,6 +379,7 @@ pub(crate) async fn conclude(
     inner.broadcast(SpineEvent::RunStatus {
         run_id,
         bot: run.bot,
+        mode: run.mode,
         status,
     });
     Ok(())
@@ -440,6 +441,7 @@ struct Driver {
     arrived_while_deciding: Option<(Timestamp, Timestamp)>,
     equity_shown_at: Option<tokio::time::Instant>,
     unshown_equity: Option<EquityPoint>,
+    day_mark: Option<Timestamp>,
 }
 
 impl Driver {
@@ -490,6 +492,7 @@ impl Driver {
             }
         };
         let session = clock.and_then(|clock| timeline.calendar().containing(clock).copied());
+        let day_mark = inner.market.watermarks().borrow().get(Timeframe::Day);
         Ok(Self {
             token: token.to_owned(),
             control_tx,
@@ -499,7 +502,8 @@ impl Driver {
             lease,
             engine,
             timeline,
-            committer: Committer::spawn(inner.state.clone(), last_step),
+            committer: Committer::spawn(Arc::clone(&inner), run.id, run.mode, last_step),
+            day_mark,
             pending: Pending::default(),
             frame,
             after,
@@ -1038,13 +1042,23 @@ impl Driver {
 
     async fn idle(&mut self) -> Flow<()> {
         tokio::select! {
-            _ = self.watermarks.changed() => {}
+            _ = self.watermarks.changed() => self.daily_bars_arrived(),
             _ = self.control.changed() => self.reconcile().await?,
             socket = self.sockets.recv() => self.attach(socket).await?,
             event = next_process_event(&mut self.process) => self.on_process(event).await?,
             _ = tokio::time::sleep(IDLE_RECHECK) => {}
         }
         Ok(())
+    }
+
+    fn daily_bars_arrived(&mut self) {
+        let day = self.watermarks.borrow().get(Timeframe::Day);
+        if !self.live() || day == self.day_mark {
+            return;
+        }
+        self.day_mark = day;
+        let (inner, run_id) = (Arc::clone(&self.inner), self.run.id);
+        tokio::spawn(async move { report::live_session(&inner, run_id).await });
     }
 
     async fn attach(&mut self, socket: Option<WebSocket>) -> Flow<()> {
@@ -1374,6 +1388,7 @@ impl Driver {
         self.inner.broadcast(SpineEvent::RunStatus {
             run_id: self.run.id,
             bot: self.run.bot.clone(),
+            mode: self.run.mode,
             status,
         });
         Ok(())

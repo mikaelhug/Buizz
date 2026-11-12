@@ -7,7 +7,7 @@ use utoipa::{IntoParams, ToSchema};
 use crate::market::{Coverage, DataSource, Dataset, Symbol, Timeframe, Watermarks};
 use crate::ops::{DataWarning, JobOutcome};
 use crate::order::{Fill, Order, OrderId, OrderUpdate};
-use crate::performance::{Metrics, RoundTrip};
+use crate::performance::{LiveStats, Metrics, RoundTrip};
 use crate::run::{
     BotManifest, CostModel, DesiredState, EquityPoint, Mode, Period, PeriodPreset, Reproducibility,
     RiskLimits, RunBadge, RunConfig, RunEvent, RunEventType, RunId, RunStatus,
@@ -39,20 +39,37 @@ pub struct BotSummary {
     pub name: String,
     pub description: String,
     pub timeframe: Timeframe,
-    pub status: BotStatus,
-    pub live_run: Option<RunId>,
-    #[serde(default, with = "crate::money::cash_option")]
-    pub equity: Option<Decimal>,
-    pub sparkline: Vec<SparkPoint>,
-    pub stats: Option<Metrics>,
-    pub stats_run: Option<RunId>,
-    pub holdout_runs: u32,
+    pub stage: BotStage,
+    pub live: Vec<LiveSummary>,
     pub last_run_at: Option<Timestamp>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum BotStage {
+    Draft,
+    Screened,
+    Live,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct LiveSummary {
+    pub run: RunSummary,
+    pub sessions_needed: Option<u32>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct League {
+    pub started: u32,
+    pub ranked: Vec<LiveSummary>,
+    pub too_early: Vec<LiveSummary>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct BotDetail {
     pub summary: BotSummary,
+    pub status: BotStatus,
+    pub holdout_runs: u32,
     pub manifest: BotManifest,
     pub bot_hash: String,
     pub runs: Vec<RunSummary>,
@@ -73,6 +90,7 @@ pub struct RunSummary {
     #[serde(default, with = "crate::money::cash_option")]
     pub equity: Option<Decimal>,
     pub metrics: Option<Metrics>,
+    pub live_stats: Option<LiveStats>,
     pub result_hash: Option<String>,
     pub badges: Vec<RunBadge>,
     pub reproducibility: Option<Reproducibility>,
@@ -194,33 +212,6 @@ pub struct StartBacktest {
     pub allow_holdout: bool,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
-pub struct LeaderboardRow {
-    pub bot: String,
-    pub run_id: RunId,
-    #[schema(value_type = Object)]
-    pub params: Map<String, Value>,
-    pub metrics: Metrics,
-    pub badges: Vec<RunBadge>,
-    pub trials: u32,
-    pub finished_at: Timestamp,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
-pub struct LeaderboardBenchmark {
-    pub symbol: Symbol,
-    pub metrics: Metrics,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
-pub struct Leaderboard {
-    pub preset: PeriodPreset,
-    pub period: Period,
-    pub cost: CostModel,
-    pub rows: Vec<LeaderboardRow>,
-    pub benchmarks: Vec<LeaderboardBenchmark>,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct BackfillProgress {
     pub dataset: Dataset,
@@ -288,7 +279,13 @@ pub enum SpineEvent {
     RunStatus {
         run_id: RunId,
         bot: String,
+        mode: Mode,
         status: RunStatus,
+    },
+    LiveSession {
+        run_id: RunId,
+        bot: String,
+        summary: Box<LiveSummary>,
     },
     Equity {
         run_id: RunId,
@@ -321,6 +318,7 @@ impl SpineEvent {
     pub fn name(&self) -> &'static str {
         match self {
             Self::RunStatus { .. } => "run_status",
+            Self::LiveSession { .. } => "live_session",
             Self::Equity { .. } => "equity",
             Self::Order { .. } => "order",
             Self::Fill { .. } => "fill",
@@ -362,10 +360,4 @@ pub struct EventsQuery {
 pub struct ChartQuery {
     pub after: Option<Timestamp>,
     pub before: Option<Timestamp>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, IntoParams)]
-#[into_params(parameter_in = Query)]
-pub struct LeaderboardQuery {
-    pub preset: PeriodPreset,
 }

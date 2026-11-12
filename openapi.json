@@ -402,28 +402,18 @@
         }
       }
     },
-    "/api/leaderboard": {
+    "/api/league": {
       "get": {
         "tags": [
-          "leaderboard"
+          "league"
         ],
-        "operationId": "leaderboard",
-        "parameters": [
-          {
-            "name": "preset",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/PeriodPreset"
-            }
-          }
-        ],
+        "operationId": "league",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Leaderboard"
+                  "$ref": "#/components/schemas/League"
                 }
               }
             }
@@ -995,6 +985,8 @@
         "type": "object",
         "required": [
           "summary",
+          "status",
+          "holdout_runs",
           "manifest",
           "bot_hash",
           "runs"
@@ -1002,6 +994,14 @@
         "properties": {
           "summary": {
             "$ref": "#/components/schemas/BotSummary"
+          },
+          "status": {
+            "$ref": "#/components/schemas/BotStatus"
+          },
+          "holdout_runs": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
           },
           "manifest": {
             "$ref": "#/components/schemas/BotManifest"
@@ -1059,6 +1059,14 @@
           }
         }
       },
+      "BotStage": {
+        "type": "string",
+        "enum": [
+          "draft",
+          "screened",
+          "live"
+        ]
+      },
       "BotStatus": {
         "type": "string",
         "enum": [
@@ -1076,9 +1084,8 @@
           "name",
           "description",
           "timeframe",
-          "status",
-          "sparkline",
-          "holdout_runs"
+          "stage",
+          "live"
         ],
         "properties": {
           "name": {
@@ -1090,55 +1097,14 @@
           "timeframe": {
             "$ref": "#/components/schemas/Timeframe"
           },
-          "status": {
-            "$ref": "#/components/schemas/BotStatus"
+          "stage": {
+            "$ref": "#/components/schemas/BotStage"
           },
-          "live_run": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/RunId"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "equity": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "sparkline": {
+          "live": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/SparkPoint"
+              "$ref": "#/components/schemas/LiveSummary"
             }
-          },
-          "stats": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/Metrics"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "stats_run": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/RunId"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "holdout_runs": {
-            "type": "integer",
-            "format": "int32",
-            "minimum": 0
           },
           "last_run_at": {
             "oneOf": [
@@ -1776,93 +1742,192 @@
           }
         }
       },
-      "Leaderboard": {
+      "League": {
         "type": "object",
         "required": [
-          "preset",
-          "period",
-          "cost",
-          "rows",
-          "benchmarks"
+          "started",
+          "ranked",
+          "too_early"
         ],
         "properties": {
-          "preset": {
-            "$ref": "#/components/schemas/PeriodPreset"
-          },
-          "period": {
-            "$ref": "#/components/schemas/Period"
-          },
-          "cost": {
-            "$ref": "#/components/schemas/CostModel"
-          },
-          "rows": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/LeaderboardRow"
-            }
-          },
-          "benchmarks": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/LeaderboardBenchmark"
-            }
-          }
-        }
-      },
-      "LeaderboardBenchmark": {
-        "type": "object",
-        "required": [
-          "symbol",
-          "metrics"
-        ],
-        "properties": {
-          "symbol": {
-            "$ref": "#/components/schemas/Symbol"
-          },
-          "metrics": {
-            "$ref": "#/components/schemas/Metrics"
-          }
-        }
-      },
-      "LeaderboardRow": {
-        "type": "object",
-        "required": [
-          "bot",
-          "run_id",
-          "params",
-          "metrics",
-          "badges",
-          "trials",
-          "finished_at"
-        ],
-        "properties": {
-          "bot": {
-            "type": "string"
-          },
-          "run_id": {
-            "$ref": "#/components/schemas/RunId"
-          },
-          "params": {
-            "type": "object"
-          },
-          "metrics": {
-            "$ref": "#/components/schemas/Metrics"
-          },
-          "badges": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/RunBadge"
-            }
-          },
-          "trials": {
+          "started": {
             "type": "integer",
             "format": "int32",
             "minimum": 0
           },
-          "finished_at": {
-            "$ref": "#/components/schemas/Timestamp"
+          "ranked": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LiveSummary"
+            }
+          },
+          "too_early": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LiveSummary"
+            }
           }
         }
+      },
+      "LivePoint": {
+        "type": "object",
+        "required": [
+          "at",
+          "equity",
+          "benchmark"
+        ],
+        "properties": {
+          "at": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "equity": {
+            "type": "string"
+          },
+          "benchmark": {
+            "type": "string"
+          }
+        }
+      },
+      "LiveStats": {
+        "type": "object",
+        "required": [
+          "through",
+          "sessions",
+          "paused_sessions",
+          "cagr",
+          "benchmark_cagr",
+          "excess_cagr",
+          "total_return",
+          "benchmark_return",
+          "excess_return",
+          "max_drawdown",
+          "verdict",
+          "curve"
+        ],
+        "properties": {
+          "through": {
+            "type": "string",
+            "format": "date"
+          },
+          "sessions": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "paused_sessions": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "cagr": {
+            "type": "number",
+            "format": "double"
+          },
+          "benchmark_cagr": {
+            "type": "number",
+            "format": "double"
+          },
+          "excess_cagr": {
+            "type": "number",
+            "format": "double"
+          },
+          "excess_cagr_error": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "total_return": {
+            "type": "number",
+            "format": "double"
+          },
+          "benchmark_return": {
+            "type": "number",
+            "format": "double"
+          },
+          "excess_return": {
+            "type": "number",
+            "format": "double"
+          },
+          "excess_error": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "max_drawdown": {
+            "type": "number",
+            "format": "double"
+          },
+          "volatility": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "beta": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "excess": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SharpeMoments"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "probabilistic_sharpe": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/LiveVerdict"
+          },
+          "curve": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LivePoint"
+            }
+          }
+        }
+      },
+      "LiveSummary": {
+        "type": "object",
+        "required": [
+          "run"
+        ],
+        "properties": {
+          "run": {
+            "$ref": "#/components/schemas/RunSummary"
+          },
+          "sessions_needed": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "LiveVerdict": {
+        "type": "string",
+        "enum": [
+          "incubating",
+          "tracking"
+        ]
       },
       "LogLevel": {
         "type": "string",
@@ -2955,6 +3020,16 @@
               }
             ]
           },
+          "live_stats": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LiveStats"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "result_hash": {
             "type": [
               "string",
@@ -2996,6 +3071,34 @@
           }
         }
       },
+      "SharpeMoments": {
+        "type": "object",
+        "required": [
+          "sharpe",
+          "skew",
+          "kurtosis",
+          "observations"
+        ],
+        "properties": {
+          "sharpe": {
+            "type": "number",
+            "format": "double"
+          },
+          "skew": {
+            "type": "number",
+            "format": "double"
+          },
+          "kurtosis": {
+            "type": "number",
+            "format": "double"
+          },
+          "observations": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
       "Side": {
         "type": "string",
         "enum": [
@@ -3025,6 +3128,7 @@
             "required": [
               "run_id",
               "bot",
+              "mode",
               "status",
               "type"
             ],
@@ -3035,6 +3139,9 @@
               "bot": {
                 "type": "string"
               },
+              "mode": {
+                "$ref": "#/components/schemas/Mode"
+              },
               "status": {
                 "$ref": "#/components/schemas/RunStatus"
               },
@@ -3042,6 +3149,32 @@
                 "type": "string",
                 "enum": [
                   "run_status"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "run_id",
+              "bot",
+              "summary",
+              "type"
+            ],
+            "properties": {
+              "run_id": {
+                "$ref": "#/components/schemas/RunId"
+              },
+              "bot": {
+                "type": "string"
+              },
+              "summary": {
+                "$ref": "#/components/schemas/LiveSummary"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "live_session"
                 ]
               }
             }
@@ -3438,7 +3571,7 @@
       "name": "runs"
     },
     {
-      "name": "leaderboard"
+      "name": "league"
     },
     {
       "name": "data"

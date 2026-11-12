@@ -599,6 +599,7 @@ version = "0.1.0"
 dependencies = [
  "buizz-core",
  "chrono",
+ "libm",
  "rust_decimal",
  "serde_json",
 ]

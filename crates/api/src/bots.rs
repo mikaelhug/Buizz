@@ -1,9 +1,14 @@
 use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
-use buizz_core::api::{ApiError, BotDetail, BotStatus, BotSummary, RunSummary, StartBacktest};
+use buizz_core::api::{
+    ApiError, BotDetail, BotStage, BotStatus, BotSummary, League, LiveSummary, RunSummary,
+    StartBacktest,
+};
+use buizz_core::performance::LiveVerdict;
 use buizz_core::run::{BotManifest, DesiredState, Mode, RunBadge, RunStatus};
 use buizz_core::time::Timestamp;
+use buizz_metrics::live_summary;
 use buizz_state::RunFilter;
 use futures::future::{try_join, try_join_all};
 
@@ -12,7 +17,12 @@ use crate::error::Failure;
 use crate::extract::{JsonBody, Path};
 
 const RECENT_RUNS: u32 = 50;
-const SPARKLINE_POINTS: u32 = 60;
+
+struct Bot<'a> {
+    name: &'a str,
+    manifest: &'a BotManifest,
+    hash: &'a str,
+}
 
 fn bot_status(runs: &[RunSummary], live: Option<&RunSummary>) -> BotStatus {
     if let Some(live) = live {
@@ -32,47 +42,39 @@ fn bot_status(runs: &[RunSummary], live: Option<&RunSummary>) -> BotStatus {
     }
 }
 
-async fn recent_runs(app: &AppState, bot: &str) -> Result<Vec<RunSummary>, Failure> {
-    let filter = RunFilter {
-        bot: Some(bot.to_owned()),
-        limit: Some(RECENT_RUNS),
+fn live_runs(bot: Option<&str>, statuses: &[RunStatus]) -> RunFilter {
+    RunFilter {
+        bot: bot.map(str::to_owned),
+        mode: Some(Mode::Live),
+        statuses: statuses.to_vec(),
         ..RunFilter::default()
-    };
-    Ok(app.state.runs(filter).await?)
+    }
 }
 
 async fn summarize(
     app: &AppState,
-    name: &str,
-    manifest: &BotManifest,
-    runs: &[RunSummary],
+    bot: Bot<'_>,
+    live: &[RunSummary],
+    started: u32,
 ) -> Result<BotSummary, Failure> {
-    let live = runs
+    let activity = app.state.bot_activity(bot.name, bot.hash).await?;
+    let live: Vec<LiveSummary> = live
         .iter()
-        .find(|run| run.mode == Mode::Live && !run.status.is_finished());
-    let focus = live.or_else(|| runs.iter().find(|run| run.equity.is_some()));
-    let sparkline = async {
-        match focus {
-            Some(run) => app.state.sparkline(run.id, SPARKLINE_POINTS).await,
-            None => Ok(Vec::new()),
-        }
+        .filter(|run| run.bot == bot.name)
+        .map(|run| live_summary(run.clone(), started))
+        .collect();
+    let stage = match (live.is_empty(), activity.screened) {
+        (false, _) => BotStage::Live,
+        (true, true) => BotStage::Screened,
+        (true, false) => BotStage::Draft,
     };
-    let (sparkline, holdout_runs) = try_join(sparkline, app.state.holdout_runs(name)).await?;
-    let stats = runs
-        .iter()
-        .find_map(|run| run.metrics.clone().map(|metrics| (run.id, metrics)));
     Ok(BotSummary {
-        name: name.to_owned(),
-        description: manifest.description.clone(),
-        timeframe: manifest.timeframe,
-        status: bot_status(runs, live),
-        live_run: live.map(|run| run.id),
-        equity: focus.and_then(|run| run.equity),
-        sparkline,
-        stats_run: stats.as_ref().map(|(id, _)| *id),
-        stats: stats.map(|(_, metrics)| metrics),
-        holdout_runs,
-        last_run_at: runs.first().map(|run| run.created_at),
+        name: bot.name.to_owned(),
+        description: bot.manifest.description.clone(),
+        timeframe: bot.manifest.timeframe,
+        stage,
+        live,
+        last_run_at: activity.last_run_at,
     })
 }
 
@@ -82,9 +84,18 @@ pub(crate) async fn list_bots(
     State(app): State<AppState>,
 ) -> Result<Json<Vec<BotSummary>>, Failure> {
     let scan = app.runner.bots();
-    let summaries = try_join_all(scan.bots.iter().map(|bot| async {
-        let runs = recent_runs(&app, &bot.name).await?;
-        summarize(&app, &bot.name, &bot.manifest, &runs).await
+    let (live, started) = try_join(
+        app.state.runs(live_runs(None, &RunStatus::ACTIVE)),
+        app.state.live_runs_started(),
+    )
+    .await?;
+    let summaries = try_join_all(scan.bots.iter().map(|spec| {
+        let bot = Bot {
+            name: &spec.name,
+            manifest: &spec.manifest,
+            hash: &spec.content_hash,
+        };
+        summarize(&app, bot, &live, started)
     }))
     .await?;
     Ok(Json(summaries))
@@ -98,17 +109,68 @@ pub(crate) async fn bot_detail(
     Path(name): Path<String>,
 ) -> Result<Json<BotDetail>, Failure> {
     let scan = app.runner.bots();
-    let bot = scan
+    let spec = scan
         .bots
         .iter()
         .find(|bot| bot.name == name)
         .ok_or_else(|| Failure::not_found(format!("bot {name}")))?;
-    let runs = recent_runs(&app, &bot.name).await?;
+    let recent = RunFilter {
+        bot: Some(name.clone()),
+        limit: Some(RECENT_RUNS),
+        ..RunFilter::default()
+    };
+    let ((runs, live), (started, holdout_runs)) = try_join(
+        try_join(
+            app.state.runs(recent),
+            app.state.runs(live_runs(Some(&name), &RunStatus::ACTIVE)),
+        ),
+        try_join(app.state.live_runs_started(), app.state.holdout_runs(&name)),
+    )
+    .await?;
+    let bot = Bot {
+        name: &spec.name,
+        manifest: &spec.manifest,
+        hash: &spec.content_hash,
+    };
     Ok(Json(BotDetail {
-        summary: summarize(&app, &bot.name, &bot.manifest, &runs).await?,
-        manifest: bot.manifest.clone(),
-        bot_hash: bot.content_hash.clone(),
+        status: bot_status(&runs, live.first()),
+        summary: summarize(&app, bot, &live, started).await?,
+        holdout_runs,
+        manifest: spec.manifest.clone(),
+        bot_hash: spec.content_hash.clone(),
         runs,
+    }))
+}
+
+fn confidence(summary: &LiveSummary) -> f64 {
+    summary
+        .run
+        .live_stats
+        .as_ref()
+        .and_then(|stats| stats.probabilistic_sharpe)
+        .unwrap_or(f64::NEG_INFINITY)
+}
+
+#[utoipa::path(get, path = "/api/league", tag = "league",
+    responses((status = 200, body = League)))]
+pub(crate) async fn league(State(app): State<AppState>) -> Result<Json<League>, Failure> {
+    let runs = app.state.runs(live_runs(None, &[])).await?;
+    let started = u32::try_from(runs.len()).unwrap_or(u32::MAX);
+    let (mut ranked, too_early): (Vec<_>, Vec<_>) = runs
+        .into_iter()
+        .map(|run| live_summary(run, started))
+        .partition(|summary| {
+            summary
+                .run
+                .live_stats
+                .as_ref()
+                .is_some_and(|stats| stats.verdict != LiveVerdict::Incubating)
+        });
+    ranked.sort_by(|left, right| confidence(right).total_cmp(&confidence(left)));
+    Ok(Json(League {
+        started,
+        ranked,
+        too_early,
     }))
 }
 
