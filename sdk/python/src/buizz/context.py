@@ -542,8 +542,11 @@ class Context:
         exit_reason: str,
         reason: str | Mapping[str, str] | None = None,
         at: Auction | None = None,
+        band: float = 0.0,
     ) -> None:
         self._current("ctx.rebalance")
+        if not 0 <= band < 1:
+            raise ValueError(f"band must be at least 0 and below 1, got {band}")
         targets = {symbol: wire_decimal(f"weight of {symbol}", weight) for symbol, weight in weights.items()}
         reasons = {} if reason is None else dict.fromkeys(targets, reason) if isinstance(reason, str) else dict(reason)
         if missing := sorted(targets.keys() - reasons.keys()):
@@ -564,7 +567,8 @@ class Context:
                 continue
             held = projected.get(symbol, 0)
             target = 0 if weight == 0 else int(weight * self._equity / closes[symbol])
-            if target != held:
+            resized_within_band = target * held > 0 and abs(target - held) <= band * abs(target)
+            if target != held and not resized_within_band:
                 changes.append((abs(target) > abs(held), symbol, weight))
         for _, symbol, weight in sorted(changes, key=lambda change: change[0]):
             self.order_target_weight(

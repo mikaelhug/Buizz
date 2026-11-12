@@ -7,20 +7,37 @@ from typing import NamedTuple
 import numpy as np
 import numpy.typing as npt
 from buizz_bots.beta import HISTORY_BARS, bab_weights, frazzini_pedersen_beta
-from buizz_bots.fundamentals import DOMESTIC_FORMS, Annual, adjusted_shares, amount, domestic_annual
+from buizz_bots.drift import rebalance_within_band
+from buizz_bots.fundamentals import (
+    DOMESTIC_ANNUAL_FORMS,
+    DOMESTIC_FORMS,
+    MAX_STALENESS_DAYS,
+    Annual,
+    adjusted_shares,
+    amount,
+    amount_or_zero,
+    current_debt,
+    domestic_annual,
+    gross_profit,
+    in_dollars,
+    total_debt,
+    traded_today,
+    with_fourth_quarters,
+    year_end_shares,
+)
 from buizz_bots.monthly import month_end_closes
 from buizz_bots.sessions import last_session_of_month
 from scipy.stats import rankdata
 
-from buizz import Bot, Context, FundamentalPoint, History, MacroPoint, Metric, run, to_ns
+from buizz import Bot, Context, FundamentalPoint, History, MacroPoint, Metric, run
 
-METRICS: list[Metric] = [
+QUARTERLY_METRICS: list[Metric] = ["net_income", "equity", "preferred_stock", "shares_outstanding"]
+ANNUAL_METRICS: list[Metric] = [
     "revenue",
     "cost_of_revenue",
     "gross_profit",
     "operating_income",
     "pretax_income",
-    "net_income",
     "depreciation_amortization",
     "capex",
     "total_assets",
@@ -36,10 +53,7 @@ METRICS: list[Metric] = [
     "long_term_debt_noncurrent",
     "total_liabilities",
     "minority_interest",
-    "preferred_stock",
-    "equity",
     "retained_earnings",
-    "shares_outstanding",
 ]
 FACTORS = ("mkt", "smb", "hml", "umd", "bab", "qmj")
 PROFITABILITY = ("gpoa", "roe", "roa", "cfoa", "gmar", "acc")
@@ -48,20 +62,17 @@ SAFETY = ("bab", "lev", "ohlson", "altman", "evol")
 MARKET = "VTI"
 CHUNK = 200
 DOLLAR_VOLUME_SESSIONS = 20
-MAX_STALENESS_DAYS = 548
 YEAR_TOLERANCE_DAYS = 45
-SHARES_AFTER_YEAR_END_DAYS = 120
 MOMENTUM_MONTHS = 12
 EVOL_QUARTERS = 60
 EVOL_MIN_QUARTERS = 12
-QUARTER_TOLERANCE_DAYS = 7
 GROWTH_YEARS = 5
 YEAR_LAGS = (0, 1, GROWTH_YEARS, GROWTH_YEARS + 1)
 BREAKPOINTS = (0.3, 0.7)
-QUARTERS_BEFORE_THE_FOURTH = 3
 MIN_CROSS_SECTION = 2
 
 Quarterly = dict[date, float]
+AnnualCache = dict[str, tuple[date | None, Annual]]
 
 
 class Year(NamedTuple):
@@ -108,30 +119,6 @@ def nearest_end(ends: Iterable[date], target: date) -> date | None:
     return min(close, key=lambda end: abs((end - target).days)) if close else None
 
 
-def first(*values: float | None) -> float | None:
-    return next((value for value in values if value is not None), None)
-
-
-def total(*values: float | None) -> float:
-    return sum(value for value in values if value is not None)
-
-
-def short_term_debt(annual: Annual, symbol: str, end: date) -> float:
-    reported = amount(annual, symbol, "short_term_debt", end)
-    if reported is not None:
-        return reported
-    return total(
-        amount(annual, symbol, "short_term_borrowings", end), amount(annual, symbol, "current_long_term_debt", end)
-    )
-
-
-def long_term_debt(annual: Annual, symbol: str, end: date) -> float:
-    return (
-        first(amount(annual, symbol, "long_term_debt_noncurrent", end), amount(annual, symbol, "long_term_debt", end))
-        or 0.0
-    )
-
-
 def shareholders_equity(annual: Annual, symbol: str, end: date) -> float | None:
     reported = amount(annual, symbol, "equity", end)
     if reported is not None:
@@ -140,7 +127,7 @@ def shareholders_equity(annual: Annual, symbol: str, end: date) -> float | None:
     liabilities = amount(annual, symbol, "total_liabilities", end)
     if assets is None or liabilities is None:
         return None
-    return assets - liabilities - (amount(annual, symbol, "minority_interest", end) or 0.0)
+    return assets - liabilities - amount_or_zero(annual, symbol, "minority_interest", end)
 
 
 def total_liabilities(annual: Annual, symbol: str, end: date) -> float | None:
@@ -151,22 +138,14 @@ def total_liabilities(annual: Annual, symbol: str, end: date) -> float | None:
     equity = amount(annual, symbol, "equity", end)
     if assets is None or equity is None:
         return None
-    return assets - equity - (amount(annual, symbol, "minority_interest", end) or 0.0)
+    return assets - equity - amount_or_zero(annual, symbol, "minority_interest", end)
 
 
 def book_equity(annual: Annual, symbol: str, end: date) -> float | None:
     equity = shareholders_equity(annual, symbol, end)
     if equity is None:
         return None
-    return equity - (amount(annual, symbol, "preferred_stock", end) or 0.0)
-
-
-def gross_profit(annual: Annual, symbol: str, end: date) -> float | None:
-    revenue = amount(annual, symbol, "revenue", end)
-    cost = amount(annual, symbol, "cost_of_revenue", end)
-    if revenue is not None and cost is not None:
-        return revenue - cost
-    return amount(annual, symbol, "gross_profit", end)
+    return equity - amount_or_zero(annual, symbol, "preferred_stock", end)
 
 
 def working_capital(annual: Annual, symbol: str, end: date) -> float | None:
@@ -177,18 +156,11 @@ def working_capital(annual: Annual, symbol: str, end: date) -> float | None:
     return (
         current_assets
         - current_liabilities
-        - total(
-            amount(annual, symbol, "cash_and_equivalents", end), amount(annual, symbol, "short_term_investments", end)
-        )
-        + short_term_debt(annual, symbol, end)
-        + total(amount(annual, symbol, "income_taxes_payable", end))
+        - amount_or_zero(annual, symbol, "cash_and_equivalents", end)
+        - amount_or_zero(annual, symbol, "short_term_investments", end)
+        + current_debt(annual, symbol, end)
+        + amount_or_zero(annual, symbol, "income_taxes_payable", end)
     )
-
-
-def year_end_shares(annual: Annual, symbol: str, end: date) -> FundamentalPoint | None:
-    counts = annual.get((symbol, "shares_outstanding"), {})
-    after = [day for day in counts if 0 <= (day - end).days <= SHARES_AFTER_YEAR_END_DAYS]
-    return counts[min(after)] if after else None
 
 
 def latest_shares(points: list[FundamentalPoint], today: date) -> FundamentalPoint | None:
@@ -198,6 +170,7 @@ def latest_shares(points: list[FundamentalPoint], today: date) -> FundamentalPoi
         if point.metric == "shares_outstanding"
         and point.period_start is None
         and point.form in DOMESTIC_FORMS
+        and in_dollars(point)
         and point.value > 0
     ]
     if not counts:
@@ -341,7 +314,7 @@ def ohlson(annual: Annual, symbol: str, now: Year, prior: Year | None, market_eq
     adjusted_assets = now.assets + 0.1 * (market_equity - now.book)
     if adjusted_assets <= 0:
         return None
-    debt = short_term_debt(annual, symbol, end) + long_term_debt(annual, symbol, end)
+    debt = total_debt(annual, symbol, end)
     income_swing = abs(now.income) + abs(prior.income)
     income_change = 0.0 if income_swing == 0 else (now.income - prior.income) / income_swing
     score = (
@@ -360,46 +333,56 @@ def ohlson(annual: Annual, symbol: str, now: Year, prior: Year | None, market_eq
 
 
 def altman(annual: Annual, symbol: str, now: Year, market_equity: float) -> float | None:
+    current_assets = amount(annual, symbol, "current_assets", now.end)
+    current_liabilities = amount(annual, symbol, "current_liabilities", now.end)
     retained = amount(annual, symbol, "retained_earnings", now.end)
     operating = amount(annual, symbol, "operating_income", now.end)
-    if now.working_capital is None or retained is None or operating is None or now.sales is None:
+    if (
+        current_assets is None
+        or current_liabilities is None
+        or retained is None
+        or operating is None
+        or now.sales is None
+    ):
         return None
-    return (1.2 * now.working_capital + 1.4 * retained + 3.3 * operating + 0.6 * market_equity + now.sales) / now.assets
+    working_capital = current_assets - current_liabilities
+    return (1.2 * working_capital + 1.4 * retained + 3.3 * operating + 0.6 * market_equity + now.sales) / now.assets
 
 
 def leverage(annual: Annual, symbol: str, now: Year) -> float:
     end = now.end
     debt = (
-        long_term_debt(annual, symbol, end)
-        + short_term_debt(annual, symbol, end)
-        + total(amount(annual, symbol, "minority_interest", end))
-        + total(amount(annual, symbol, "preferred_stock", end))
+        total_debt(annual, symbol, end)
+        + amount_or_zero(annual, symbol, "minority_interest", end)
+        + amount_or_zero(annual, symbol, "preferred_stock", end)
     )
     return -debt / now.assets
 
 
 def quarterly_income(points: list[FundamentalPoint]) -> Quarterly:
     durations = [
-        (point.period_type, point.period_start, point.period_end, float(point.value))
+        point
         for point in points
-        if point.metric == "net_income" and point.form in DOMESTIC_FORMS and point.period_start is not None
+        if point.metric == "net_income"
+        and point.form in DOMESTIC_FORMS
+        and in_dollars(point)
+        and point.period_start is not None
     ]
-    quarters = {end: value for kind, _, end, value in durations if kind == "Q"}
-    tolerance = timedelta(days=QUARTER_TOLERANCE_DAYS)
-    for kind, start, year_end, value in durations:
-        if kind != "FY" or any(abs(end - year_end) <= tolerance for end in quarters):
-            continue
-        inside = [end for end in quarters if start - tolerance < end < year_end - tolerance]
-        if len(inside) == QUARTERS_BEFORE_THE_FOURTH:
-            quarters[year_end] = value - sum(quarters[end] for end in inside)
-    return quarters
+    return with_fourth_quarters(
+        {point.period_end: float(point.value) for point in durations if point.period_type == "Q"},
+        [
+            (point.period_start, point.period_end, float(point.value))
+            for point in durations
+            if point.period_type == "FY" and point.period_start is not None
+        ],
+    )
 
 
 def quarter_end_books(points: list[FundamentalPoint]) -> dict[date, float]:
     equity: dict[date, float] = {}
     preferred: dict[date, float] = {}
     for point in sorted(points, key=lambda point: point.filed):
-        if point.form not in DOMESTIC_FORMS or point.period_start is not None:
+        if point.form not in DOMESTIC_FORMS or point.period_start is not None or not in_dollars(point):
             continue
         if point.metric == "equity":
             equity[point.period_end] = float(point.value)
@@ -471,6 +454,7 @@ def year_at(annual: Annual, symbol: str, end: date | None, raw: History, split: 
 
 
 def firm_of(
+    ctx: Context,
     symbol: str,
     own: list[FundamentalPoint],
     annual: Annual,
@@ -479,11 +463,10 @@ def firm_of(
     total_return: History,
     market: History,
     rates: RateHistory,
-    today: date,
-    session_open_ns: int,
 ) -> Firm | None:
+    today = ctx.session.date
     latest = latest_shares(own, today)
-    if latest is None or raw.close.size == 0 or raw.start[-1] < session_open_ns:
+    if latest is None or not traded_today(ctx, raw):
         return None
     shares = adjusted_shares(latest, raw, split)
     if shares is None:
@@ -630,19 +613,46 @@ def one_line_per_company(firms: list[Firm]) -> list[Firm]:
     return sorted(lines.values(), key=lambda firm: firm.symbol)
 
 
-def firms_of(ctx: Context, today: date) -> list[Firm]:
-    session_open_ns = to_ns(ctx.session.open)
+def latest_annual_filing(points: list[FundamentalPoint]) -> date | None:
+    return max((point.filed for point in points if point.form in DOMESTIC_ANNUAL_FORMS), default=None)
+
+
+def years_in_use(fresh: Annual, symbol: str, today: date) -> Annual:
+    ends = set(fiscal_year_ends(fresh, symbol, today).values())
+    return {
+        (symbol, metric): {end: point for end, point in fresh[symbol, metric].items() if end in ends}
+        for metric in ANNUAL_METRICS
+        if (symbol, metric) in fresh
+    }
+
+
+def annual_of(
+    ctx: Context, points: list[FundamentalPoint], filed: dict[str, date | None], cache: AnnualCache
+) -> Annual:
+    today = ctx.session.date
+    stale = sorted(symbol for symbol, latest in filed.items() if symbol not in cache or cache[symbol][0] != latest)
+    if stale:
+        fresh = domestic_annual(ctx.fundamentals(stale, ANNUAL_METRICS))
+        cache.update({symbol: (filed[symbol], years_in_use(fresh, symbol, today)) for symbol in stale})
+    annual = domestic_annual(points)
+    for symbol in filed:
+        annual.update(cache[symbol][1])
+    return annual
+
+
+def firms_of(ctx: Context, cache: AnnualCache) -> list[Firm]:
+    today = ctx.session.date
     market = ctx.history([MARKET], "1d", HISTORY_BARS, "all")[MARKET]
     rates = rate_history(ctx.macro(["treasury_3m"], years_back(today, GROWTH_YEARS + 3), today))
     firms: list[Firm] = []
     universe = sorted(ctx.universe)
     for offset in range(0, len(universe), CHUNK):
         chunk = universe[offset : offset + CHUNK]
-        points = ctx.fundamentals(chunk, METRICS)
-        annual = domestic_annual(points)
+        points = ctx.fundamentals(chunk, QUARTERLY_METRICS)
         by_symbol: dict[str, list[FundamentalPoint]] = defaultdict(list)
         for point in points:
             by_symbol[point.symbol].append(point)
+        annual = annual_of(ctx, points, {symbol: latest_annual_filing(by_symbol[symbol]) for symbol in chunk}, cache)
         oldest = oldest_filed(by_symbol, annual, today)
         if not oldest:
             continue
@@ -653,6 +663,7 @@ def firms_of(ctx: Context, today: date) -> list[Firm]:
         total_return = ctx.history(listed, "1d", HISTORY_BARS, "all")
         for symbol in listed:
             firm = firm_of(
+                ctx,
                 symbol,
                 by_symbol[symbol],
                 annual,
@@ -661,8 +672,6 @@ def firms_of(ctx: Context, today: date) -> list[Firm]:
                 total_return[symbol],
                 market,
                 rates,
-                today,
-                session_open_ns,
             )
             if firm is not None:
                 firms.append(firm)
@@ -689,6 +698,9 @@ def reason_for(holding: Holding, rank: int, ranked: int) -> str:
 
 
 class Buffett(Bot):
+    def __init__(self) -> None:
+        self.cache: AnnualCache = {}
+
     def on_start(self, ctx: Context) -> None:
         variant = ctx.params["variant"]
         if variant != "long_only":
@@ -697,8 +709,9 @@ class Buffett(Bot):
     def on_step(self, ctx: Context) -> None:
         if not last_session_of_month(ctx):
             return
-        today = ctx.session.date
-        firms = firms_of(ctx, today)
+        universe = set(ctx.universe)
+        self.cache = {symbol: cached for symbol, cached in self.cache.items() if symbol in universe}
+        firms = firms_of(ctx, self.cache)
         profiles = ctx.instruments([firm.symbol for firm in firms])
         nyse = {symbol for symbol, profile in profiles.items() if profile.exchange == "NYSE"}
         if len([firm for firm in firms if firm.symbol in nyse]) < MIN_CROSS_SECTION:
@@ -707,8 +720,10 @@ class Buffett(Bot):
         loadings = {factor: float(ctx.params["loadings"][factor]) for factor in FACTORS}
         ranked = active_book(firms, nyse, loadings)
         top = ranked[: int(ctx.params["holdings"])]
-        ctx.rebalance(
+        rebalance_within_band(
+            ctx,
             dict.fromkeys((holding.symbol for holding in top), 1 / len(top)),
+            float(ctx.params["drift_band"]),
             reason={holding.symbol: reason_for(holding, rank, len(ranked)) for rank, holding in enumerate(top, 1)},
             exit_reason=f"outside the top {len(top)} of {len(ranked)} by active Buffett tilt",
         )

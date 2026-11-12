@@ -3,4 +3,4 @@ command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
 timeframe = "1d"
 wake = "bar"
 universe = { top_dollar_volume = 6000, asset_class = "stock" }
-params = { method = "net_net", exit = "graham", min_names = 30, net_net_ratio = 0.6667, exit_gain = 0.5, exit_calendar_years = 2, max_pe_1976 = 10, always_acceptable_pe_1976 = 7, min_equity_to_assets_1976 = 0.5 }
+params = { method = "net_net", exit = "graham", min_names = 30, net_net_ratio = 0.6667, exit_gain = 0.5, exit_calendar_years = 2, reentry_block_days = 365, max_pe_1976 = 10, always_acceptable_pe_1976 = 7, min_equity_to_assets_1976 = 0.5 }

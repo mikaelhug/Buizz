@@ -1,8 +1,9 @@
 from collections import defaultdict
 from datetime import date, timedelta
 from itertools import pairwise
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
+from buizz_bots.fundamentals import DOMESTIC_FORMS, in_dollars, shares_after, with_fourth_quarters
 from buizz_bots.sessions import last_session_of_month
 
 from buizz import Bot, Context, FundamentalPoint, History, Metric, run, split_ratio
@@ -17,8 +18,7 @@ NET_NET_METRICS: list[Metric] = [
     "shares_outstanding",
 ]
 RULE_1976_METRICS: list[Metric] = ["total_assets", "equity", "eps_diluted"]
-FOREIGN_FORMS = ("20-F", "40-F")
-MAX_FILING_AGE_DAYS = 460
+MAX_QUARTER_AGE_DAYS = 200
 HISTORY_BARS = 520
 AAA_LOOKBACK_DAYS = 100
 QUARTER_GAP_DAYS = range(80, 101)
@@ -37,12 +37,10 @@ class Pick(NamedTuple):
 
 def domestic_facts(points: list[FundamentalPoint]) -> dict[str, Facts]:
     facts: defaultdict[str, Facts] = defaultdict(dict)
-    foreign: set[str] = set()
     for point in sorted(points, key=lambda point: point.filed):
-        if point.form.startswith(FOREIGN_FORMS):
-            foreign.add(point.symbol)
-        facts[point.symbol].setdefault(point.metric, []).append(point)
-    return {symbol: found for symbol, found in facts.items() if symbol not in foreign}
+        if point.form in DOMESTIC_FORMS and in_dollars(point):
+            facts[point.symbol].setdefault(point.metric, []).append(point)
+    return facts
 
 
 def instants(facts: Facts, metric: Metric) -> dict[date, float]:
@@ -51,7 +49,7 @@ def instants(facts: Facts, metric: Metric) -> dict[date, float]:
 
 def latest_balance_sheet(facts: Facts, metric: Metric, today: date) -> date | None:
     days = instants(facts, metric)
-    if not days or (today - max(days)).days > MAX_FILING_AGE_DAYS:
+    if not days or (today - max(days)).days > MAX_QUARTER_AGE_DAYS:
         return None
     return max(days)
 
@@ -83,23 +81,20 @@ def net_current_asset_value(facts: Facts, today: date) -> tuple[date, float] | N
 
 
 def trailing_eps(points: list[FundamentalPoint], raw: History, adjusted: History, today: date) -> float | None:
-    quarters: dict[date, float] = {}
+    reported: dict[date, float] = {}
     years: list[tuple[date, date, float]] = []
     for point in points:
         ratio = split_ratio(raw, adjusted, point.filed)
-        if ratio is None:
+        if ratio is None or point.period_start is None:
             continue
         per_share_today = float(point.value) / ratio
         if point.period_type == "Q":
-            quarters[point.period_end] = per_share_today
-        elif point.period_start is not None:
+            reported[point.period_end] = per_share_today
+        else:
             years.append((point.period_start, point.period_end, per_share_today))
-    for start, end, annual in years:
-        inside = [value for quarter_end, value in quarters.items() if start < quarter_end < end]
-        if end not in quarters and len(inside) == QUARTERS_PER_YEAR - 1:
-            quarters[end] = annual - sum(inside)
+    quarters = with_fourth_quarters(reported, years)
     ends = sorted(quarters, reverse=True)[:QUARTERS_PER_YEAR]
-    if len(ends) < QUARTERS_PER_YEAR or (today - ends[0]).days > MAX_FILING_AGE_DAYS:
+    if len(ends) < QUARTERS_PER_YEAR or (today - ends[0]).days > MAX_QUARTER_AGE_DAYS:
         return None
     if any((later - earlier).days not in QUARTER_GAP_DAYS for later, earlier in pairwise(ends)):
         return None
@@ -120,11 +115,16 @@ def net_nets(ctx: Context) -> list[Pick]:
     candidates: dict[str, tuple[date, float, FundamentalPoint]] = {}
     for symbol, facts in domestic_facts(ctx.fundamentals(screened_symbols(ctx), NET_NET_METRICS)).items():
         ncav = net_current_asset_value(facts, today)
-        shares = facts.get("shares_outstanding", [])
-        if ncav is not None and ncav[1] > 0 and shares:
-            latest_shares = max(shares, key=lambda point: (point.period_end, point.filed))
-            if latest_shares.value > 0:
-                candidates[symbol] = (*ncav, latest_shares)
+        if ncav is None or ncav[1] <= 0:
+            continue
+        counts = {
+            point.period_end: point
+            for point in facts.get("shares_outstanding", [])
+            if point.period_start is None and point.value > 0
+        }
+        shares = shares_after(counts, ncav[0])
+        if shares is not None:
+            candidates[symbol] = (*ncav, shares)
     if not candidates:
         return []
     raw, adjusted = split_histories(ctx, list(candidates))
@@ -135,7 +135,7 @@ def net_nets(ctx: Context) -> list[Pick]:
             continue
         price_to_ncav = float(shares.value) * ratio * ctx.bars[symbol].close / ncav
         if price_to_ncav <= limit:
-            reason = f"price {price_to_ncav:.0%} of NCAV ${ncav / 1e6:,.1f}M at {day}"
+            reason = f"price {price_to_ncav:.0%} of NCAV ${ncav / 1e6:,.1f}M at {day}, shares on {shares.period_end}"
             picks.append(Pick(symbol, price_to_ncav, reason))
     return sorted(picks, key=lambda pick: pick.rank)
 
@@ -189,15 +189,14 @@ def screen(ctx: Context) -> list[Pick]:
 
 class Graham(Bot):
     def on_step(self, ctx: Context) -> None:
-        today = ctx.session.date
-        entries: dict[str, str] = ctx.state.setdefault("entries", {})
-        held = {symbol for symbol, position in ctx.portfolio.positions.items() if position.qty > 0}
-        for symbol in set(entries) - held:
-            del entries[symbol]
-        for symbol in held:
-            entries.setdefault(symbol, today.isoformat())
         exit_rule = ctx.params["exit"]
         if exit_rule == "graham":
+            held = {symbol for symbol, position in ctx.portfolio.positions.items() if position.qty > 0}
+            entries: dict[str, str] = ctx.state.setdefault("entries", {})
+            for symbol in set(entries) - held:
+                del entries[symbol]
+            for symbol in held:
+                entries.setdefault(symbol, ctx.session.date.isoformat())
             self.graham_exits(ctx, entries)
             self.graham_buys(ctx, held)
         elif exit_rule == "oppenheimer":
@@ -210,7 +209,11 @@ class Graham(Bot):
         gain = float(ctx.params["exit_gain"])
         years = int(ctx.params["exit_calendar_years"])
         year_end = today.month == DECEMBER and bool(entries) and last_session_of_month(ctx)
+        selling = {order.symbol for order in ctx.portfolio.working if order.side == "sell"}
+        time_exits: dict[str, str] = ctx.state.setdefault("time_exits", {})
         for symbol, entered in sorted(entries.items()):
+            if symbol in selling:
+                continue
             cost = float(ctx.position(symbol).avg_cost)
             bar = ctx.bars.get(symbol)
             deadline = date.fromisoformat(entered).year + years
@@ -222,38 +225,52 @@ class Graham(Bot):
                 ctx.order_target_weight(
                     symbol, 0, reason=f"{years}-year limit: bought {entered}, end of {deadline} reached"
                 )
+                time_exits[symbol] = today.isoformat()
 
     def graham_buys(self, ctx: Context, held: set[str]) -> None:
-        month = ctx.session.date.strftime("%Y-%m")
+        today = ctx.session.date
+        month = today.strftime("%Y-%m")
         if ctx.state.get("month") == month:
             return
         ctx.state["month"] = month
+        block = int(ctx.params["reentry_block_days"])
+        time_exits: dict[str, str] = ctx.state.setdefault("time_exits", {})
+        for symbol, exited in list(time_exits.items()):
+            if (today - date.fromisoformat(exited)).days >= block:
+                del time_exits[symbol]
         names = int(ctx.params["min_names"])
         slots = int(float(ctx.portfolio.cash) * names / float(ctx.portfolio.equity))
-        picks = [pick for pick in screen(ctx) if pick.symbol not in held]
-        ctx.log(f"new qualifiers: {len(picks)}, cash for {max(slots, 0)} positions of 1/{names}")
+        taken = held | set(time_exits) | {order.symbol for order in ctx.portfolio.working}
+        picks = [pick for pick in screen(ctx) if pick.symbol not in taken]
+        ctx.log(
+            f"new qualifiers: {len(picks)}, cash for {max(slots, 0)} positions of 1/{names}, "
+            f"{len(time_exits)} blocked for {block} days after a time exit"
+        )
         for pick in picks[: max(slots, 0)]:
             ctx.order_target_weight(pick.symbol, 1 / names, reason=pick.reason)
 
     def oppenheimer_cohort(self, ctx: Context) -> None:
         today = ctx.session.date
-        if today.month not in (NOVEMBER, DECEMBER) or not last_session_of_month(ctx):
-            return
-        if today.month == NOVEMBER:
-            picks = screen(ctx)
-            ctx.state["cohort"] = {pick.symbol: pick.rank for pick in picks}
+        month_end = last_session_of_month(ctx)
+        pending: dict[str, Any] | None = ctx.state.get("cohort")
+        late = pending is not None and today.year > pending["formed"]
+        if (today.month == DECEMBER and month_end) or late:
+            ctx.state.pop("cohort", None)
+            formed = today.year if pending is None else int(pending["formed"])
+            picks: dict[str, float] = {} if pending is None else pending["picks"]
+            label = "price {:.0%} of NCAV" if ctx.params["method"] == "net_net" else "P/E {:.1f}"
+            ctx.rebalance(
+                dict.fromkeys(picks, 1 / len(picks)) if picks else {},
+                reason={
+                    symbol: f"{label.format(rank)} on the November {formed} close, {formed + 1} cohort"
+                    for symbol, rank in picks.items()
+                },
+                exit_reason="12-month cohort ended",
+            )
+        elif today.month == NOVEMBER and month_end:
+            picks = {pick.symbol: pick.rank for pick in screen(ctx)}
+            ctx.state["cohort"] = {"formed": today.year, "picks": picks}
             ctx.log(f"qualifiers on the November close, bought at the turn of the year: {len(picks)}")
-            return
-        cohort: dict[str, float] = ctx.state.pop("cohort", {})
-        label = "price {:.0%} of NCAV" if ctx.params["method"] == "net_net" else "P/E {:.1f}"
-        ctx.rebalance(
-            dict.fromkeys(cohort, 1 / len(cohort)) if cohort else {},
-            reason={
-                symbol: f"{label.format(rank)} on the November close, {today.year + 1} cohort"
-                for symbol, rank in cohort.items()
-            },
-            exit_reason="12-month cohort ended",
-        )
 
 
 if __name__ == "__main__":

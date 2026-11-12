@@ -1,9 +1,9 @@
-description = "Frazzini-Kabiller-Pedersen systematic Buffett, long-only: each month end, the 50 stocks with the largest weights in Berkshire's active tilts (MKT, SMB, HML, UMD, BAB, QMJ), equal-weighted"
+description = "Frazzini-Kabiller-Pedersen systematic Buffett, long-only: each month end, the 50 stocks with the largest weights in Berkshire's active tilts (MKT, SMB, HML, UMD, BAB, QMJ), equal-weighted, a leg resized only once it drifts more than drift_band of its target"
 command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
 timeframe = "1d"
 wake = "bar"
 universe = { top_dollar_volume = 3000, asset_class = "stock" }
-params = { variant = "long_only", holdings = 50, loadings = { mkt = 0.27, smb = -0.15, hml = 0.46, umd = -0.05, bab = 0.29, qmj = 0.43 } }
+params = { variant = "long_only", holdings = 50, drift_band = 0.25, loadings = { mkt = 0.27, smb = -0.15, hml = 0.46, umd = -0.05, bab = 0.29, qmj = 0.43 } }
 step_timeout = 1800
 
 [risk]

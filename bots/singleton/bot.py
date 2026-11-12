@@ -3,10 +3,12 @@ from datetime import date
 from typing import NamedTuple
 
 import numpy as np
+from buizz_bots.drift import rebalance_within_band
 from buizz_bots.fundamentals import (
     Annual,
     adjusted_shares,
     amount,
+    amount_or_zero,
     consecutive_fiscal_ends,
     domestic_annual,
     histories_since,
@@ -57,7 +59,7 @@ def candidate(annual: Annual, symbol: str, today: date) -> Candidate | None:
     if fiscal_ends is None:
         return None
     latest, prior = fiscal_ends
-    preferred = amount(annual, symbol, "preferred_stock", latest) or 0.0
+    preferred = amount_or_zero(annual, symbol, "preferred_stock", latest)
     book_equity = float(equity[latest].value) - preferred
     if book_equity <= 0 or shares[latest].value <= 0 or shares[prior].value <= 0:
         return None
@@ -134,8 +136,10 @@ class Singleton(Bot):
         latest_bars = ctx.history(sorted(formed_in), "1d", 1, "raw") if formed_in else {}
         trading = [symbol for symbol, history in latest_bars.items() if traded_today(ctx, history)]
         weight = 1 / max(len(trading), 1)
-        ctx.rebalance(
+        rebalance_within_band(
+            ctx,
             dict.fromkeys(trading, weight),
+            float(ctx.params["drift_band"]),
             reason={
                 symbol: qualifiers.get(symbol)
                 or f"{formed_in[symbol]} cohort, month {months_between(formed_in[symbol], month) + 1} of {hold_months}"
