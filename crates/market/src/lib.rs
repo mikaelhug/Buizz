@@ -191,8 +191,7 @@ impl MarketStore {
         self.writer
             .run(move |connection| {
                 connection.execute_batch(&format!(
-                    "SET memory_limit = '{memory}'; SET threads = {}; \
-                     SET preserve_insertion_order = false",
+                    "SET memory_limit = '{memory}'; SET threads = {}",
                     threads.max(1)
                 ))?;
                 Ok(())

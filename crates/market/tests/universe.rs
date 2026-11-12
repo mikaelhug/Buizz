@@ -4,7 +4,7 @@ use buizz_core::market::{
 use buizz_core::run::UniverseSpec;
 use buizz_core::time::Timestamp;
 use buizz_market::{FILE_NAME, MarketStore};
-use chrono::{NaiveDate, NaiveTime, TimeDelta};
+use chrono::{Datelike, NaiveDate, NaiveTime, TimeDelta};
 use rust_decimal::Decimal;
 
 fn session(date: NaiveDate) -> Session {
@@ -93,4 +93,50 @@ async fn top_dollar_volume_ranks_by_average_and_fills_past_delisted_symbols() {
         store.universe(&top(2), on, 20).await.unwrap(),
         vec![Symbol::new("NEW"), Symbol::new("STEADY")]
     );
+}
+
+#[tokio::test]
+async fn bars_of_a_wide_universe_come_back_in_time_order_on_a_limited_store() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = MarketStore::open(&dir.path().join(FILE_NAME), 1)
+        .await
+        .unwrap();
+    store.limit("1GB".to_owned(), 2).await.unwrap();
+    let sessions: Vec<Session> = NaiveDate::from_ymd_opt(2015, 1, 2)
+        .unwrap()
+        .iter_days()
+        .take_while(|day| day.year() < 2017)
+        .filter(|day| day.weekday().number_from_monday() <= 5)
+        .map(session)
+        .collect();
+    store
+        .upsert_sessions(DataSource::Fixture, sessions.clone())
+        .await
+        .unwrap();
+    let symbols: Vec<Symbol> = (0..500)
+        .map(|index| Symbol::new(&format!("S{index:03}")))
+        .collect();
+    store
+        .upsert_bars(
+            DataSource::Fixture,
+            Timeframe::Day,
+            symbols
+                .iter()
+                .flat_map(|symbol| sessions.iter().map(|day| bar(symbol.as_str(), day, 1)))
+                .collect(),
+        )
+        .await
+        .unwrap();
+
+    let bars = store
+        .bars_between(
+            Timeframe::Day,
+            symbols,
+            sessions[270].open,
+            sessions[520].close,
+        )
+        .await
+        .unwrap();
+
+    assert!(bars.is_sorted_by_key(|bar| (bar.start, bar.symbol.clone())));
 }
