@@ -43,7 +43,7 @@ export function Modal({ title, confirmLabel, danger = false, busy = false, onCon
           <button type="button" className="btn" onClick={onCancel}>
             Cancel
           </button>
-          <button type="submit" className={`btn ${danger ? "btn-danger" : "btn-accent"}`} disabled={busy} autoFocus>
+          <button type="submit" className={`btn ${danger ? "btn-danger" : "btn-primary"}`} disabled={busy} autoFocus>
             {confirmLabel}
           </button>
         </div>

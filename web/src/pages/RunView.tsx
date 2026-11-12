@@ -80,7 +80,7 @@ export function RunView({ runId }: { runId: number }) {
   });
 
   if (!run.data) {
-    return run.error ? <Failure message={run.error} onRetry={run.reload} /> : <Loading />;
+    return run.error ? <Failure message={run.error} onRetry={run.reload} /> : <Loading shape="chart" />;
   }
   return (
     <>
@@ -233,7 +233,7 @@ function Positions({ positions }: { positions: Resource<Schemas["PositionView"][
       <h2>Positions</h2>
       <StaleFailure resource={positions} />
       {!positions.data ? (
-        positions.error ? <Failure message={positions.error} onRetry={positions.reload} /> : <Loading />
+        positions.error ? <Failure message={positions.error} onRetry={positions.reload} /> : <Loading shape="table" />
       ) : positions.data.length === 0 ? (
         <p className="empty">Flat</p>
       ) : (
@@ -301,7 +301,7 @@ function Orders({ orders }: { orders: Paged<Schemas["OrderView"]> }) {
       <h2>Orders</h2>
       <StaleFailure resource={orders} />
       {!orders.data ? (
-        orders.error ? <Failure message={orders.error} onRetry={orders.reload} /> : <Loading />
+        orders.error ? <Failure message={orders.error} onRetry={orders.reload} /> : <Loading shape="table" />
       ) : orders.data.items.length === 0 ? (
         <p className="empty">No orders</p>
       ) : (

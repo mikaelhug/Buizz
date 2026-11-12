@@ -13,6 +13,7 @@ import { notify } from "../ui/Toaster";
 import { BacktestDialog } from "./BacktestDialog";
 import { BotActions } from "./BotActions";
 import { RunView } from "./RunView";
+import "../styles/bot-detail.css";
 
 type Run = Schemas["RunSummary"];
 
@@ -35,7 +36,7 @@ export function BotDetail({ name, runId }: { name: string; runId: number | undef
   });
 
   if (!detail.data) {
-    return detail.error ? <Failure message={detail.error} onRetry={detail.reload} /> : <Loading />;
+    return detail.error ? <Failure message={detail.error} onRetry={detail.reload} /> : <Loading shape="chart" />;
   }
   const { summary, runs } = detail.data;
   const selected = runId ?? summary.live_run ?? summary.stats_run ?? runs[0]?.id;
@@ -117,7 +118,7 @@ function RunHistory({ history, selected, name, onCancelled }: HistoryProps) {
       <h2>Runs</h2>
       <StaleFailure resource={history} />
       {!history.data ? (
-        history.error ? <Failure message={history.error} onRetry={history.reload} /> : <Loading />
+        history.error ? <Failure message={history.error} onRetry={history.reload} /> : <Loading shape="table" />
       ) : history.data.items.length === 0 ? (
         <p className="empty">No runs yet</p>
       ) : (

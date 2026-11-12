@@ -7,6 +7,7 @@ import { useResource } from "../lib/useResource";
 import { Failure, Loading, StaleFailure } from "../ui/Feedback";
 import { FEW_TRADES, type MetricKey, METRICS, type Metrics, MetricValue, sharpeError } from "../ui/Metrics";
 import { RunBadges } from "../ui/Status";
+import "../styles/leaderboard.css";
 
 const COLUMNS: MetricKey[] = [
   "total_return",
@@ -131,7 +132,7 @@ export function Leaderboard({ preset }: { preset: Preset }) {
       </header>
       <StaleFailure resource={board} />
       {!board.data ? (
-        board.error ? <Failure message={board.error} onRetry={board.reload} /> : <Loading />
+        board.error ? <Failure message={board.error} onRetry={board.reload} /> : <Loading shape="table" />
       ) : board.data.rows.length === 0 ? (
         <p className="empty">No completed {preset} runs on this cost model</p>
       ) : (

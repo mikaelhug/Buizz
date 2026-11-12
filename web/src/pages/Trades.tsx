@@ -90,7 +90,7 @@ export function Trades({ trades }: { trades: Resource<Trade[]> }) {
       <h2>Trades</h2>
       <StaleFailure resource={trades} />
       {!trades.data ? (
-        trades.error ? <Failure message={trades.error} onRetry={trades.reload} /> : <Loading />
+        trades.error ? <Failure message={trades.error} onRetry={trades.reload} /> : <Loading shape="table" />
       ) : trades.data.length === 0 ? (
         <p className="empty">No closed trades</p>
       ) : (

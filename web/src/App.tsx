@@ -1,14 +1,18 @@
 import { useEffect, useState } from "react";
 import { api, ApiFailure, errorMessage, must, mustSucceed, UNAUTHORIZED_EVENT } from "./api/client";
 import { connectStream, useStreamStatus } from "./api/stream";
-import { href, type Route, useRoute } from "./lib/route";
+import { href, type Route, routeTitle, useDocumentTitle, useRoute } from "./lib/route";
 import { BotDetail } from "./pages/BotDetail";
 import { BotGrid } from "./pages/BotGrid";
 import { DataHealth } from "./pages/DataHealth";
 import { Leaderboard } from "./pages/Leaderboard";
 import { Login, Unreachable } from "./pages/Login";
 import { DialogHost } from "./ui/Dialog";
+import { ErrorBoundary } from "./ui/ErrorBoundary";
+import { BrandMark } from "./ui/Icon";
+import { ThemeMenu } from "./ui/ThemeMenu";
 import { notify, Toaster } from "./ui/Toaster";
+import "./styles/shell.css";
 
 type Auth = { state: "checking" | "in" | "out" } | { state: "unreachable"; reason: string; retry: () => void };
 
@@ -66,10 +70,10 @@ const NAV: { route: Route; text: string; page: Route["page"][] }[] = [
   { route: { page: "data" }, text: "Data", page: ["data"] },
 ];
 
-const STREAM_TITLES = {
-  open: "Live updates connected",
-  connecting: "Connecting live updates",
-  down: "Live updates disconnected; retrying",
+const STREAM = {
+  open: { text: "Connected", title: "Live updates connected" },
+  connecting: { text: "Connecting", title: "Connecting live updates" },
+  down: { text: "Offline", title: "Live updates disconnected; retrying" },
 };
 
 function Shell({ onLoggedOut }: { onLoggedOut: () => void }) {
@@ -77,6 +81,7 @@ function Shell({ onLoggedOut }: { onLoggedOut: () => void }) {
   const stream = useStreamStatus();
 
   useEffect(() => connectStream(), []);
+  useDocumentTitle(routeTitle(route));
 
   const logout = async () => {
     try {
@@ -91,7 +96,8 @@ function Shell({ onLoggedOut }: { onLoggedOut: () => void }) {
     <div className="shell">
       <header className="topbar">
         <a className="brand" href={href({ page: "bots" })}>
-          Buizz
+          <BrandMark />
+          <span className="brand-name">Buizz</span>
         </a>
         <nav className="nav">
           {NAV.map((item) => (
@@ -100,16 +106,24 @@ function Shell({ onLoggedOut }: { onLoggedOut: () => void }) {
             </a>
           ))}
         </nav>
-        <span className={`stream-dot stream-${stream}`} title={STREAM_TITLES[stream]} role="img" aria-label={STREAM_TITLES[stream]} />
-        <button type="button" className="btn btn-ghost btn-sm" onClick={() => void logout()}>
-          Sign out
-        </button>
+        <div className="topbar-tools">
+          <span className="stream" role="status" title={STREAM[stream].title}>
+            <span className={`stream-dot stream-${stream}`} aria-hidden="true" />
+            <span className="stream-text">{STREAM[stream].text}</span>
+          </span>
+          <ThemeMenu />
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => void logout()}>
+            Sign out
+          </button>
+        </div>
       </header>
       <main className="page">
-        {route.page === "bots" && <BotGrid />}
-        {route.page === "bot" && <BotDetail key={route.name} name={route.name} runId={route.run} />}
-        {route.page === "leaderboard" && <Leaderboard preset={route.preset} />}
-        {route.page === "data" && <DataHealth />}
+        <ErrorBoundary resetOn={href(route)}>
+          {route.page === "bots" && <BotGrid />}
+          {route.page === "bot" && <BotDetail key={route.name} name={route.name} runId={route.run} />}
+          {route.page === "leaderboard" && <Leaderboard preset={route.preset} />}
+          {route.page === "data" && <DataHealth />}
+        </ErrorBoundary>
       </main>
     </div>
   );

@@ -1,0 +1,79 @@
+:root {
+  color-scheme: light dark;
+
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --bg: light-dark(#f4f5f7, #13161c);
+  --surface: light-dark(#ffffff, #1b1f27);
+  --surface-2: light-dark(#f1f3f5, #232833);
+  --border: light-dark(#e3e6ea, #2b313c);
+  --border-strong: light-dark(#cdd2d9, #3c4350);
+  --grid: light-dark(#eef0f3, #252a34);
+  --text: light-dark(#14171c, #e7eaef);
+  --text-2: light-dark(#3d4450, #c2c8d1);
+  --muted: light-dark(#6b7481, #949eac);
+  --accent: light-dark(#2f62e6, #6f97ff);
+  --accent-hover: light-dark(#2553cc, #8aabff);
+  --accent-soft: light-dark(#ebf0fd, #1f2b4a);
+  --accent-text: light-dark(#ffffff, #0f1420);
+  --bench: light-dark(#8d96a3, #a0a9b6);
+  --up: light-dark(#0b8a4c, #3cc684);
+  --down: light-dark(#d1343f, #f2646d);
+  --warn: light-dark(#a8690a, #e5ab4a);
+  --info: light-dark(#2f62e6, #7aa2ff);
+  --up-bg: light-dark(#e2f4ea, #163324);
+  --down-bg: light-dark(#fbe8ea, #3b1d21);
+  --warn-bg: light-dark(#fbf1dd, #382c15);
+  --info-bg: light-dark(#e8eefd, #1c294a);
+  --neutral-bg: light-dark(#eceef1, #282d38);
+  --ring: color-mix(in srgb, var(--accent) 70%, transparent);
+  --scrim: light-dark(rgb(15 20 30 / 0.36), rgb(0 0 0 / 0.56));
+
+  --shadow-sm: 0 1px 2px light-dark(rgb(16 24 40 / 0.05), rgb(0 0 0 / 0.35));
+  --shadow-md: 0 1px 2px light-dark(rgb(16 24 40 / 0.05), rgb(0 0 0 / 0.35)), 0 6px 20px light-dark(rgb(16 24 40 / 0.07), rgb(0 0 0 / 0.35));
+  --shadow-lg: 0 6px 16px light-dark(rgb(16 24 40 / 0.1), rgb(0 0 0 / 0.45)), 0 24px 48px light-dark(rgb(16 24 40 / 0.12), rgb(0 0 0 / 0.5));
+
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --r-pill: 999px;
+
+  --fs-2xs: 10px;
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-base: 13px;
+  --fs-md: 14px;
+  --fs-lg: 16px;
+  --fs-xl: 20px;
+  --fs-2xl: 24px;
+  --fs-3xl: 30px;
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+
+  --dur-fast: 120ms;
+  --dur: 180ms;
+  --ease: cubic-bezier(0.2, 0.6, 0.2, 1);
+
+  --control-sm: 28px;
+  --control: 32px;
+  --topbar: 52px;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}

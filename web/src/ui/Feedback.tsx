@@ -1,5 +1,17 @@
-export function Loading() {
-  return <div className="loading" aria-busy="true" />;
+type Shape = "block" | "chart" | "cards" | "table";
+
+const REPEATS: Partial<Record<Shape, number>> = { cards: 6, table: 6 };
+
+export function Loading({ shape = "block" }: { shape?: Shape }) {
+  const repeats = REPEATS[shape];
+  return (
+    <div className={repeats ? `skeleton-${shape}` : `skeleton skeleton-${shape}`} role="status" aria-busy="true">
+      <span className="visually-hidden">Loading</span>
+      {Array.from({ length: repeats ?? 0 }, (_, index) => (
+        <div key={index} className="skeleton" />
+      ))}
+    </div>
+  );
 }
 
 export function Failure({ message, onRetry }: { message: string; onRetry: () => void }) {

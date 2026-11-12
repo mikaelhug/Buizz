@@ -12,7 +12,8 @@ import {
 import { useEffect, useRef } from "react";
 import type { Schemas } from "../api/client";
 import { exchangeWallSeconds, fmt } from "../lib/format";
-import { useColorScheme } from "../lib/theme";
+import { themeColor, themeFont, useColorScheme } from "../lib/theme";
+import "../styles/chart.css";
 
 type Point = Schemas["SparkPoint"];
 
@@ -48,10 +49,6 @@ const DRAWDOWN_SHARE = 0.3;
 function extendsDrawn(points: Point[], drawn: Point[]): boolean {
   const kept = drawn.length - 1;
   return kept > 0 && points.length >= drawn.length && points[0] === drawn[0] && points[kept - 1] === drawn[kept - 1];
-}
-
-function cssVar(name: string): string {
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
 type Props = {
@@ -114,22 +111,26 @@ export function EquityChart({ runId, points, benchmark }: Props) {
   }, []);
 
   useEffect(() => {
+    const muted = themeColor("--muted");
+    const border = themeColor("--border");
+    const grid = themeColor("--grid");
+    const accent = themeColor("--accent");
+    const bench = themeColor("--bench");
     chart.current?.applyOptions({
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
-        textColor: cssVar("--muted"),
-        fontFamily: cssVar("--font"),
+        textColor: muted,
+        fontFamily: themeFont(),
         fontSize: 11,
-        panes: { separatorColor: cssVar("--border"), separatorHoverColor: cssVar("--border"), enableResize: false },
+        panes: { separatorColor: border, separatorHoverColor: border, enableResize: false },
       },
-      grid: { vertLines: { color: cssVar("--grid") }, horzLines: { color: cssVar("--grid") } },
-      crosshair: { vertLine: { labelBackgroundColor: cssVar("--accent") }, horzLine: { labelBackgroundColor: cssVar("--accent") } },
+      grid: { vertLines: { color: grid }, horzLines: { color: grid } },
+      crosshair: { vertLine: { labelBackgroundColor: accent }, horzLine: { labelBackgroundColor: accent } },
     });
-    equitySeries.current?.applyOptions({ color: cssVar("--accent") });
-    benchmarkSeries.current?.applyOptions({ color: cssVar("--bench") });
-    benchmarkDrawdownSeries.current?.applyOptions({ color: cssVar("--bench") });
-    const down = cssVar("--down");
-    drawdownSeries.current?.applyOptions({ lineColor: down, topColor: `${down}1a`, bottomColor: `${down}59` });
+    equitySeries.current?.applyOptions({ color: accent });
+    benchmarkSeries.current?.applyOptions({ color: bench });
+    benchmarkDrawdownSeries.current?.applyOptions({ color: bench });
+    drawdownSeries.current?.applyOptions({ lineColor: themeColor("--down"), topColor: themeColor("--down", 0.1), bottomColor: themeColor("--down", 0.35) });
   }, [scheme]);
 
   useEffect(() => {

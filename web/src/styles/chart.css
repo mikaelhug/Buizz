@@ -1,0 +1,52 @@
+.chart-panel {
+  position: relative;
+  padding: var(--sp-3);
+}
+
+.legend {
+  position: absolute;
+  top: var(--sp-4);
+  left: var(--sp-5);
+  z-index: 2;
+  display: flex;
+  gap: var(--sp-4);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  pointer-events: none;
+}
+
+.swatch::before {
+  content: "";
+  display: inline-block;
+  width: 14px;
+  height: 0;
+  margin-right: 6px;
+  vertical-align: middle;
+  border-top: 2px solid var(--accent);
+  border-radius: 1px;
+}
+
+.swatch-bench::before {
+  border-top: 2px dashed var(--bench);
+}
+
+.equity-chart {
+  height: 420px;
+}
+
+.chart-empty {
+  display: grid;
+  height: 300px;
+  place-items: center;
+}
+
+@media (max-width: 640px) {
+  .equity-chart {
+    height: 320px;
+  }
+
+  .chart-empty {
+    height: 220px;
+  }
+}

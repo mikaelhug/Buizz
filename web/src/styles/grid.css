@@ -1,0 +1,198 @@
+.bot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--sp-3);
+}
+
+.bot-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur) var(--ease);
+}
+
+.bot-card:hover,
+.bot-card:focus-within {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-md);
+}
+
+.bot-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--stripe, transparent);
+}
+
+.bot-card.status-live {
+  --stripe: var(--up);
+}
+
+.bot-card.status-paused,
+.bot-card.status-stopped {
+  --stripe: var(--warn);
+}
+
+.bot-card.status-error {
+  --stripe: var(--down);
+}
+
+.bot-card.status-backtesting {
+  --stripe: var(--info);
+}
+
+.bot-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.bot-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stretched::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.stretched:focus-visible {
+  outline: none;
+}
+
+.stretched:focus-visible::after {
+  border-radius: var(--r-lg);
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+.bot-card-head .pill {
+  margin-left: auto;
+}
+
+.bot-card-body {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  min-height: 40px;
+}
+
+.bot-equity {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-1);
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-semibold);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.bot-equity .badge {
+  margin: 0;
+  letter-spacing: 0.04em;
+}
+
+.sparkline {
+  flex: none;
+  width: 120px;
+  height: 36px;
+}
+
+.sparkline polyline {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1.75;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.sparkline.up polyline {
+  stroke: var(--up);
+}
+
+.sparkline.down polyline {
+  stroke: var(--down);
+}
+
+.sparkline-base {
+  stroke: var(--border-strong);
+  stroke-dasharray: 2 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.bot-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  font-size: var(--fs-sm);
+}
+
+.bot-card-foot .btn {
+  position: relative;
+  z-index: 2;
+}
+
+.hover-stats {
+  position: absolute;
+  inset: 44px 0 auto 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--sp-1);
+  margin: 0;
+  padding: var(--sp-2) var(--sp-4);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+
+.bot-card:hover .hover-stats,
+.bot-card:focus-within .hover-stats {
+  opacity: 1;
+}
+
+.hover-stats dt {
+  color: var(--muted);
+  font-size: var(--fs-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.hover-stats dd {
+  margin: 0;
+  font-size: var(--fs-base);
+  font-weight: var(--fw-semibold);
+}
+
+@media (hover: none) {
+  .hover-stats {
+    position: static;
+    padding: var(--sp-2) 0 0;
+    border-bottom: 0;
+    opacity: 1;
+  }
+}
