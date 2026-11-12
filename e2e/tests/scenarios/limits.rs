@@ -26,7 +26,7 @@ async fn a_full_stream_refuses_a_run_an_oversized_order_is_rejected_and_a_drawdo
 
     let holder: RunSummary = spine.post("/api/bots/tape/live", json!({})).await;
     let (status, body) = spine
-        .request(Method::POST, "/api/bots/wide/live", None)
+        .request(Method::POST, "/api/bots/wide/live", Some(json!({})))
         .await;
     assert_eq!(status, StatusCode::CONFLICT, "{body}");
     let refusal: ApiError = serde_json::from_str(&body).expect("an API error");

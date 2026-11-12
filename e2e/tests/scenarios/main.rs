@@ -10,5 +10,6 @@ mod live;
 mod lookahead;
 mod recovery;
 mod reference;
+mod research;
 mod spine;
 mod world;

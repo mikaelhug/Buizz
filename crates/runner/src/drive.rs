@@ -309,6 +309,10 @@ pub(crate) async fn conclude(
     let Some(run) = inner.state.run(run_id).await? else {
         return Err(StateError::UnknownRun(run_id));
     };
+    let message = match status {
+        RunStatus::Cancelled => message.or_else(|| run.message.clone()),
+        _ => message,
+    };
     let metrics = match result_hash {
         Some(_) => match report::metrics(&inner.market, &inner.state, &run).await {
             Ok(metrics) => Some(metrics),

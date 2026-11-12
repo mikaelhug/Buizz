@@ -141,6 +141,9 @@ async fn source_backtest(
     state: &StateStore,
     run: &RunSummary,
 ) -> Result<Option<RunSummary>, RunnerError> {
+    if let Some(source) = run.source_run {
+        return Ok(state.run(source).await?);
+    }
     let hash = |run: &RunSummary| {
         run.reproducibility
             .as_ref()

@@ -18,6 +18,7 @@ use serde_json::{Map, Value, json};
 
 pub const LIVE_SYMBOLS: [&str; 3] = ["AAA", "BBB", "SPY"];
 const LIVE_HISTORY_SESSIONS: i64 = 25;
+const SCREENING_HISTORY_SESSIONS: i64 = 800;
 const LIVE_OPENED_MINUTES_AGO: i64 = 10;
 const LIVE_SESSION_MINUTES: i64 = 40;
 const LIVE_CLOSING_IN_MINUTES: i64 = 12;
@@ -147,14 +148,22 @@ impl World {
     }
 
     pub fn live(now: Timestamp) -> Self {
-        Self::live_opened(now, LIVE_OPENED_MINUTES_AGO)
+        Self::live_opened(now, LIVE_OPENED_MINUTES_AGO, LIVE_HISTORY_SESSIONS)
+    }
+
+    pub fn screening(now: Timestamp) -> Self {
+        Self::live_opened(now, LIVE_OPENED_MINUTES_AGO, SCREENING_HISTORY_SESSIONS)
     }
 
     pub fn live_closing(now: Timestamp) -> Self {
-        Self::live_opened(now, LIVE_SESSION_MINUTES - LIVE_CLOSING_IN_MINUTES)
+        Self::live_opened(
+            now,
+            LIVE_SESSION_MINUTES - LIVE_CLOSING_IN_MINUTES,
+            LIVE_HISTORY_SESSIONS,
+        )
     }
 
-    fn live_opened(now: Timestamp, minutes_ago: i64) -> Self {
+    fn live_opened(now: Timestamp, minutes_ago: i64, history: i64) -> Self {
         let today = now.exchange_date();
         let open = minute_floor(now) - TimeDelta::minutes(minutes_ago);
         let close = open + TimeDelta::minutes(LIVE_SESSION_MINUTES);
@@ -168,7 +177,7 @@ impl World {
             open: Timestamp::at_exchange_time(date, open.exchange_time()).expect("open exists"),
             close: Timestamp::at_exchange_time(date, close.exchange_time()).expect("close exists"),
         };
-        let mut sessions: Vec<Session> = (1..=LIVE_HISTORY_SESSIONS)
+        let mut sessions: Vec<Session> = (1..=history)
             .rev()
             .map(|days| session_on(today - TimeDelta::days(days)))
             .collect();

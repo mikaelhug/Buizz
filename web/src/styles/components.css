@@ -959,3 +959,12 @@
   margin: var(--sp-1) 0;
   background: var(--border);
 }
+
+.stop-reason {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  gap: var(--sp-1);
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}

@@ -100,6 +100,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/bots/{name}/backtests/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["cancel_backtests"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/bots/{name}/live": {
         parameters: {
             query?: never;
@@ -116,7 +132,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/bots/{name}/pause": {
+    "/api/bots/{name}/research": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["research"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/bots/{name}/sweeps": {
         parameters: {
             query?: never;
             header?: never;
@@ -125,7 +157,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["pause"];
+        post: operations["start_sweep"];
         delete?: never;
         options?: never;
         head?: never;
@@ -356,6 +388,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/runs/{id}/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["pause_run"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/runs/{id}/positions": {
         parameters: {
             query?: never;
@@ -366,6 +414,22 @@ export interface paths {
         get: operations["run_positions"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runs/{id}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["resume_run"];
         delete?: never;
         options?: never;
         head?: never;
@@ -461,7 +525,9 @@ export interface components {
             name: string;
             description: string;
             timeframe: components["schemas"]["Timeframe"];
+            params: Record<string, never>;
             stage: components["schemas"]["BotStage"];
+            screening?: components["schemas"]["Screening"] | null;
             live: components["schemas"]["LiveSummary"][];
             last_run_at?: components["schemas"]["Timestamp"] | null;
         };
@@ -472,6 +538,13 @@ export interface components {
             seconds: number;
             /** Format: int64 */
             peak_memory: number;
+        };
+        CancelRun: {
+            reason?: string | null;
+        };
+        CancelledBacktests: {
+            /** Format: int32 */
+            cancelled: number;
         };
         ChartFill: {
             order_id: components["schemas"]["OrderId"];
@@ -639,6 +712,11 @@ export interface components {
             price: string;
             commission: string;
             feed: components["schemas"]["Feed"];
+        };
+        /** @enum {string} */
+        GateCheck: "not_completed" | "data_warnings" | "drawdown_stop" | "few_trades" | "no_edge" | "dominated_by_benchmark";
+        GoLive: {
+            from_run?: components["schemas"]["RunId"] | null;
         };
         /** @enum {string} */
         JobOutcome: "ok" | "partial" | "noop" | "waiting" | "backoff" | "failed";
@@ -840,6 +918,17 @@ export interface components {
             realized_pnl: string;
             weight: string;
         };
+        PresetResearch: {
+            preset: components["schemas"]["PeriodPreset"];
+            /** Format: double */
+            benchmark_sharpe?: number | null;
+            /** Format: double */
+            benchmark_max_drawdown?: number | null;
+            /** Format: double */
+            luck_sharpe?: number | null;
+            plateau?: components["schemas"]["RunId"] | null;
+            variants: components["schemas"]["VariantResult"][];
+        };
         PriceBar: {
             start: components["schemas"]["Timestamp"];
             /** Format: double */
@@ -876,6 +965,11 @@ export interface components {
             /** Format: int64 */
             seed: number;
             data_watermark?: components["schemas"]["Timestamp"] | null;
+        };
+        Research: {
+            trials: components["schemas"]["Trials"];
+            gate_preset?: components["schemas"]["PeriodPreset"] | null;
+            presets: components["schemas"]["PresetResearch"][];
         };
         /** @enum {string} */
         RiskLimit: "max_position_weight" | "max_gross_exposure" | "max_drawdown";
@@ -977,6 +1071,14 @@ export interface components {
             reproducibility?: components["schemas"]["Reproducibility"] | null;
             message?: string | null;
             usage: components["schemas"]["BotUsage"];
+            source_run?: components["schemas"]["RunId"] | null;
+        };
+        Screening: {
+            preset: components["schemas"]["PeriodPreset"];
+            /** Format: int32 */
+            variants: number;
+            /** Format: int32 */
+            passing: number;
         };
         SessionInfo: {
             authenticated: boolean;
@@ -1057,8 +1159,21 @@ export interface components {
             seed?: number | null;
             allow_holdout?: boolean;
         };
+        StartSweep: {
+            preset: components["schemas"]["PeriodPreset"];
+            grid: {
+                [key: string]: unknown[];
+            };
+        };
         /** @enum {string} */
         StockIndex: "sp500";
+        SweepStarted: {
+            period: components["schemas"]["Period"];
+            queued: components["schemas"]["RunId"][];
+            /** Format: int32 */
+            skipped: number;
+            trials: components["schemas"]["Trials"];
+        };
         /** @example AAPL */
         Symbol: string;
         /** @enum {string} */
@@ -1080,6 +1195,12 @@ export interface components {
             /** @enum {string} */
             by: "percent";
         };
+        Trials: {
+            /** Format: int32 */
+            variants: number;
+            /** Format: int32 */
+            runs: number;
+        };
         UniverseSpec: {
             symbols: components["schemas"]["Symbol"][];
         } | {
@@ -1088,6 +1209,17 @@ export interface components {
             asset_class?: components["schemas"]["AssetClass"] | null;
         } | {
             index: components["schemas"]["StockIndex"];
+        };
+        VariantResult: {
+            run_id: components["schemas"]["RunId"];
+            status: components["schemas"]["RunStatus"];
+            period: components["schemas"]["Period"];
+            params: Record<string, never>;
+            metrics?: components["schemas"]["Metrics"] | null;
+            badges: components["schemas"]["RunBadge"][];
+            failed_checks: components["schemas"]["GateCheck"][];
+            /** Format: double */
+            neighbourhood_sharpe?: number | null;
         };
         /**
          * @example bar
@@ -1285,7 +1417,7 @@ export interface operations {
             };
         };
     };
-    go_live: {
+    cancel_backtests: {
         parameters: {
             query?: never;
             header?: never;
@@ -1301,7 +1433,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RunSummary"];
+                    "application/json": components["schemas"]["CancelledBacktests"];
                 };
             };
             404: {
@@ -1312,7 +1444,48 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description stream symbol cap reached */
+        };
+    };
+    go_live: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GoLive"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunSummary"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description already live with these params, three live variants, or the stream symbol cap */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -1323,7 +1496,7 @@ export interface operations {
             };
         };
     };
-    pause: {
+    research: {
         parameters: {
             query?: never;
             header?: never;
@@ -1339,7 +1512,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RunSummary"];
+                    "application/json": components["schemas"]["Research"];
                 };
             };
             404: {
@@ -1350,6 +1523,48 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
+        };
+    };
+    start_sweep: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StartSweep"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SweepStarted"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description data gaps */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -1537,7 +1752,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CancelRun"];
+            };
+        };
         responses: {
             200: {
                 headers: {
@@ -1548,14 +1767,6 @@ export interface operations {
                 };
             };
             404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiError"];
-                };
-            };
-            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1722,6 +1933,43 @@ export interface operations {
             };
         };
     };
+    pause_run: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["RunId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunSummary"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
     run_positions: {
         parameters: {
             query?: never;
@@ -1742,6 +1990,44 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    resume_run: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["RunId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunSummary"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description not live, or the stream symbol cap */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -12,9 +12,11 @@ use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
 
 pub use crate::live::{LiveInput, Source, live, live_summary};
+pub use crate::research::{gate, luck_sharpe, neighbourhood_sharpes};
 
 mod envelope;
 mod live;
+mod research;
 
 const TRADING_DAYS: f64 = CostModel::TRADING_DAYS_PER_YEAR as f64;
 const MIN_SPREAD: f64 = f64::EPSILON;

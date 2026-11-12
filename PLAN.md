@@ -39,7 +39,7 @@ Versions: latest stable at Wave 0, pinned by committed lockfiles.
 
 - A bot is a folder: `bots/<name>/{bot.toml, bot.py}`. `bot.toml` declares command, default params, universe (`symbols = [...]` or `top_dollar_volume = N`, recomputed as-of), timeframe and `wake` (`bar`, `every:30m`, `at:15:55`).
 - A supervisor in the spine spawns one child process per run (env: spine URL, run id, run token), captures logs, kills by process group, restarts live bots with backoff. Backtests queue behind a core-count semaphore and run in parallel.
-- **Live** = start or resume the bot's live paper run. **Pause** = cancel working orders, stop the bot process, keep marking equity; resume respawns it with its portfolio and saved state, never replaying the paused interval.
+- **Live** = start a live paper run of a variant (up to three per bot), or resume a paused one. **Pause** = cancel working orders, stop the bot process, keep marking equity; resume respawns it with its portfolio and saved state, never replaying the paused interval.
 - Protocol (`ws://spine/bot/v1`, bearer run token): `hello` → `ready`, then strict `step` → (`query`/`data`)* → `ack` alternation. `ack` carries orders, cancels, state (≤64KB) and logs. Identical in both modes; in live, bars arriving before an ack coalesce into the next step.
 - Orders: market, limit, stop, trailing stop, market-on-open and market-on-close (official open and close prints), day or good-till-cancelled, by `qty` or `target_weight`, each with a free-text `reason` (decision journal). Shorts allowed with a flat borrow rate; negative cash is financed at the T-bill rate plus a spread. Daily bots may wake before the close (`before_close:10m`) to trade that close.
 
@@ -104,13 +104,9 @@ Known parity gap, stated honestly: live minute bars are IEX (partial volume), ba
 Approved design. A backtest is a pass/fail screen, never a scoreboard; only live paper results rank bots. Slices ship one at a time; delete each once done.
 
 - Lifecycle is derived from runs, never stored. A version is bot code hash + params; a live run is that version with its own "since live" clock. Stages: draft (no screening backtest at the current hash), screened (a variant passes the gate), live incubating (< 20 sessions), live tracking (inside the backtest's envelope), live falsified (outside it; flagged, retiring is the owner's click), proven (probabilistic Sharpe of daily excess return over SPY ≥ 1 − 0.05/M, M = live runs ever started), retired (live run ended with a reason).
-- Gate (longest pre-holdout preset, default costs, current hash): completed, no data warnings or drawdown stop, ≥ 10 round trips, Sharpe > 0, not dominated by SPY (Sharpe ≥ SPY's or max drawdown lower).
-- Variants: a variant is a run's merged params, coerced to the default's type. Sweeps send a grid in the request (`POST /api/bots/{name}/sweeps`, `buizz sweep --grid`), cartesian product ≤ 256, skip variants already run, same seed, existing backtest queue (slots = CPUs − 1). Trials are counted in SQL over all runs as distinct (hash, variant). Research view: spread, median, gate passes and a luck line (σ·√(2 ln N)); no best-backtest ranking. Go live with the plateau variant (best neighbourhood median), at most 3 live variants per bot, `source_run` recorded.
 - `before_close` daily bots fetch session minute bars over REST instead of leasing stream slots. Intraday bots: N Alpaca stream accounts pooled by the feed manager (cap 30 × N); a symbol stays on its connection until released.
 - Headline metric everywhere: CAGR versus SPY over the same window (bot CAGR − SPY CAGR); plain CAGR and total return stay visible as secondary numbers. Windows under a year are marked as annualized from N sessions.
-- UI: the not-live table gains a screening summary and Sweep. Bot detail splits into Live | Research. Stage "screened" means only "has a completed backtest of the current code" until the gate lands in slice 4.
-- Data: state migration adds `run.variant` (generated from `config.params`) and `run.source_run`; unique live run per (bot, variant). Once `source_run` lands, `source_backtest` in `crates/runner/src/report.rs` returns it when set, in one line, before falling back to today's pick (the longest pre-holdout completed backtest of the same hash and params).
-- Slices: (3) variants live; (4) sweeps + Research tab; (7) optional replay of the live window.
+- Slices: (7) optional replay of the live window.
 
 ## Added beyond the request
 
@@ -125,7 +121,7 @@ In v1:
 8. Headless loop: `buizz backtest bots/x --from --to` prints metrics (the feedback loop for writing bots).
 9. Crash recovery: checkpoint with each step; live runs catch up after a restart.
 
-Out of v1: brokers and real money; options, crypto, FX; tick/quote simulation; extended hours; bracket orders; margin calls; walk-forward, sweeps, optimisers; non-Python SDKs; multi-user; notifications; live-vs-backtest shadow parity report (v1.1).
+Out of v1: brokers and real money; options, crypto, FX; tick/quote simulation; extended hours; bracket orders; margin calls; walk-forward and optimisers; non-Python SDKs; multi-user; notifications; live-vs-backtest shadow parity report (v1.1).
 
 ## Working agreement for agent work
 

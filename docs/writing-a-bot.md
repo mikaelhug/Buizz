@@ -352,6 +352,16 @@ They apply to every live run and are the default for backtests; the `risk` field
 `index = "sp500"` rebuilds S&P 500 membership from two Wikipedia articles, *List of S&P 500 companies* (current constituents) and *Historical components of the S&P 500* (the dated table of additions and removals), fetched daily through the MediaWiki API. Starting from today's members, each change is undone going back in time, matched by the company's article link and falling back to the ticker; within one date additions are undone before removals, so the order of a day's rows does not matter. A parse is refused, and the stored membership kept, when it gives fewer than 495 or more than 510 members today or on any day from the first reliable year on, or when its change log is more than a tenth shorter than the stored one; rows the parser cannot read are counted in the ingest job's message. The change log is incomplete before about 2011, so a run that starts before the first year from which every year lists at least 15 changes carries the `thin_index_history` badge: its early membership has stale members and misses some. Delisted members keep their prices when Alpaca still serves bars under their old ticker; a member it does not is reported as above. Wikipedia text is licensed under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/); the membership is derived from the articles' contributors' work.
 - Each run stores the bot content hash, engine version, seed, data watermark and, when completed or ended by the drawdown stop, a `result_hash` over everything the engine did. The same inputs give the same hash.
 
+## Variants and sweeps
+
+A variant is the bot's params with your overrides merged in, each coerced to the type of its default in `bot.toml` (a whole-number default takes `20` or `20.0` but refuses `20.5`). Sweep a grid to backtest every combination on one preset period before the holdout, with default costs and one shared seed:
+
+```sh
+buizz sweep bots/sma_cross --preset 10y --grid fast=20,50,100 --grid slow=100,200
+```
+
+The Sweep dialog under the bot's Research tab does the same. Variants already run on the same code and period are skipped, so repeating a sweep queues nothing. Research shows each preset's spread of Sharpe across variants against SPY and the luck line (what the best of that many trials reaches with no edge at all), and suggests the plateau variant: the one passing the screening gate whose neighbours on the grid do best. Go live with a variant from its backtest; a bot can run up to three live variants side by side. Every variant ever run counts as a trial, so a wide sweep raises the bar its best result has to clear.
+
 ## Headless loop
 
 With a spine running (`just dev` for the fixture data, or one with real data):

@@ -3,6 +3,7 @@ import { api, errorMessage, must, type Schemas } from "../api/client";
 import { useSpineEvents } from "../api/stream";
 import { label, paramsText } from "../lib/format";
 import { type BotTab, href, navigate } from "../lib/route";
+import { useFrameBatch } from "../lib/useFrameBatch";
 import { PAGE_SIZE, usePaged } from "../lib/usePaged";
 import { useResource } from "../lib/useResource";
 import { confirmDialog } from "../ui/Dialog";
@@ -13,20 +14,24 @@ import { Ago, matches, moveBetweenRows, openRow, SortHeader, type SortColumns, T
 import { notify } from "../ui/Toaster";
 import { BacktestDialog } from "./BacktestDialog";
 import { BotActions } from "./BotActions";
+import { Research } from "./Research";
 import { RunView } from "./RunView";
 import "../styles/bot-detail.css";
 
 type Run = Schemas["RunSummary"];
 
-type Props = { name: string; runId: number | undefined; tab: BotTab; symbol: string | undefined };
+export type BotView = { runId: number | undefined; tab: BotTab; symbol: string | undefined } | { preset: string | undefined };
 
-export function BotDetail({ name, runId, tab, symbol }: Props) {
+type Props = { name: string; view: BotView };
+
+export function BotDetail({ name, view }: Props) {
   const detail = useResource(() => must(api.GET("/api/bots/{name}", { params: { path: { name } } })), [name]);
   const [backtesting, setBacktesting] = useState(false);
+  const reloadOnce = useFrameBatch<unknown>(() => detail.reload());
 
   useSpineEvents((event) => {
     if (event.type === "run_status" && event.bot === name) {
-      detail.reload();
+      reloadOnce(event);
     }
   });
 
@@ -34,8 +39,10 @@ export function BotDetail({ name, runId, tab, symbol }: Props) {
     return detail.error ? <Failure message={detail.error} onRetry={detail.reload} /> : <Loading shape="chart" />;
   }
   const { summary, runs, status, holdout_runs: holdoutRuns } = detail.data;
-  const live = summary.live[0]?.run;
-  const selected = runId ?? live?.id ?? runs.find((run) => run.metrics)?.id ?? runs[0]?.id;
+  const runView = "preset" in view ? undefined : view;
+  const live = summary.live.map((entry) => entry.run);
+  const selected = runView && (runView.runId ?? live[0]?.id ?? runs.find((run) => run.metrics)?.id ?? runs[0]?.id);
+  const shownLive = live.find((run) => run.id === selected);
   const showRun = (run: Run) => {
     detail.reload();
     if (run.id !== selected) {
@@ -54,17 +61,31 @@ export function BotDetail({ name, runId, tab, symbol }: Props) {
           {holdoutRuns > 0 && <HoldoutBadge runs={holdoutRuns} />}
         </div>
         <div className="detail-actions">
-          <BotActions name={name} live={live} onChanged={showRun} />
+          <BotActions name={name} live={shownLive} onChanged={showRun} />
           <button type="button" className="btn btn-sm btn-primary" onClick={() => setBacktesting(true)}>
             Backtest
           </button>
         </div>
         {summary.description && <Description text={summary.description} />}
       </header>
-      {selected === undefined ? (
+      <nav className="view-switch" aria-label="Bot views">
+        <a href={href({ page: "bot", name })} className={runView ? "active" : undefined} aria-current={runView ? "page" : undefined}>
+          Live
+          {live.length > 0 && <span className="count">{live.length}</span>}
+        </a>
+        <a href={href({ page: "research", name })} className={runView ? undefined : "active"} aria-current={runView ? undefined : "page"}>
+          Research
+        </a>
+      </nav>
+      {!runView ? (
+        <>
+          <Research name={name} preset={"preset" in view ? view.preset : undefined} defaults={summary.params} live={live} />
+          <RunHistory selected={undefined} name={name} />
+        </>
+      ) : selected === undefined ? (
         <section className="panel detail-empty">
           <h2>No runs yet</h2>
-          <p className="muted">Backtest {summary.name} on history to see its equity, metrics and trades, or start a live paper run.</p>
+          <p className="muted">Backtest {summary.name} on history to see its equity, metrics and trades, sweep its params under Research, or start a live paper run.</p>
           <button type="button" className="btn btn-primary" onClick={() => setBacktesting(true)}>
             Run a backtest
           </button>
@@ -74,9 +95,9 @@ export function BotDetail({ name, runId, tab, symbol }: Props) {
           key={selected}
           name={name}
           runId={selected}
-          pinned={runId !== undefined}
-          tab={tab}
-          symbol={symbol}
+          pinned={runView.runId !== undefined}
+          tab={runView.tab}
+          symbol={runView.symbol}
           botHash={detail.data.bot_hash}
           recent={runs}
           runs={<RunHistory selected={selected} name={name} />}
@@ -147,7 +168,7 @@ const RUN_COLUMNS: SortColumns<Run, RunColumn> = {
   created: { value: (run) => Date.parse(run.created_at), descending: true },
 };
 
-function RunHistory({ selected, name }: { selected: number; name: string }) {
+function RunHistory({ selected, name }: { selected: number | undefined; name: string }) {
   const history = usePaged(async (before) => {
     const items = await must(api.GET("/api/runs", { params: { query: { bot: name, limit: PAGE_SIZE, ...(before === undefined ? {} : { before }) } } }));
     return { items, next_after: items.length === PAGE_SIZE ? (items.at(-1)?.id ?? null) : null };
@@ -155,10 +176,11 @@ function RunHistory({ selected, name }: { selected: number; name: string }) {
   const sorting = useSort("runs", RUN_COLUMNS, { key: "created", descending: true });
   const flash = useFlash(history.data?.items, (run) => run.id);
   const [query, setQuery] = useState("");
+  const reloadOnce = useFrameBatch<unknown>(() => history.reload());
 
   useSpineEvents((event) => {
     if (event.type === "run_status" && event.bot === name) {
-      history.reload();
+      reloadOnce(event);
     }
   });
 
@@ -173,7 +195,7 @@ function RunHistory({ selected, name }: { selected: number; name: string }) {
       return;
     }
     try {
-      await must(api.POST("/api/runs/{id}/cancel", { params: { path: { id: run.id } } }));
+      await must(api.POST("/api/runs/{id}/cancel", { params: { path: { id: run.id } }, body: {} }));
       history.reload();
     } catch (error) {
       notify(errorMessage(error));

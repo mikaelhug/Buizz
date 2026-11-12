@@ -424,7 +424,9 @@ pub enum DesiredState {
     Stopped,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, ToSchema,
+)]
 pub enum PeriodPreset {
     #[serde(rename = "1y")]
     OneYear,
@@ -446,6 +448,41 @@ pub struct Period {
 
 pub const HOLDOUT_MONTHS: u32 = 12;
 
+pub const MAX_LIVE_VARIANTS: u32 = 3;
+
+pub const MAX_SWEEP_VARIANTS: usize = 256;
+
+pub fn coerce_param(default: &Value, requested: Value) -> Result<Value, String> {
+    let coerced = match (default, &requested) {
+        (Value::Null, _) => Some(requested.clone()),
+        (Value::Number(number), Value::Number(value)) if number.is_f64() => {
+            value.as_f64().map(Value::from)
+        }
+        (Value::Number(_), Value::Number(value)) => value.as_i64().map(Value::from).or_else(|| {
+            value
+                .as_f64()
+                .filter(|whole| whole.fract() == 0.0 && whole.abs() < 2f64.powi(53))
+                .map(|whole| Value::from(whole as i64))
+        }),
+        (Value::Bool(_), Value::Bool(_))
+        | (Value::String(_), Value::String(_))
+        | (Value::Array(_), Value::Array(_))
+        | (Value::Object(_), Value::Object(_)) => Some(requested.clone()),
+        _ => None,
+    };
+    coerced.ok_or_else(|| {
+        let kind = match default {
+            Value::Number(number) if number.is_f64() => "a number",
+            Value::Number(_) => "a whole number",
+            Value::Bool(_) => "true or false",
+            Value::String(_) => "text",
+            Value::Array(_) => "a list",
+            _ => "an object",
+        };
+        format!("must be {kind} like its default {default}, got {requested}")
+    })
+}
+
 pub fn holdout_start(today: NaiveDate) -> NaiveDate {
     today
         .checked_sub_months(Months::new(HOLDOUT_MONTHS))
@@ -459,6 +496,19 @@ impl Period {
 }
 
 impl PeriodPreset {
+    pub const SCREENING: [Self; 4] = [
+        Self::TenYears,
+        Self::FiveYears,
+        Self::ThreeYears,
+        Self::OneYear,
+    ];
+
+    pub fn of(period: Period, created_on: NaiveDate) -> Option<Self> {
+        Self::SCREENING
+            .into_iter()
+            .find(|preset| preset.resolve(created_on) == period)
+    }
+
     pub fn resolve(self, today: NaiveDate) -> Period {
         let holdout = holdout_start(today);
         let years = match self {

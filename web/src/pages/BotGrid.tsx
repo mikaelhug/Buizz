@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api, errorMessage, must, type Schemas } from "../api/client";
 import { type SpineEvent, useSpineEvents } from "../api/stream";
-import { fmt, label } from "../lib/format";
+import { fmt, label, paramsText } from "../lib/format";
 import { href, navigate } from "../lib/route";
 import { useFrameBatch } from "../lib/useFrameBatch";
 import { useResource } from "../lib/useResource";
@@ -14,6 +14,7 @@ import { type Mark, Sparkline } from "../ui/Sparkline";
 import { notify } from "../ui/Toaster";
 import { BacktestDialog } from "./BacktestDialog";
 import { BotActions, isRunning } from "./BotActions";
+import { SweepDialog } from "./SweepDialog";
 import "../styles/board.css";
 import "../styles/bots.css";
 
@@ -26,7 +27,12 @@ const LIVE_SHOWN = ["since", "sessions", "excess_cagr", "cagr", "total_return", 
 type LiveOrder = "bot" | (typeof LIVE_SHOWN)[number] | "attention";
 const STAGE_ORDER: Record<Bot["stage"], number> = { screened: 0, draft: 1, live: 2 };
 const STAGE_ABOUT =
-  "Draft: no completed backtest of the bot's current code. Screened: at least one completed backtest of the current code; the real screening gate comes later. Live: a live paper run is going";
+  "Draft: no variant of the bot's current code passes the screening gate yet. Screened: at least one variant passes it on the longest preset period it has run (completed with default costs, no data warnings or drawdown stop, at least 10 round trips, Sharpe above 0, not dominated by SPY). Live: a live paper run is going. The count says how many variants pass of those screened";
+
+function liveParams(live: Live, defaults: Record<string, unknown> | undefined): string {
+  const params = live.run.config.params as Record<string, unknown>;
+  return paramsText(Object.fromEntries(Object.entries(params).filter(([name, value]) => JSON.stringify(value) !== JSON.stringify(defaults?.[name]))));
+}
 
 function attention(live: Live): number {
   if (live.run.live_stats?.verdict === "falsified" || (live.run.status === "paused" && live.run.message)) {
@@ -75,6 +81,7 @@ export function BotGrid() {
   );
 
   const liveRuns = (bots.data ?? []).flatMap((bot) => bot.live);
+  const defaults = new Map((bots.data ?? []).map((bot) => [bot.name, bot.params as Record<string, unknown>]));
   const known = (id: number) => liveRuns.find((live) => live.run.id === id);
 
   const changed = (run: Run) => {
@@ -106,7 +113,7 @@ export function BotGrid() {
     } else if (event.type === "run_status") {
       const now = new Date().toISOString();
       bots.mutate((current) => current.map((bot) => (bot.name === event.bot && event.status === "queued" ? { ...bot, last_run_at: now } : bot)));
-      if (event.status === "completed" && bots.data?.some((bot) => bot.name === event.bot && bot.stage === "draft")) {
+      if (event.status === "completed" && bots.data?.some((bot) => bot.name === event.bot && bot.live.length === 0)) {
         void refreshBot(event.bot);
       }
     }
@@ -166,6 +173,7 @@ export function BotGrid() {
                   <tr key={entry.run.id} className={attention(entry) === 0 ? "attention" : undefined}>
                     <th scope="row" className="board-name">
                       {LIVE_COLUMNS.bot.cell(entry)}
+                      {liveParams(entry, defaults.get(entry.run.bot)) && <span className="variant-params mono">{liveParams(entry, defaults.get(entry.run.bot))}</span>}
                       {attention(entry) < 2 && (
                         <span className={`pill pill-${attention(entry) === 0 ? "error" : "paused"}`} title={entry.run.message ?? undefined}>
                           {attention(entry) === 0 ? "error" : "paused"}
@@ -228,11 +236,17 @@ export function BotGrid() {
                     </td>
                     <td>
                       <span className={`stage stage-${bot.stage}`}>{label(bot.stage)}</span>
+                      {bot.screening && (
+                        <a className="screening muted" href={href({ page: "research", name: bot.name, preset: bot.screening.preset })}>
+                          {bot.screening.passing} of {bot.screening.variants} pass {bot.screening.preset}
+                        </a>
+                      )}
                     </td>
                     <td className="num muted">{fmt.local(bot.last_run_at)}</td>
                     <td className="actions-cell">
                       <span className="bot-actions">
                         <BacktestButton name={bot.name} />
+                        <SweepButton bot={bot} />
                         <BotActions name={bot.name} live={undefined} onChanged={changed} />
                       </span>
                     </td>
@@ -277,6 +291,29 @@ function BacktestButton({ name }: { name: string }) {
           onStarted={(run) => {
             setDetail(undefined);
             navigate({ page: "bot", name, run: run.id });
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+function SweepButton({ bot }: { bot: Bot }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" className="btn btn-sm btn-ghost" onClick={() => setOpen(true)}>
+        Sweep
+      </button>
+      {open && (
+        <SweepDialog
+          name={bot.name}
+          defaults={bot.params as Record<string, unknown>}
+          preset={bot.screening?.preset === "holdout" || !bot.screening ? "10y" : bot.screening.preset}
+          onClose={() => setOpen(false)}
+          onStarted={(_, preset) => {
+            setOpen(false);
+            navigate({ page: "research", name: bot.name, preset });
           }}
         />
       )}

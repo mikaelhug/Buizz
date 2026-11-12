@@ -1,13 +1,13 @@
 use std::ops::RangeInclusive;
 
-use buizz_core::api::{BotFootprint, BotUsage, RunSummary};
+use buizz_core::api::{BotFootprint, BotUsage, RunSummary, Trials};
 use buizz_core::ledger::{LedgerEntry, LedgerKind, Portfolio};
 use buizz_core::market::Symbol;
 use buizz_core::order::{Fill, Order, OrderId};
 use buizz_core::performance::LiveStats;
 use buizz_core::run::{
-    DesiredState, EquityPoint, Reproducibility, RunEvent, RunEventKind, RunEventType, RunId,
-    RunStatus,
+    DesiredState, EquityPoint, MAX_LIVE_VARIANTS, Mode, Reproducibility, RunEvent, RunEventKind,
+    RunEventType, RunId, RunStatus,
 };
 use buizz_core::time::Timestamp;
 use rusqlite::types::Value as Sql;
@@ -18,15 +18,13 @@ use crate::codec::{
     enum_text, int, json_text, read_decimal, read_enum, read_json, read_optional, read_timestamp,
     read_u64,
 };
-use crate::{
-    BotActivity, Checkpoint, NewRun, Result, RunFilter, RunOutcome, StateError, StepCommit,
-};
+use crate::{Checkpoint, NewRun, Result, RunFilter, RunOutcome, StateError, StepCommit};
 
-const LIVE_RUN_CONFLICT: &str = "UNIQUE constraint failed: run.bot";
+const LIVE_RUN_CONFLICT: &str = "UNIQUE constraint failed: run.bot, run.variant";
 
 const RUN_COLUMNS: &str = "id, bot, mode, status, desired, config, created_at, started_at, \
     finished_at, clock, equity, metrics, result_hash, badges, bot_hash, engine_version, seed, \
-    data_watermark, message, live_stats, bot_processes, bot_seconds, bot_peak_memory";
+    data_watermark, message, live_stats, bot_processes, bot_seconds, bot_peak_memory, source_run";
 
 fn tag_of<T: Serialize>(value: &T) -> Result<String> {
     match serde_json::to_value(value)?.get("type") {
@@ -66,14 +64,15 @@ fn run_summary(row: &Row) -> rusqlite::Result<RunSummary> {
             seconds: row.get(21)?,
             peak_memory: read_u64(row, 22)?,
         },
+        source_run: row.get::<_, Option<i64>>(23)?.map(RunId),
     })
 }
 
 pub fn create(connection: &Connection, run: &NewRun) -> Result<RunId> {
     let inserted = connection.execute(
         "INSERT INTO run (bot, mode, status, desired, config, holdout, bot_hash, engine_version, \
-         seed, data_watermark, created_at, badges) \
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+         seed, data_watermark, created_at, badges, source_run) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         params![
             run.config.bot,
             enum_text(&run.config.mode)?,
@@ -87,15 +86,33 @@ pub fn create(connection: &Connection, run: &NewRun) -> Result<RunId> {
             run.data_watermark.map(Timestamp::nanos),
             run.created_at.nanos(),
             json_text(&run.badges)?,
+            run.source_run.map(|run_id| run_id.0),
         ],
     );
     match inserted {
-        Ok(_) => Ok(RunId(connection.last_insert_rowid())),
+        Ok(_) => {}
         Err(rusqlite::Error::SqliteFailure(_, Some(message))) if message == LIVE_RUN_CONFLICT => {
-            Err(StateError::LiveRunExists(run.config.bot.clone()))
+            return Err(StateError::LiveRunExists(run.config.bot.clone()));
         }
-        Err(error) => Err(error.into()),
+        Err(error) => return Err(error.into()),
     }
+    let run_id = RunId(connection.last_insert_rowid());
+    if run.config.mode == Mode::Live {
+        let live: u32 = connection.query_row(
+            "SELECT COUNT(*) FROM run WHERE bot = ? AND mode = 'live' \
+             AND status IN ('queued', 'starting', 'running', 'paused')",
+            [&run.config.bot],
+            |row| row.get(0),
+        )?;
+        if live > MAX_LIVE_VARIANTS {
+            return Err(StateError::LiveVariantLimit {
+                bot: run.config.bot.clone(),
+                limit: MAX_LIVE_VARIANTS,
+            });
+        }
+    }
+    insert_events(connection, run_id, &run.events)?;
+    Ok(run_id)
 }
 
 pub fn get(connection: &Connection, run_id: RunId) -> Result<Option<RunSummary>> {
@@ -114,6 +131,10 @@ pub fn list(connection: &Connection, filter: &RunFilter) -> Result<Vec<RunSummar
     if let Some(bot) = &filter.bot {
         conditions.push("bot = ?".to_owned());
         values.push(bot.clone().into());
+    }
+    if let Some(bot_hash) = &filter.bot_hash {
+        conditions.push("bot_hash = ?".to_owned());
+        values.push(bot_hash.clone().into());
     }
     if let Some(mode) = filter.mode {
         conditions.push("mode = ?".to_owned());
@@ -167,8 +188,9 @@ pub fn set_status(
     let started = (status == RunStatus::Running).then_some(at.nanos());
     let finished = status.is_finished().then_some(at.nanos());
     let changed = connection.execute(
-        "UPDATE run SET status = ?, message = ?, started_at = COALESCE(started_at, ?), \
-         finished_at = COALESCE(?, finished_at) WHERE id = ?",
+        "UPDATE run SET status = ?1, \
+         message = CASE WHEN desired = 'stopped' THEN COALESCE(?2, message) ELSE ?2 END, \
+         started_at = COALESCE(started_at, ?3), finished_at = COALESCE(?4, finished_at) WHERE id = ?5",
         params![enum_text(&status)?, message, started, finished, run_id.0],
     )?;
     require_changed(changed, run_id)
@@ -178,6 +200,14 @@ pub fn set_desired(connection: &Connection, run_id: RunId, desired: DesiredState
     let changed = connection.execute(
         "UPDATE run SET desired = ? WHERE id = ?",
         params![enum_text(&desired)?, run_id.0],
+    )?;
+    require_changed(changed, run_id)
+}
+
+pub fn stop(connection: &Connection, run_id: RunId, reason: Option<&str>) -> Result<()> {
+    let changed = connection.execute(
+        "UPDATE run SET desired = 'stopped', message = ? WHERE id = ?",
+        params![reason, run_id.0],
     )?;
     require_changed(changed, run_id)
 }
@@ -572,15 +602,22 @@ pub fn live_runs_started(connection: &Connection) -> Result<u32> {
     )
 }
 
-pub fn bot_activity(connection: &Connection, bot: &str, bot_hash: &str) -> Result<BotActivity> {
+pub fn last_run_at(connection: &Connection, bot: &str) -> Result<Option<Timestamp>> {
     Ok(connection.query_row(
-        "SELECT MAX(created_at), COALESCE(MAX(mode = 'backtest' AND status = 'completed' \
-         AND bot_hash = ?2), 0) FROM run WHERE bot = ?1",
-        params![bot, bot_hash],
+        "SELECT MAX(created_at) FROM run WHERE bot = ?",
+        [bot],
+        |row| read_optional(row, 0, read_timestamp),
+    )?)
+}
+
+pub fn trials(connection: &Connection, bot: &str) -> Result<Trials> {
+    Ok(connection.query_row(
+        "SELECT COUNT(DISTINCT json_array(bot_hash, variant)), COUNT(*) FROM run WHERE bot = ?",
+        [bot],
         |row| {
-            Ok(BotActivity {
-                last_run_at: read_optional(row, 0, read_timestamp)?,
-                screened: row.get(1)?,
+            Ok(Trials {
+                variants: row.get(0)?,
+                runs: row.get(1)?,
             })
         },
     )?)

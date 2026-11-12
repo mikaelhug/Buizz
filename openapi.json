@@ -227,6 +227,44 @@
         }
       }
     },
+    "/api/bots/{name}/backtests/cancel": {
+      "post": {
+        "tags": [
+          "bots"
+        ],
+        "operationId": "cancel_backtests",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancelledBacktests"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/bots/{name}/live": {
       "post": {
         "tags": [
@@ -243,12 +281,31 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoLive"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RunSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
@@ -263,7 +320,7 @@
             }
           },
           "409": {
-            "description": "stream symbol cap reached",
+            "description": "already live with these params, three live variants, or the stream symbol cap",
             "content": {
               "application/json": {
                 "schema": {
@@ -275,12 +332,12 @@
         }
       }
     },
-    "/api/bots/{name}/pause": {
-      "post": {
+    "/api/bots/{name}/research": {
+      "get": {
         "tags": [
           "bots"
         ],
-        "operationId": "pause",
+        "operationId": "research",
         "parameters": [
           {
             "name": "name",
@@ -296,7 +353,64 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RunSummary"
+                  "$ref": "#/components/schemas/Research"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bots/{name}/sweeps": {
+      "post": {
+        "tags": [
+          "bots"
+        ],
+        "operationId": "start_sweep",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartSweep"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SweepStarted"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
@@ -311,6 +425,7 @@
             }
           },
           "409": {
+            "description": "data gaps",
             "content": {
               "application/json": {
                 "schema": {
@@ -552,6 +667,16 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelRun"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "content": {
@@ -563,15 +688,6 @@
             }
           },
           "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "409": {
             "content": {
               "application/json": {
                 "schema": {
@@ -857,6 +973,53 @@
         }
       }
     },
+    "/api/runs/{id}/pause": {
+      "post": {
+        "tags": [
+          "runs"
+        ],
+        "operationId": "pause_run",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/RunId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunSummary"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/runs/{id}/positions": {
       "get": {
         "tags": [
@@ -887,6 +1050,54 @@
             }
           },
           "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/{id}/resume": {
+      "post": {
+        "tags": [
+          "runs"
+        ],
+        "operationId": "resume_run",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/RunId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunSummary"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "not live, or the stream symbol cap",
             "content": {
               "application/json": {
                 "schema": {
@@ -1146,6 +1357,7 @@
           "name",
           "description",
           "timeframe",
+          "params",
           "stage",
           "live"
         ],
@@ -1159,8 +1371,21 @@
           "timeframe": {
             "$ref": "#/components/schemas/Timeframe"
           },
+          "params": {
+            "type": "object"
+          },
           "stage": {
             "$ref": "#/components/schemas/BotStage"
+          },
+          "screening": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Screening"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "live": {
             "type": "array",
@@ -1200,6 +1425,31 @@
           "peak_memory": {
             "type": "integer",
             "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "CancelRun": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "CancelledBacktests": {
+        "type": "object",
+        "required": [
+          "cancelled"
+        ],
+        "properties": {
+          "cancelled": {
+            "type": "integer",
+            "format": "int32",
             "minimum": 0
           }
         }
@@ -1842,6 +2092,33 @@
             "$ref": "#/components/schemas/Feed"
           }
         }
+      },
+      "GateCheck": {
+        "type": "string",
+        "enum": [
+          "not_completed",
+          "data_warnings",
+          "drawdown_stop",
+          "few_trades",
+          "no_edge",
+          "dominated_by_benchmark"
+        ]
+      },
+      "GoLive": {
+        "type": "object",
+        "properties": {
+          "from_run": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RunId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
       },
       "JobOutcome": {
         "type": "string",
@@ -2654,6 +2931,55 @@
           }
         }
       },
+      "PresetResearch": {
+        "type": "object",
+        "required": [
+          "preset",
+          "variants"
+        ],
+        "properties": {
+          "preset": {
+            "$ref": "#/components/schemas/PeriodPreset"
+          },
+          "benchmark_sharpe": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "benchmark_max_drawdown": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "luck_sharpe": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "plateau": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RunId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "variants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VariantResult"
+            }
+          }
+        }
+      },
       "PriceBar": {
         "type": "object",
         "required": [
@@ -2805,6 +3131,34 @@
                 "type": "null"
               }
             ]
+          }
+        }
+      },
+      "Research": {
+        "type": "object",
+        "required": [
+          "trials",
+          "presets"
+        ],
+        "properties": {
+          "trials": {
+            "$ref": "#/components/schemas/Trials"
+          },
+          "gate_preset": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PeriodPreset"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "presets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PresetResearch"
+            }
           }
         }
       },
@@ -3276,6 +3630,39 @@
           },
           "usage": {
             "$ref": "#/components/schemas/BotUsage"
+          },
+          "source_run": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RunId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "Screening": {
+        "type": "object",
+        "required": [
+          "preset",
+          "variants",
+          "passing"
+        ],
+        "properties": {
+          "preset": {
+            "$ref": "#/components/schemas/PeriodPreset"
+          },
+          "variants": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "passing": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
           }
         }
       },
@@ -3623,11 +4010,62 @@
         },
         "additionalProperties": false
       },
+      "StartSweep": {
+        "type": "object",
+        "required": [
+          "preset",
+          "grid"
+        ],
+        "properties": {
+          "preset": {
+            "$ref": "#/components/schemas/PeriodPreset"
+          },
+          "grid": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {}
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
       "StockIndex": {
         "type": "string",
         "enum": [
           "sp500"
         ]
+      },
+      "SweepStarted": {
+        "type": "object",
+        "required": [
+          "period",
+          "queued",
+          "skipped",
+          "trials"
+        ],
+        "properties": {
+          "period": {
+            "$ref": "#/components/schemas/Period"
+          },
+          "queued": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunId"
+            }
+          },
+          "skipped": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "trials": {
+            "$ref": "#/components/schemas/Trials"
+          }
+        }
       },
       "Symbol": {
         "type": "string",
@@ -3715,6 +4153,25 @@
           }
         ]
       },
+      "Trials": {
+        "type": "object",
+        "required": [
+          "variants",
+          "runs"
+        ],
+        "properties": {
+          "variants": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "runs": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
       "UniverseSpec": {
         "oneOf": [
           {
@@ -3766,6 +4223,60 @@
             }
           }
         ]
+      },
+      "VariantResult": {
+        "type": "object",
+        "required": [
+          "run_id",
+          "status",
+          "period",
+          "params",
+          "badges",
+          "failed_checks"
+        ],
+        "properties": {
+          "run_id": {
+            "$ref": "#/components/schemas/RunId"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RunStatus"
+          },
+          "period": {
+            "$ref": "#/components/schemas/Period"
+          },
+          "params": {
+            "type": "object"
+          },
+          "metrics": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Metrics"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "badges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunBadge"
+            }
+          },
+          "failed_checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GateCheck"
+            }
+          },
+          "neighbourhood_sharpe": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          }
+        }
       },
       "Wake": {
         "type": "string",

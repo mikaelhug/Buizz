@@ -7,6 +7,7 @@ export type BotTab = (typeof BOT_TABS)[number];
 export type Route =
   | { page: "bots" }
   | { page: "bot"; name: string; run?: number; tab?: BotTab; symbol?: string }
+  | { page: "research"; name: string; preset?: string }
   | { page: "league" }
   | { page: "data" };
 
@@ -16,6 +17,9 @@ function isBotTab(value: string | undefined): value is BotTab {
 
 function botRoute(name: string, rest: string[]): Route {
   const [sub, id] = rest;
+  if (sub === "research") {
+    return { page: "research", name, ...(id ? { preset: id } : {}) };
+  }
   const run = sub === "runs" ? Number(id) : Number.NaN;
   const [view, symbol] = Number.isInteger(run) ? rest.slice(2) : rest;
   return {
@@ -52,6 +56,10 @@ export function href(route: Route): string {
       }
       return route.tab === undefined || route.tab === "overview" ? run : `${run}/${route.tab}`;
     }
+    case "research": {
+      const base = `#/bots/${encodeURIComponent(route.name)}/research`;
+      return route.preset === undefined ? base : `${base}/${encodeURIComponent(route.preset)}`;
+    }
     case "league":
       return "#/league";
     case "data":
@@ -79,6 +87,8 @@ export function routeTitle(route: Route): string {
       return "Bots";
     case "bot":
       return [route.name, ...(route.run === undefined ? [] : [`Run #${route.run}`]), ...(route.symbol === undefined ? [] : [route.symbol])].join(" · ");
+    case "research":
+      return [route.name, "Research", ...(route.preset === undefined ? [] : [route.preset])].join(" · ");
     case "league":
       return "League";
     case "data":

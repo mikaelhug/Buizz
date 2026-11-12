@@ -22,6 +22,7 @@ FINISHED = {"completed", "failed", "cancelled"}
 POLL_SECONDS = 1.0
 ORDERS_PAGE = 1000
 RISK_LIMITS = ("max_position_weight", "max_gross_exposure", "max_drawdown")
+SWEEP_PRESETS = ("1y", "3y", "5y", "10y")
 
 
 class CliError(Exception):
@@ -59,6 +60,13 @@ def parse_param(text: str) -> tuple[str, Any]:
         return key, json.loads(value)
     except ValueError:
         return key, value
+
+
+def parse_grid(text: str) -> tuple[str, list[Any]]:
+    key, values = parse_param(text)
+    if not isinstance(values, str):
+        return key, [values]
+    return key, [parse_param(f"{key}={value}")[1] for value in values.split(",")]
 
 
 def parse_risk(text: str) -> tuple[str, str | None]:
@@ -132,7 +140,7 @@ def format_value(value: Any) -> str:
 
 def list_bots(api: Api) -> None:
     for bot in api.call("GET", "/api/bots"):
-        print(f"{bot['name']:<20} {bot['status']:<12} {bot['timeframe']:<4} {bot['equity'] or '-'}")
+        print(f"{bot['name']:<20} {bot['stage']:<9} {bot['timeframe']:<4} {len(bot['live'])} live")
 
 
 def trade_summary(api: Api, run_id: int) -> list[str]:
@@ -190,6 +198,19 @@ def backtest(api: Api, args: argparse.Namespace) -> int:
     return 0
 
 
+def sweep(api: Api, args: argparse.Namespace) -> int:
+    bot = Path(args.bot).name
+    started = api.call("POST", f"/api/bots/{bot}/sweeps", {"preset": args.preset, "grid": dict(args.grid)})
+    period = started["period"]
+    trials = started["trials"]
+    print(
+        f"{len(started['queued'])} runs queued for {bot} {args.preset} {period['from']}..{period['to']}, "
+        f"{started['skipped']} already run"
+    )
+    print(f"trials: {trials['variants']} variants, {trials['runs']} runs")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="buizz")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -217,6 +238,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     run.add_argument("--allow-holdout", action="store_true", help="allow an end date inside the locked holdout")
+    grid = commands.add_parser("sweep", help="queue a backtest for every combination of param values")
+    grid.add_argument("bot", help="bots/<name>")
+    grid.add_argument("--preset", choices=SWEEP_PRESETS, default="10y", help="the period, ending before the holdout")
+    grid.add_argument(
+        "--grid",
+        action="append",
+        default=[],
+        type=parse_grid,
+        metavar="KEY=V1,V2,...",
+        help="the values to try for one param; the others keep their defaults",
+    )
     return parser
 
 
@@ -227,6 +259,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "bots":
             list_bots(api)
             return 0
+        if args.command == "sweep":
+            return sweep(api, args)
         return backtest(api, args)
     except CliError as exc:
         print(f"buizz: {exc}", file=sys.stderr)

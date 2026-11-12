@@ -10,7 +10,7 @@ use tokio::sync::oneshot;
 use crate::{Result, SCHEMA, StateError};
 
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
-const MIGRATIONS: [&str; 8] = [
+const MIGRATIONS: [&str; 9] = [
     include_str!("../migrations/1_financing.sql"),
     include_str!("../migrations/2_undelivered.sql"),
     include_str!("../migrations/3_drawdown_badge.sql"),
@@ -19,6 +19,7 @@ const MIGRATIONS: [&str; 8] = [
     include_str!("../migrations/6_market_reset.sql"),
     include_str!("../migrations/7_live_stats.sql"),
     include_str!("../migrations/8_bot_usage.sql"),
+    include_str!("../migrations/9_variants.sql"),
 ];
 
 type WriteJob = Box<dyn FnOnce(&mut Connection) + Send>;
@@ -111,7 +112,6 @@ fn migrate(connection: &mut Connection) -> Result<()> {
         [],
         |row| row.get(0),
     )?;
-    transaction.execute_batch(SCHEMA)?;
     let latest = MIGRATIONS.len() as i64;
     let applied: i64 = if fresh {
         latest
@@ -130,6 +130,7 @@ fn migrate(connection: &mut Connection) -> Result<()> {
     {
         transaction.execute_batch(migration)?;
     }
+    transaction.execute_batch(SCHEMA)?;
     transaction.pragma_update(None, "user_version", latest)?;
     transaction.commit()?;
     Ok(())

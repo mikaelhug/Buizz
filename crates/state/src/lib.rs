@@ -8,7 +8,7 @@ use std::ops::RangeInclusive;
 use std::path::Path;
 use std::sync::Arc;
 
-use buizz_core::api::{BotFootprint, BotUsage, RunSummary};
+use buizz_core::api::{BotFootprint, BotUsage, RunSummary, Trials};
 
 use buizz_core::ledger::{LedgerEntry, Portfolio};
 use buizz_core::market::{DataSource, Dataset, Symbol};
@@ -36,8 +36,10 @@ pub enum StateError {
     UnknownRun(RunId),
     #[error("step {step_seq} of run {run_id} is not the successor of the last committed step")]
     StaleStep { run_id: RunId, step_seq: u64 },
-    #[error("bot {0} already has a live run")]
+    #[error("bot {0} is already live with these params")]
     LiveRunExists(String),
+    #[error("bot {bot} already has {limit} live variants; stop one first")]
+    LiveVariantLimit { bot: String, limit: u32 },
     #[error("state store schema is version {found}, newer than the {known} this spine knows")]
     NewerSchema { found: i64, known: i64 },
     #[error("state store has shut down")]
@@ -62,11 +64,14 @@ pub struct NewRun {
     pub data_watermark: Option<Timestamp>,
     pub badges: Vec<RunBadge>,
     pub created_at: Timestamp,
+    pub source_run: Option<RunId>,
+    pub events: Vec<RunEvent>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct RunFilter {
     pub bot: Option<String>,
+    pub bot_hash: Option<String>,
     pub mode: Option<Mode>,
     pub statuses: Vec<RunStatus>,
     pub desired: Option<DesiredState>,
@@ -108,12 +113,6 @@ pub struct RunOutcome {
     pub badge: Option<RunBadge>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct BotActivity {
-    pub last_run_at: Option<Timestamp>,
-    pub screened: bool,
-}
-
 #[derive(Clone)]
 pub struct StateStore {
     db: Arc<Db>,
@@ -126,9 +125,13 @@ impl StateStore {
         })
     }
 
-    pub async fn create_run(&self, run: NewRun) -> Result<RunId> {
+    pub async fn create_runs(&self, runs: Vec<NewRun>) -> Result<Vec<RunId>> {
         self.db
-            .transaction(move |transaction| runs::create(transaction, &run))
+            .transaction(move |transaction| {
+                runs.iter()
+                    .map(|run| runs::create(transaction, run))
+                    .collect()
+            })
             .await
     }
 
@@ -161,6 +164,12 @@ impl StateStore {
     pub async fn set_desired(&self, run_id: RunId, desired: DesiredState) -> Result<()> {
         self.db
             .transaction(move |transaction| runs::set_desired(transaction, run_id, desired))
+            .await
+    }
+
+    pub async fn stop(&self, run_id: RunId, reason: Option<String>) -> Result<()> {
+        self.db
+            .transaction(move |transaction| runs::stop(transaction, run_id, reason.as_deref()))
             .await
     }
 
@@ -275,10 +284,17 @@ impl StateStore {
         self.db.read(runs::live_runs_started).await
     }
 
-    pub async fn bot_activity(&self, bot: &str, bot_hash: &str) -> Result<BotActivity> {
-        let (bot, bot_hash) = (bot.to_owned(), bot_hash.to_owned());
+    pub async fn last_run_at(&self, bot: &str) -> Result<Option<Timestamp>> {
+        let bot = bot.to_owned();
         self.db
-            .read(move |connection| runs::bot_activity(connection, &bot, &bot_hash))
+            .read(move |connection| runs::last_run_at(connection, &bot))
+            .await
+    }
+
+    pub async fn trials(&self, bot: &str) -> Result<Trials> {
+        let bot = bot.to_owned();
+        self.db
+            .read(move |connection| runs::trials(connection, &bot))
             .await
     }
 
