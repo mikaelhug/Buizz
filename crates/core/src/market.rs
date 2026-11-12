@@ -636,6 +636,16 @@ pub enum MacroSeries {
     T10y3m,
     #[serde(rename = "baa10y")]
     Baa10y,
+    #[serde(rename = "icsa")]
+    Icsa,
+    #[serde(rename = "ccsa")]
+    Ccsa,
+    #[serde(rename = "indpro")]
+    Indpro,
+    #[serde(rename = "permit")]
+    Permit,
+    #[serde(rename = "rrsfs")]
+    Rrsfs,
     #[serde(rename = "vix")]
     Vix,
     #[serde(rename = "vix3m")]
@@ -677,7 +687,7 @@ pub enum MacroSeries {
 }
 
 impl MacroSeries {
-    pub const FRED: [Self; 10] = [
+    pub const FRED: [Self; 15] = [
         Self::Tb3ms,
         Self::Gs10,
         Self::Aaa,
@@ -688,6 +698,11 @@ impl MacroSeries {
         Self::Dgs10,
         Self::T10y3m,
         Self::Baa10y,
+        Self::Icsa,
+        Self::Ccsa,
+        Self::Indpro,
+        Self::Permit,
+        Self::Rrsfs,
     ];
     pub const CBOE: [Self; 2] = [Self::Vix, Self::Vix3m];
 
@@ -704,6 +719,11 @@ impl MacroSeries {
             Self::Dgs10 => Some("DGS10"),
             Self::T10y3m => Some("T10Y3M"),
             Self::Baa10y => Some("BAA10Y"),
+            Self::Icsa => Some("ICSA"),
+            Self::Ccsa => Some("CCSA"),
+            Self::Indpro => Some("INDPRO"),
+            Self::Permit => Some("PERMIT"),
+            Self::Rrsfs => Some("RRSFS"),
             Self::Sp500ForwardPe
             | Self::Sp500ForwardPe5yAvg
             | Self::Sp500ForwardPe10yAvg
@@ -738,6 +758,11 @@ impl MacroSeries {
             | Self::Dgs10
             | Self::T10y3m
             | Self::Baa10y
+            | Self::Icsa
+            | Self::Ccsa
+            | Self::Indpro
+            | Self::Permit
+            | Self::Rrsfs
             | Self::Vix
             | Self::Vix3m => None,
             Self::Sp500ForwardPe => sector(EstimateScope::Sp500),
