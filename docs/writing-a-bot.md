@@ -65,7 +65,7 @@ if __name__ == "__main__":
 | `wake` | no, default `"bar"` | When the bot is called, see below |
 | `universe` | yes | `{ symbols = ["SPY", "QQQ"] }` (not empty), `{ top_dollar_volume = 500 }` (positive, optionally with `asset_class = "stock"` or `"etf"`) or `{ index = "sp500" }` |
 | `params` | no | Default parameters, available as `ctx.params`. A backtest request may override them but not add others: an unknown name is refused, as are unknown request and cost fields |
-| `benchmark` | no, default `"SPY"` | Symbol the equity curve is compared with |
+| `benchmark` | no, default `"SPY"` | Symbol the equity curve is compared with, as a total-return buy and hold: dividends reinvested at the ex-date open, splits followed |
 | `[risk]` | no | Risk limits for live runs and the default for backtests, see [Risk limits](#risk-limits) |
 | `step_timeout` | no, default `60` | Seconds the spine waits for the bot to connect and for each of its frames, up to `3600`: raise it for a bot that trains a model inside one step. A bot that stays silent longer fails its backtest or pauses its live run |
 
@@ -367,7 +367,7 @@ A variant is the bot's params with your overrides merged in, each coerced to the
 buizz sweep bots/sma_cross --preset 10y --grid fast=20,50,100 --grid slow=100,200
 ```
 
-The Sweep dialog under the bot's Research tab does the same. Variants already run on the same code and period are skipped, so repeating a sweep queues nothing. Research shows each preset's spread of Sharpe across variants against SPY and the luck line (what the best of that many trials reaches with no edge at all), and suggests the plateau variant: the one passing the screening gate whose neighbours on the grid do best. Go live with a variant from its backtest; a bot can run up to three live variants side by side. Every variant ever run counts as a trial, so a wide sweep raises the bar its best result has to clear.
+The Sweep dialog under the bot's Research tab does the same. Variants already run on the same code and period are skipped, so repeating a sweep queues nothing. Research shows each preset's spread of Sharpe across variants against total-return SPY and the luck line (what the best of that many trials reaches with no edge at all), and suggests the plateau variant: the one passing the screening gate whose neighbours on the grid do best. The gate asks for a completed run with default costs, no data warnings or drawdown stop, at least 10 round trips and Sharpe above 0, and an edge over total-return SPY at the same risk: scaled to SPY's realised volatility (excess returns over T-bills multiplied up or down, leverage charged T-bill plus the financing spread), the variant must beat SPY's CAGR, draw down no deeper, and be ahead of SPY in at least 2 of 3 equal thirds of the period. Holding more or less market than SPY is not an edge. Go live with a variant from its backtest; a bot can run up to three live variants side by side. Every variant ever run counts as a trial, so a wide sweep raises the bar its best result has to clear.
 
 ## Headless loop
 

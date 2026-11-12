@@ -1,13 +1,16 @@
 use std::collections::{BTreeMap, HashMap};
 use std::sync::{Arc, Mutex, PoisonError};
 
-use buizz_core::api::{PresetResearch, Research, RunSummary, Screening, Trials, VariantResult};
-use buizz_core::market::Symbol;
+use buizz_core::api::{
+    GateCheck, PresetResearch, Research, RunSummary, Screening, SparkPoint, Trials, VariantResult,
+};
+use buizz_core::market::{RiskFreeRate, Symbol};
 use buizz_core::performance::Metrics;
 use buizz_core::run::{CostModel, Mode, Period, PeriodPreset, RunStatus};
 use buizz_core::time::Timestamp;
 use buizz_market::MarketStore;
-use buizz_state::RunFilter;
+use buizz_metrics::Screened;
+use buizz_state::{RunFilter, StateStore};
 use chrono::NaiveDate;
 use tokio::sync::OnceCell;
 
@@ -23,14 +26,21 @@ const SCREENED_STATUSES: [RunStatus; 5] = [
 
 type BenchmarkKey = (Symbol, NaiveDate, NaiveDate);
 
+struct Figures {
+    curve: Vec<SparkPoint>,
+    risk_free: Vec<RiskFreeRate>,
+    metrics: Metrics,
+}
+
 pub struct Benchmarks {
     market: MarketStore,
+    state: StateStore,
     today: NaiveDate,
-    figures: Mutex<HashMap<BenchmarkKey, Arc<OnceCell<Metrics>>>>,
+    figures: Mutex<HashMap<BenchmarkKey, Arc<OnceCell<Figures>>>>,
 }
 
 impl Benchmarks {
-    async fn metrics(&self, run: &RunSummary) -> Result<Metrics, RunnerError> {
+    async fn figures(&self, run: &RunSummary) -> Result<Arc<OnceCell<Figures>>, RunnerError> {
         let config = &run.config;
         let key = (
             config.benchmark.clone(),
@@ -44,13 +54,43 @@ impl Benchmarks {
                 .entry(key)
                 .or_default(),
         );
-        let metrics = cell
-            .get_or_try_init(|| async {
-                let curve = report::benchmark(&self.market, run, self.today).await?;
-                report::benchmark_metrics(&self.market, run, &curve).await
+        cell.get_or_try_init(|| async {
+            let curve = report::benchmark(&self.market, run, self.today).await?;
+            let (metrics, risk_free) = report::benchmark_metrics(&self.market, run, &curve).await?;
+            Ok::<_, RunnerError>(Figures {
+                curve,
+                risk_free,
+                metrics,
             })
-            .await?;
-        Ok(metrics.clone())
+        })
+        .await?;
+        Ok(cell)
+    }
+
+    async fn metrics(&self, run: &RunSummary) -> Result<Metrics, RunnerError> {
+        let cell = self.figures(run).await?;
+        Ok(cell
+            .get()
+            .expect("benchmark figures are initialised")
+            .metrics
+            .clone())
+    }
+
+    async fn gate(&self, run: &RunSummary) -> Result<Vec<GateCheck>, RunnerError> {
+        if !run.status.is_finished() {
+            return Ok(buizz_metrics::gate(run, None));
+        }
+        let cell = self.figures(run).await?;
+        let figures = cell.get().expect("benchmark figures are initialised");
+        let equity = self.state.equity(run.id).await?;
+        Ok(buizz_metrics::gate(
+            run,
+            Some(&Screened {
+                equity: &equity,
+                benchmark: &figures.curve,
+                risk_free: &figures.risk_free,
+            }),
+        ))
     }
 }
 
@@ -93,6 +133,7 @@ impl Runner {
     pub fn benchmarks(&self) -> Benchmarks {
         Benchmarks {
             market: self.inner.market.clone(),
+            state: self.inner.state.clone(),
             today: Timestamp::now().exchange_date(),
             figures: Mutex::default(),
         }
@@ -132,9 +173,8 @@ impl Runner {
             .iter()
             .filter(|run| run.status.is_finished())
         {
-            let benchmark = benchmarks.metrics(run).await?;
             variants += 1;
-            if buizz_metrics::gate(run, Some(&benchmark)).is_empty() {
+            if benchmarks.gate(run).await?.is_empty() {
                 passing += 1;
             }
         }
@@ -175,12 +215,7 @@ async fn preset_research(
     };
     let mut failed_checks = Vec::with_capacity(runs.len());
     for run in &runs {
-        let benchmark = if run.status.is_finished() {
-            Some(benchmarks.metrics(run).await?)
-        } else {
-            None
-        };
-        failed_checks.push(buizz_metrics::gate(run, benchmark.as_ref()));
+        failed_checks.push(benchmarks.gate(run).await?);
     }
     let sharpes: Vec<_> = runs
         .iter()

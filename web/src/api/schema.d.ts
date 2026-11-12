@@ -714,7 +714,7 @@ export interface components {
             feed: components["schemas"]["Feed"];
         };
         /** @enum {string} */
-        GateCheck: "not_completed" | "data_warnings" | "drawdown_stop" | "few_trades" | "no_edge" | "dominated_by_benchmark";
+        GateCheck: "not_completed" | "data_warnings" | "drawdown_stop" | "few_trades" | "no_edge" | "trails_benchmark" | "deeper_drawdown" | "inconsistent_edge";
         GoLive: {
             from_run?: components["schemas"]["RunId"] | null;
         };

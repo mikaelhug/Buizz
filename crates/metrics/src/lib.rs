@@ -11,9 +11,11 @@ use buizz_core::time::Timestamp;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
 
+pub use crate::benchmark::buy_and_hold;
 pub use crate::live::{LiveInput, Source, live, live_summary};
-pub use crate::research::{gate, luck_sharpe, neighbourhood_sharpes};
+pub use crate::research::{Screened, gate, luck_sharpe, neighbourhood_sharpes};
 
+mod benchmark;
 mod envelope;
 mod live;
 mod research;
@@ -307,20 +309,19 @@ fn beta(returns: &[f64], benchmark: &[f64]) -> Option<f64> {
 }
 
 fn alpha_beta(input: &MetricsInput<'_>, returns: &[f64]) -> Option<(f64, f64)> {
-    let benchmark = benchmark_returns(input)?;
+    let benchmark = benchmark_returns(input.benchmark, input.equity)?;
     let returns = returns.get(returns.len().checked_sub(benchmark.len())?..)?;
     let beta = beta(returns, &benchmark)?;
     let alpha = (mean(returns) - beta * mean(&benchmark)) * TRADING_DAYS;
     Some((alpha, beta))
 }
 
-fn benchmark_returns(input: &MetricsInput<'_>) -> Option<Vec<f64>> {
-    let by_time: BTreeMap<Timestamp, f64> = input
-        .benchmark
+fn benchmark_returns(benchmark: &[SparkPoint], equity: &[EquityPoint]) -> Option<Vec<f64>> {
+    let by_time: BTreeMap<Timestamp, f64> = benchmark
         .iter()
         .map(|point| (point.at, point.equity.to_f64().unwrap_or(f64::NAN)))
         .collect();
-    let first = input.equity.first()?;
+    let first = equity.first()?;
     let base = by_time
         .range(..first.at)
         .next_back()
@@ -328,12 +329,7 @@ fn benchmark_returns(input: &MetricsInput<'_>) -> Option<Vec<f64>> {
     let values: Vec<f64> = base
         .map(Some)
         .into_iter()
-        .chain(
-            input
-                .equity
-                .iter()
-                .map(|point| by_time.get(&point.at).copied()),
-        )
+        .chain(equity.iter().map(|point| by_time.get(&point.at).copied()))
         .collect::<Option<_>>()?;
     simple_returns(&values)
 }

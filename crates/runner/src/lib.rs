@@ -512,7 +512,11 @@ impl Runner {
         run: &RunSummary,
         benchmark: &[SparkPoint],
     ) -> Result<Metrics, RunnerError> {
-        report::benchmark_metrics(&self.inner.market, run, benchmark).await
+        Ok(
+            report::benchmark_metrics(&self.inner.market, run, benchmark)
+                .await?
+                .0,
+        )
     }
 
     pub async fn shutdown(&self) {

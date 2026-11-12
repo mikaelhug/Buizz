@@ -45,7 +45,8 @@ impl Fetched {
     fn narrow(&mut self, held: &BTreeSet<Symbol>) {
         self.tracked = self.universe.iter().chain(held).cloned().collect();
         let tracked = &self.tracked;
-        self.actions.retain(|action| tracked.contains(&action.symbol));
+        self.actions
+            .retain(|action| tracked.contains(&action.symbol));
         self.average_daily_volume
             .retain(|symbol, _| tracked.contains(symbol));
     }

@@ -2103,7 +2103,9 @@
           "drawdown_stop",
           "few_trades",
           "no_edge",
-          "dominated_by_benchmark"
+          "trails_benchmark",
+          "deeper_drawdown",
+          "inconsistent_edge"
         ]
       },
       "GoLive": {
