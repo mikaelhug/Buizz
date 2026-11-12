@@ -1,10 +1,10 @@
 from datetime import date, timedelta
 
 import numpy as np
+from buizz_bots.monthly import MAX_SESSIONS_PER_MONTH
+from buizz_bots.sessions import last_session_of_month
 
 from buizz import Bot, Context, History, run
-
-MAX_SESSIONS_PER_MONTH = 23
 
 
 def first_of_month(day: date, months_back: int) -> date:
@@ -22,9 +22,9 @@ def total_return(history: History, since: date, today: date) -> float | None:
 
 class DualMomentum(Bot):
     def on_step(self, ctx: Context) -> None:
-        today = ctx.session.date
-        if ctx.calendar(today, today + timedelta(days=10))[1].date.month == today.month:
+        if not last_session_of_month(ctx):
             return
+        today = ctx.session.date
         us: str = ctx.params["us"]
         intl: str = ctx.params["intl"]
         cash: str = ctx.params["cash"]
@@ -50,10 +50,6 @@ class DualMomentum(Bot):
         else:
             pick = bonds
             reason = f"{trend}, equities at or below T-bills: to bonds"
-        held = {symbol for symbol, position in ctx.portfolio.positions.items() if position.qty != 0}
-        if held == {pick} and 0 <= float(ctx.portfolio.cash) < ctx.bars[pick].close:
-            ctx.log(f"hold {pick}, fully invested: {reason}")
-            return
         others = [symbol for symbol in (us, intl, bonds) if symbol != pick]
         ctx.rebalance(
             {**dict.fromkeys(others, 0.0), pick: 1.0},
