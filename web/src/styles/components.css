@@ -213,6 +213,17 @@
   letter-spacing: 0.04em;
 }
 
+.badge-button {
+  border: 0;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.badge-button:hover,
+.badge-button[aria-expanded="true"] {
+  background: color-mix(in srgb, currentColor 20%, transparent);
+}
+
 .badge-survivorship_biased,
 .badge-data_warnings,
 .badge-thin_index_history,
@@ -705,22 +716,59 @@
 }
 
 .toast {
-  padding: var(--sp-3) var(--sp-4);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-4);
   border: 1px solid var(--border);
   border-left: 3px solid var(--info);
   border-radius: var(--r-md);
   background: var(--surface);
   color: var(--text);
   box-shadow: var(--shadow-lg);
-  font: inherit;
   font-size: var(--fs-base);
-  text-align: left;
-  cursor: pointer;
   animation: rise var(--dur) var(--ease);
+}
+
+.toast-message {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.toast-link {
+  flex: none;
+  font-weight: var(--fw-medium);
+}
+
+.toast-close {
+  display: grid;
+  flex: none;
+  width: var(--control-sm);
+  height: var(--control-sm);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--fs-lg);
+  line-height: 1;
+  cursor: pointer;
+  place-items: center;
+}
+
+.toast-close:hover {
+  background: var(--surface-2);
+  color: var(--text);
 }
 
 .toast-error {
   border-left-color: var(--down);
+}
+
+.toast-warn {
+  border-left-color: var(--warn);
 }
 
 .toast-success {

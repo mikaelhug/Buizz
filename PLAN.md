@@ -88,10 +88,11 @@ Known parity gap, stated honestly: live minute bars are IEX (partial volume), ba
 
 ## UI
 
-- Bot grid: one card per bot with status, equity sparkline, Live/Pause; hover shows key stats; filter by status and name, sort by status, name or last run.
+- Bot grid: one card per bot with status, headline return, a full-width equity sparkline, key stats always shown and Live/Pause; a bot that never ran offers "Run a backtest" instead. Filter by status (every status with its count), search by name, sort by status, return, last run or name.
 - Bot detail: equity vs SPY with an underwater (drawdown) pane, metrics beside the benchmark's, monthly returns, closed trades (round trips with entry and exit reasons, P&L and holding time), orders with reasons, positions, logs, run history, "Backtest" with period presets or a custom range.
-- Leaderboard: bots compared on the same preset period and cost model only, ranked against the benchmark's buy and hold over that period. Runs ended by the drawdown stop stay on it. Each row shows its trial count (completed backtests of that bot) and its badges; trade statistics from fewer than 30 trades are greyed, and Sharpe carries its standard error on hover.
-- Data health: job runs, staleness, coverage, feed slots (e.g. 22/30).
+- Leaderboard: bots compared on the same preset period and cost model only, ranked against the benchmark's buy and hold over that period. Runs ended by the drawdown stop stay on it. Each row shows its trial count (completed backtests of that bot) and its badges; columns are grouped into returns, risk and robustness under a sticky header and bot column; trade statistics from fewer than 30 trades are greyed, and Sharpe shows its standard error inline. With no ranked run the page points to running a backtest.
+- Data health: job outcome, last run and next due per job (a plain notice when ingest is off), staleness, backfill progress, coverage and its gaps, feed slots (e.g. 22/30) with the runs holding them.
+- Notices: a run that finishes, fails or ends at its drawdown stop raises a toast linking to it, derived from the shared event stream.
 - Single admin login (password → HttpOnly session cookie).
 - Shell: sticky topbar with the live-updates status in words, a light/dark/system theme menu and a title per page. Definitions open from an `Info` button (a popover), not from `title` alone, so they work on touch and keyboard.
 

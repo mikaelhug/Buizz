@@ -5,10 +5,23 @@ import { ABSENT, fmt, label } from "../lib/format";
 import { href } from "../lib/route";
 import { type Resource, useResource } from "../lib/useResource";
 import { Failure, Loading, StaleFailure } from "../ui/Feedback";
+import { Info } from "../ui/Popover";
 import { StatusPill } from "../ui/Status";
 import "../styles/data.css";
 
 const COVERAGE_ROWS_SHOWN = 200;
+const HOT_FILL = 0.9;
+const DAY_MS = 86_400_000;
+
+const WARNING_KINDS: Record<Schemas["DataWarning"]["type"], string> = {
+  coverage_gap: "Coverage gap",
+  unexplained_move: "Unexplained move",
+  overlap_rejected: "Overlap rejected",
+};
+
+const TIMEFRAMES: Record<Schemas["Timeframe"], string> = { "1d": "Daily", "1m": "Minute" };
+
+const share = (part: number, whole: number) => (whole > 0 ? Math.min(part / whole, 1) : 0);
 
 export function DataHealth() {
   const health = useResource(() => must(api.GET("/api/data/health")), []);
@@ -28,7 +41,7 @@ export function DataHealth() {
     }
   });
 
-  const stale = jobs.data?.filter((job) => job.stale).length;
+  const stale = jobs.data?.filter((job) => job.stale).length ?? health.data?.stale_jobs;
 
   return (
     <div className="data-health">
@@ -37,41 +50,49 @@ export function DataHealth() {
         {health.data && (
           <dl className="facts">
             <div>
-              <dt className="help" title="Latest daily bar visible to runs">
+              <dt>
                 Daily
+                <Info label="Daily watermark">The latest daily bar runs can see</Info>
               </dt>
               <dd>{fmt.market(health.data.watermarks.day)}</dd>
             </div>
             <div>
-              <dt className="help" title="Latest minute bar visible to runs">
+              <dt>
                 Minute
+                <Info label="Minute watermark">The latest minute bar runs can see</Info>
               </dt>
               <dd>{fmt.market(health.data.watermarks.minute)}</dd>
             </div>
-            {health.data.ingest_enabled ? (
+            {health.data.ingest_enabled && (
               <div>
                 <dt>Stale jobs</dt>
-                <dd className={stale ? "down" : undefined}>{fmt.integer(stale ?? health.data.stale_jobs)}</dd>
-              </div>
-            ) : (
-              <div>
-                <dt className="help" title="Scheduled data jobs are disabled (BUIZZ_INGEST=false)">
-                  Ingest
-                </dt>
-                <dd className="muted">off</dd>
+                <dd className={stale ? "down" : undefined}>{fmt.integer(stale)}</dd>
               </div>
             )}
           </dl>
         )}
       </header>
       <StaleFailure resource={health} />
+      {health.data?.ingest_enabled === false && (
+        <div className="callout" role="note">
+          <strong>Ingest is off.</strong> Scheduled data jobs do not run while <code>BUIZZ_INGEST=false</code>; runs use the data already stored.
+        </div>
+      )}
       <div className="split">
         <FeedPanel feed={feed} />
         <WarningsPanel health={health} />
       </div>
       <BackfillPanel health={health} />
-      <JobsPanel jobs={jobs} />
+      <JobsPanel jobs={jobs} ingest={health.data?.ingest_enabled} />
       <CoveragePanel health={health} />
+    </div>
+  );
+}
+
+function Meter({ value, max, name, tone }: { value: number; max: number; name: string; tone: "accent" | "hot" | "done" }) {
+  return (
+    <div className={`meter meter-${tone}`} role="meter" aria-valuemin={0} aria-valuemax={max} aria-valuenow={value} aria-label={name}>
+      <span style={{ width: `${share(value, max) * 100}%` }} />
     </div>
   );
 }
@@ -81,39 +102,47 @@ function FeedPanel({ feed }: { feed: Resource<Schemas["FeedSlots"]> }) {
     return <section className="panel">{feed.error ? <Failure message={feed.error} onRetry={feed.reload} /> : <Loading />}</section>;
   }
   const { cap, used, connected, error, holders } = feed.data;
-  const fill = cap > 0 ? used / cap : 0;
+  const fill = share(used, cap);
   return (
     <section className="panel">
       <header className="panel-head">
-        <h2 className="help" title="Real-time IEX minute-bar symbols in use out of the plan's cap">
-          Stream slots
-        </h2>
-        <span className={`stream-dot stream-${connected ? "open" : "down"}`} title={connected ? "Stream connected" : (error ?? "Stream disconnected")} />
-        <span className="num slots">
-          {used}/{cap}
+        <h2>Stream slots</h2>
+        <Info label="Stream slots">Real-time IEX minute-bar symbols in use, out of the plan's cap. Live runs hold slots for the symbols they trade.</Info>
+        <span className={`feed-state ${connected ? "up" : "down"}`}>
+          <span className={`stream-dot stream-${connected ? "open" : "down"}`} aria-hidden="true" />
+          {connected ? "Connected" : "Disconnected"}
         </span>
       </header>
       <StaleFailure resource={feed} />
-      <div className={`meter ${fill >= 0.9 ? "meter-hot" : ""}`} role="meter" aria-valuemin={0} aria-valuemax={cap} aria-valuenow={used} aria-label="Stream slots">
-        <span style={{ width: `${Math.min(fill, 1) * 100}%` }} />
+      <div className="meter-figure">
+        <span className="display num">
+          {used}
+          <span className="muted">/{cap}</span>
+        </span>
+        <span className="muted">
+          slots in use · <span className="num">{fmt.percent(fill)}</span>
+        </span>
       </div>
+      <Meter value={used} max={cap} name="Stream slots" tone={fill >= HOT_FILL ? "hot" : "accent"} />
       {error && (
         <p className="form-error" role="status">
           {error}
         </p>
       )}
       {holders.length === 0 ? (
-        <p className="empty">No holders</p>
+        <p className="empty">No live run holds a slot. Start a bot live to stream its symbols.</p>
       ) : (
         <ul className="holders">
           {holders.map((holder) => (
             <li key={holder.run_id}>
-              <a href={href({ page: "bot", name: holder.bot, run: holder.run_id })}>{holder.bot}</a>
-              <span className="muted">#{holder.run_id}</span>
-              <span className="num">{holder.symbols.length}</span>
-              <span className="symbols mono" title={holder.symbols.join(" ")}>
-                {holder.symbols.join(" ")}
+              <span className="holder-name">
+                <a href={href({ page: "bot", name: holder.bot, run: holder.run_id })}>{holder.bot}</a>
+                <span className="muted">run #{holder.run_id}</span>
+                <span className="holder-count num">
+                  {holder.symbols.length} {holder.symbols.length === 1 ? "symbol" : "symbols"}
+                </span>
               </span>
+              <span className="symbols mono">{holder.symbols.join(" ")}</span>
             </li>
           ))}
         </ul>
@@ -122,32 +151,42 @@ function FeedPanel({ feed }: { feed: Resource<Schemas["FeedSlots"]> }) {
   );
 }
 
+function gapDays(from: string, to: string): number {
+  return Math.round((Date.parse(to) - Date.parse(from)) / DAY_MS) + 1;
+}
+
 function warningText(warning: Schemas["DataWarning"]): string {
   switch (warning.type) {
-    case "coverage_gap":
-      return `${warning.timeframe} gap ${warning.from} → ${warning.to}`;
+    case "coverage_gap": {
+      const days = gapDays(warning.from, warning.to);
+      return `${TIMEFRAMES[warning.timeframe]} bars missing ${warning.from} → ${warning.to} (${days} ${days === 1 ? "day" : "days"})`;
+    }
     case "unexplained_move":
       return `${fmt.change(warning.change)} on ${warning.date} with no corporate action`;
     case "overlap_rejected":
-      return `${warning.source}: ${warning.message}`;
+      return `${label(warning.source)}: ${warning.message}`;
   }
 }
 
 function WarningsPanel({ health }: { health: Resource<Schemas["DataHealth"]> }) {
+  const warnings = health.data?.warnings;
   return (
     <section className="panel">
-      <h2>Warnings</h2>
-      {!health.data ? (
+      <header className="panel-head">
+        <h2>Warnings</h2>
+        {warnings && warnings.length > 0 && <span className="count-chip num">{warnings.length}</span>}
+      </header>
+      {!warnings ? (
         health.error ? <Failure message={health.error} onRetry={health.reload} /> : <Loading />
-      ) : health.data.warnings.length === 0 ? (
-        <p className="empty">No warnings</p>
+      ) : warnings.length === 0 ? (
+        <p className="empty">No warnings. Stored bars have no gaps or unexplained moves.</p>
       ) : (
         <ul className="warnings">
-          {health.data.warnings.map((warning, index) => (
-            <li key={index}>
+          {warnings.map((warning, index) => (
+            <li key={index} className={`warning-${warning.type}`}>
               <span className="sym">{warning.symbol}</span>
-              <span className="badge badge-data_warnings">{label(warning.type)}</span>
-              <span>{warningText(warning)}</span>
+              <span className="warning-kind">{WARNING_KINDS[warning.type]}</span>
+              <span className="warning-text">{warningText(warning)}</span>
             </li>
           ))}
         </ul>
@@ -160,9 +199,10 @@ function BackfillPanel({ health }: { health: Resource<Schemas["DataHealth"]> }) 
   const rows = health.data?.backfill ?? [];
   return (
     <section className="panel">
-      <h2 className="help" title="Symbols each first backfill has reached, out of those it covers">
-        Backfill
-      </h2>
+      <header className="panel-head">
+        <h2>Backfill</h2>
+        <Info label="Backfill">How many symbols each first backfill has reached, out of those it covers</Info>
+      </header>
       {!health.data ? (
         health.error ? <Failure message={health.error} onRetry={health.reload} /> : <Loading />
       ) : rows.length === 0 ? (
@@ -170,16 +210,18 @@ function BackfillPanel({ health }: { health: Resource<Schemas["DataHealth"]> }) 
       ) : (
         <ul className="backfill">
           {rows.map((row) => {
-            const fill = row.total > 0 ? row.done / row.total : 1;
+            const done = row.done >= row.total;
             const name = `${label(row.dataset)} (${label(row.source)})`;
             return (
               <li key={`${row.dataset}-${row.source}`}>
-                <span>{name}</span>
-                <div className="meter" role="meter" aria-valuemin={0} aria-valuemax={row.total} aria-valuenow={row.done} aria-label={name}>
-                  <span style={{ width: `${fill * 100}%` }} />
-                </div>
-                <span className="num">
+                <span className="backfill-name">
+                  <span className="dataset">{label(row.dataset)}</span>
+                  <span className="muted">{label(row.source)}</span>
+                </span>
+                <Meter value={row.done} max={row.total} name={name} tone={done ? "done" : "accent"} />
+                <span className="backfill-figure num">
                   {fmt.integer(row.done)}/{fmt.integer(row.total)}
+                  <span className={done ? "up" : "muted"}>{done ? "Complete" : row.done === 0 ? "Not started" : fmt.percent(share(row.done, row.total))}</span>
                 </span>
               </li>
             );
@@ -190,51 +232,49 @@ function BackfillPanel({ health }: { health: Resource<Schemas["DataHealth"]> }) 
   );
 }
 
-function JobsPanel({ jobs }: { jobs: Resource<Schemas["JobView"][]> }) {
+function JobsPanel({ jobs, ingest }: { jobs: Resource<Schemas["JobView"][]>; ingest: boolean | undefined }) {
   return (
     <section className="panel">
-      <h2>Jobs</h2>
+      <header className="panel-head">
+        <h2>Jobs</h2>
+        {ingest === false && <span className="pill">Not scheduled</span>}
+      </header>
       <StaleFailure resource={jobs} />
       {!jobs.data ? (
         jobs.error ? <Failure message={jobs.error} onRetry={jobs.reload} /> : <Loading shape="table" />
       ) : jobs.data.length === 0 ? (
         <p className="empty">No jobs</p>
       ) : (
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Job</th>
-                <th>Every</th>
-                <th>Outcome</th>
-                <th>Message</th>
-                <th>Finished</th>
-                <th>Next due</th>
-              </tr>
-            </thead>
-            <tbody>
-              {jobs.data.map((job) => (
-                <tr key={job.name} className={job.stale ? "stale" : undefined}>
-                  <td className="nowrap">
-                    {job.name}
-                    {job.stale && (
-                      <span className="badge badge-stale help" title="Not refreshed within its schedule">
-                        stale
-                      </span>
-                    )}
-                  </td>
-                  <td>{job.every}</td>
-                  <td>{job.last_outcome ? <StatusPill status={job.last_outcome} /> : ABSENT}</td>
-                  <td className="reason">{job.last_message ?? ""}</td>
-                  <td className="nowrap muted" title={`Started ${fmt.local(job.last_started)}`}>
-                    {fmt.local(job.last_finished)}
-                  </td>
-                  <td className="nowrap muted">{fmt.local(job.next_due)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ul className={`jobs${ingest === false ? " jobs-off" : ""}`}>
+          {jobs.data.map((job) => (
+            <li key={job.name} className={job.stale ? "stale" : undefined}>
+              <span className="job-name">
+                <span className="mono">{job.name}</span>
+                {job.stale && <span className="badge badge-stale">Stale</span>}
+              </span>
+              <span className="job-outcome">{job.last_outcome ? <StatusPill status={job.last_outcome} /> : <span className="muted">Never run</span>}</span>
+              <dl className="job-when">
+                <div>
+                  <dt>Every</dt>
+                  <dd>{job.every}</dd>
+                </div>
+                {job.last_finished && (
+                  <div>
+                    <dt>Last run</dt>
+                    <dd>{fmt.local(job.last_finished)}</dd>
+                  </div>
+                )}
+                {ingest !== false && job.next_due && (
+                  <div>
+                    <dt>Next due</dt>
+                    <dd>{fmt.local(job.next_due)}</dd>
+                  </div>
+                )}
+              </dl>
+              {job.last_message && <p className="job-message">{job.last_message}</p>}
+            </li>
+          ))}
+        </ul>
       )}
     </section>
   );

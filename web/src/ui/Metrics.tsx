@@ -41,8 +41,6 @@ export function sharpeError(metrics: Metrics): number | undefined {
   return sharpe === null || sharpe === undefined || sessions < 2 ? undefined : Math.sqrt((TRADING_DAYS + (sharpe * sharpe) / 2) / sessions);
 }
 
-export const HOVER_METRICS: MetricKey[] = ["total_return", "sharpe", "max_drawdown", "trades"];
-
 export function MetricValue({ metrics, metric }: { metrics: Metrics | null | undefined; metric: MetricKey }) {
   const spec = METRICS[metric];
   const value = metrics?.[metric];

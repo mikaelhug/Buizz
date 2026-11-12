@@ -89,19 +89,21 @@ export function Popover({ anchor, label, onClose, width = 280, children }: Popov
   );
 }
 
-export function Info({ label, children }: { label: string; children: ReactNode }) {
+type ExplainProps = { label: string; className: string; ariaLabel?: string; trigger: ReactNode; children: ReactNode };
+
+export function Explain({ label, className, ariaLabel, trigger, children }: ExplainProps) {
   const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
   return (
     <>
       <button
         type="button"
-        className="info"
-        aria-label={`About ${label}`}
+        className={className}
+        aria-label={ariaLabel}
         aria-haspopup="dialog"
         aria-expanded={anchor !== null}
         onClick={(event) => setAnchor(anchor ? null : event.currentTarget)}
       >
-        <Icon name="info" />
+        {trigger}
       </button>
       {anchor && (
         <Popover anchor={anchor} label={label} onClose={() => setAnchor(null)}>
@@ -110,5 +112,13 @@ export function Info({ label, children }: { label: string; children: ReactNode }
         </Popover>
       )}
     </>
+  );
+}
+
+export function Info({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <Explain label={label} className="info" ariaLabel={`About ${label}`} trigger={<Icon name="info" />}>
+      {children}
+    </Explain>
   );
 }
