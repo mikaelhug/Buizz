@@ -1,8 +1,8 @@
 from bisect import bisect_right
 from datetime import date
 
-from buizz_bots.monthly import MAX_SESSIONS_PER_MONTH, month_end_closes
 from buizz_bots.sessions import last_session_of_month
+from buizz_bots.trend import month_end_trend
 
 from buizz import Bot, Context, MacroPoint, run
 
@@ -10,13 +10,13 @@ HISTORY_FROM = date(2000, 1, 1)
 
 
 def spreads(points: list[MacroPoint]) -> list[tuple[date, float]]:
-    yields = sorted((point.published, float(point.value)) for point in points if point.series == "gs10")
-    published = [day for day, _ in yields]
+    yields = sorted((point.published, point.date, float(point.value)) for point in points if point.series == "dgs10")
+    published = [day for day, _, _ in yields]
     paired: list[tuple[date, float]] = []
     for point in sorted((point for point in points if point.series == "sp500_forward_pe"), key=lambda p: p.date):
         known = bisect_right(published, point.published)
         if known and point.value > 0:
-            paired.append((point.date, 100 / float(point.value) - yields[known - 1][1]))
+            paired.append((point.date, 100 / float(point.value) - yields[known - 1][2]))
     return paired
 
 
@@ -29,18 +29,15 @@ class ForwardPeTilt(Bot):
             return
         today = ctx.session.date
         months = int(ctx.params["sma_months"])
-        closes = month_end_closes(
-            ctx.history([equity], "1d", MAX_SESSIONS_PER_MONTH * months, adjust="all")[equity], today
-        )
-        history = spreads(ctx.macro(["sp500_forward_pe", "gs10"], HISTORY_FROM, today))
+        history = spreads(ctx.macro(["sp500_forward_pe", "dgs10"], HISTORY_FROM, today))
         expensive, valuation = self.expensive(ctx, history)
-        if closes.size < months:
-            downtrend, trend = False, f"{equity} has {closes.size} of {months} month-end closes"
+        if (found := month_end_trend(ctx, equity, months)) is None:
+            downtrend, trend = False, f"{equity} has fewer than {months} month-end closes"
         else:
-            sma = float(closes[-months:].mean())
-            downtrend = closes[-1] < sma
+            close, sma = found
+            downtrend = close < sma
             relation = "below" if downtrend else "at or above"
-            trend = f"{equity} {closes[-1]:.2f} {relation} its {months}m SMA {sma:.2f}"
+            trend = f"{equity} {close:.2f} {relation} its {months}m SMA {sma:.2f}"
         tilted = expensive and downtrend
         bond_weight = float(ctx.params["bond_weight"]) if tilted else 0.0
         state = "expensive and in a downtrend, tilt" if tilted else "hold"
