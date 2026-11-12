@@ -1253,7 +1253,9 @@
           "fixture",
           "wikipedia",
           "interactive_brokers",
-          "nasdaq"
+          "nasdaq",
+          "cboe",
+          "federal_reserve"
         ]
       },
       "DataWarning": {
@@ -1350,7 +1352,8 @@
           "sec_filings",
           "index_membership",
           "borrow",
-          "macro"
+          "macro",
+          "fomc"
         ]
       },
       "DesiredState": {

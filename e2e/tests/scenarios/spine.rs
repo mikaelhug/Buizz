@@ -159,6 +159,8 @@ impl Spine {
             .env("IBKR_FTP_ADDRESS", &self.fake.ftp_address)
             .env("FRED_API_KEY", "e2e-fred")
             .env("FRED_URL", url)
+            .env("CBOE_URL", url)
+            .env("FED_URL", url)
             .stdout(log.try_clone().expect("the spine log"))
             .stderr(log)
             .kill_on_drop(true);

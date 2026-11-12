@@ -1,0 +1,15 @@
+{
+  "id": 7,
+  "result": {
+    "announcements": [
+      {
+        "available_at": 1704085200000000000,
+        "date": "2024-12-18",
+        "scheduled": true,
+        "statement_at": 1734548400000000000
+      }
+    ],
+    "kind": "fomc"
+  },
+  "type": "data"
+}

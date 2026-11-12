@@ -4,6 +4,7 @@ mod borrow;
 mod facts;
 mod fetch;
 mod filings;
+mod fomc;
 mod index;
 mod macros;
 mod minute;
@@ -245,6 +246,8 @@ impl Ingest {
             schedule::RATES => self.rates(now).await,
             schedule::BORROW => self.borrow(now).await,
             schedule::MACRO => self.macro_series(now).await,
+            schedule::VIX => self.vix(now).await,
+            schedule::FOMC => self.fomc(now).await,
             schedule::STATE_SNAPSHOT => self.state_snapshot(now).await,
             schedule::MARKET_SNAPSHOT => self.market_snapshot(now).await,
             schedule::TIINGO_HISTORY => self.tiingo_history(now).await,

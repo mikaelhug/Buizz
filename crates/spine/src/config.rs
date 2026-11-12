@@ -6,7 +6,9 @@ use anyhow::{Context, Result};
 use buizz_core::market::Symbol;
 use buizz_sources::alpaca::{self, AlpacaConfig};
 use buizz_sources::alpaca_stream::{self, StreamConfig};
+use buizz_sources::cboe::{self, CboeConfig};
 use buizz_sources::edgar::{self, EdgarConfig};
+use buizz_sources::fed::{self, FedConfig};
 use buizz_sources::fred::{self, FredConfig};
 use buizz_sources::ibkr::{self, IbkrConfig};
 use buizz_sources::nasdaq::{self, NasdaqConfig};
@@ -33,6 +35,8 @@ pub struct Config {
     pub wikipedia: Option<WikipediaConfig>,
     pub ibkr: IbkrConfig,
     pub nasdaq: NasdaqConfig,
+    pub cboe: CboeConfig,
+    pub fed: FedConfig,
     pub ingest_symbols: Option<BTreeSet<Symbol>>,
     pub duckdb_memory: String,
     pub duckdb_threads: usize,
@@ -141,6 +145,12 @@ impl Config {
             },
             nasdaq: NasdaqConfig {
                 base_url: var_or(nasdaq::URL_ENV, nasdaq::BASE_URL),
+            },
+            cboe: CboeConfig {
+                base_url: var_or(cboe::URL_ENV, cboe::BASE_URL),
+            },
+            fed: FedConfig {
+                base_url: var_or(fed::URL_ENV, fed::BASE_URL),
             },
             ingest_symbols: var("BUIZZ_INGEST_SYMBOLS").map(|symbols| {
                 symbols

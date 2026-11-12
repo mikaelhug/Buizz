@@ -19,6 +19,8 @@ pub(crate) const INDEX_MEMBERSHIP: &str = "index_membership";
 pub(crate) const RATES: &str = "rates";
 pub(crate) const BORROW: &str = "borrow";
 pub(crate) const MACRO: &str = "macro";
+pub(crate) const VIX: &str = "vix";
+pub(crate) const FOMC: &str = "fomc";
 pub(crate) const STATE_SNAPSHOT: &str = "state_snapshot";
 pub(crate) const MARKET_SNAPSHOT: &str = "market_snapshot";
 pub(crate) const TIINGO_HISTORY: &str = "tiingo_history";
@@ -30,7 +32,7 @@ const SHORT_RETRY: Duration = HOUR;
 const FIRST_FAILURE_RETRY: Duration = Duration::from_secs(5 * 60);
 const STALE_AFTER_INTERVALS: i32 = 3;
 
-pub(crate) const JOBS: [JobSpec; 14] = [
+pub(crate) const JOBS: [JobSpec; 16] = [
     JobSpec {
         name: CALENDAR,
         source: Some(DataSource::Alpaca),
@@ -84,6 +86,16 @@ pub(crate) const JOBS: [JobSpec; 14] = [
     JobSpec {
         name: MACRO,
         source: Some(DataSource::Fred),
+        every: DAY,
+    },
+    JobSpec {
+        name: VIX,
+        source: Some(DataSource::Cboe),
+        every: DAY,
+    },
+    JobSpec {
+        name: FOMC,
+        source: Some(DataSource::FederalReserve),
         every: DAY,
     },
     JobSpec {

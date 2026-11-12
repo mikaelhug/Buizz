@@ -1,9 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::ops::RangeInclusive;
 
 use buizz_core::market::{
     Bar, BorrowAvailability, Company, CorporateAction, CorporateActionKind, DataSource, Dataset,
-    EarningsRelease, FundamentalFact, IndexHistory, Instrument, MacroObservation, RiskFreeRate,
-    SecFiling, Session, Symbol,
+    EarningsRelease, FomcMeeting, FundamentalFact, IndexHistory, Instrument, MacroObservation,
+    RiskFreeRate, SecFiling, Session, Symbol,
 };
 use buizz_core::time::Timestamp;
 use chrono::NaiveDate;
@@ -13,7 +14,7 @@ use rust_decimal::Decimal;
 use crate::codec::{Dec, Ts, action_columns, feed_name, wire_name};
 use crate::{ActionWindow, Result, WriteSummary};
 
-const STAGED: [&str; 9] = [
+const STAGED: [&str; 10] = [
     "instrument",
     "calendar",
     "bar_1d",
@@ -21,6 +22,7 @@ const STAGED: [&str; 9] = [
     "fundamental_fact",
     "rate_daily",
     "macro_observation",
+    "fomc_meeting",
     "company",
     "earnings_release",
 ];
@@ -105,13 +107,14 @@ fn stage<T>(
     Ok(count)
 }
 
-const KEYS: [(&str, &[&str]); 8] = [
+const KEYS: [(&str, &[&str]); 9] = [
     ("instrument", &["symbol"]),
     ("calendar", &["date"]),
     ("bar_1d", &["symbol", "date"]),
     ("corporate_action", &["symbol", "ex_date", "kind"]),
     ("rate_daily", &["date"]),
     ("macro_observation", &["series", "date", "published"]),
+    ("fomc_meeting", &["date", "scheduled"]),
     ("company", &["symbol"]),
     ("earnings_release", &["symbol", "accession"]),
 ];
@@ -593,6 +596,48 @@ pub(crate) fn macro_observations(
                 },
             )?;
             replace_staged(transaction, "macro_observation", batch_id)
+        },
+    )
+}
+
+pub(crate) fn fomc_meetings(
+    connection: &mut Connection,
+    source: DataSource,
+    years: RangeInclusive<i32>,
+    meetings: Vec<FomcMeeting>,
+) -> Result<WriteSummary> {
+    let unique: BTreeSet<FomcMeeting> = meetings.into_iter().collect();
+    let mut coverage = Coverage::new();
+    for meeting in &unique {
+        cover(&mut coverage, None, meeting.date);
+    }
+    let source_name = wire_name(&source);
+    let (first, last) = years.into_inner();
+    write_batch(
+        connection,
+        source,
+        Dataset::Fomc,
+        coverage,
+        |transaction, batch_id| {
+            stage(transaction, "fomc_meeting", unique, |appender, meeting| {
+                appender.append_row(params![
+                    meeting.date,
+                    meeting.scheduled,
+                    meeting.statement_at.map(Ts),
+                    source_name,
+                    batch_id
+                ])
+            })?;
+            let withdrawn = "FROM main.fomc_meeting m WHERE year(m.date) BETWEEN ? AND ? \
+                 AND NOT EXISTS (SELECT 1 FROM stage_fomc_meeting s \
+                 WHERE s.date = m.date AND s.scheduled = m.scheduled)";
+            transaction.execute(
+                &format!("INSERT INTO main.fomc_meeting_revision SELECT m.*, ? {withdrawn}"),
+                params![batch_id, first, last],
+            )?;
+            let removed =
+                transaction.execute(&format!("DELETE {withdrawn}"), params![first, last])?;
+            Ok(removed as u64 + replace_staged(transaction, "fomc_meeting", batch_id)?)
         },
     )
 }

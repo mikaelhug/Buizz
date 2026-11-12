@@ -112,6 +112,7 @@ Outside `on_step` only `params`, `universe`, `state`, `portfolio` and `position`
 | `ctx.earnings(symbols)` | `list[EarningsRelease]` (`symbol`, `cik`, `accession`, `form`, `filed`, `report_date`, `accepted_at`): every earnings release accepted by EDGAR at or before the clock |
 | `ctx.universe_at(on, top_dollar_volume, *, asset_class=None, index=None)` | The symbols a `top_dollar_volume` universe of that size (optionally of one `asset_class`), or the `index` universe, held on the date `on`, see below |
 | `ctx.macro(series, start, end)` | The rate and macro observations dated `start` to `end` as known at the clock (`MacroPoint`: `series`, `date`, `value`, `published`, `available_at`), see below |
+| `ctx.fomc(start, end)` | The FOMC announcements dated `start` to `end` known at the clock (`FomcAnnouncement`: `date`, `scheduled`, `statement_at`, `available_at`), see below |
 | `ctx.calendar(start, end)` | The exchange sessions (`Session(date, open, close)`) dated `start` to `end`, as the calendar was published at the clock, see below |
 | `ctx.state` | A dict that survives restarts, see below |
 
@@ -145,7 +146,7 @@ months = [date(year, month, 1) for year in range(2017, 2024) for month in range(
 training = {month: ctx.universe_at(month, 1000) for month in months}
 ```
 
-**Rates and macro series.** `ctx.macro(series, start, end)` returns the observations of `MacroSeries` dated `start` to `end`, each as the latest vintage published before the current session, so revisions arrive when they were published and never earlier. `available_at` is the open of the first session after `published`. Values are `Decimal` percent, except the CPI index.
+**Rates and macro series.** `ctx.macro(series, start, end)` returns the observations of `MacroSeries` dated `start` to `end`, each as the latest vintage published before the current session, so revisions arrive when they were published and never earlier. `available_at` is the open of the first session after `published`. Values are `Decimal` percent, except the CPI index, the unemployment rate's percentage points and the VIX index points.
 
 | Series | Meaning | Frequency |
 |---|---|---|
@@ -154,8 +155,17 @@ training = {month: ctx.universe_at(month, 1000) for month in months}
 | `gs10` | 10-year Treasury, constant maturity (FRED `GS10`) | monthly average |
 | `aaa`, `baa` | Moody's seasoned Aaa and Baa corporate bond yields (FRED `AAA`, `BAA`), Graham's AAA rule and Welch–Goyal `dfy = baa − aaa` | monthly average |
 | `cpiaucns` | CPI-U, all items, not seasonally adjusted, 1982–84 = 100 (FRED `CPIAUCNS`) | monthly |
+| `unrate` | Civilian unemployment rate, seasonally adjusted (FRED `UNRATE`); revised, so the vintages matter | monthly |
+| `sahmrealtime` | Real-time Sahm rule recession indicator (FRED `SAHMREALTIME`), percentage points | monthly |
+| `dgs10` | 10-year Treasury, constant maturity, H.15 (FRED `DGS10`) | daily |
+| `t10y3m` | 10-year minus 3-month Treasury constant maturity (FRED `T10Y3M`), percentage points | daily |
+| `baa10y` | Moody's seasoned Baa corporate yield minus the 10-year Treasury (FRED `BAA10Y`), percentage points | daily |
+| `vix` | CBOE Volatility Index close, from 2003-09-22 | daily |
+| `vix3m` | CBOE 3-Month Volatility Index close, from 2009-09-18 | daily |
 
-The FRED series need `FRED_API_KEY` on the spine; without it they are empty. Graham's CPI-scaled size floor:
+The FRED series need `FRED_API_KEY` on the spine; without it they are empty. Each FRED value is the one ALFRED records as published on its real-time start date, so `published` is the day FRED first carried it, never the day it was computed for. The daily H.15 rates (`dgs10`, and the two spreads FRED derives from H.15 and Moody's) reach FRED the business day after their date at the earliest, so the rate of day D is visible from the open of the session after D + 1, or later when FRED posted it later. ALFRED only keeps vintages from when FRED started recording them: `dgs10` from 2005-06-28, `t10y3m` and `baa10y` from 2014-01-27 and `sahmrealtime` from 2019-09-06 (the series did not exist before). Observations dated earlier carry that first vintage date as `published`, so a backtest before it sees nothing for the series, as nobody could have seen this vintage then; `unrate` has vintages back to the 1960s. Monthly averages (`gs10`, `baa`) cover the earlier years.
+
+The VIX closes at 16:15 ET, a quarter of an hour after the session's last bar, so a close is published on its date and visible from the open of the next session: a daily bot never reads today's VIX at today's close. The VIX before 2003-09-22 in CBOE's file is a later recalculation with the new methodology, not what was published then (the index of those years, renamed VXO, is not offered as a free file), so `vix` starts on 2003-09-22. Values are CBOE's history file as first read by the spine; a close CBOE changes afterwards becomes a new vintage published on the day the spine saw it. Graham's CPI-scaled size floor:
 
 ```python
 from datetime import date
@@ -164,6 +174,16 @@ year = ctx.session.date.year - 1
 cpi = ctx.macro(["cpiaucns"], date(year, 1, 1), date(year, 12, 1))
 if len(cpi) == 12:
     floor = 100_000_000 * float(sum(point.value for point in cpi) / 12) / 41.8
+```
+
+**FOMC.** `ctx.fomc(start, end)` lists the Federal Open Market Committee's announcements from 2000 on, dated by the day the statement was released. A scheduled meeting (`scheduled=True`) is published long in advance, so it is visible from the start of its year, future meetings included; its `statement_at` is the release time the Fed scheduled: 14:00 ET since 2013, 12:30 ET on the 2011–2012 meetings with a press conference, 14:15 ET before. Each scheduled meeting is the one the Fed held: a meeting moved later in its year shows at its final date all year, and the meeting of 2020-03-18, cancelled when the Committee cut rates on Sunday 2020-03-15, stays listed. An unscheduled action (an intermeeting move, a conference call or a notation vote that released a statement) has `scheduled=False` and `statement_at=None`, and is visible only from the open of the first session after its release day, so a bot never knows of an emergency move before it happened. Conference calls without a statement are left out. A pre-announcement drift bot buys the close before a scheduled statement:
+
+```python
+from datetime import timedelta
+
+today = ctx.session.date
+tomorrow = ctx.calendar(today, today + timedelta(days=10))[1].date
+statement_tomorrow = any(meeting.scheduled for meeting in ctx.fomc(tomorrow, tomorrow))
 ```
 
 `to_ns(moment)` turns a timezone-aware `datetime` into the nanoseconds of `History.start`, for example `history.start >= to_ns(ctx.session.open)`.

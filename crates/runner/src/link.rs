@@ -254,5 +254,15 @@ async fn answer(
                 .map_err(|error| error.to_string())?;
             Ok(DataResult::Macro { points })
         }
+        QueryRequest::Fomc { from, to } => {
+            if from > to {
+                return Err(format!("fomc from {from} is after to {to}"));
+            }
+            let announcements = market
+                .fomc_announcements(from, to, clock)
+                .await
+                .map_err(|error| error.to_string())?;
+            Ok(DataResult::Fomc { announcements })
+        }
     }
 }

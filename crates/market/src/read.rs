@@ -2,16 +2,17 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use buizz_core::market::{
     Adjustment, AdjustmentFactor, AssetClass, Bar, Calendar, Company, CorporateAction,
-    CorporateActionKind, Coverage, DataSource, Dataset, EarningsRelease, Feed, FundamentalMetric,
-    FundamentalPoint, HISTORY_FLOORS, IndexHistory, IndexMember, Instrument, InstrumentProfile,
-    MacroObservation, MacroPoint, MacroSeries, RiskFreeRate, SIP_DELAY, Session, StockIndex,
-    Symbol, Timeframe,
+    CorporateActionKind, Coverage, DataSource, Dataset, EarningsRelease, Feed, FomcAnnouncement,
+    FomcMeeting, FundamentalMetric, FundamentalPoint, HISTORY_FLOORS, IndexHistory, IndexMember,
+    Instrument, InstrumentProfile, MacroObservation, MacroPoint, MacroSeries, RiskFreeRate,
+    SIP_DELAY, Session, StockIndex, Symbol, Timeframe,
 };
 use buizz_core::ops::{CoverageGap, DataWarning, UNEXPLAINED_MOVE_THRESHOLD};
 use buizz_core::protocol::BarRow;
 use buizz_core::time::Timestamp;
 use buizz_core::visibility::{
-    bar_visible_at, corporate_action_visible_at, published_before, published_visible_at,
+    bar_visible_at, corporate_action_visible_at, fomc_visible_at, published_before,
+    published_visible_at,
 };
 use chrono::NaiveDate;
 use duckdb::{Connection, ToSql, params, params_from_iter};
@@ -814,7 +815,7 @@ pub(crate) fn macro_points(
          FROM macro_observation WHERE series = ? AND date BETWEEN ? AND ? AND published < ?) \
          WHERE vintage = 1 AND value IS NOT NULL ORDER BY date",
     )?;
-    for id in wanted.iter().filter(|id| id.fred_id().is_some()) {
+    for id in wanted.iter().filter(|id| **id != MacroSeries::Treasury3m) {
         let rows = statement
             .query_map(params![wire_name(id), from, to, cutoff], |row| {
                 Ok((*id, row.get(0)?, row.get(1)?, row.get::<_, Dec>(2)?.0))
@@ -831,6 +832,44 @@ pub(crate) fn macro_points(
                 value,
                 published,
                 available_at: published_visible_at(published, calendar)?,
+            })
+        })
+        .collect())
+}
+
+pub(crate) fn fomc_meetings(connection: &Connection) -> Result<Vec<FomcMeeting>> {
+    let mut statement = connection.prepare_cached(
+        "SELECT date, scheduled, statement_at FROM fomc_meeting ORDER BY date, scheduled",
+    )?;
+    let meetings = statement
+        .query_map([], |row| {
+            Ok(FomcMeeting {
+                date: row.get(0)?,
+                scheduled: row.get(1)?,
+                statement_at: row.get::<_, Option<Ts>>(2)?.map(|at| at.0),
+            })
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    Ok(meetings)
+}
+
+pub(crate) fn fomc_announcements(
+    connection: &Connection,
+    calendar: &Calendar,
+    from: NaiveDate,
+    to: NaiveDate,
+    as_of: Timestamp,
+) -> Result<Vec<FomcAnnouncement>> {
+    Ok(fomc_meetings(connection)?
+        .into_iter()
+        .filter(|meeting| (from..=to).contains(&meeting.date))
+        .filter_map(|meeting| {
+            let available_at = fomc_visible_at(&meeting, calendar)?;
+            (available_at <= as_of).then_some(FomcAnnouncement {
+                date: meeting.date,
+                scheduled: meeting.scheduled,
+                statement_at: meeting.statement_at,
+                available_at,
             })
         })
         .collect())

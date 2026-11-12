@@ -17,7 +17,21 @@ type LogLevel = Literal["debug", "info", "warn", "error"]
 type EndReason = Literal["completed", "paused", "stopped", "risk_limit", "failed", "disconnected"]
 type TimeInForce = Literal["day", "gtc"]
 type Auction = Literal["open", "close"]
-type MacroSeries = Literal["treasury_3m", "tb3ms", "gs10", "aaa", "baa", "cpiaucns"]
+type MacroSeries = Literal[
+    "treasury_3m",
+    "tb3ms",
+    "gs10",
+    "aaa",
+    "baa",
+    "cpiaucns",
+    "unrate",
+    "sahmrealtime",
+    "dgs10",
+    "t10y3m",
+    "baa10y",
+    "vix",
+    "vix3m",
+]
 type Metric = Literal[
     "revenue",
     "cost_of_revenue",
@@ -270,12 +284,24 @@ class MacroResult(msgspec.Struct, frozen=True, tag_field="kind", tag="macro"):
     points: list[MacroFact]
 
 
+class FomcFrame(msgspec.Struct, frozen=True):
+    date: date
+    scheduled: bool
+    statement_at: int | None
+    available_at: int
+
+
+class FomcResult(msgspec.Struct, frozen=True, tag_field="kind", tag="fomc"):
+    announcements: list[FomcFrame]
+
+
 type Result = (
     HistoryResult
     | FundamentalsResult
     | CalendarResult
     | UniverseResult
     | MacroResult
+    | FomcResult
     | InstrumentsResult
     | EarningsResult
 )
@@ -338,12 +364,18 @@ class MacroRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="macro"):
     end: date = msgspec.field(name="to")
 
 
+class FomcRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="fomc"):
+    start: date = msgspec.field(name="from")
+    end: date = msgspec.field(name="to")
+
+
 type Request = (
     HistoryRequest
     | FundamentalsRequest
     | CalendarRequest
     | UniverseRequest
     | MacroRequest
+    | FomcRequest
     | InstrumentsRequest
     | EarningsRequest
 )

@@ -59,6 +59,8 @@ async fn spine() -> Spine {
         wikipedia: None,
         ibkr: None,
         nasdaq: None,
+        cboe: None,
+        fed: None,
     };
     let feed = FeedManager::new(
         FeedConfig {
