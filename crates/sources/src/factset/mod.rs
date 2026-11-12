@@ -16,17 +16,22 @@ pub const BASE_URL: &str = "https://www.factset.com";
 pub const URL_ENV: &str = "FACTSET_URL";
 pub const ARCHIVE_URL_ENV: &str = "WAYBACK_URL";
 pub const ARCHIVE_URL: &str = "https://web.archive.org";
-pub const RATE_LIMIT: RateLimit = RateLimit {
+const RATE_LIMIT: RateLimit = RateLimit {
     requests: 20,
     per: Duration::from_secs(60),
     cooldown: Duration::from_secs(60),
 };
-pub const ARCHIVE_RATE_LIMIT: RateLimit = RateLimit {
+const LISTING_RATE_LIMIT: RateLimit = RateLimit {
+    requests: 15,
+    per: Duration::from_secs(60),
+    cooldown: Duration::from_secs(5 * 60),
+};
+const ARCHIVE_RATE_LIMIT: RateLimit = RateLimit {
     requests: 6,
     per: Duration::from_secs(60),
     cooldown: Duration::from_secs(5 * 60),
 };
-pub const ARCHIVED_PREFIXES: [&str; 5] = [
+const ARCHIVED_PREFIXES: [&str; 5] = [
     "www.factset.com/websitefiles/PDFs/",
     "insight.factset.com/hubfs/",
     "www.factset.com/hubfs/",
@@ -100,6 +105,7 @@ pub struct Capture {
 #[derive(Clone)]
 pub struct FactsetClient {
     factset: HttpClient,
+    listing: HttpClient,
     archive: HttpClient,
     config: FactsetConfig,
 }
@@ -108,6 +114,7 @@ impl FactsetClient {
     pub fn new(config: FactsetConfig) -> Result<Self, SourceError> {
         Ok(Self {
             factset: HttpClient::new(&config.user_agent, RATE_LIMIT)?,
+            listing: HttpClient::new(&config.user_agent, LISTING_RATE_LIMIT)?,
             archive: HttpClient::new(&config.user_agent, ARCHIVE_RATE_LIMIT)?,
             config: FactsetConfig {
                 base_url: config.base_url.trim_end_matches('/').to_owned(),
@@ -131,7 +138,7 @@ impl FactsetClient {
         let mut captures = Vec::new();
         for prefix in ARCHIVED_PREFIXES {
             let request = self
-                .archive
+                .listing
                 .client()
                 .get(format!("{}/cdx/search/cdx", self.config.archive_url))
                 .query(&[
@@ -143,7 +150,7 @@ impl FactsetClient {
                     ("fl", "timestamp,original"),
                     ("collapse", "urlkey"),
                 ]);
-            let body = self.archive.fetch(request).await?;
+            let body = self.listing.fetch(request).await?;
             captures.extend(String::from_utf8_lossy(&body).lines().filter_map(|line| {
                 let (timestamp, original) = line.split_once(' ')?;
                 Some(Capture {
