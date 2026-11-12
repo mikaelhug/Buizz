@@ -7,6 +7,7 @@ import { type Resource, useResource } from "../lib/useResource";
 import { Failure, Loading, StaleFailure } from "../ui/Feedback";
 import { Info } from "../ui/Popover";
 import { StatusPill } from "../ui/Status";
+import { Ago, matches, SortHeader, type SortColumns, TableFilter, useFlash, useSort } from "../ui/Table";
 import "../styles/data.css";
 
 const COVERAGE_ROWS_SHOWN = 200;
@@ -168,28 +169,64 @@ function warningText(warning: Schemas["DataWarning"]): string {
   }
 }
 
+type Warning = Schemas["DataWarning"];
+type WarningColumn = "symbol" | "kind" | "detail";
+
+const WARNING_COLUMNS: SortColumns<Warning, WarningColumn> = {
+  symbol: { value: (warning) => warning.symbol },
+  kind: { value: (warning) => WARNING_KINDS[warning.type] },
+  detail: { value: warningText },
+};
+
 function WarningsPanel({ health }: { health: Resource<Schemas["DataHealth"]> }) {
   const warnings = health.data?.warnings;
+  const sorting = useSort("warnings", WARNING_COLUMNS, { key: "symbol", descending: false });
+  const [query, setQuery] = useState("");
+  const shown = sorting.order((warnings ?? []).filter((warning) => matches(query, warning.symbol, WARNING_KINDS[warning.type], warningText(warning))));
   return (
     <section className="panel">
       <header className="panel-head">
         <h2>Warnings</h2>
-        {warnings && warnings.length > 0 && <span className="count-chip num">{warnings.length}</span>}
+        {warnings && warnings.length > 0 && (
+          <>
+            <span className="count-chip num">{warnings.length}</span>
+            <TableFilter label="Filter warnings" value={query} onChange={setQuery} />
+          </>
+        )}
       </header>
       {!warnings ? (
         health.error ? <Failure message={health.error} onRetry={health.reload} /> : <Loading />
       ) : warnings.length === 0 ? (
         <p className="empty">No warnings. Stored bars have no gaps or unexplained moves.</p>
+      ) : shown.length === 0 ? (
+        <p className="empty">No warnings match “{query.trim()}”.</p>
       ) : (
-        <ul className="warnings">
-          {warnings.map((warning, index) => (
-            <li key={index} className={`warning-${warning.type}`}>
-              <span className="sym">{warning.symbol}</span>
-              <span className="warning-kind">{WARNING_KINDS[warning.type]}</span>
-              <span className="warning-text">{warningText(warning)}</span>
-            </li>
-          ))}
-        </ul>
+        <div className="table-wrap table-scroll warnings">
+          <table className="table fin">
+            <thead>
+              <tr>
+                <SortHeader sorting={sorting} column="symbol">
+                  Symbol
+                </SortHeader>
+                <SortHeader sorting={sorting} column="kind">
+                  Kind
+                </SortHeader>
+                <SortHeader sorting={sorting} column="detail">
+                  Detail
+                </SortHeader>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((warning) => (
+                <tr key={`${warning.symbol}-${warningText(warning)}`} className={`warning-${warning.type}`}>
+                  <td className="sym">{warning.symbol}</td>
+                  <td className="warning-kind">{WARNING_KINDS[warning.type]}</td>
+                  <td className="reason">{warningText(warning)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );
@@ -232,12 +269,38 @@ function BackfillPanel({ health }: { health: Resource<Schemas["DataHealth"]> }) 
   );
 }
 
-function JobsPanel({ jobs, ingest }: { jobs: Resource<Schemas["JobView"][]>; ingest: boolean | undefined }) {
+type Job = Schemas["JobView"];
+type JobColumn = "name" | "outcome" | "every" | "last" | "next" | "message";
+
+const UNIT_SECONDS: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86_400 };
+
+function intervalSeconds(every: string): number | undefined {
+  const [, count, unit] = /^(\d+)([smhd])$/.exec(every) ?? [];
+  return count && unit ? Number(count) * (UNIT_SECONDS[unit] ?? 0) : undefined;
+}
+
+function stamp(at: string | null | undefined): number | undefined {
+  return at ? Date.parse(at) : undefined;
+}
+
+const JOB_COLUMNS: SortColumns<Job, JobColumn> = {
+  name: { value: (job) => job.name },
+  outcome: { value: (job) => job.last_outcome },
+  every: { value: (job) => intervalSeconds(job.every) },
+  last: { value: (job) => stamp(job.last_finished), descending: true },
+  next: { value: (job) => stamp(job.next_due) },
+  message: { value: (job) => job.last_message },
+};
+
+function JobsPanel({ jobs, ingest }: { jobs: Resource<Job[]>; ingest: boolean | undefined }) {
+  const sorting = useSort("jobs", JOB_COLUMNS, { key: "next", descending: false });
+  const flash = useFlash(jobs.data, (job) => job.name);
+  const scheduled = ingest !== false;
   return (
     <section className="panel">
       <header className="panel-head">
         <h2>Jobs</h2>
-        {ingest === false && <span className="pill">Not scheduled</span>}
+        {!scheduled && <span className="pill">Not scheduled</span>}
       </header>
       <StaleFailure resource={jobs} />
       {!jobs.data ? (
@@ -245,97 +308,137 @@ function JobsPanel({ jobs, ingest }: { jobs: Resource<Schemas["JobView"][]>; ing
       ) : jobs.data.length === 0 ? (
         <p className="empty">No jobs</p>
       ) : (
-        <ul className={`jobs${ingest === false ? " jobs-off" : ""}`}>
-          {jobs.data.map((job) => (
-            <li key={job.name} className={job.stale ? "stale" : undefined}>
-              <span className="job-name">
-                <span className="mono">{job.name}</span>
-                {job.stale && <span className="badge badge-stale">Stale</span>}
-              </span>
-              <span className="job-outcome">{job.last_outcome ? <StatusPill status={job.last_outcome} /> : <span className="muted">Never run</span>}</span>
-              <dl className="job-when">
-                <div>
-                  <dt>Every</dt>
-                  <dd>{job.every}</dd>
-                </div>
-                {job.last_finished && (
-                  <div>
-                    <dt>Last run</dt>
-                    <dd>{fmt.local(job.last_finished)}</dd>
-                  </div>
+        <div className="table-wrap table-scroll">
+          <table className={`table fin jobs${scheduled ? "" : " jobs-off"}`}>
+            <thead>
+              <tr>
+                <SortHeader sorting={sorting} column="name">
+                  Job
+                </SortHeader>
+                <SortHeader sorting={sorting} column="outcome">
+                  Last outcome
+                </SortHeader>
+                <SortHeader sorting={sorting} column="every" numeric>
+                  Every
+                </SortHeader>
+                <SortHeader sorting={sorting} column="last">
+                  Last run
+                </SortHeader>
+                {scheduled && (
+                  <SortHeader sorting={sorting} column="next">
+                    Next due
+                  </SortHeader>
                 )}
-                {ingest !== false && job.next_due && (
-                  <div>
-                    <dt>Next due</dt>
-                    <dd>{fmt.local(job.next_due)}</dd>
-                  </div>
-                )}
-              </dl>
-              {job.last_message && <p className="job-message">{job.last_message}</p>}
-            </li>
-          ))}
-        </ul>
+                <SortHeader sorting={sorting} column="message">
+                  Message
+                </SortHeader>
+              </tr>
+            </thead>
+            <tbody>
+              {sorting.order(jobs.data).map((job) => (
+                <tr key={job.name} className={job.stale ? "stale" : undefined} {...flash.row(job.name)}>
+                  <td>
+                    <span className="job-name">
+                      <span className="mono">{job.name}</span>
+                      {job.stale && <span className="badge badge-stale">Stale</span>}
+                    </span>
+                  </td>
+                  <td>{job.last_outcome ? <StatusPill status={job.last_outcome} /> : <span className="muted">Never run</span>}</td>
+                  <td className="r num">{job.every}</td>
+                  <td className="muted">{job.last_finished ? <Ago at={job.last_finished} /> : ABSENT}</td>
+                  {scheduled && <td className="muted">{job.next_due ? <Ago at={job.next_due} /> : ABSENT}</td>}
+                  <td className="reason">{job.last_message ?? ""}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );
 }
 
+type CoverageRow = Schemas["Coverage"];
+type CoverageColumn = "dataset" | "symbol" | "source" | "first" | "last" | "updated";
+
+const COVERAGE_COLUMNS: SortColumns<CoverageRow, CoverageColumn> = {
+  dataset: { value: (row) => label(row.dataset) },
+  symbol: { value: (row) => row.symbol },
+  source: { value: (row) => label(row.source) },
+  first: { value: (row) => row.first },
+  last: { value: (row) => row.last, descending: true },
+  updated: { value: (row) => Date.parse(row.updated_at), descending: true },
+};
+
+function coverageKey(row: CoverageRow): string {
+  return `${row.dataset}-${row.symbol ?? ""}-${row.source}`;
+}
+
 function CoveragePanel({ health }: { health: Resource<Schemas["DataHealth"]> }) {
   const [query, setQuery] = useState("");
-  const needle = useDeferredValue(query.trim().toUpperCase());
-  const matching = (health.data?.coverage ?? []).filter(
-    (row) => !needle || (row.symbol ?? "").toUpperCase().includes(needle) || row.dataset.toUpperCase().includes(needle),
-  );
+  const needle = useDeferredValue(query);
+  const sorting = useSort("coverage", COVERAGE_COLUMNS, { key: "dataset", descending: false });
+  const flash = useFlash(health.data?.coverage, coverageKey);
+  const matching = sorting.order((health.data?.coverage ?? []).filter((row) => matches(needle, row.symbol, label(row.dataset), label(row.source))));
   const rows = matching.slice(0, COVERAGE_ROWS_SHOWN);
   return (
     <section className="panel">
       <header className="panel-head">
         <h2>Coverage</h2>
-        <input
-          className="input input-sm"
-          type="search"
-          placeholder="Filter"
-          aria-label="Filter coverage"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-        />
+        <TableFilter label="Filter coverage" value={query} onChange={setQuery} />
       </header>
       {!health.data ? (
         health.error ? <Failure message={health.error} onRetry={health.reload} /> : <Loading />
       ) : rows.length === 0 ? (
-        <p className="empty">No coverage</p>
+        <p className="empty">{needle.trim() ? `No coverage matches “${needle.trim()}”.` : "No coverage"}</p>
       ) : (
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Dataset</th>
-                <th>Symbol</th>
-                <th>Source</th>
-                <th>First</th>
-                <th>Last</th>
-                <th>Updated</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={`${row.dataset}-${row.symbol ?? ""}-${row.source}`}>
-                  <td>{label(row.dataset)}</td>
-                  <td className="sym">{row.symbol ?? ABSENT}</td>
-                  <td>{label(row.source)}</td>
-                  <td className="nowrap">{row.first}</td>
-                  <td className="nowrap">{row.last}</td>
-                  <td className="nowrap muted">{fmt.local(row.updated_at)}</td>
+        <>
+          <div className="table-wrap table-scroll">
+            <table className="table fin">
+              <thead>
+                <tr>
+                  <SortHeader sorting={sorting} column="dataset">
+                    Dataset
+                  </SortHeader>
+                  <SortHeader sorting={sorting} column="symbol">
+                    Symbol
+                  </SortHeader>
+                  <SortHeader sorting={sorting} column="source">
+                    Source
+                  </SortHeader>
+                  <SortHeader sorting={sorting} column="first">
+                    First
+                  </SortHeader>
+                  <SortHeader sorting={sorting} column="last">
+                    Last
+                  </SortHeader>
+                  <SortHeader sorting={sorting} column="updated">
+                    Updated
+                  </SortHeader>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={coverageKey(row)} {...flash.row(coverageKey(row))}>
+                    <td>{label(row.dataset)}</td>
+                    <td className="sym">{row.symbol ?? ABSENT}</td>
+                    <td>{label(row.source)}</td>
+                    <td className="num">{row.first}</td>
+                    <td className="num">{row.last}</td>
+                    <td className="muted">
+                      <Ago at={row.updated_at} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           {matching.length > rows.length && (
-            <p className="muted">
-              Showing {fmt.integer(rows.length)} of {fmt.integer(matching.length)}; filter by symbol or dataset to find the rest
+            <p className="table-note muted">
+              Showing the first {fmt.integer(rows.length)} of {fmt.integer(matching.length)} in this order; filter by symbol, dataset or source to find the rest
             </p>
           )}
-        </div>
+        </>
       )}
     </section>
   );
