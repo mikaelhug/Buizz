@@ -6,7 +6,7 @@ use buizz_core::market::{
 };
 use buizz_core::protocol::BarRow;
 use buizz_core::time::Timestamp;
-use buizz_market::{ActionWindow, FILE_NAME, HistoryRequest, MarketStore};
+use buizz_market::{ActionWindow, ChartBars, ChartRequest, FILE_NAME, HistoryRequest, MarketStore};
 use chrono::{Datelike, NaiveDate, TimeDelta};
 use rust_decimal::Decimal;
 use serde_json::Value;
@@ -377,4 +377,94 @@ async fn a_late_closure_stays_a_published_session_until_it_was_announced() {
         dates("2018-12-03T14:30:00Z"),
         ["2018-12-03", "2018-12-04", "2018-12-06", "2018-12-07"].map(day)
     );
+}
+
+#[tokio::test]
+async fn a_price_chart_stops_at_the_clock_and_adjusts_only_for_splits_visible_by_then() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = MarketStore::open(&dir.path().join(FILE_NAME), 1)
+        .await
+        .unwrap();
+    store
+        .load_fixture(&fixtures().join("market"))
+        .await
+        .unwrap();
+    let stamp = |text: &str| text.parse::<Timestamp>().unwrap();
+    let chart = |timeframe, from: &str, before: Option<&str>, bars, as_of: &str| {
+        store.chart(ChartRequest {
+            symbol: Symbol::new("AAA"),
+            timeframe,
+            from: stamp(from),
+            after: None,
+            before: before.map(stamp),
+            bars,
+            as_of: stamp(as_of),
+        })
+    };
+    let opens = |chart: &ChartBars| chart.bars.iter().map(|bar| bar.open).collect::<Vec<_>>();
+    let starts = |chart: &ChartBars| chart.bars.iter().map(|bar| bar.start).collect::<Vec<_>>();
+
+    let before_split = chart(
+        Timeframe::Day,
+        "2024-11-20T05:00:00Z",
+        None,
+        100,
+        "2024-11-25T21:00:00Z",
+    )
+    .await
+    .unwrap();
+    assert_close(
+        &opens(&before_split),
+        &[200.0, 203.0, 198.0, 197.5],
+        1e-9,
+        "raw until the ex-date opens",
+    );
+    assert!(before_split.splits.is_empty());
+
+    let split_day = chart(
+        Timeframe::Day,
+        "2024-11-20T05:00:00Z",
+        None,
+        100,
+        "2024-11-26T17:00:00Z",
+    )
+    .await
+    .unwrap();
+    assert_close(
+        &opens(&split_day),
+        &[100.0, 101.5, 99.0, 98.75],
+        1e-9,
+        "halved once the split is visible, the open session still hidden",
+    );
+    assert_eq!(split_day.splits.len(), 1);
+    assert_eq!(split_day.splits[0].volume, Decimal::TWO);
+
+    let minutes = chart(
+        Timeframe::Minute,
+        "2024-11-29T05:00:00Z",
+        None,
+        2,
+        "2024-11-29T14:35:30Z",
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        starts(&minutes),
+        [stamp("2024-11-29T14:33:00Z"), stamp("2024-11-29T14:34:00Z")]
+    );
+    assert!(minutes.older);
+    let earlier = chart(
+        Timeframe::Minute,
+        "2024-11-29T05:00:00Z",
+        Some("2024-11-29T14:33:00Z"),
+        2,
+        "2024-11-29T14:35:30Z",
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        starts(&earlier),
+        [stamp("2024-11-29T14:31:00Z"), stamp("2024-11-29T14:32:00Z")]
+    );
+    assert!(earlier.older);
 }

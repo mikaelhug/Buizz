@@ -402,7 +402,7 @@ async fn last_event_seq(inner: &Inner, run_id: RunId) -> Result<u64, StateError>
     loop {
         let page = inner
             .state
-            .events(run_id, (last > 0).then_some(last), EVENT_PAGE)
+            .events(run_id, (last > 0).then_some(last), EVENT_PAGE, Vec::new())
             .await?;
         match page.last() {
             Some(event) => last = event.seq,

@@ -1,4 +1,4 @@
-use buizz_core::api::{EquitySeries, PositionView, RunSummary, SpineEvent, TradeView};
+use buizz_core::api::{EquitySeries, PositionView, PriceChart, RunSummary, SpineEvent, TradeView};
 use buizz_core::run::{CostModel, RiskLimits, RunConfig, RunId};
 use reqwest::StatusCode;
 use rust_decimal::prelude::ToPrimitive;
@@ -156,12 +156,57 @@ async fn assert_run_view_analysis(spine: &Spine, run: &RunSummary, seen: &Value)
         json!(trades.len()),
         "the trades the page lists"
     );
+    let chart = seen["chart"].as_str().unwrap_or_default();
+    for told in [
+        "4 fills, 2 buys and 2 sells",
+        "adjusted for the 2-for-1 split on 2024-11-26",
+    ] {
+        assert!(
+            chart.contains(told),
+            "{told:?} in the AAA chart summary {chart:?}"
+        );
+    }
     assert!(
         trades
             .iter()
             .all(|trade| trade.opening_reason.is_some() && trade.closing_reason.is_some()),
         "every red_green trade opens and closes on a reasoned order: {trades:#?}"
     );
+}
+
+async fn assert_split_adjusted_chart(spine: &Spine, run: &RunSummary) {
+    let chart: PriceChart = spine.get(&format!("/api/runs/{}/chart/AAA", run.id)).await;
+    assert_eq!(chart.bars.len(), 10, "a daily bar per session: {chart:#?}");
+    assert_eq!(
+        chart.bars.first().map(|bar| bar.open),
+        Some(100.0),
+        "bars before the 2:1 split are halved"
+    );
+    assert_eq!(
+        chart
+            .splits
+            .iter()
+            .map(|split| (split.ex_date.to_string(), split.ratio))
+            .collect::<Vec<_>>(),
+        [("2024-11-26".to_owned(), decimal("2"))]
+    );
+    let fills: Vec<_> = chart
+        .fills
+        .iter()
+        .map(|fill| (fill.qty, fill.price, fill.chart_price))
+        .collect();
+    assert_eq!(
+        fills,
+        [
+            (125, decimal("198.0990"), decimal("99.0495")),
+            (-250, decimal("99.4502"), decimal("99.4502")),
+            (251, decimal("99.0495"), decimal("99.0495")),
+            (-251, decimal("101.4492"), decimal("101.4492")),
+        ],
+        "fills sit on the split-adjusted candles"
+    );
+    assert!(chart.fills.iter().all(|fill| !fill.reason.is_empty()));
+    assert_eq!(chart.position, None, "AAA is flat at the end");
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -244,6 +289,7 @@ async fn red_green_backtest_matches_the_hand_computation_from_the_cli_the_api_an
         assert_same(&expected[key], &actual[key], tolerance, key);
     }
     assert_ledger_fills(&expected, &actual["orders"]);
+    assert_split_adjusted_chart(&spine, &first).await;
 
     let rerun: RunSummary = spine.post("/api/bots/red_green/backtests", request).await;
     let second = spine.finished(rerun.id).await;

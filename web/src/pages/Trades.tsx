@@ -6,6 +6,7 @@ import { useResource } from "../lib/useResource";
 import { Failure, Loading, StaleFailure } from "../ui/Feedback";
 import { type Stat, StatGrid } from "../ui/Metrics";
 import { Info } from "../ui/Popover";
+import { SymbolLink } from "../ui/SymbolChart";
 
 type Trade = Schemas["TradeView"];
 type SortKey = "closed" | "pnl" | "held";
@@ -68,7 +69,9 @@ function Summary({ trades }: { trades: Trade[] }) {
   return <StatGrid stats={stats} />;
 }
 
-export function Trades({ runId, positionsHref }: { runId: number; positionsHref: string }) {
+type Props = { runId: number; positionsHref: string; symbolHref: (symbol: string) => string };
+
+export function Trades({ runId, positionsHref, symbolHref }: Props) {
   const trades = useResource(() => must(api.GET("/api/runs/{id}/trades", { params: { path: { id: runId } } })), [runId]);
   useSpineEvents((event) => {
     if (event.type === "fill" && event.run_id === runId) {
@@ -128,7 +131,9 @@ export function Trades({ runId, positionsHref }: { runId: number; positionsHref:
               <tbody>
                 {shown.map((trade) => (
                   <tr key={`${trade.symbol}-${trade.opened_at}-${trade.closed_at}`}>
-                    <td className="sym">{trade.symbol}</td>
+                    <td className="sym">
+                      <SymbolLink symbol={trade.symbol} href={symbolHref} />
+                    </td>
                     <td className={trade.qty > 0 ? "up" : "down"}>{trade.qty > 0 ? "long" : "short"}</td>
                     <td className="r num">{fmt.integer(Math.abs(trade.qty))}</td>
                     <td className="nowrap muted">{fmt.market(trade.opened_at)}</td>

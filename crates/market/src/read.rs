@@ -21,7 +21,7 @@ use rust_decimal::prelude::ToPrimitive;
 use crate::codec::{
     Dec, Params, Sym, Ts, Wire, action_kind, placeholders, symbol_params, wire_name,
 };
-use crate::{HistoryRequest, Result};
+use crate::{ChartBars, ChartRequest, HistoryRequest, Result};
 
 const MINUTES_PER_SESSION: usize = 390;
 
@@ -206,6 +206,71 @@ fn to_f64(value: Decimal) -> f64 {
     value.to_f64().unwrap_or(f64::NAN)
 }
 
+fn adjusted_row(bar: Bar, factors: &[AdjustmentFactor]) -> BarRow {
+    let (price, volume) = AdjustmentFactor::cumulative(bar.start.exchange_date(), factors);
+    BarRow {
+        start: bar.start,
+        open: to_f64(bar.open * price),
+        high: to_f64(bar.high * price),
+        low: to_f64(bar.low * price),
+        close: to_f64(bar.close * price),
+        volume: to_f64(Decimal::from(bar.volume) * volume),
+        symbol: bar.symbol,
+    }
+}
+
+pub(crate) fn chart(
+    connection: &Connection,
+    calendar: &Calendar,
+    request: &ChartRequest,
+) -> Result<ChartBars> {
+    let symbols = [request.symbol.clone()];
+    let (to, to_inclusive) = match request.before.filter(|before| *before <= request.as_of) {
+        Some(before) => (before, false),
+        None => (request.as_of, true),
+    };
+    let fetched = bars(
+        connection,
+        &BarQuery {
+            timeframe: request.timeframe,
+            symbols: &symbols,
+            from: Some(
+                request
+                    .after
+                    .map_or(request.from, |after| after.max(request.from)),
+            ),
+            to,
+            to_inclusive,
+            latest: Some(request.bars + 2),
+        },
+    )?;
+    let mut visible: Vec<Bar> = fetched
+        .into_iter()
+        .filter(|bar| request.after.is_none_or(|after| bar.start > after))
+        .filter(|bar| is_visible(calendar, request.timeframe, bar, request.as_of))
+        .collect();
+    let older = visible.len() > request.bars;
+    visible.drain(..visible.len().saturating_sub(request.bars));
+    let splits = adjustment_factors(
+        connection,
+        calendar,
+        &symbols,
+        Adjustment::Split,
+        request.from.exchange_date(),
+        request.as_of,
+    )?
+    .remove(&request.symbol)
+    .unwrap_or_default();
+    Ok(ChartBars {
+        bars: visible
+            .into_iter()
+            .map(|bar| adjusted_row(bar, &splits))
+            .collect(),
+        older,
+        splits,
+    })
+}
+
 pub(crate) fn history(
     connection: &Connection,
     calendar: &Calendar,
@@ -245,17 +310,7 @@ pub(crate) fn history(
         .flatten()
         .map(|bar| {
             let symbol_factors = factors.get(&bar.symbol).map_or(&[][..], Vec::as_slice);
-            let (price, volume) =
-                AdjustmentFactor::cumulative(bar.start.exchange_date(), symbol_factors);
-            BarRow {
-                start: bar.start,
-                open: to_f64(bar.open * price),
-                high: to_f64(bar.high * price),
-                low: to_f64(bar.low * price),
-                close: to_f64(bar.close * price),
-                volume: to_f64(Decimal::from(bar.volume) * volume),
-                symbol: bar.symbol,
-            }
+            adjusted_row(bar, symbol_factors)
         })
         .collect();
     rows.sort_by(|left, right| (left.start, &left.symbol).cmp(&(right.start, &right.symbol)));
