@@ -180,7 +180,28 @@ impl Attempt {
     }
 }
 
+pub(crate) fn read(fetch: &SourceFetch) -> bool {
+    matches!(fetch.status, FetchStatus::Ok | FetchStatus::Empty)
+}
+
+pub(crate) fn waiting(fetch: &SourceFetch, now: Timestamp) -> bool {
+    fetch.retry_after.is_some_and(|until| until > now)
+}
+
 impl Ingest {
+    pub(crate) async fn latest_fetch(
+        &self,
+        source: DataSource,
+        dataset: Dataset,
+        symbol: &Symbol,
+    ) -> Result<Option<SourceFetch>, IngestError> {
+        Ok(self
+            .state
+            .recent_fetches(source, dataset, Some(symbol.clone()), 1)
+            .await?
+            .pop())
+    }
+
     async fn record(
         &self,
         now: Timestamp,

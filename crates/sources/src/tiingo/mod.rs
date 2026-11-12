@@ -21,7 +21,7 @@ pub const REQUESTS_PER_DAY: u32 = 700;
 pub const SYMBOLS_PER_MONTH: u32 = 350;
 pub const KEY_ENV: &str = "TIINGO_API_KEY";
 pub const URL_ENV: &str = "TIINGO_URL";
-pub const MIN_OVERLAP: usize = 20;
+const MIN_OVERLAP: usize = 20;
 const MAX_MEDIAN_DIFFERENCE: Decimal = Decimal::from_parts(5, 0, 0, false, 2);
 
 #[derive(Clone, PartialEq, Eq)]

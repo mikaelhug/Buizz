@@ -1,12 +1,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use buizz_core::market::{DataSource, Dataset, Feed, Symbol, Timeframe};
-use buizz_core::ops::FetchStatus;
 use buizz_core::time::Timestamp;
 use buizz_sources::alpaca::{BarsRequest, HISTORY_START, SIP_DELAY};
 use chrono::{NaiveDate, TimeDelta};
 
-use crate::fetch::{Batch, FetchKey, Work};
+use crate::fetch::{Batch, FetchKey, Work, read};
 use crate::{Ingest, IngestError, Priced, day_start};
 
 const SYMBOLS_PER_REQUEST: usize = 1_000;
@@ -147,13 +146,9 @@ impl Ingest {
         active: bool,
     ) -> Result<bool, IngestError> {
         let latest = self
-            .state
-            .recent_fetches(DataSource::Alpaca, Dataset::Bars1d, Some(symbol.clone()), 1)
+            .latest_fetch(DataSource::Alpaca, Dataset::Bars1d, symbol)
             .await?;
-        Ok(latest.first().is_some_and(|fetch| {
-            matches!(fetch.status, FetchStatus::Ok | FetchStatus::Empty)
-                && (!active || fetch.at + DORMANT_RETRY > now)
-        }))
+        Ok(latest.is_some_and(|fetch| read(&fetch) && (!active || fetch.at + DORMANT_RETRY > now)))
     }
 
     pub(crate) async fn restore_daily_watermark(&self) -> Result<(), IngestError> {

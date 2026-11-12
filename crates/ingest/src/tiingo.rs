@@ -1,5 +1,4 @@
 use buizz_core::market::{Bar, DataSource, Dataset, Symbol, Timeframe};
-use buizz_core::ops::FetchStatus;
 use buizz_core::time::Timestamp;
 use buizz_market::ActionWindow;
 use buizz_sources::tiingo::{
@@ -7,7 +6,7 @@ use buizz_sources::tiingo::{
 };
 use chrono::TimeDelta;
 
-use crate::fetch::{Batch, FetchKey, Work};
+use crate::fetch::{Batch, FetchKey, Work, read, waiting};
 use crate::{Ingest, IngestError, Priced, day_start};
 
 const OVERLAP_WINDOW_DAYS: i64 = 45;
@@ -142,12 +141,11 @@ impl Ingest {
 
     async fn tiingo_settled(&self, now: Timestamp, symbol: &Symbol) -> Result<bool, IngestError> {
         let latest = self
-            .state
-            .recent_fetches(DataSource::Tiingo, Dataset::Bars1d, Some(symbol.clone()), 1)
+            .latest_fetch(DataSource::Tiingo, Dataset::Bars1d, symbol)
             .await?;
-        Ok(latest.first().is_some_and(|fetch| {
-            fetch.retry_after.is_some_and(|until| until > now)
-                || (matches!(fetch.status, FetchStatus::Ok | FetchStatus::Empty)
+        Ok(latest.is_some_and(|fetch| {
+            waiting(&fetch, now)
+                || (read(&fetch)
                     && fetch
                         .requested_from
                         .is_some_and(|from| from <= self.config.history_start))
