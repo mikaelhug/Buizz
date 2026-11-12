@@ -63,7 +63,7 @@ export function BotActions({ name, live: liveRun, onChanged }: Props) {
       )}
       <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void toggle()}>
         <Icon name={live ? "pause" : "play"} />
-        {live ? "Pause" : "Live"}
+        {live ? "Pause" : liveRun ? "Live" : "Go live"}
       </button>
       <Info label="Live, Pause and Stop">
         Live starts a live paper run, or resumes a paused one. Pause cancels working orders and stops the bot while its equity keeps marking. Stop ends the

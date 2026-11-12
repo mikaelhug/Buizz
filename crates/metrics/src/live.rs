@@ -59,6 +59,10 @@ pub fn live(input: &LiveInput<'_>) -> Option<LiveStats> {
     let total_return = growth(&held)?;
     let benchmark_return = growth(&index)?;
     let count = sessions.len();
+    let years = count as f64 / TRADING_DAYS;
+    let annualized = |growth: f64| (1.0 + growth).max(0.0).powf(1.0 / years) - 1.0;
+    let (cagr, benchmark_cagr) = (annualized(total_return), annualized(benchmark_return));
+    let excess_stdev = sample_stdev(&excess);
     let moments = sharpe_moments(&excess);
     let rebased = |close: Decimal| round_cash(input.start_cash * close / base.equity);
     let curve: Vec<LivePoint> = std::iter::once(LivePoint {
@@ -83,10 +87,14 @@ pub fn live(input: &LiveInput<'_>) -> Option<LiveStats> {
                 .count(),
         )
         .unwrap_or(u32::MAX),
+        cagr,
+        benchmark_cagr,
+        excess_cagr: cagr - benchmark_cagr,
+        excess_cagr_error: excess_stdev.map(|stdev| stdev * TRADING_DAYS / (count as f64).sqrt()),
         total_return,
         benchmark_return,
         excess_return: total_return - benchmark_return,
-        excess_error: sample_stdev(&excess).map(|stdev| stdev * (count as f64).sqrt()),
+        excess_error: excess_stdev.map(|stdev| stdev * (count as f64).sqrt()),
         max_drawdown: max_drawdown(&held)?,
         volatility: sample_stdev(&returns).map(|stdev| stdev * TRADING_DAYS.sqrt()),
         beta: beta(&returns, &market),

@@ -167,6 +167,37 @@ function excessStat(metrics: Metrics | null | undefined, benchmark: Benchmark | 
   };
 }
 
+function annualized(metrics: Metrics | null | undefined): number | undefined {
+  const growth = metrics?.total_return;
+  return growth === null || growth === undefined || !metrics || metrics.sessions < 1 ? undefined : Math.max(0, 1 + growth) ** (TRADING_DAYS / metrics.sessions) - 1;
+}
+
+function excessCagrStat(metrics: Metrics | null | undefined, benchmark: Benchmark | undefined): Stat {
+  const sessions = metrics?.sessions ?? 0;
+  const covered = benchmark?.metrics.sessions;
+  const own = annualized(metrics);
+  const theirs = covered === sessions ? annualized(benchmark?.metrics) : undefined;
+  const excess = own === undefined || theirs === undefined ? undefined : own - theirs;
+  const symbol = benchmark?.symbol ?? "benchmark";
+  return {
+    label: `CAGR vs ${symbol}`,
+    title: `The run's annualized return minus ${symbol}'s buy and hold annualized over exactly the same sessions and start cash. Under ${TRADING_DAYS} sessions it is still annualized, but a few weeks annualized is not a track record.`,
+    text: fmt.change(excess),
+    tone: tone(excess),
+    bench: excess === undefined ? undefined : `CAGR ${fmt.change(own)} · ${symbol} ${fmt.change(theirs)}`,
+    note:
+      excess === undefined
+        ? !benchmark
+          ? "once the run has finished"
+          : covered !== sessions && own !== undefined
+            ? `${benchmark.symbol} covers ${fmt.integer(covered)} of ${fmt.integer(sessions)} sessions`
+            : "no benchmark return"
+        : sessions < TRADING_DAYS
+          ? `annualized from ${fmt.integer(sessions)} sessions`
+          : undefined,
+  };
+}
+
 export type MonthRange = { best: number; worst: number } | undefined;
 
 function monthStat(text: "Best month" | "Worst month", value: number | undefined): Stat {
@@ -203,7 +234,7 @@ export function MetricGroups({ metrics, benchmark, months }: GroupsProps) {
     { title: "Returns", headline: stat("total_return"), rows: [stat("cagr"), monthStat("Best month", months?.best), monthStat("Worst month", months?.worst), stat("sessions")] },
     { title: "Risk", headline: stat("max_drawdown"), rows: [stat("volatility"), stat("sharpe"), stat("sortino"), stat("calmar")] },
     { title: "Trading", headline: stat("trades"), rows: [stat("win_rate"), stat("profit_factor"), stat("turnover"), stat("exposure")] },
-    { title: `vs ${benchmark?.symbol ?? "benchmark"}`, headline: excessStat(metrics, benchmark), rows: [stat("alpha"), stat("beta")] },
+    { title: `vs ${benchmark?.symbol ?? "benchmark"}`, headline: excessCagrStat(metrics, benchmark), rows: [excessStat(metrics, benchmark), stat("alpha"), stat("beta")] },
   ];
   return (
     <div className="metric-groups">

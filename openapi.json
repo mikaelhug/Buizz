@@ -1794,6 +1794,9 @@
           "through",
           "sessions",
           "paused_sessions",
+          "cagr",
+          "benchmark_cagr",
+          "excess_cagr",
           "total_return",
           "benchmark_return",
           "excess_return",
@@ -1815,6 +1818,25 @@
             "type": "integer",
             "format": "int32",
             "minimum": 0
+          },
+          "cagr": {
+            "type": "number",
+            "format": "double"
+          },
+          "benchmark_cagr": {
+            "type": "number",
+            "format": "double"
+          },
+          "excess_cagr": {
+            "type": "number",
+            "format": "double"
+          },
+          "excess_cagr_error": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
           },
           "total_return": {
             "type": "number",

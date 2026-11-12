@@ -39,12 +39,21 @@ function minutes({ from, through }: Released): string[] {
 }
 
 async function pauseAndResumeThenStop(page: Page): Promise<{ paused: Released; resumed: Released }> {
-  const card = (name: string) => page.locator("article.bot-card").filter({ has: page.getByRole("link", { name, exact: true }) });
+  const section = (name: string) => page.getByRole("region", { name, exact: true });
+  const row = (name: string, scope: string) => section(scope).locator("tbody tr").filter({ has: page.getByRole("link", { name, exact: true }) });
   for (const name of ["tape_twin", "tape"]) {
-    await card(name).getByRole("button", { name: "Live", exact: true }).click();
-    await pill(card(name), "live").waitFor();
+    await row(name, "Not live").getByRole("button", { name: "Go live", exact: true }).click();
+    const live = row(name, "Live");
+    await live.getByRole("button", { name: "Pause", exact: true }).waitFor();
+    await pill(live, "incubating").waitFor();
   }
-  await card("tape").getByRole("link", { name: "tape", exact: true }).click();
+  const header = await section("Live").locator("thead").textContent();
+  for (const column of ["CAGR vs SPY", "Return", "SPY", "Excess", "Since live vs SPY"]) {
+    if (!header?.includes(column)) {
+      throw new Error(`the live table has no ${column} column: ${header}`);
+    }
+  }
+  await row("tape", "Live").getByRole("link", { name: "tape", exact: true }).click();
 
   const head = page.locator(".detail-head");
   const run = page.locator(".run-bar");
@@ -80,7 +89,7 @@ async function pauseAndResumeThenStop(page: Page): Promise<{ paused: Released; r
   await head.getByRole("button", { name: "Stop", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Stop run" }).click();
   await pill(run, "cancelled").waitFor();
-  await head.getByRole("button", { name: "Live", exact: true }).waitFor();
+  await head.getByRole("button", { name: "Go live", exact: true }).waitFor();
   return { paused, resumed };
 }
 

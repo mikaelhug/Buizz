@@ -612,6 +612,14 @@ export interface components {
             /** Format: int32 */
             paused_sessions: number;
             /** Format: double */
+            cagr: number;
+            /** Format: double */
+            benchmark_cagr: number;
+            /** Format: double */
+            excess_cagr: number;
+            /** Format: double */
+            excess_cagr_error?: number | null;
+            /** Format: double */
             total_return: number;
             /** Format: double */
             benchmark_return: number;

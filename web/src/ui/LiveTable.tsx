@@ -4,17 +4,17 @@ import { fmt, tone } from "../lib/format";
 import { href } from "../lib/route";
 import { Info } from "./Popover";
 import { StatusPill } from "./Status";
+import { SortHeader, type SortColumns, type Sorting, type SortValue } from "./Table";
 
 export type Live = Schemas["LiveSummary"];
 type Stats = Schemas["LiveStats"];
-type Value = number | string | null | undefined;
 
 export type Column = {
   label: string;
   about?: string;
   numeric?: boolean;
   ascending?: boolean;
-  value: (live: Live) => Value;
+  value: (live: Live) => SortValue;
   cell: (live: Live) => ReactNode;
 };
 
@@ -22,6 +22,9 @@ export type LiveKey =
   | "bot"
   | "since"
   | "sessions"
+  | "excess_cagr"
+  | "cagr"
+  | "benchmark_cagr"
   | "total_return"
   | "benchmark_return"
   | "excess_return"
@@ -33,12 +36,22 @@ export type LiveKey =
   | "sessions_needed"
   | "status";
 
-export type Sort<K extends string> = { key: K; descending: boolean };
-
 const stat = <T,>(live: Live, pick: (stats: Stats) => T) => (live.run.live_stats ? pick(live.run.live_stats) : undefined);
 
 function Signed({ value }: { value: number | null | undefined }) {
   return <span className={`num ${tone(value) ?? ""}`}>{fmt.change(value)}</span>;
+}
+
+export const YEAR_SESSIONS = 252;
+
+function PlusMinus({ value }: { value: number | null | undefined }) {
+  return value === null || value === undefined ? null : (
+    <span className="se">
+      <span aria-hidden="true">±</span>
+      <span className="visually-hidden">plus or minus</span>
+      {fmt.percent(value)}
+    </span>
+  );
 }
 
 function Excess({ live }: { live: Live }) {
@@ -46,15 +59,34 @@ function Excess({ live }: { live: Live }) {
   return (
     <>
       <Signed value={stats?.excess_return} />
-      {stats?.excess_error !== null && stats?.excess_error !== undefined && (
-        <span className="se">
-          <span aria-hidden="true">±</span>
-          <span className="visually-hidden">plus or minus</span>
-          {fmt.percent(stats.excess_error)}
-        </span>
-      )}
+      <PlusMinus value={stats?.excess_error} />
     </>
   );
+}
+
+export function Annualized({ value, sessions, error }: { value: number | null | undefined; sessions: number; error?: number | null | undefined }) {
+  const short = value !== null && value !== undefined && sessions < YEAR_SESSIONS;
+  return (
+    <span className={short ? "annualized-short" : undefined} title={short ? `annualized from ${fmt.integer(sessions)} sessions` : undefined}>
+      <Signed value={value} />
+      <PlusMinus value={error} />
+      {short && <span className="annualized-note">from {fmt.integer(sessions)} sessions</span>}
+    </span>
+  );
+}
+
+const ANNUALIZED = `Annualized over the sessions since the run went live. Under ${YEAR_SESSIONS} sessions it is greyed and says how many sessions it comes from: a few weeks annualized is not a track record`;
+
+function annualizedColumn(label: string, about: string, pick: (stats: Stats) => number, error?: (stats: Stats) => number | null | undefined): Column {
+  return {
+    label,
+    about: `${about}. ${ANNUALIZED}`,
+    numeric: true,
+    value: (live) => stat(live, pick),
+    cell: (live) => (
+      <Annualized value={stat(live, pick)} sessions={stat(live, (stats) => stats.sessions) ?? 0} error={error && stat(live, error)} />
+    ),
+  };
 }
 
 export function retired(live: Live): boolean {
@@ -80,16 +112,24 @@ export const LIVE_COLUMNS: Record<LiveKey, Column> = {
   },
   since: {
     label: "Live since",
-    value: (live) => live.run.created_at,
+    value: (live) => Date.parse(live.run.created_at),
     cell: (live) => <span className="num">{fmt.date(live.run.created_at)}</span>,
   },
   sessions: {
     label: "Sessions",
     about: "Session closes since the run went live; paused sessions count, since the run keeps its positions marked while paused",
     numeric: true,
-    value: (live) => stat(live, (stats) => stats.sessions) ?? 0,
-    cell: (live) => <span className="num">{fmt.integer(stat(live, (stats) => stats.sessions) ?? 0)}</span>,
+    value: (live) => stat(live, (stats) => stats.sessions),
+    cell: (live) => <span className="num">{fmt.integer(stat(live, (stats) => stats.sessions))}</span>,
   },
+  excess_cagr: annualizedColumn(
+    "CAGR vs SPY",
+    "The run's CAGR minus its benchmark's CAGR over exactly the same sessions. The ± figure is one standard error of the annualized mean daily excess return",
+    (stats) => stats.excess_cagr,
+    (stats) => stats.excess_cagr_error,
+  ),
+  cagr: annualizedColumn("CAGR", "Compound annual growth of equity since the run went live", (stats) => stats.cagr),
+  benchmark_cagr: annualizedColumn("SPY CAGR", "Compound annual growth of the benchmark over the same sessions", (stats) => stats.benchmark_cagr),
   total_return: {
     label: "Return",
     about: "Change in equity since the run went live, after every cost, through the latest session close",
@@ -166,37 +206,18 @@ export const LIVE_COLUMNS: Record<LiveKey, Column> = {
   },
 };
 
-export function compareValues(left: Value, right: Value, descending: boolean): number {
-  if (left === null || left === undefined) {
-    return right === null || right === undefined ? 0 : 1;
-  }
-  if (right === null || right === undefined) {
-    return -1;
-  }
-  const order = typeof left === "number" && typeof right === "number" ? left - right : String(left).localeCompare(String(right));
-  return descending ? -order : order;
+export function liveSortColumns<K extends LiveKey>(keys: readonly K[]): SortColumns<Live, K> {
+  return Object.fromEntries(keys.map((key) => [key, { value: LIVE_COLUMNS[key].value, descending: !LIVE_COLUMNS[key].ascending && LIVE_COLUMNS[key].numeric === true }])) as SortColumns<
+    Live,
+    K
+  >;
 }
 
-export function nextSort<K extends string>(current: Sort<K>, key: K, ascending: boolean): Sort<K> {
-  return current.key === key ? { key, descending: !current.descending } : { key, descending: !ascending };
-}
-
-type HeaderProps<K extends string> = { column: Pick<Column, "label" | "about" | "numeric">; columnKey: K; sort: Sort<K>; onSort: (key: K) => void; className?: string | undefined };
-
-export function SortHeader<K extends string>({ column, columnKey, sort, onSort, className }: HeaderProps<K>) {
-  const active = sort.key === columnKey;
+export function LiveHeader<S extends string>({ sorting, column, className }: { sorting: Sorting<Live, S>; column: LiveKey & S; className?: string | undefined }) {
+  const spec = LIVE_COLUMNS[column];
   return (
-    <th
-      scope="col"
-      className={`sortable${column.numeric ? " r" : ""}${active ? (sort.descending ? " desc" : " asc") : ""}${className ? ` ${className}` : ""}`}
-      aria-sort={active ? (sort.descending ? "descending" : "ascending") : "none"}
-    >
-      <span className="th-inner">
-        {column.about && <Info label={column.label}>{column.about}</Info>}
-        <button type="button" onClick={() => onSort(columnKey)}>
-          {column.label}
-        </button>
-      </span>
-    </th>
+    <SortHeader sorting={sorting} column={column} numeric={spec.numeric ?? false} className={className} info={spec.about && <Info label={spec.label}>{spec.about}</Info>}>
+      {spec.label}
+    </SortHeader>
   );
 }

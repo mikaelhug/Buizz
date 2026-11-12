@@ -7,8 +7,9 @@ import { useFrameBatch } from "../lib/useFrameBatch";
 import { useResource } from "../lib/useResource";
 import { Failure, Loading, StaleFailure } from "../ui/Feedback";
 import { Icon } from "../ui/Icon";
-import { compareValues, LIVE_COLUMNS, type Live, type LiveKey, nextSort, type Sort, SortHeader } from "../ui/LiveTable";
+import { LIVE_COLUMNS, type Live, type LiveKey, LiveHeader, liveSortColumns } from "../ui/LiveTable";
 import { Info } from "../ui/Popover";
+import { matches, SortHeader, type SortColumns, useSort } from "../ui/Table";
 import { type Mark, Sparkline } from "../ui/Sparkline";
 import { notify } from "../ui/Toaster";
 import { BacktestDialog } from "./BacktestDialog";
@@ -19,10 +20,10 @@ import "../styles/bots.css";
 type Bot = Schemas["BotSummary"];
 type Run = Schemas["RunSummary"];
 type EquityEvent = Extract<SpineEvent, { type: "equity" }>;
-type LiveOrder = LiveKey | "attention";
 type IdleKey = "name" | "timeframe" | "stage" | "last_run_at";
 
-const LIVE_SHOWN: readonly LiveKey[] = ["since", "sessions", "total_return", "benchmark_return", "excess_return", "max_drawdown", "verdict"];
+const LIVE_SHOWN = ["since", "sessions", "excess_cagr", "cagr", "total_return", "benchmark_return", "excess_return", "max_drawdown", "verdict"] as const satisfies readonly LiveKey[];
+type LiveOrder = "bot" | (typeof LIVE_SHOWN)[number] | "attention";
 const STAGE_ORDER: Record<Bot["stage"], number> = { screened: 0, draft: 1, live: 2 };
 const STAGE_ABOUT =
   "Draft: no completed backtest of the bot's current code. Screened: at least one completed backtest of the current code; the real screening gate comes later. Live: a live paper run is going";
@@ -34,15 +35,19 @@ function attention(live: Live): number {
   return isRunning(live.run) ? 2 : 1;
 }
 
-const byAttention = (a: Live, b: Live) =>
-  attention(a) - attention(b) || compareValues(LIVE_COLUMNS.confidence.value(a), LIVE_COLUMNS.confidence.value(b), true) || a.run.bot.localeCompare(b.run.bot);
-
-const IDLE_COLUMNS: Record<IdleKey, { label: string; about?: string; value: (bot: Bot) => string | number | null | undefined; ascending: boolean }> = {
-  name: { label: "Bot", value: (bot) => bot.name, ascending: true },
-  timeframe: { label: "Timeframe", value: (bot) => bot.timeframe, ascending: true },
-  stage: { label: "Stage", about: STAGE_ABOUT, value: (bot) => STAGE_ORDER[bot.stage], ascending: true },
-  last_run_at: { label: "Last activity", value: (bot) => bot.last_run_at, ascending: false },
+const LIVE_SORT: SortColumns<Live, LiveOrder> = {
+  ...liveSortColumns(["bot", ...LIVE_SHOWN]),
+  attention: { value: (live) => attention(live) * 3 + 1 - (live.run.live_stats?.probabilistic_sharpe ?? -0.5) },
 };
+
+const IDLE_SORT: SortColumns<Bot, IdleKey> = {
+  name: { value: (bot) => bot.name },
+  timeframe: { value: (bot) => bot.timeframe },
+  stage: { value: (bot) => STAGE_ORDER[bot.stage] },
+  last_run_at: { value: (bot) => (bot.last_run_at ? Date.parse(bot.last_run_at) : undefined), descending: true },
+};
+
+const IDLE_LABELS: Record<IdleKey, string> = { name: "Bot", timeframe: "Timeframe", stage: "Stage", last_run_at: "Last activity" };
 
 const finished = (status: Run["status"]) => status === "completed" || status === "failed" || status === "cancelled";
 
@@ -56,8 +61,8 @@ export function BotGrid() {
   const bots = useResource(() => must(api.GET("/api/bots")), []);
   const [marks, setMarks] = useState<Record<number, Mark>>({});
   const [filter, setFilter] = useState("");
-  const [liveSort, setLiveSort] = useState<Sort<LiveOrder>>({ key: "attention", descending: false });
-  const [idleSort, setIdleSort] = useState<Sort<IdleKey>>({ key: "stage", descending: false });
+  const liveSorting = useSort("bots-live", LIVE_SORT, { key: "attention", descending: false });
+  const idleSorting = useSort("bots-idle", IDLE_SORT, { key: "stage", descending: false });
 
   const refreshBot = (name: string) =>
     must(api.GET("/api/bots/{name}", { params: { path: { name } } })).then(
@@ -113,19 +118,8 @@ export function BotGrid() {
   if (bots.data.length === 0) {
     return <p className="empty">No bots yet. Add a bot folder under bots/ and it shows up here.</p>;
   }
-  const query = filter.trim().toLowerCase();
-  const matches = (name: string) => name.toLowerCase().includes(query);
-  const liveKey = liveSort.key;
-  const live = liveRuns
-    .filter((entry) => matches(entry.run.bot))
-    .toSorted(
-      liveKey === "attention" ? byAttention : (a, b) => compareValues(LIVE_COLUMNS[liveKey].value(a), LIVE_COLUMNS[liveKey].value(b), liveSort.descending) || byAttention(a, b),
-    );
-  const idleColumn = IDLE_COLUMNS[idleSort.key];
-  const idle = bots.data
-    .filter((bot) => bot.live.length === 0 && matches(bot.name))
-    .toSorted((a, b) => compareValues(idleColumn.value(a), idleColumn.value(b), idleSort.descending) || a.name.localeCompare(b.name));
-  const sortLive = (key: LiveOrder) => setLiveSort((current) => nextSort(current, key, key === "attention" || LIVE_COLUMNS[key].ascending === true));
+  const live = liveSorting.order(liveRuns.filter((entry) => matches(filter, entry.run.bot)));
+  const idle = idleSorting.order(bots.data.filter((bot) => bot.live.length === 0 && matches(filter, bot.name)));
 
   return (
     <div className="bots">
@@ -134,27 +128,27 @@ export function BotGrid() {
         <input className="input input-sm page-filter" type="search" placeholder="Search bots" aria-label="Search bots" value={filter} onChange={(event) => setFilter(event.target.value)} />
       </header>
       <StaleFailure resource={bots} />
-      <section className="bots-section" aria-labelledby="live-heading">
+      <section className="bots-section" aria-label="Live">
         <header className="section-head">
-          <h2 id="live-heading">
+          <h2>
             Live <span className="count">{live.length}</span>
           </h2>
-          {liveSort.key !== "attention" && (
-            <button type="button" className="btn btn-xs btn-ghost" onClick={() => setLiveSort({ key: "attention", descending: false })}>
+          {liveSorting.sort.key !== "attention" && (
+            <button type="button" className="btn btn-xs btn-ghost" onClick={() => liveSorting.toggle("attention")}>
               Needs attention first
             </button>
           )}
         </header>
         {live.length === 0 ? (
-          <p className="panel muted bots-empty">{query ? "No live run matches." : "No live runs. Go live with a bot below; only live paper results rank bots."}</p>
+          <p className="panel muted bots-empty">{filter.trim() ? "No live run matches." : "No live runs. Go live with a bot below; only live paper results rank bots."}</p>
         ) : (
           <div className="panel table-wrap board-wrap">
             <table className="table board">
               <thead>
                 <tr>
-                  <SortHeader column={LIVE_COLUMNS.bot} columnKey="bot" sort={liveSort} onSort={sortLive} className="board-name" />
+                  <LiveHeader sorting={liveSorting} column="bot" className="board-name" />
                   {LIVE_SHOWN.map((key) => (
-                    <SortHeader key={key} column={LIVE_COLUMNS[key]} columnKey={key} sort={liveSort} onSort={sortLive} />
+                    <LiveHeader key={key} sorting={liveSorting} column={key} />
                   ))}
                   <th scope="col">
                     <span className="th-inner">
@@ -196,26 +190,27 @@ export function BotGrid() {
           </div>
         )}
       </section>
-      <section className="bots-section" aria-labelledby="idle-heading">
+      <section className="bots-section" aria-label="Not live">
         <header className="section-head">
-          <h2 id="idle-heading">
+          <h2>
             Not live <span className="count">{idle.length}</span>
           </h2>
         </header>
         {idle.length > 0 && (
-          <div className="panel table-wrap board-wrap">
+          <div className="panel table-wrap">
             <table className="table board">
               <thead>
                 <tr>
-                  {(Object.keys(IDLE_COLUMNS) as IdleKey[]).map((key) => (
+                  {(Object.keys(IDLE_LABELS) as IdleKey[]).map((key) => (
                     <SortHeader
                       key={key}
-                      column={IDLE_COLUMNS[key]}
-                      columnKey={key}
-                      sort={idleSort}
-                      onSort={(next) => setIdleSort((current) => nextSort(current, next, IDLE_COLUMNS[next].ascending))}
+                      sorting={idleSorting}
+                      column={key}
                       className={key === "name" ? "board-name" : undefined}
-                    />
+                      info={key === "stage" && <Info label="Stage">{STAGE_ABOUT}</Info>}
+                    >
+                      {IDLE_LABELS[key]}
+                    </SortHeader>
                   ))}
                   <th scope="col">
                     <span className="visually-hidden">Actions</span>
