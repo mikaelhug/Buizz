@@ -1,0 +1,9 @@
+description = "Blitz-van Vliet volatility effect: at each month end, equal weight the S&P 500 decile with the lowest volatility of 156 weekly returns"
+command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
+timeframe = "1d"
+wake = "bar"
+universe = { index = "sp500" }
+params = { vol_weeks = 156, decile = 0.1 }
+
+[risk]
+max_gross_exposure = 1.0
