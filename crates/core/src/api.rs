@@ -1,3 +1,4 @@
+use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -5,11 +6,11 @@ use utoipa::{IntoParams, ToSchema};
 
 use crate::market::{Coverage, DataSource, Dataset, Symbol, Timeframe, Watermarks};
 use crate::ops::{DataWarning, JobOutcome};
-use crate::order::{Fill, Order, OrderUpdate};
+use crate::order::{Fill, Order, OrderId, OrderUpdate};
 use crate::performance::{Metrics, RoundTrip};
 use crate::run::{
     BotManifest, CostModel, DesiredState, EquityPoint, Mode, Period, PeriodPreset, Reproducibility,
-    RiskLimits, RunBadge, RunConfig, RunEvent, RunId, RunStatus,
+    RiskLimits, RunBadge, RunConfig, RunEvent, RunEventType, RunId, RunStatus,
 };
 use crate::time::Timestamp;
 
@@ -124,6 +125,52 @@ pub struct PositionView {
     #[serde(with = "crate::money::cash")]
     pub realized_pnl: Decimal,
     pub weight: Decimal,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct PriceChart {
+    pub symbol: Symbol,
+    pub timeframe: Timeframe,
+    pub bars: Vec<PriceBar>,
+    pub older: bool,
+    pub fills: Vec<ChartFill>,
+    pub splits: Vec<ChartSplit>,
+    pub position: Option<ChartPosition>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct PriceBar {
+    pub start: Timestamp,
+    pub open: f64,
+    pub high: f64,
+    pub low: f64,
+    pub close: f64,
+    pub volume: f64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct ChartFill {
+    pub order_id: OrderId,
+    pub at: Timestamp,
+    pub qty: i64,
+    #[serde(with = "crate::money::price")]
+    pub price: Decimal,
+    #[serde(with = "crate::money::price")]
+    pub chart_price: Decimal,
+    pub reason: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct ChartSplit {
+    pub ex_date: NaiveDate,
+    pub ratio: Decimal,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct ChartPosition {
+    pub qty: i64,
+    #[serde(with = "crate::money::price")]
+    pub avg_cost: Decimal,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -298,6 +345,23 @@ pub struct RunsQuery {
 pub struct PageQuery {
     pub after: Option<u64>,
     pub limit: Option<u32>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct EventsQuery {
+    pub after: Option<u64>,
+    pub limit: Option<u32>,
+    #[serde(default)]
+    #[param(inline)]
+    pub kind: Vec<RunEventType>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct ChartQuery {
+    pub after: Option<Timestamp>,
+    pub before: Option<Timestamp>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, IntoParams)]

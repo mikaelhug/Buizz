@@ -1,14 +1,25 @@
 use std::fmt;
 use std::ops::{Add, Sub};
 use std::str::FromStr;
+use std::sync::OnceLock;
 
-use chrono::{DateTime, NaiveDate, NaiveTime, SecondsFormat, TimeDelta, TimeZone, Utc};
+use chrono::{
+    DateTime, LocalResult, NaiveDate, NaiveTime, Offset, SecondsFormat, TimeDelta, TimeZone, Utc,
+};
 use chrono_tz::America::New_York;
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use utoipa::openapi::schema::{KnownFormat, ObjectBuilder, SchemaFormat, Type};
 use utoipa::openapi::{RefOr, Schema};
 use utoipa::{PartialSchema, ToSchema};
+
+static CLOCK_OFFSET: OnceLock<TimeDelta> = OnceLock::new();
+
+pub fn offset_clock(offset: TimeDelta) {
+    CLOCK_OFFSET
+        .set(offset)
+        .expect("the clock is offset once, before it is first read");
+}
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Timestamp(i64);
@@ -26,7 +37,8 @@ impl Timestamp {
     }
 
     pub fn now() -> Self {
-        Self::from_datetime(Utc::now()).expect("the current time fits in i64 nanoseconds")
+        let offset = *CLOCK_OFFSET.get_or_init(TimeDelta::zero);
+        Self::from_datetime(Utc::now() + offset).expect("the current time fits in i64 nanoseconds")
     }
 
     pub fn from_datetime(datetime: DateTime<Utc>) -> Option<Self> {
@@ -38,10 +50,12 @@ impl Timestamp {
     }
 
     pub fn at_exchange_time(date: NaiveDate, time: NaiveTime) -> Option<Self> {
-        New_York
-            .from_local_datetime(&date.and_time(time))
-            .single()
-            .and_then(|local| Self::from_datetime(local.with_timezone(&Utc)))
+        let local = date.and_time(time);
+        let utc = match New_York.from_local_datetime(&local) {
+            LocalResult::Single(at) | LocalResult::Ambiguous(at, _) => at.naive_utc(),
+            LocalResult::None => local - New_York.offset_from_utc_datetime(&local).fix(),
+        };
+        Self::from_datetime(utc.and_utc())
     }
 
     pub fn exchange_date(self) -> NaiveDate {
@@ -158,3 +172,24 @@ impl PartialSchema for Timestamp {
 }
 
 impl ToSchema for Timestamp {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn exchange_times_in_the_daylight_saving_hours_resolve() {
+        let at = |date: &str, time: &str| {
+            Timestamp::at_exchange_time(date.parse().unwrap(), time.parse().unwrap())
+                .map(|at| at.to_string())
+        };
+        assert_eq!(
+            at("2026-11-01", "01:30:00").as_deref(),
+            Some("2026-11-01T05:30:00Z")
+        );
+        assert_eq!(
+            at("2026-03-08", "02:30:00").as_deref(),
+            Some("2026-03-08T07:30:00Z")
+        );
+    }
+}

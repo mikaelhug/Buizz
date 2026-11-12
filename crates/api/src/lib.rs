@@ -7,7 +7,6 @@ mod extract;
 mod guard;
 mod routes;
 mod runs;
-mod time;
 
 use std::net::IpAddr;
 use std::path::PathBuf;

@@ -89,14 +89,14 @@ impl Ingest {
         backfill: bool,
     ) -> Result<(Company, Vec<EarningsRelease>), SourceError> {
         let submissions = edgar.submissions(symbol, cik).await?;
-        let mut releases = submissions.releases;
+        let mut releases = submissions.filings.releases;
         if backfill {
             let older = submissions
                 .older_pages
                 .iter()
                 .filter(|page| page.filing_to >= self.config.history_start);
             for page in older {
-                releases.extend(edgar.filings_page(symbol, cik, page).await?);
+                releases.extend(edgar.filings_page(symbol, cik, page).await?.releases);
             }
         }
         Ok((submissions.company, releases))

@@ -5,9 +5,12 @@ mod estimates;
 mod facts;
 mod fetch;
 mod filings;
+mod fomc;
 mod index;
+mod insiders;
 mod macros;
 mod minute;
+mod news;
 mod reference;
 mod schedule;
 mod sec_index;
@@ -242,10 +245,14 @@ impl Ingest {
             schedule::SEC_INDEX => self.sec_index(now).await,
             schedule::FUNDAMENTALS => self.fundamentals(now).await,
             schedule::FILINGS => self.filings(now).await,
+            schedule::INSIDER_TRADES => self.insider_trades(now).await,
+            schedule::NEWS => self.news(now).await,
             schedule::INDEX_MEMBERSHIP => self.index_membership(now).await,
             schedule::RATES => self.rates(now).await,
             schedule::BORROW => self.borrow(now).await,
             schedule::MACRO => self.macro_series(now).await,
+            schedule::VIX => self.vix(now).await,
+            schedule::FOMC => self.fomc(now).await,
             schedule::EARNINGS_INSIGHT => self.earnings_insight(now).await,
             schedule::EARNINGS_INSIGHT_ARCHIVE => self.earnings_insight_archive(now).await,
             schedule::STATE_SNAPSHOT => self.state_snapshot(now).await,

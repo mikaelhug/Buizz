@@ -25,7 +25,7 @@ use buizz_ingest::{Ingest, IngestError};
 use buizz_market::{MarketError, MarketStore};
 use buizz_state::{NewRun, RunFilter, StateError, StateStore};
 use buizz_supervisor::{BotScan, BotSpec, Supervisor, SupervisorError, load_bot, scan_bots};
-use chrono::{NaiveDate, Utc};
+use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use tokio::sync::{broadcast, mpsc, watch};
 use tokio::task::JoinHandle;
@@ -202,7 +202,7 @@ impl Runner {
             };
             if run.mode == Mode::Backtest {
                 state
-                    .set_status(run.id, RunStatus::Queued, None, now())
+                    .set_status(run.id, RunStatus::Queued, None, Timestamp::now())
                     .await?;
                 run = self.summary(run.id).await?;
             }
@@ -266,7 +266,7 @@ impl Runner {
 
     pub async fn go_live(&self, bot: &str) -> Result<RunSummary, RunnerError> {
         let spec = self.bot(bot).await?;
-        let today = now().exchange_date();
+        let today = Timestamp::now().exchange_date();
         if let Some(run) = self.live_run(bot).await? {
             if run.desired != DesiredState::Paused {
                 return Err(RunnerError::AlreadyLive(bot.to_owned()));
@@ -385,7 +385,7 @@ impl Runner {
     }
 
     pub async fn benchmark(&self, run: &RunSummary) -> Result<Vec<SparkPoint>, RunnerError> {
-        report::benchmark(&self.inner.market, run, now().exchange_date()).await
+        report::benchmark(&self.inner.market, run, Timestamp::now().exchange_date()).await
     }
 
     pub async fn metrics(&self, run: &RunSummary) -> Result<Metrics, RunnerError> {
@@ -533,7 +533,7 @@ impl Runner {
         if !warnings.is_empty() {
             badges.push(RunBadge::DataWarnings);
         }
-        let created_at = now();
+        let created_at = Timestamp::now();
         let data_watermark = inner.market.watermarks().borrow().get(config.timeframe);
         let run_id = inner
             .state
@@ -650,10 +650,6 @@ pub(crate) async fn gate_symbols(
     symbols.sort();
     symbols.dedup();
     Ok(symbols)
-}
-
-pub(crate) fn now() -> Timestamp {
-    Timestamp::from_datetime(Utc::now()).unwrap_or_default()
 }
 
 fn survivorship_biased(universe: &UniverseSpec, instruments: &[Instrument]) -> bool {

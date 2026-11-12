@@ -1,10 +1,7 @@
-use std::time::Duration;
-
 use buizz_core::api::{BotSummary, EquitySeries, FeedSlots, OrderView, RunSummary};
 use buizz_core::order::OrderStatus;
 use buizz_core::run::{RunEventKind, RunId, RunStatus};
-use buizz_core::time::Timestamp;
-use chrono::{NaiveTime, TimeDelta, Utc};
+use chrono::TimeDelta;
 use nix::errno::Errno;
 use nix::sys::signal::killpg;
 use nix::unistd::Pid;
@@ -12,23 +9,8 @@ use serde_json::{Value, json};
 
 use crate::browser;
 use crate::fake::FakeProviders;
-use crate::spine::{Options, Spine, eventually};
+use crate::spine::{Options, Spine, eventually, now};
 use crate::world::{World, minute_floor, stamp};
-
-const EARLIEST_START: NaiveTime = NaiveTime::from_hms_opt(0, 11, 0).expect("a time");
-const LATEST_START: NaiveTime = NaiveTime::from_hms_opt(23, 28, 0).expect("a time");
-
-pub async fn live_world() -> World {
-    let now = Timestamp::from_datetime(Utc::now()).expect("now fits");
-    let local = now.exchange_time();
-    if !(EARLIEST_START..=LATEST_START).contains(&local) {
-        let wait = (EARLIEST_START - local)
-            .num_seconds()
-            .rem_euclid(24 * 60 * 60);
-        tokio::time::sleep(Duration::from_secs(wait.unsigned_abs())).await;
-    }
-    World::live(Timestamp::from_datetime(Utc::now()).expect("now fits"))
-}
 
 pub async fn live_run(spine: &Spine, bot: &str) -> RunSummary {
     let bots: Vec<BotSummary> = spine.get("/api/bots").await;
@@ -122,7 +104,7 @@ pub async fn assert_matches_backtest(spine: &Spine, live: &RunSummary) {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn live_pause_resume_and_stop_in_the_browser_while_an_unpaused_twin_matches_its_backtest() {
-    let fake = FakeProviders::serve(live_world().await).await;
+    let fake = FakeProviders::serve(World::live(now())).await;
     let spine = Spine::start(
         fake,
         Options {

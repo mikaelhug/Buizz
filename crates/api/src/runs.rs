@@ -6,23 +6,24 @@ use axum::extract::State;
 use axum::http::header;
 use axum::response::IntoResponse;
 use buizz_core::api::{
-    ApiError, EquitySeries, EventsPage, Leaderboard, LeaderboardBenchmark, LeaderboardQuery,
-    LeaderboardRow, OrderView, OrdersPage, PageQuery, PositionView, RunSummary, RunsQuery,
-    TradeView,
+    ApiError, ChartFill, ChartPosition, ChartQuery, ChartSplit, EquitySeries, EventsPage,
+    EventsQuery, Leaderboard, LeaderboardBenchmark, LeaderboardQuery, LeaderboardRow, OrderView,
+    OrdersPage, PageQuery, PositionView, PriceBar, PriceChart, RunSummary, RunsQuery, TradeView,
 };
-use buizz_core::market::{Adjustment, Symbol};
+use buizz_core::market::{Adjustment, AdjustmentFactor, Symbol};
 use buizz_core::money::round_price;
 use buizz_core::order::{Fill, OrderId};
 use buizz_core::run::{BotManifest, CostModel, Mode, Period, RunBadge, RunId, RunStatus};
-use buizz_market::HistoryRequest;
+use buizz_core::time::Timestamp;
+use buizz_market::{ChartRequest, HistoryRequest};
 use buizz_state::RunFilter;
+use chrono::NaiveTime;
 use rust_decimal::Decimal;
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 
 use crate::AppState;
 use crate::error::Failure;
 use crate::extract::{Path, Query};
-use crate::time::exchange_today;
 
 const DEFAULT_RUNS: u32 = 100;
 const MAX_RUNS: u32 = 500;
@@ -31,6 +32,7 @@ const MAX_PAGE: u32 = 1000;
 const LEADERBOARD_RUNS: u32 = 1000;
 const LOG_TAIL_BYTES: u64 = 256 * 1024;
 const WEIGHT_DECIMALS: u32 = 4;
+const CHART_BARS: usize = 5000;
 
 async fn require_run(app: &AppState, id: RunId) -> Result<RunSummary, Failure> {
     app.state
@@ -39,8 +41,8 @@ async fn require_run(app: &AppState, id: RunId) -> Result<RunSummary, Failure> {
         .ok_or_else(|| Failure::not_found(format!("run {id}")))
 }
 
-fn page_limit(page: &PageQuery) -> u32 {
-    page.limit.unwrap_or(DEFAULT_PAGE).clamp(1, MAX_PAGE)
+fn page_limit(limit: Option<u32>) -> u32 {
+    limit.unwrap_or(DEFAULT_PAGE).clamp(1, MAX_PAGE)
 }
 
 fn next_after<T>(items: &[T], limit: u32, key: impl Fn(&T) -> u64) -> Option<u64> {
@@ -134,7 +136,7 @@ pub(crate) async fn run_orders(
     Query(page): Query<PageQuery>,
 ) -> Result<Json<OrdersPage>, Failure> {
     require_run(&app, id).await?;
-    let limit = page_limit(&page);
+    let limit = page_limit(page.limit);
     let orders = app.state.orders(id, page.after, limit).await?;
     let prices = match (orders.first(), orders.last()) {
         (Some(first), Some(last)) => {
@@ -250,18 +252,110 @@ pub(crate) async fn run_positions(
 }
 
 #[utoipa::path(get, path = "/api/runs/{id}/events", tag = "runs",
-    params(("id" = RunId, Path), PageQuery),
+    params(("id" = RunId, Path), EventsQuery),
     responses((status = 200, body = EventsPage), (status = 404, body = ApiError)))]
 pub(crate) async fn run_events(
     State(app): State<AppState>,
     Path(id): Path<RunId>,
-    Query(page): Query<PageQuery>,
+    Query(query): Query<EventsQuery>,
 ) -> Result<Json<EventsPage>, Failure> {
     require_run(&app, id).await?;
-    let limit = page_limit(&page);
-    let items = app.state.events(id, page.after, limit).await?;
+    let limit = page_limit(query.limit);
+    let items = app.state.events(id, query.after, limit, query.kind).await?;
     let next_after = next_after(&items, limit, |event| event.seq);
     Ok(Json(EventsPage { items, next_after }))
+}
+
+#[utoipa::path(get, path = "/api/runs/{id}/chart/{symbol}", tag = "runs",
+    params(("id" = RunId, Path), ("symbol" = Symbol, Path), ChartQuery),
+    responses((status = 200, body = PriceChart), (status = 404, body = ApiError)))]
+pub(crate) async fn run_chart(
+    State(app): State<AppState>,
+    Path((id, symbol)): Path<(RunId, Symbol)>,
+    Query(query): Query<ChartQuery>,
+) -> Result<Json<PriceChart>, Failure> {
+    let run = require_run(&app, id).await?;
+    let timeframe = run.config.timeframe;
+    let empty = PriceChart {
+        symbol: symbol.clone(),
+        timeframe,
+        bars: Vec::new(),
+        older: false,
+        fills: Vec::new(),
+        splits: Vec::new(),
+        position: None,
+    };
+    let (Some(clock), Some(from)) = (
+        run.clock,
+        Timestamp::at_exchange_time(run.config.start, NaiveTime::MIN),
+    ) else {
+        return Ok(Json(empty));
+    };
+    let chart = app
+        .market
+        .chart(ChartRequest {
+            symbol: symbol.clone(),
+            timeframe,
+            from,
+            after: query.after,
+            before: query.before,
+            bars: CHART_BARS,
+            as_of: clock,
+        })
+        .await?;
+    let fills = app
+        .state
+        .symbol_fills(id, symbol.clone())
+        .await?
+        .into_iter()
+        .map(|(fill, reason)| {
+            let (factor, _) = AdjustmentFactor::cumulative(fill.at.exchange_date(), &chart.splits);
+            ChartFill {
+                order_id: fill.order_id,
+                at: fill.at,
+                qty: fill.qty,
+                chart_price: round_price(fill.price * factor),
+                price: fill.price,
+                reason,
+            }
+        })
+        .collect();
+    let position = app
+        .state
+        .portfolio(id)
+        .await?
+        .open_positions()
+        .find(|(held, _)| **held == symbol)
+        .map(|(_, position)| ChartPosition {
+            qty: position.qty,
+            avg_cost: position.average_cost(),
+        });
+    Ok(Json(PriceChart {
+        bars: chart
+            .bars
+            .into_iter()
+            .map(|bar| PriceBar {
+                start: bar.start,
+                open: bar.open,
+                high: bar.high,
+                low: bar.low,
+                close: bar.close,
+                volume: bar.volume,
+            })
+            .collect(),
+        older: chart.older,
+        fills,
+        splits: chart
+            .splits
+            .iter()
+            .map(|split| ChartSplit {
+                ex_date: split.ex_date,
+                ratio: split.volume,
+            })
+            .collect(),
+        position,
+        ..empty
+    }))
 }
 
 #[utoipa::path(get, path = "/api/runs/{id}/logs", tag = "runs",
@@ -384,7 +478,12 @@ pub(crate) async fn leaderboard(
     let (period, compared) = groups
         .into_iter()
         .max_by_key(|(period, compared)| (compared.len(), period.to))
-        .unwrap_or_else(|| (query.preset.resolve(exchange_today()), Vec::new()));
+        .unwrap_or_else(|| {
+            (
+                query.preset.resolve(Timestamp::now().exchange_date()),
+                Vec::new(),
+            )
+        });
     let benchmarks = benchmarks(&app, &compared).await?;
     let rows = compared
         .into_iter()

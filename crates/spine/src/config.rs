@@ -6,14 +6,17 @@ use anyhow::{Context, Result};
 use buizz_core::market::Symbol;
 use buizz_sources::alpaca::{self, AlpacaConfig};
 use buizz_sources::alpaca_stream::{self, StreamConfig};
+use buizz_sources::cboe::{self, CboeConfig};
 use buizz_sources::edgar::{self, EdgarConfig};
 use buizz_sources::factset::{self, FactsetConfig};
+use buizz_sources::fed::{self, FedConfig};
 use buizz_sources::fred::{self, FredConfig};
 use buizz_sources::ibkr::{self, IbkrConfig};
 use buizz_sources::nasdaq::{self, NasdaqConfig};
 use buizz_sources::tiingo::{self, TiingoConfig};
 use buizz_sources::treasury::{self, TreasuryConfig};
 use buizz_sources::wikipedia::{self, WikipediaConfig};
+use chrono::TimeDelta;
 
 pub struct Config {
     pub bind: SocketAddr,
@@ -26,6 +29,7 @@ pub struct Config {
     pub ingest: bool,
     pub alpaca: Option<AlpacaConfig>,
     pub stream_url: String,
+    pub news_url: String,
     pub tiingo: Option<TiingoConfig>,
     pub edgar: Option<EdgarConfig>,
     pub fred: Option<FredConfig>,
@@ -33,6 +37,8 @@ pub struct Config {
     pub wikipedia: Option<WikipediaConfig>,
     pub ibkr: IbkrConfig,
     pub nasdaq: NasdaqConfig,
+    pub cboe: CboeConfig,
+    pub fed: FedConfig,
     pub factset: Option<FactsetConfig>,
     pub ingest_symbols: Option<BTreeSet<Symbol>>,
     pub duckdb_memory: String,
@@ -68,6 +74,16 @@ fn admin_password(value: Option<String>) -> Result<String> {
         "BUIZZ_ADMIN_PASSWORD must be at least {MIN_ADMIN_PASSWORD_CHARS} characters, it has {length}"
     );
     Ok(password)
+}
+
+pub fn clock_offset() -> Result<TimeDelta> {
+    var("BUIZZ_CLOCK_OFFSET_SECONDS").map_or(Ok(TimeDelta::zero()), |seconds| {
+        seconds
+            .parse()
+            .ok()
+            .and_then(TimeDelta::try_seconds)
+            .context("BUIZZ_CLOCK_OFFSET_SECONDS must be a whole number of seconds")
+    })
 }
 
 pub fn data_dir() -> PathBuf {
@@ -107,6 +123,7 @@ impl Config {
             ingest: flag("BUIZZ_INGEST", true)?,
             alpaca,
             stream_url: var_or("ALPACA_STREAM_URL", alpaca_stream::STREAM_URL),
+            news_url: var_or("ALPACA_NEWS_URL", alpaca_stream::NEWS_URL),
             tiingo: var("TIINGO_API_KEY").map(|api_key| TiingoConfig {
                 base_url: var_or("TIINGO_URL", tiingo::BASE_URL),
                 ..TiingoConfig::new(api_key)
@@ -138,6 +155,12 @@ impl Config {
             nasdaq: NasdaqConfig {
                 base_url: var_or(nasdaq::URL_ENV, nasdaq::BASE_URL),
             },
+            cboe: CboeConfig {
+                base_url: var_or(cboe::URL_ENV, cboe::BASE_URL),
+            },
+            fed: FedConfig {
+                base_url: var_or(fed::URL_ENV, fed::BASE_URL),
+            },
             ingest_symbols: var("BUIZZ_INGEST_SYMBOLS").map(|symbols| {
                 symbols
                     .split(',')
@@ -150,6 +173,13 @@ impl Config {
             duckdb_threads: var_or("BUIZZ_DUCKDB_THREADS", "2")
                 .parse()
                 .context("BUIZZ_DUCKDB_THREADS must be a whole number")?,
+        })
+    }
+
+    pub fn news_stream(&self) -> Option<StreamConfig> {
+        self.stream().map(|stream| StreamConfig {
+            url: self.news_url.clone(),
+            ..stream
         })
     }
 

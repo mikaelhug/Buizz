@@ -1,6 +1,6 @@
-use chrono::{NaiveDate, NaiveTime, TimeDelta};
+use chrono::{Datelike, NaiveDate, NaiveTime, TimeDelta};
 
-use crate::market::{Calendar, Session, Timeframe};
+use crate::market::{Calendar, FomcMeeting, Session, Timeframe};
 use crate::time::Timestamp;
 
 pub fn bar_visible_at(timeframe: Timeframe, start: Timestamp, session: &Session) -> Timestamp {
@@ -33,6 +33,10 @@ pub fn order_session(
 pub fn open_auction_session(decided_at: Timestamp, calendar: &Calendar) -> Option<&Session> {
     let sessions = calendar.sessions();
     sessions.get(sessions.partition_point(|session| session.open <= decided_at))
+}
+
+pub fn filing_visible_at(accepted_at: Timestamp, calendar: &Calendar) -> Option<Timestamp> {
+    open_auction_session(accepted_at, calendar).map(|session| session.open)
 }
 
 pub fn close_auction_session(decided_at: Timestamp, calendar: &Calendar) -> Option<&Session> {
@@ -76,6 +80,17 @@ pub fn calendar_known_through(clock: Timestamp) -> NaiveDate {
 
 pub fn published_visible_at(published: NaiveDate, calendar: &Calendar) -> Option<Timestamp> {
     calendar.next_after(published).map(|session| session.open)
+}
+
+pub fn fomc_visible_at(meeting: &FomcMeeting, calendar: &Calendar) -> Option<Timestamp> {
+    if meeting.scheduled {
+        Timestamp::at_exchange_time(
+            NaiveDate::from_ymd_opt(meeting.date.year(), 1, 1)?,
+            NaiveTime::MIN,
+        )
+    } else {
+        published_visible_at(meeting.date, calendar)
+    }
 }
 
 pub fn published_before(clock: Timestamp, calendar: &Calendar) -> Option<NaiveDate> {

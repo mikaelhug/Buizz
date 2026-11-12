@@ -1,20 +1,16 @@
 import {
   AreaSeries,
   BaselineSeries,
-  ColorType,
   createChart,
   createSeriesMarkers,
-  createTextWatermark,
   type AutoscaleInfoProvider,
   type IChartApi,
-  type IPaneApi,
   type IPriceLine,
   type ISeriesApi,
   type ISeriesMarkersPluginApi,
-  type ITextWatermarkPluginApi,
   LineSeries,
   LineStyle,
-  PriceScaleMode,
+  type MouseEventParams,
   type SeriesMarkerBarPosition,
   type SeriesMarkerShape,
   type Time,
@@ -23,8 +19,9 @@ import {
 import { type KeyboardEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { Schemas } from "../api/client";
 import { fmt } from "../lib/format";
-import { themeColor, themeFont, useColorScheme } from "../lib/theme";
-import { change, money, moneyTickmarks, changeTickmarks, ratioTickmarks, wallDate } from "./chart/format";
+import { themeColor, useColorScheme } from "../lib/theme";
+import { chartOptions, followReducedMotion, followWidth, KEY_HINT, moneyFormat, panZoom, paneTitle, type PaneTitle, themedOptions, themeTitles, USER_INPUTS } from "./chart/base";
+import { money, ratioTickmarks, wallDate } from "./chart/format";
 import { Legend, type Readout, type Reading, type SeriesKey } from "./chart/Legend";
 import {
   addPoint,
@@ -44,6 +41,8 @@ import {
   type Sample,
   presetsWithin,
 } from "./chart/model";
+import type { ChartSync, Link } from "./chart/sync";
+import { RangePresets, SCALE_MODES, type ScaleMode, ScaleSwitch } from "./chart/Toolbar";
 import "../styles/chart.css";
 
 type Props = {
@@ -53,26 +52,11 @@ type Props = {
   bot?: string;
   benchmarkSymbol?: string;
   events?: Schemas["RunEvent"][] | undefined;
-};
-
-type Mode = "money" | "percent" | "log";
-
-const MODES: { mode: Mode; label: string; title: string }[] = [
-  { mode: "money", label: "$", title: "Dollar scale" },
-  { mode: "percent", label: "%", title: "Percent change from the start of the visible range" },
-  { mode: "log", label: "Log", title: "Logarithmic scale" },
-];
-
-const SCALE_MODES: Record<Mode, PriceScaleMode> = {
-  money: PriceScaleMode.Normal,
-  percent: PriceScaleMode.Percentage,
-  log: PriceScaleMode.Logarithmic,
+  sync?: ChartSync | undefined;
 };
 
 const PANE = { equity: 0, drawdown: 1, exposure: 2 } as const;
 const STRETCH = { equity: 0.7, drawdown: 0.3, exposure: 0.22 } as const;
-const PAN_SHARE = 0.1;
-const ZOOM_STEP = 0.8;
 
 const MARK_STYLE: Record<MarkKind, { position: SeriesMarkerBarPosition; shape: SeriesMarkerShape; text: string; token: string }> = {
   stop: { position: "aboveBar", shape: "arrowDown", text: "Stop", token: "--down" },
@@ -91,7 +75,6 @@ const floorAtZero: AutoscaleInfoProvider = (base) => {
   return info?.priceRange ? { ...info, priceRange: { minValue: 0, maxValue: Math.max(info.priceRange.maxValue, 0) } } : info;
 };
 
-const moneyFormat = { type: "custom", formatter: money, tickmarksFormatter: moneyTickmarks, minMove: 0.01 } as const;
 const ratioFormat = { type: "custom", formatter: (value: number) => fmt.percent(value), tickmarksFormatter: ratioTickmarks, minMove: 0.0001 } as const;
 
 type Model = {
@@ -103,12 +86,6 @@ type Model = {
   marks: Mark[];
 };
 
-type Title = { plugin: ITextWatermarkPluginApi<Time>; text: string };
-
-function title(pane: IPaneApi<Time>, text: string): Title {
-  return { plugin: createTextWatermark(pane, { horzAlign: "left", vertAlign: "top", lines: [{ text, fontSize: 11, lineHeight: 24 }] }), text };
-}
-
 type Chart = {
   api: IChartApi;
   equity: ISeriesApi<"Line">;
@@ -116,8 +93,8 @@ type Chart = {
   drawdown: ISeriesApi<"Baseline">;
   benchmarkDrawdown: ISeriesApi<"Line">;
   markers: ISeriesMarkersPluginApi<Time>;
-  titles: Title[];
-  exposure?: { series: ISeriesApi<"Area">; title: Title } | undefined;
+  titles: PaneTitle[];
+  exposure?: { series: ISeriesApi<"Area">; title: PaneTitle } | undefined;
   startLine?: IPriceLine | undefined;
 };
 
@@ -175,16 +152,19 @@ function summary(model: Model, names: Record<SeriesKey, string>): string {
   return `Equity from ${wallDate(first, model.intraday)} to ${wallDate(last, model.intraday)}. ${describe("strategy")}; ${describe("benchmark")}.`;
 }
 
-export function EquityChart({ runId, points, benchmark, bot, benchmarkSymbol, events }: Props) {
+export function EquityChart({ runId, points, benchmark, bot, benchmarkSymbol, events, sync }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const chart = useRef<Chart | null>(null);
   const model = useRef<Model>(emptyModel());
   const hover = useRef<number | undefined>(undefined);
   const preset = useRef<Preset | null>("All");
   const userDriven = useRef(false);
+  const leading = useRef(false);
+  const pointing = useRef(false);
+  const link = useRef<Link | undefined>(undefined);
   const [activePreset, setActivePreset] = useState<Preset | null>("All");
   const [presets, setPresets] = useState<Preset[]>([]);
-  const [mode, setMode] = useState<Mode>("money");
+  const [mode, setMode] = useState<ScaleMode>("price");
   const [hidden, setHidden] = useState<Record<SeriesKey, boolean>>({ strategy: false, benchmark: false });
   const [exposure, setExposure] = useState(false);
   const [readout, setReadout] = useState<Readout>({ intraday: false, strategy: {}, benchmark: {}, marks: [] });
@@ -259,21 +239,7 @@ export function EquityChart({ runId, points, benchmark, bot, benchmarkSymbol, ev
       return;
     }
     const element = host.current;
-    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const api = createChart(element, {
-      autoSize: true,
-      layout: { attributionLogo: false, panes: { enableResize: true } },
-      handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
-      handleScale: { mouseWheel: true, pinch: true, axisPressedMouseMove: { time: true, price: true }, axisDoubleClickReset: { time: true, price: true } },
-      kineticScroll: { touch: true, mouse: !motion.matches },
-      rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.22, bottom: 0.06 } },
-      timeScale: { borderVisible: false, enableConflation: true, minBarSpacing: 0.01, rightOffset: 2 },
-      localization: {
-        timeFormatter: (time: Time) => wallDate(Number(time), model.current.intraday),
-        percentageFormatter: change,
-        tickmarksPercentageFormatter: changeTickmarks,
-      },
-    });
+    const api = createChart(element, chartOptions((time: Time) => wallDate(Number(time), model.current.intraday)));
     const benchmarkSeries = api.addSeries(LineSeries, {
       priceFormat: moneyFormat,
       lineWidth: 2,
@@ -308,14 +274,18 @@ export function EquityChart({ runId, points, benchmark, bot, benchmarkSymbol, ev
     equityPane?.setStretchFactor(STRETCH.equity);
     drawdownPane?.setStretchFactor(STRETCH.drawdown);
     const titles = [
-      ...(equityPane ? [title(equityPane, "Equity")] : []),
-      ...(drawdownPane ? [title(drawdownPane, "Drawdown from peak")] : []),
+      ...(equityPane ? [paneTitle(equityPane, "Equity")] : []),
+      ...(drawdownPane ? [paneTitle(drawdownPane, "Drawdown from peak")] : []),
     ];
     chart.current = { api, equity, benchmark: benchmarkSeries, drawdown, benchmarkDrawdown, markers: createSeriesMarkers(equity, []), titles };
     model.current = emptyModel();
 
-    const onCrosshair = (param: { time?: Time; point?: unknown }) => {
+    const onCrosshair = (param: MouseEventParams) => {
       hover.current = param.point && param.time !== undefined ? Number(param.time) : undefined;
+      if (param.sourceEvent || (hover.current === undefined && pointing.current)) {
+        pointing.current = hover.current !== undefined;
+        link.current?.crosshair(hover.current);
+      }
       refresh();
     };
     const onRange = () => {
@@ -323,29 +293,74 @@ export function EquityChart({ runId, points, benchmark, bot, benchmarkSymbol, ev
         preset.current = null;
         setActivePreset(null);
       }
+      const range = api.timeScale().getVisibleRange();
+      if (leading.current && range) {
+        link.current?.span({ from: Number(range.from), to: Number(range.to), preset: preset.current });
+      }
       refresh();
     };
     const onDoubleClick = () => applyPreset("All");
     const engage = () => {
       userDriven.current = true;
+      leading.current = true;
     };
-    const onMotion = () => api.applyOptions({ kineticScroll: { mouse: !motion.matches } });
+    const stopMotion = followReducedMotion(api);
+    const stopWidth = followWidth(element, () => {
+      if (preset.current !== null) {
+        applyPreset(preset.current);
+      }
+    });
     api.subscribeCrosshairMove(onCrosshair);
     api.subscribeDblClick(onDoubleClick);
     api.timeScale().subscribeVisibleLogicalRangeChange(onRange);
-    motion.addEventListener("change", onMotion);
-    for (const type of ["wheel", "pointerdown", "touchstart"] as const) {
+    for (const type of USER_INPUTS) {
       element.addEventListener(type, engage, { capture: true, passive: true });
     }
     return () => {
-      motion.removeEventListener("change", onMotion);
-      for (const type of ["wheel", "pointerdown", "touchstart"] as const) {
+      stopMotion();
+      stopWidth();
+      for (const type of USER_INPUTS) {
         element.removeEventListener(type, engage, { capture: true });
       }
       api.remove();
       chart.current = null;
     };
   }, [refresh, applyPreset]);
+
+  useEffect(() => {
+    const drawn = chart.current;
+    if (!drawn || !sync) {
+      return;
+    }
+    const joined = sync.join({
+      crosshair: (time) => {
+        const sample = time === undefined ? undefined : asOf(model.current.strategy.equity, time);
+        hover.current = sample?.time;
+        if (sample) {
+          drawn.api.setCrosshairPosition(sample.value, sample.time, drawn.equity);
+        } else {
+          drawn.api.clearCrosshairPosition();
+        }
+        refresh();
+      },
+      span: (span) => {
+        leading.current = false;
+        if (span.preset !== null) {
+          applyPreset(span.preset);
+          return;
+        }
+        userDriven.current = false;
+        preset.current = null;
+        setActivePreset(null);
+        drawn.api.timeScale().setVisibleRange({ from: span.from as UTCTimestamp, to: span.to as UTCTimestamp });
+      },
+    });
+    link.current = joined;
+    return () => {
+      joined.leave();
+      link.current = undefined;
+    };
+  }, [sync, applyPreset, refresh]);
 
   useEffect(() => {
     const drawn = chart.current;
@@ -362,7 +377,7 @@ export function EquityChart({ runId, points, benchmark, bot, benchmarkSymbol, ev
     const pane = drawn.api.panes()[PANE.exposure];
     pane?.setStretchFactor(STRETCH.exposure);
     drawn.exposure = pane
-      ? { series, title: title(pane, "Gross exposure") }
+      ? { series, title: paneTitle(pane, "Gross exposure") }
       : undefined;
     refresh();
     return () => {
@@ -382,30 +397,14 @@ export function EquityChart({ runId, points, benchmark, bot, benchmarkSymbol, ev
     const bench = themeColor("--bench");
     const down = themeColor("--down");
     const muted = themeColor("--muted");
-    const border = themeColor("--border");
-    drawn.api.applyOptions({
-      layout: {
-        background: { type: ColorType.Solid, color: "transparent" },
-        textColor: muted,
-        fontFamily: themeFont(),
-        fontSize: 11,
-        panes: { separatorColor: border, separatorHoverColor: themeColor("--border-strong") },
-      },
-      grid: { vertLines: { color: themeColor("--grid") }, horzLines: { color: themeColor("--grid") } },
-      crosshair: {
-        vertLine: { color: themeColor("--muted", 0.6), labelBackgroundColor: themeColor("--text-2") },
-        horzLine: { color: themeColor("--muted", 0.6), labelBackgroundColor: themeColor("--text-2") },
-      },
-    });
+    drawn.api.applyOptions(themedOptions());
     drawn.equity.applyOptions({ color: accent, baseLineColor: themeColor("--border-strong") });
     drawn.benchmark.applyOptions({ color: bench, baseLineVisible: false });
     drawn.benchmarkDrawdown.applyOptions({ color: bench });
     drawn.drawdown.applyOptions({ bottomLineColor: down, bottomFillColor1: themeColor("--down", 0.08), bottomFillColor2: themeColor("--down", 0.32) });
     drawn.exposure?.series.applyOptions({ lineColor: accent, topColor: themeColor("--accent", 0.22), bottomColor: themeColor("--accent", 0.02) });
     drawn.startLine?.applyOptions({ color: muted });
-    for (const pane of [...drawn.titles, ...(drawn.exposure ? [drawn.exposure.title] : [])]) {
-      pane.plugin.applyOptions({ lines: [{ text: pane.text, color: muted, fontFamily: themeFont(), fontSize: 11, lineHeight: 24 }] });
-    }
+    themeTitles([...drawn.titles, ...(drawn.exposure ? [drawn.exposure.title] : [])]);
     drawMarks();
   }, [scheme, exposure, drawMarks]);
 
@@ -498,73 +497,37 @@ export function EquityChart({ runId, points, benchmark, bot, benchmarkSymbol, ev
     drawn.benchmarkDrawdown.applyOptions({ visible: !hidden.benchmark });
   }, [hidden]);
 
+  const pick = (next: Preset) => {
+    leading.current = true;
+    applyPreset(next);
+  };
+
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const timeScale = chart.current?.api.timeScale();
     const range = timeScale?.getVisibleLogicalRange();
     if (!timeScale || !range) {
       return;
     }
-    const width = range.to - range.from;
-    const middle = (range.from + range.to) / 2;
-    const ranges: Record<string, () => { from: number; to: number }> = {
-      ArrowLeft: () => ({ from: range.from - width * PAN_SHARE, to: range.to - width * PAN_SHARE }),
-      ArrowRight: () => ({ from: range.from + width * PAN_SHARE, to: range.to + width * PAN_SHARE }),
-      "+": () => ({ from: middle - (width * ZOOM_STEP) / 2, to: middle + (width * ZOOM_STEP) / 2 }),
-      "=": () => ({ from: middle - (width * ZOOM_STEP) / 2, to: middle + (width * ZOOM_STEP) / 2 }),
-      "-": () => ({ from: middle - width / ZOOM_STEP / 2, to: middle + width / ZOOM_STEP / 2 }),
-    };
     if (event.key === "0") {
       event.preventDefault();
-      applyPreset("All");
+      pick("All");
       return;
     }
-    const next = ranges[event.key];
+    const next = panZoom(event.key, range);
     if (!next || event.altKey || event.ctrlKey || event.metaKey) {
       return;
     }
     event.preventDefault();
     userDriven.current = true;
-    timeScale.setVisibleLogicalRange(next());
+    timeScale.setVisibleLogicalRange(next);
   };
 
   return (
     <figure className="equity">
       <div className="chart-toolbar">
-        {presets.length > 1 && (
-          <div className="segmented segmented-sm" role="group" aria-label="Visible range">
-            {presets.map((option) => (
-              <button
-                key={option}
-                type="button"
-                aria-pressed={activePreset === option}
-                className={activePreset === option ? "active" : undefined}
-                onClick={() => applyPreset(option)}
-              >
-                {option}
-              </button>
-            ))}
-          </div>
-        )}
-        {activePreset === null && (
-          <button type="button" className="btn btn-ghost btn-xs" onClick={() => applyPreset("All")} title="Show the whole run (double-click the chart or press 0)">
-            Reset
-          </button>
-        )}
+        <RangePresets presets={presets} active={activePreset} resetTitle="Show the whole run (double-click the chart or press 0)" onPick={pick} />
         <div className="chart-toolbar-end">
-          <div className="segmented segmented-sm" role="group" aria-label="Price scale">
-            {MODES.map((option) => (
-              <button
-                key={option.mode}
-                type="button"
-                title={option.title}
-                aria-pressed={mode === option.mode}
-                className={mode === option.mode ? "active" : undefined}
-                onClick={() => setMode(option.mode)}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
+          <ScaleSwitch mode={mode} onChange={setMode} />
           <button
             type="button"
             className={exposure ? "btn btn-sm chart-toggle active" : "btn btn-sm chart-toggle"}
@@ -581,7 +544,7 @@ export function EquityChart({ runId, points, benchmark, bot, benchmarkSymbol, ev
         <div ref={host} className="equity-chart" tabIndex={0} role="img" aria-label={described} aria-describedby={hintId} onKeyDown={onKeyDown} />
       </div>
       <p id={hintId} className="visually-hidden">
-        Arrow keys pan, plus and minus zoom, 0 shows the whole run. Drag to pan, scroll or pinch to zoom, drag an axis to rescale it and double-click to reset.
+        {KEY_HINT}
       </p>
     </figure>
   );

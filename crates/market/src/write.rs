@@ -1,9 +1,11 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::ops::RangeInclusive;
 
 use buizz_core::market::{
     Bar, BorrowAvailability, Company, CorporateAction, CorporateActionKind, DataSource, Dataset,
-    EarningsInsight, EarningsRelease, EstimateFact, FundamentalFact, IndexHistory, Instrument,
-    MacroObservation, RiskFreeRate, SecFiling, Session, Symbol,
+    EarningsInsight, EarningsRelease, EstimateFact, FomcMeeting, FundamentalFact, IndexHistory,
+    InsiderFiling, Instrument, MacroObservation, NewsArticle, RiskFreeRate, SecFiling, Session,
+    Symbol,
 };
 use buizz_core::time::Timestamp;
 use chrono::NaiveDate;
@@ -13,7 +15,7 @@ use rust_decimal::Decimal;
 use crate::codec::{Dec, Ts, action_columns, feed_name, wire_name};
 use crate::{ActionWindow, Result, WriteSummary};
 
-const STAGED: [&str; 10] = [
+const STAGED: [&str; 11] = [
     "instrument",
     "calendar",
     "bar_1d",
@@ -21,6 +23,7 @@ const STAGED: [&str; 10] = [
     "fundamental_fact",
     "rate_daily",
     "macro_observation",
+    "fomc_meeting",
     "company",
     "earnings_release",
     "earnings_insight_fact",
@@ -107,13 +110,14 @@ fn stage<T>(
     Ok(count)
 }
 
-const KEYS: [(&str, &[&str]); 9] = [
+const KEYS: [(&str, &[&str]); 10] = [
     ("instrument", &["symbol"]),
     ("calendar", &["date"]),
     ("bar_1d", &["symbol", "date"]),
     ("corporate_action", &["symbol", "ex_date", "kind"]),
     ("rate_daily", &["date"]),
     ("macro_observation", &["series", "date", "published"]),
+    ("fomc_meeting", &["date", "scheduled"]),
     ("company", &["symbol"]),
     ("earnings_release", &["symbol", "accession"]),
     (
@@ -603,6 +607,48 @@ pub(crate) fn macro_observations(
     )
 }
 
+pub(crate) fn fomc_meetings(
+    connection: &mut Connection,
+    source: DataSource,
+    years: RangeInclusive<i32>,
+    meetings: Vec<FomcMeeting>,
+) -> Result<WriteSummary> {
+    let unique: BTreeSet<FomcMeeting> = meetings.into_iter().collect();
+    let mut coverage = Coverage::new();
+    for meeting in &unique {
+        cover(&mut coverage, None, meeting.date);
+    }
+    let source_name = wire_name(&source);
+    let (first, last) = years.into_inner();
+    write_batch(
+        connection,
+        source,
+        Dataset::Fomc,
+        coverage,
+        |transaction, batch_id| {
+            stage(transaction, "fomc_meeting", unique, |appender, meeting| {
+                appender.append_row(params![
+                    meeting.date,
+                    meeting.scheduled,
+                    meeting.statement_at.map(Ts),
+                    source_name,
+                    batch_id
+                ])
+            })?;
+            let withdrawn = "FROM main.fomc_meeting m WHERE year(m.date) BETWEEN ? AND ? \
+                 AND NOT EXISTS (SELECT 1 FROM stage_fomc_meeting s \
+                 WHERE s.date = m.date AND s.scheduled = m.scheduled)";
+            transaction.execute(
+                &format!("INSERT INTO main.fomc_meeting_revision SELECT m.*, ? {withdrawn}"),
+                params![batch_id, first, last],
+            )?;
+            let removed =
+                transaction.execute(&format!("DELETE {withdrawn}"), params![first, last])?;
+            Ok(removed as u64 + replace_staged(transaction, "fomc_meeting", batch_id)?)
+        },
+    )
+}
+
 pub(crate) fn earnings_insight(
     connection: &mut Connection,
     source: DataSource,
@@ -901,6 +947,142 @@ pub(crate) fn borrow_availability(
             }
             appender.flush()?;
             Ok(unique.len() as u64)
+        },
+    )
+}
+
+pub(crate) fn insider_filings(
+    connection: &mut Connection,
+    source: DataSource,
+    filings: Vec<InsiderFiling>,
+) -> Result<WriteSummary> {
+    let unique: BTreeMap<(Symbol, String), InsiderFiling> = filings
+        .into_iter()
+        .map(|filing| ((filing.symbol.clone(), filing.accession.clone()), filing))
+        .collect();
+    let mut coverage = Coverage::new();
+    for filing in unique.values() {
+        cover(&mut coverage, Some(&filing.symbol), filing.filed);
+    }
+    write_batch(
+        connection,
+        source,
+        Dataset::InsiderTrades,
+        coverage,
+        |transaction, batch_id| {
+            let mut stored = transaction.prepare_cached(
+                "SELECT count(*) > 0 FROM main.insider_filing WHERE symbol = ? AND accession = ?",
+            )?;
+            let mut filed = transaction.appender("insider_filing")?;
+            let mut owners = transaction.appender("insider_owner")?;
+            let mut trades = transaction.appender("insider_transaction")?;
+            let mut rows = 0;
+            for filing in unique.values() {
+                let symbol = filing.symbol.as_str();
+                let known: bool =
+                    stored.query_row(params![symbol, filing.accession], |row| row.get(0))?;
+                if known {
+                    continue;
+                }
+                filed.append_row(params![
+                    symbol,
+                    filing.issuer_cik,
+                    filing.accession,
+                    filing.form,
+                    filing.filed,
+                    Ts(filing.accepted_at),
+                    batch_id,
+                ])?;
+                for owner in &filing.owners {
+                    owners.append_row(params![
+                        symbol,
+                        filing.accession,
+                        owner.cik,
+                        owner.name,
+                        owner.director,
+                        owner.officer,
+                        owner.ten_percent_owner,
+                        owner.other,
+                        owner.officer_title,
+                        batch_id,
+                    ])?;
+                }
+                for (line, trade) in (0_u32..).zip(&filing.transactions) {
+                    trades.append_row(params![
+                        symbol,
+                        filing.accession,
+                        line,
+                        trade.security,
+                        trade.date,
+                        trade.code,
+                        trade.acquired,
+                        trade.shares.map(Dec),
+                        trade.price.map(Dec),
+                        trade.shares_after.map(Dec),
+                        trade.direct,
+                        batch_id,
+                    ])?;
+                }
+                rows += 1;
+            }
+            filed.flush()?;
+            owners.flush()?;
+            trades.flush()?;
+            Ok(rows)
+        },
+    )
+}
+
+pub(crate) fn news_articles(
+    connection: &mut Connection,
+    source: DataSource,
+    articles: Vec<NewsArticle>,
+    window: Option<(NaiveDate, NaiveDate)>,
+) -> Result<WriteSummary> {
+    let mut coverage = Coverage::new();
+    match window {
+        Some((first, last)) => {
+            cover(&mut coverage, None, first);
+            cover(&mut coverage, None, last);
+        }
+        None => {
+            for article in &articles {
+                cover(&mut coverage, None, article.received_at.exchange_date());
+            }
+        }
+    }
+    write_batch(
+        connection,
+        source,
+        Dataset::News,
+        coverage,
+        |transaction, batch_id| {
+            let mut statement = transaction.prepare_cached(
+                "INSERT OR IGNORE INTO main.news_article VALUES (?, ?, ?, \
+                 list_filter(string_split(?, ','), lambda symbol: symbol <> ''), ?, ?, ?, ?, ?, ?)",
+            )?;
+            let mut rows = 0;
+            for article in &articles {
+                let symbols = article
+                    .symbols
+                    .iter()
+                    .map(Symbol::as_str)
+                    .collect::<Vec<_>>()
+                    .join(",");
+                rows += statement.execute(params![
+                    article.id,
+                    Ts(article.updated_at),
+                    Ts(article.created_at),
+                    symbols,
+                    article.headline,
+                    article.summary,
+                    article.source,
+                    Ts(article.received_at),
+                    article.backfilled,
+                    batch_id,
+                ])? as u64;
+            }
+            Ok(rows)
         },
     )
 }

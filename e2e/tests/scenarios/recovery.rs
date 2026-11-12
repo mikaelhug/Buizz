@@ -7,8 +7,9 @@ use nix::unistd::Pid;
 use serde_json::json;
 
 use crate::fake::FakeProviders;
-use crate::live::{alive, assert_matches_backtest, bot_pids, live_world, through_the_close};
-use crate::spine::{Options, Spine, eventually};
+use crate::live::{alive, assert_matches_backtest, bot_pids, through_the_close};
+use crate::spine::{Options, Spine, eventually, now};
+use crate::world::World;
 
 const RELEASE_MINUTES: i64 = 3;
 
@@ -42,7 +43,7 @@ fn step_numbers(logs: &[(Option<Timestamp>, String)]) -> Vec<u64> {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_live_run_survives_kill_9_of_its_bot_and_of_the_spine() {
-    let fake = FakeProviders::serve(live_world().await).await;
+    let fake = FakeProviders::serve(World::live(now())).await;
     let mut spine = Spine::start(
         fake.clone(),
         Options {

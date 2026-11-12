@@ -1,3 +1,5 @@
+import { fmt } from "../lib/format";
+
 type Shape = "block" | "chart" | "cards" | "table";
 
 const REPEATS: Partial<Record<Shape, number>> = { cards: 6, table: 6 };
@@ -29,10 +31,15 @@ export function StaleFailure({ resource }: { resource: { data: unknown; error: s
   return resource.data !== undefined && resource.error ? <Failure message={resource.error} onRetry={resource.reload} /> : null;
 }
 
-export function LoadMore({ onClick }: { onClick: (() => void) | undefined }) {
+export function LoadMore({ onClick, loaded, noun }: { onClick: (() => void) | undefined; loaded: number; noun: string }) {
   return onClick ? (
-    <button type="button" className="btn btn-sm load-more" onClick={onClick}>
-      Load more
-    </button>
+    <div className="load-more">
+      <button type="button" className="btn btn-sm" onClick={onClick}>
+        Load more
+      </button>
+      <span className="muted">
+        Sorting and filtering cover the {fmt.integer(loaded)} {noun} loaded so far
+      </span>
+    </div>
   ) : null;
 }

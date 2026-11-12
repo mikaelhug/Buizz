@@ -575,6 +575,17 @@
   font-weight: var(--fw-semibold);
 }
 
+.sym-link {
+  color: inherit;
+  text-decoration: underline dotted var(--muted);
+  text-underline-offset: 3px;
+}
+
+.sym-link:hover {
+  color: var(--accent-text);
+  text-decoration-color: currentColor;
+}
+
 .table .reason {
   min-width: 160px;
 }
@@ -608,6 +619,68 @@
 
 .sortable.asc button::after {
   content: " ↑";
+}
+
+.sortable:not(.asc, .desc) button:hover::after,
+.sortable:not(.asc, .desc) button:focus-visible::after {
+  content: " ↕";
+  color: var(--muted);
+}
+
+.sortable button.info::after {
+  content: none;
+}
+
+.th-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  white-space: nowrap;
+}
+
+.th-inner .info {
+  margin: 0;
+}
+
+.table tr.clickable {
+  cursor: pointer;
+}
+
+.table tr[data-flash="a"] > *,
+.table tr[data-flash="b"] > * {
+  animation: 1.6s var(--ease) flash-a;
+}
+
+.table tr[data-flash="b"] > * {
+  animation-name: flash-b;
+}
+
+@keyframes flash-a {
+  from {
+    background-color: var(--info-bg);
+  }
+}
+
+@keyframes flash-b {
+  from {
+    background-color: var(--info-bg);
+  }
+}
+
+.table tfoot th,
+.table tfoot td {
+  border-top: 1px solid var(--border);
+  border-bottom: 0;
+  font-weight: var(--fw-semibold);
+}
+
+.table-filter {
+  margin-left: auto;
+}
+
+.table-note {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--fs-sm);
 }
 
 .metric-grid {
@@ -652,7 +725,12 @@
 }
 
 .load-more {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
   margin-top: var(--sp-3);
+  font-size: var(--fs-sm);
 }
 
 .toggle {

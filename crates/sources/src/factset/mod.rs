@@ -1,11 +1,9 @@
-use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::LazyLock;
 use std::time::Duration;
 
 use buizz_core::market::EarningsInsight;
 use buizz_core::time::Timestamp;
-use chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime};
-use pdf_extract::{Document, Object, PlainTextOutput};
+use chrono::{DateTime, NaiveDate};
 use regex::Regex;
 
 use crate::http::{HttpClient, RateLimit, SourceError};
@@ -35,6 +33,7 @@ pub const ARCHIVED_PREFIXES: [&str; 5] = [
     "go.factset.com/hubfs/",
     "advantage.factset.com/hubfs/",
 ];
+const TOOL_TIMEOUT: Duration = Duration::from_secs(60);
 const NAMED_REPORT: &str = ".*[Ee]arnings_?[Ii]nsight.*";
 
 static HUBSPOT_NAME: LazyLock<Regex> = LazyLock::new(|| {
@@ -43,9 +42,6 @@ static HUBSPOT_NAME: LazyLock<Regex> = LazyLock::new(|| {
 });
 static PLONE_NAME: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)/earningsinsight_?(\d{1,2})\.(\d{1,2})\.(\d{2})/?$").expect("valid pattern")
-});
-static PDF_DATE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^D:(\d{14})(?:(Z)|([+-])(\d{2})'?(\d{2})?'?)?").expect("valid pattern")
 });
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -189,77 +185,73 @@ async fn read_report(
     retrieved_from: String,
     body: Vec<u8>,
 ) -> Result<EarningsInsight, SourceError> {
-    tokio::task::spawn_blocking(move || {
-        let (text, created) = read_pdf(&body)
-            .map_err(|error| SourceError::Decode(format!("{}: {error}", issue.url)))?;
-        Ok(EarningsInsight {
-            published: created.into_iter().fold(issue.issue_date, NaiveDate::max),
-            report: issue.report,
-            issue_date: issue.issue_date,
-            url: issue.url,
-            retrieved_from,
-            digest: blake3::hash(&body).to_hex().to_string(),
-            text,
-        })
+    let (text, stamped) = read_pdf(&body)
+        .await
+        .map_err(|error| SourceError::Decode(format!("{}: {error}", issue.url)))?;
+    Ok(EarningsInsight {
+        published: stamped.into_iter().fold(issue.issue_date, NaiveDate::max),
+        report: issue.report,
+        issue_date: issue.issue_date,
+        url: issue.url,
+        retrieved_from,
+        digest: blake3::hash(&body).to_hex().to_string(),
+        text,
     })
-    .await
-    .map_err(|error| SourceError::Decode(format!("reading the report panicked: {error}")))?
 }
 
-pub fn read_pdf(body: &[u8]) -> Result<(String, Vec<NaiveDate>), String> {
-    let document = Document::load_mem(body).map_err(|error| error.to_string())?;
-    let mut text = String::new();
-    let mut unreadable = Vec::new();
-    for page in document.get_pages().into_keys() {
-        let mut output = PlainTextOutput::new(&mut text);
-        let read = catch_unwind(AssertUnwindSafe(|| {
-            pdf_extract::output_doc_page(&document, &mut output, page)
-        }));
-        if !matches!(read, Ok(Ok(()))) {
-            unreadable.push(page);
-        }
+pub async fn read_pdf(body: &[u8]) -> Result<(String, Vec<NaiveDate>), String> {
+    let file = tempfile::NamedTempFile::new().map_err(|error| error.to_string())?;
+    std::fs::write(file.path(), body).map_err(|error| error.to_string())?;
+    let path = file.path().as_os_str();
+    let text = poppler(
+        "pdftotext",
+        &[
+            "-layout".as_ref(),
+            "-enc".as_ref(),
+            "UTF-8".as_ref(),
+            path,
+            "-".as_ref(),
+        ],
+    )
+    .await?;
+    if text.trim().is_empty() {
+        return Err("the PDF has no text".to_owned());
     }
-    if !unreadable.is_empty() {
-        tracing::warn!(
-            ?unreadable,
-            "pages of an Earnings Insight the PDF reader could not read"
-        );
-    }
-    let stamped = ["CreationDate", "ModDate"]
-        .into_iter()
-        .filter_map(|key| info_date(&document, key))
+    let info = poppler("pdfinfo", &["-isodates".as_ref(), path]).await?;
+    let stamped = info
+        .lines()
+        .filter_map(|line| {
+            let (key, value) = line.split_once(':')?;
+            ["CreationDate", "ModDate"]
+                .contains(&key)
+                .then(|| stamp_date(value.trim()))?
+        })
         .collect();
     Ok((text, stamped))
 }
 
-fn info_date(document: &Document, key: &str) -> Option<NaiveDate> {
-    let info = document.trailer.get(b"Info").ok()?;
-    let info = match info {
-        Object::Reference(id) => document.get_dictionary(*id).ok()?,
-        Object::Dictionary(dictionary) => dictionary,
-        _ => return None,
-    };
-    let Object::String(bytes, _) = info.get(key.as_bytes()).ok()? else {
-        return None;
-    };
-    let stamp = PDF_DATE.captures(std::str::from_utf8(bytes).ok()?)?;
-    let local = NaiveDateTime::parse_from_str(&stamp[1], "%Y%m%d%H%M%S").ok()?;
-    let seconds = match (stamp.get(3), stamp.get(4)) {
-        (Some(sign), Some(hours)) => {
-            let minutes = stamp
-                .get(5)
-                .map_or(Some(0), |text| text.as_str().parse().ok())?;
-            let offset = hours.as_str().parse::<i32>().ok()? * 3600 + minutes * 60;
-            if sign.as_str() == "-" {
-                -offset
-            } else {
-                offset
-            }
-        }
-        _ => 0,
-    };
-    let moment: DateTime<FixedOffset> = local
-        .and_local_timezone(FixedOffset::east_opt(seconds)?)
-        .single()?;
+async fn poppler(tool: &str, args: &[&std::ffi::OsStr]) -> Result<String, String> {
+    let run = tokio::process::Command::new(tool)
+        .args(args)
+        .kill_on_drop(true)
+        .output();
+    let output = tokio::time::timeout(TOOL_TIMEOUT, run)
+        .await
+        .map_err(|_| format!("{tool} took longer than {TOOL_TIMEOUT:?}"))?
+        .map_err(|error| format!("{tool}: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "{tool} failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
+fn stamp_date(value: &str) -> Option<NaiveDate> {
+    let value = value
+        .strip_suffix('Z')
+        .map_or_else(|| value.to_owned(), |utc| format!("{utc}+00"));
+    let moment = DateTime::parse_from_str(&value, "%Y-%m-%dT%H:%M:%S%#z").ok()?;
     Some(Timestamp::from_datetime(moment.to_utc())?.exchange_date())
 }

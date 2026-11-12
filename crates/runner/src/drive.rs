@@ -34,7 +34,7 @@ use tokio::sync::{mpsc, watch};
 use crate::commit::Committer;
 use crate::link::{BotLink, LinkError};
 use crate::timeline::{Point, Timeline};
-use crate::{Inner, gate_symbols, now, report};
+use crate::{Inner, gate_symbols, report};
 
 const EXIT_GRACE: Duration = Duration::from_secs(5);
 const IDLE_RECHECK: Duration = Duration::from_secs(60);
@@ -349,7 +349,7 @@ pub(crate) async fn conclude(
         },
         None => None,
     };
-    let at = now();
+    let at = Timestamp::now();
     inner
         .state
         .finish_run(
@@ -402,7 +402,7 @@ async fn last_event_seq(inner: &Inner, run_id: RunId) -> Result<u64, StateError>
     loop {
         let page = inner
             .state
-            .events(run_id, (last > 0).then_some(last), EVENT_PAGE)
+            .events(run_id, (last > 0).then_some(last), EVENT_PAGE, Vec::new())
             .await?;
         match page.last() {
             Some(event) => last = event.seq,
@@ -1334,7 +1334,7 @@ impl Driver {
         self.event_seq += 1;
         let event = RunEvent {
             seq: self.event_seq,
-            at: now(),
+            at: Timestamp::now(),
             clock: self.clock,
             kind,
         };
@@ -1367,7 +1367,7 @@ impl Driver {
         self.status = status;
         self.inner
             .state
-            .set_status(self.run.id, status, message.clone(), now())
+            .set_status(self.run.id, status, message.clone(), Timestamp::now())
             .await?;
         self.record(RunEventKind::Status { status, message })
             .await?;

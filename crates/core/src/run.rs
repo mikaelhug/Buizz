@@ -536,6 +536,30 @@ pub enum RunEventKind {
     },
 }
 
+impl RunEventKind {
+    pub fn event_type(&self) -> RunEventType {
+        match self {
+            Self::Log { .. } => RunEventType::Log,
+            Self::Status { .. } => RunEventType::Status,
+            Self::OrderRejected { .. } => RunEventType::OrderRejected,
+            Self::RiskBreach { .. } => RunEventType::RiskBreach,
+            Self::BotExited { .. } => RunEventType::BotExited,
+            Self::DataWarning { .. } => RunEventType::DataWarning,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum RunEventType {
+    Log,
+    Status,
+    OrderRejected,
+    RiskBreach,
+    BotExited,
+    DataWarning,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct RunEvent {
     pub seq: u64,

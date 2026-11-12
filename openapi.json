@@ -574,6 +574,68 @@
         }
       }
     },
+    "/api/runs/{id}/chart/{symbol}": {
+      "get": {
+        "tags": [
+          "runs"
+        ],
+        "operationId": "run_chart",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/RunId"
+            }
+          },
+          {
+            "name": "symbol",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Symbol"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Timestamp"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Timestamp"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PriceChart"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/runs/{id}/equity": {
       "get": {
         "tags": [
@@ -645,6 +707,25 @@
               "type": "integer",
               "format": "int32",
               "minimum": 0
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "log",
+                  "status",
+                  "order_rejected",
+                  "risk_breach",
+                  "bot_exited",
+                  "data_warning"
+                ]
+              }
             }
           }
         ],
@@ -1071,6 +1152,70 @@
           }
         }
       },
+      "ChartFill": {
+        "type": "object",
+        "required": [
+          "order_id",
+          "at",
+          "qty",
+          "price",
+          "chart_price",
+          "reason"
+        ],
+        "properties": {
+          "order_id": {
+            "$ref": "#/components/schemas/OrderId"
+          },
+          "at": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "qty": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "price": {
+            "type": "string"
+          },
+          "chart_price": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "ChartPosition": {
+        "type": "object",
+        "required": [
+          "qty",
+          "avg_cost"
+        ],
+        "properties": {
+          "qty": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "avg_cost": {
+            "type": "string"
+          }
+        }
+      },
+      "ChartSplit": {
+        "type": "object",
+        "required": [
+          "ex_date",
+          "ratio"
+        ],
+        "properties": {
+          "ex_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "ratio": {
+            "type": "string"
+          }
+        }
+      },
       "CommissionTier": {
         "type": "object",
         "required": [
@@ -1254,6 +1399,8 @@
           "wikipedia",
           "interactive_brokers",
           "nasdaq",
+          "cboe",
+          "federal_reserve",
           "factset"
         ]
       },
@@ -1352,6 +1499,9 @@
           "index_membership",
           "borrow",
           "macro",
+          "insider_trades",
+          "news",
+          "fomc",
           "estimates"
         ]
       },
@@ -2242,6 +2392,92 @@
           },
           "weight": {
             "type": "string"
+          }
+        }
+      },
+      "PriceBar": {
+        "type": "object",
+        "required": [
+          "start",
+          "open",
+          "high",
+          "low",
+          "close",
+          "volume"
+        ],
+        "properties": {
+          "start": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "open": {
+            "type": "number",
+            "format": "double"
+          },
+          "high": {
+            "type": "number",
+            "format": "double"
+          },
+          "low": {
+            "type": "number",
+            "format": "double"
+          },
+          "close": {
+            "type": "number",
+            "format": "double"
+          },
+          "volume": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "PriceChart": {
+        "type": "object",
+        "required": [
+          "symbol",
+          "timeframe",
+          "bars",
+          "older",
+          "fills",
+          "splits"
+        ],
+        "properties": {
+          "symbol": {
+            "$ref": "#/components/schemas/Symbol"
+          },
+          "timeframe": {
+            "$ref": "#/components/schemas/Timeframe"
+          },
+          "bars": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PriceBar"
+            }
+          },
+          "older": {
+            "type": "boolean"
+          },
+          "fills": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChartFill"
+            }
+          },
+          "splits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChartSplit"
+            }
+          },
+          "position": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ChartPosition"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         }
       },

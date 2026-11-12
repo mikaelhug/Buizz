@@ -7,12 +7,15 @@ import { appendPoints } from "../lib/series";
 import { useFrameBatch } from "../lib/useFrameBatch";
 import { PAGE_SIZE, usePaged } from "../lib/usePaged";
 import { useResource } from "../lib/useResource";
+import { chartSync } from "../ui/chart/sync";
 import { EquityChart } from "../ui/EquityChart";
 import { Failure, LoadMore, Loading, StaleFailure } from "../ui/Feedback";
 import { MetricGroups, MetricValue } from "../ui/Metrics";
 import { monthlyCalendar, MonthlyReturns } from "../ui/MonthlyReturns";
 import { Info, Popover } from "../ui/Popover";
 import { RunBadges, StatusPill } from "../ui/Status";
+import { SymbolChart, SymbolLink } from "../ui/SymbolChart";
+import { matches, moveBetweenRows, openRow, SortHeader, type SortColumns, TableFilter, useFlash, useSort } from "../ui/Table";
 import { Trades } from "./Trades";
 
 type Run = Schemas["RunSummary"];
@@ -22,6 +25,7 @@ type Row = [string, ReactNode];
 
 const DAILY_BARS_JOB = "bars_1d";
 const PICKER_RUNS = 12;
+const MARK_KINDS = ["risk_breach", "status"] as const;
 
 const TAB_LABELS: Record<BotTab, string> = {
   overview: "Overview",
@@ -37,15 +41,17 @@ type Props = {
   runId: number;
   pinned: boolean;
   tab: BotTab;
+  symbol: string | undefined;
   botHash: string;
   recent: Run[];
   runs: ReactNode;
 };
 
-export function RunView({ name, runId, pinned, tab, botHash, recent, runs }: Props) {
+export function RunView({ name, runId, pinned, tab, symbol, botHash, recent, runs }: Props) {
   const run = useResource(() => must(api.GET("/api/runs/{id}", { params: { path: { id: runId } } })), [runId]);
   const tabRoute = (target: BotTab): Route => ({ page: "bot", name, ...(pinned ? { run: runId } : {}), tab: target });
   const tabHref = (target: BotTab) => href(tabRoute(target));
+  const symbolHref = (shown: string) => href({ page: "bot", name, ...(pinned ? { run: runId } : {}), symbol: shown });
 
   const mark = useFrameBatch<SparkPoint>((points) => {
     const last = points.at(-1);
@@ -74,12 +80,12 @@ export function RunView({ name, runId, pinned, tab, botHash, recent, runs }: Pro
       <RunBar run={run.data} name={name} tab={tab} botHash={botHash} recent={recent} logsHref={tabHref("logs")} runsHref={tabHref("runs")} />
       <Tabs tab={tab} routeFor={tabRoute} />
       <div className="tab-panel" role="tabpanel" id="run-tabpanel" aria-labelledby={`tab-${tab}`}>
-        {tab === "overview" && <Overview run={run.data} />}
-        {tab === "trades" && <Trades runId={runId} positionsHref={tabHref("events")} />}
-        {tab === "orders" && <Orders runId={runId} active={!run.data.finished_at} />}
+        {tab === "overview" && <Overview run={run.data} symbol={symbol} closeHref={tabHref("overview")} />}
+        {tab === "trades" && <Trades runId={runId} positionsHref={tabHref("events")} symbolHref={symbolHref} />}
+        {tab === "orders" && <Orders runId={runId} active={!run.data.finished_at} symbolHref={symbolHref} />}
         {tab === "events" && (
           <div className="split split-wide">
-            <Positions runId={runId} clock={run.data.clock} />
+            <Positions runId={runId} clock={run.data.clock} symbolHref={symbolHref} />
             <Events runId={runId} />
           </div>
         )}
@@ -334,10 +340,37 @@ function RunPicker({ run, name, tab, recent, runsHref }: { run: Run; name: strin
   );
 }
 
-function Overview({ run }: { run: Run }) {
+async function markEvents(runId: number): Promise<Schemas["RunEvent"][]> {
+  const events: Schemas["RunEvent"][] = [];
+  let after: number | undefined;
+  do {
+    const page = await must(
+      api.GET("/api/runs/{id}/events", { params: { path: { id: runId }, query: { kind: [...MARK_KINDS], limit: PAGE_SIZE, ...(after === undefined ? {} : { after }) } } }),
+    );
+    events.push(...page.items);
+    after = page.next_after ?? undefined;
+  } while (after !== undefined);
+  return events;
+}
+
+function isMark(event: Schemas["RunEvent"]): boolean {
+  return MARK_KINDS.some((kind) => kind === event.kind.type);
+}
+
+function Overview({ run, symbol, closeHref }: { run: Run; symbol: string | undefined; closeHref: string }) {
   const path = { params: { path: { id: run.id } } };
   const curve = useResource<Curve>(() => must(api.GET("/api/runs/{id}/equity", path)), [run.id]);
+  const marks = useResource(() => markEvents(run.id), [run.id]);
   const live = run.mode === "live" && !run.finished_at;
+  const sync = useMemo(chartSync, []);
+  const pricePanel = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (symbol) {
+      const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      pricePanel.current?.scrollIntoView({ block: "start", behavior: reduced ? "auto" : "smooth" });
+    }
+  }, [symbol]);
 
   const append = useFrameBatch<SparkPoint>((points) => curve.mutate((current) => ({ ...current, points: appendPoints(current.points, points) })));
 
@@ -355,6 +388,9 @@ function Overview({ run }: { run: Run }) {
       curve.reload();
     } else if (event.type === "equity") {
       append({ at: event.at, equity: event.equity });
+    } else if (event.type === "log" && isMark(event.event)) {
+      const added = event.event;
+      marks.mutate((current) => ((current.at(-1)?.seq ?? 0) < added.seq ? [...current, added] : current));
     }
   });
 
@@ -370,7 +406,15 @@ function Overview({ run }: { run: Run }) {
         <StaleFailure resource={curve} />
         {curve.data ? (
           curve.data.points.length > 0 ? (
-            <EquityChart runId={run.id} points={curve.data.points} benchmark={curve.data.benchmark} bot={run.bot} benchmarkSymbol={run.config.benchmark} />
+            <EquityChart
+              runId={run.id}
+              points={curve.data.points}
+              benchmark={curve.data.benchmark}
+              bot={run.bot}
+              benchmarkSymbol={run.config.benchmark}
+              events={marks.data}
+              sync={sync}
+            />
           ) : (
             <p className="empty chart-empty">
               {awaitingData(run) ? "Waiting for market data. Equity is marked once the first bar arrives." : run.finished_at ? "This run recorded no equity." : "No equity yet. The curve draws as the run marks each session."}
@@ -382,6 +426,22 @@ function Overview({ run }: { run: Run }) {
           <Loading shape="chart" />
         )}
       </section>
+      {symbol && (
+        <section ref={pricePanel} className="panel chart-panel price-panel" aria-label={`${symbol} price`}>
+          <header className="panel-head">
+            <h2>{symbol}</h2>
+            <span className="muted">{run.config.timeframe === "1d" ? "Daily" : "1-minute"} candles with this run's fills</span>
+            <Info label="Prices on this chart">
+              Bars up to the run's clock, adjusted for the splits visible by then, so the latest prices match the positions. A fill before a split sits at its split-adjusted
+              price; the legend shows the price it traded at. Hover a candle for its fills and their reasons.
+            </Info>
+            <a className="btn btn-ghost btn-sm" href={closeHref}>
+              Close
+            </a>
+          </header>
+          <SymbolChart key={symbol} runId={run.id} symbol={symbol} sync={sync} />
+        </section>
+      )}
       <section className="panel">
         <h2 className="visually-hidden">Metrics</h2>
         <MetricGroups metrics={run.metrics ?? curve.data?.interim_metrics} benchmark={benchmark} months={calendar?.range} />
@@ -427,40 +487,86 @@ function Setup({ run }: { run: Run }) {
   );
 }
 
-function Positions({ runId, clock }: { runId: number; clock: string | null | undefined }) {
+type SymbolHref = (symbol: string) => string;
+
+type Position = Schemas["PositionView"];
+type PositionColumn = "symbol" | "qty" | "cost" | "last" | "value" | "unrealized" | "realized" | "weight";
+
+const POSITION_COLUMNS: SortColumns<Position, PositionColumn> = {
+  symbol: { value: (position) => position.symbol },
+  qty: { value: (position) => position.qty, descending: true },
+  cost: { value: (position) => Number(position.avg_cost), descending: true },
+  last: { value: (position) => Number(position.last_price), descending: true },
+  value: { value: (position) => Number(position.market_value), descending: true },
+  unrealized: { value: (position) => Number(position.unrealized_pnl), descending: true },
+  realized: { value: (position) => Number(position.realized_pnl), descending: true },
+  weight: { value: (position) => Number(position.weight), descending: true },
+};
+
+function total(positions: Position[], field: "market_value" | "unrealized_pnl" | "realized_pnl" | "weight"): number {
+  return positions.reduce((sum, position) => sum + Number(position[field]), 0);
+}
+
+function Positions({ runId, clock, symbolHref }: { runId: number; clock: string | null | undefined; symbolHref: SymbolHref }) {
   const positions = useResource(() => must(api.GET("/api/runs/{id}/positions", { params: { path: { id: runId } } })), [runId]);
   useSpineEvents((event) => {
     if ((event.type === "order" || event.type === "fill") && event.run_id === runId) {
       positions.reload();
     }
   });
+  const sorting = useSort("positions", POSITION_COLUMNS, { key: "value", descending: true });
+  const flash = useFlash(positions.data, (position) => position.symbol);
+  const held = positions.data ?? [];
+  const unrealized = total(held, "unrealized_pnl");
+  const realized = total(held, "realized_pnl");
   return (
     <section className="panel">
-      <h2>Positions</h2>
+      <header className="panel-head">
+        <h2>Positions</h2>
+        {held.length > 0 && <span className="muted">{fmt.integer(held.length)} open</span>}
+      </header>
       <StaleFailure resource={positions} />
       {!positions.data ? (
         positions.error ? <Failure message={positions.error} onRetry={positions.reload} /> : <Loading shape="table" />
-      ) : positions.data.length === 0 ? (
+      ) : held.length === 0 ? (
         <p className="empty">No open positions{clock ? ` as of ${fmt.market(clock)}` : ""}: the bot holds only cash.</p>
       ) : (
         <div className="table-wrap table-scroll">
           <table className="table fin">
             <thead>
               <tr>
-                <th>Symbol</th>
-                <th className="r">Qty</th>
-                <th className="r">Avg cost</th>
-                <th className="r">Last</th>
-                <th className="r">Value</th>
-                <th className="r">Unrealized</th>
-                <th className="r">Realized</th>
-                <th className="r">Weight</th>
+                <SortHeader sorting={sorting} column="symbol">
+                  Symbol
+                </SortHeader>
+                <SortHeader sorting={sorting} column="qty" numeric>
+                  Qty
+                </SortHeader>
+                <SortHeader sorting={sorting} column="cost" numeric>
+                  Avg cost
+                </SortHeader>
+                <SortHeader sorting={sorting} column="last" numeric>
+                  Last
+                </SortHeader>
+                <SortHeader sorting={sorting} column="value" numeric>
+                  Value
+                </SortHeader>
+                <SortHeader sorting={sorting} column="unrealized" numeric>
+                  Unrealized
+                </SortHeader>
+                <SortHeader sorting={sorting} column="realized" numeric>
+                  Realized
+                </SortHeader>
+                <SortHeader sorting={sorting} column="weight" numeric info={<Info label="Weight">Market value as a share of equity. The total is net exposure: longs minus shorts.</Info>}>
+                  Weight
+                </SortHeader>
               </tr>
             </thead>
-            <tbody>
-              {positions.data.map((position) => (
-                <tr key={position.symbol}>
-                  <td className="sym">{position.symbol}</td>
+            <tbody onKeyDown={moveBetweenRows}>
+              {sorting.order(held).map((position) => (
+                <tr key={position.symbol} className="clickable" onClick={openRow(symbolHref(position.symbol))} {...flash.row(position.symbol)}>
+                  <td className="sym">
+                    <SymbolLink symbol={position.symbol} href={symbolHref} />
+                  </td>
                   <td className={`r num ${tone(position.qty) ?? ""}`}>{fmt.integer(position.qty)}</td>
                   <td className="r num">{fmt.price(position.avg_cost)}</td>
                   <td className="r num">{fmt.price(position.last_price)}</td>
@@ -471,6 +577,17 @@ function Positions({ runId, clock }: { runId: number; clock: string | null | und
                 </tr>
               ))}
             </tbody>
+            <tfoot>
+              <tr>
+                <th scope="row" colSpan={4}>
+                  Total
+                </th>
+                <td className="r num">{fmt.money(total(held, "market_value"))}</td>
+                <td className={`r num ${tone(unrealized) ?? ""}`}>{fmt.money(unrealized)}</td>
+                <td className={`r num ${tone(realized) ?? ""}`}>{fmt.money(realized)}</td>
+                <td className="r num">{fmt.percent(total(held, "weight"))}</td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       )}
@@ -509,11 +626,28 @@ function withFill(order: Order, qty: number, price: number): Pick<Order, "filled
   return { filled_qty: filled, avg_fill_price: String(average) };
 }
 
-function Orders({ runId, active }: { runId: number; active: boolean }) {
+type OrderColumn = "symbol" | "side" | "status" | "filled" | "size" | "type" | "fill" | "decided" | "reason";
+
+const ORDER_COLUMNS: SortColumns<Order, OrderColumn> = {
+  symbol: { value: (order) => order.symbol },
+  side: { value: (order) => (order.qty === 0 ? null : order.side) },
+  status: { value: (order) => order.status },
+  filled: { value: (order) => order.filled_qty, descending: true },
+  size: { value: (order) => (order.requested.by === "qty" ? order.requested.qty : Number(order.requested.weight)), descending: true },
+  type: { value: (order) => orderType(order.order_type) },
+  fill: { value: (order) => (order.avg_fill_price === null || order.avg_fill_price === undefined ? null : Number(order.avg_fill_price)), descending: true },
+  decided: { value: (order) => order.id, descending: true },
+  reason: { value: (order) => order.reason },
+};
+
+function Orders({ runId, active, symbolHref }: { runId: number; active: boolean; symbolHref: SymbolHref }) {
   const orders = usePaged(
     (after) => must(api.GET("/api/runs/{id}/orders", { params: { path: { id: runId }, query: { limit: PAGE_SIZE, ...(after === undefined ? {} : { after }) } } })),
     [runId],
   );
+  const sorting = useSort("orders", ORDER_COLUMNS, { key: "decided", descending: true });
+  const flash = useFlash(orders.data?.items, (order) => order.id);
+  const [query, setQuery] = useState("");
   const patch = (id: number, update: (order: Order) => Order) => {
     if (!orders.data?.items.some((order) => order.id === id)) {
       orders.reload();
@@ -531,43 +665,72 @@ function Orders({ runId, active }: { runId: number; active: boolean }) {
       patch(order_id, (order) => (Date.parse(at) > Date.parse(order.updated_at) ? { ...order, ...withFill(order, Math.abs(qty), Number(price)), updated_at: at } : order));
     }
   });
-  const count = orders.data?.items.length ?? 0;
+  const loaded = orders.data?.items ?? [];
+  const shown = sorting.order(
+    loaded.filter((order) => matches(query, order.symbol, order.side, label(order.status), order.reject_reason && label(order.reject_reason), orderType(order.order_type), order.reason)),
+  );
   return (
     <section className="panel">
       <header className="panel-head">
         <h2>Orders</h2>
-        {count > 0 && (
-          <span className="muted">
-            {fmt.integer(count)}
-            {orders.loadMore ? "+" : ""} orders
-          </span>
+        {loaded.length > 0 && (
+          <>
+            <span className="muted">
+              {query.trim() ? `${fmt.integer(shown.length)} of ` : ""}
+              {fmt.integer(loaded.length)}
+              {orders.loadMore ? "+" : ""} orders
+            </span>
+            <TableFilter label="Filter orders" value={query} onChange={setQuery} />
+          </>
         )}
       </header>
       <StaleFailure resource={orders} />
       {!orders.data ? (
         orders.error ? <Failure message={orders.error} onRetry={orders.reload} /> : <Loading shape="table" />
-      ) : count === 0 ? (
+      ) : loaded.length === 0 ? (
         <p className="empty">{active ? "No orders yet. They appear here the moment the bot places them." : "This run placed no orders."}</p>
+      ) : shown.length === 0 ? (
+        <p className="empty">No loaded orders match “{query.trim()}”.</p>
       ) : (
         <div className="table-wrap table-scroll">
           <table className="table fin">
             <thead>
               <tr>
-                <th>Symbol</th>
-                <th>Side</th>
-                <th>Status</th>
-                <th className="r">Filled</th>
-                <th>Size</th>
-                <th>Type</th>
-                <th className="r">Avg fill</th>
-                <th>Decided</th>
-                <th>Reason</th>
+                <SortHeader sorting={sorting} column="symbol">
+                  Symbol
+                </SortHeader>
+                <SortHeader sorting={sorting} column="side">
+                  Side
+                </SortHeader>
+                <SortHeader sorting={sorting} column="status">
+                  Status
+                </SortHeader>
+                <SortHeader sorting={sorting} column="filled" numeric>
+                  Filled
+                </SortHeader>
+                <SortHeader sorting={sorting} column="size">
+                  Size
+                </SortHeader>
+                <SortHeader sorting={sorting} column="type">
+                  Type
+                </SortHeader>
+                <SortHeader sorting={sorting} column="fill" numeric>
+                  Avg fill
+                </SortHeader>
+                <SortHeader sorting={sorting} column="decided">
+                  Decided
+                </SortHeader>
+                <SortHeader sorting={sorting} column="reason">
+                  Reason
+                </SortHeader>
               </tr>
             </thead>
-            <tbody>
-              {orders.data.items.map((order) => (
-                <tr key={order.id} className={order.qty === 0 ? "quiet" : undefined}>
-                  <td className="sym">{order.symbol}</td>
+            <tbody onKeyDown={moveBetweenRows}>
+              {shown.map((order) => (
+                <tr key={order.id} className={order.qty === 0 ? "clickable quiet" : "clickable"} onClick={openRow(symbolHref(order.symbol))} {...flash.row(order.id)}>
+                  <td className="sym">
+                    <SymbolLink symbol={order.symbol} href={symbolHref} />
+                  </td>
                   {order.qty === 0 ? <td className="muted">{ABSENT}</td> : <td className={order.side === "buy" ? "up" : "down"}>{order.side}</td>}
                   <td className="nowrap">
                     <StatusPill status={order.status} />
@@ -587,12 +750,22 @@ function Orders({ runId, active }: { runId: number; active: boolean }) {
           </table>
         </div>
       )}
-      <LoadMore onClick={orders.loadMore} />
+      <LoadMore
+        onClick={flash.quietly(orders.loadMore)}
+        loaded={loaded.length}
+        noun="orders"
+      />
     </section>
   );
 }
 
 type EventFilter = "all" | "logs" | "system";
+type RunEvent = Schemas["RunEvent"];
+type EventKind = RunEvent["kind"]["type"];
+type EventColumn = "time" | "kind" | "message";
+
+const SYSTEM_KINDS: readonly EventKind[] = ["status", "order_rejected", "risk_breach", "bot_exited", "data_warning"];
+const EVENT_KINDS: Record<EventFilter, readonly EventKind[] | undefined> = { all: undefined, logs: ["log"], system: SYSTEM_KINDS };
 
 function describe(kind: Schemas["RunEventKind"]): string {
   switch (kind.type) {
@@ -611,15 +784,34 @@ function describe(kind: Schemas["RunEventKind"]): string {
   }
 }
 
+function eventKind(event: RunEvent): string {
+  return event.kind.type === "log" ? event.kind.level : label(event.kind.type);
+}
+
+const EVENT_COLUMNS: SortColumns<RunEvent, EventColumn> = {
+  time: { value: (event) => event.seq, descending: true },
+  kind: { value: eventKind },
+  message: { value: (event) => describe(event.kind) },
+};
+
 function Events({ runId }: { runId: number }) {
-  const events = usePaged(
-    (after) => must(api.GET("/api/runs/{id}/events", { params: { path: { id: runId }, query: { limit: PAGE_SIZE, ...(after === undefined ? {} : { after }) } } })),
-    [runId],
-  );
   const [filter, setFilter] = useState<EventFilter>("all");
+  const kinds = EVENT_KINDS[filter];
+  const events = usePaged(
+    (after) =>
+      must(
+        api.GET("/api/runs/{id}/events", {
+          params: { path: { id: runId }, query: { limit: PAGE_SIZE, ...(kinds ? { kind: [...kinds] } : {}), ...(after === undefined ? {} : { after }) } },
+        }),
+      ),
+    [runId, filter],
+  );
+  const sorting = useSort("events", EVENT_COLUMNS, { key: "time", descending: true });
+  const flash = useFlash(events.data?.items, (event) => event.seq);
+  const [query, setQuery] = useState("");
 
   useSpineEvents((event) => {
-    if (event.type === "log" && event.run_id === runId) {
+    if (event.type === "log" && event.run_id === runId && (!kinds || kinds.includes(event.event.kind.type))) {
       events.mutate((current) => {
         const last = current.items.at(-1);
         return current.next === null && (!last || last.seq < event.event.seq) ? { ...current, items: [...current.items, event.event] } : current;
@@ -627,7 +819,8 @@ function Events({ runId }: { runId: number }) {
     }
   });
 
-  const items = (events.data?.items ?? []).filter((event) => filter === "all" || (filter === "logs") === (event.kind.type === "log"));
+  const loaded = events.data?.items ?? [];
+  const shown = sorting.order(loaded.filter((event) => matches(query, eventKind(event), describe(event.kind))));
   return (
     <section className="panel">
       <header className="panel-head">
@@ -643,27 +836,51 @@ function Events({ runId }: { runId: number }) {
             </button>
           ))}
         </div>
+        {loaded.length > 0 && <TableFilter label="Filter events" value={query} onChange={setQuery} />}
       </header>
       <StaleFailure resource={events} />
       {!events.data ? (
         events.error ? <Failure message={events.error} onRetry={events.reload} /> : <Loading shape="table" />
-      ) : items.length === 0 ? (
+      ) : loaded.length === 0 ? (
         <p className="empty">{filter === "all" ? "No events yet. Bot logs, status changes, rejections and risk breaches show here." : `No ${filter} events.`}</p>
+      ) : shown.length === 0 ? (
+        <p className="empty">No loaded events match “{query.trim()}”.</p>
       ) : (
-        <ol className="event-log">
-          {items.map((event) => (
-            <li key={event.seq} className={`event event-${event.kind.type === "log" ? event.kind.level : event.kind.type}`}>
-              <time className="muted" dateTime={event.clock ?? event.at}>
-                {fmt.market(event.clock ?? event.at)}
-                {!event.clock && <span className="event-wall">wall</span>}
-              </time>
-              <span className="event-kind">{event.kind.type === "log" ? event.kind.level : label(event.kind.type)}</span>
-              <span className="event-text">{describe(event.kind)}</span>
-            </li>
-          ))}
-        </ol>
+        <div className="table-wrap table-scroll">
+          <table className="table fin">
+            <thead>
+              <tr>
+                <SortHeader sorting={sorting} column="time">
+                  Time
+                </SortHeader>
+                <SortHeader sorting={sorting} column="kind">
+                  Kind
+                </SortHeader>
+                <SortHeader sorting={sorting} column="message">
+                  Message
+                </SortHeader>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((event) => (
+                <tr key={event.seq} className={`event-${event.kind.type === "log" ? event.kind.level : event.kind.type}`} {...flash.row(event.seq)}>
+                  <td className="muted">
+                    <time dateTime={event.clock ?? event.at}>{fmt.market(event.clock ?? event.at)}</time>
+                    {!event.clock && <span className="event-wall">wall</span>}
+                  </td>
+                  <td className="event-kind">{eventKind(event)}</td>
+                  <td className="event-text">{describe(event.kind)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
-      <LoadMore onClick={events.loadMore} />
+      <LoadMore
+        onClick={flash.quietly(events.loadMore)}
+        loaded={loaded.length}
+        noun="events"
+      />
     </section>
   );
 }

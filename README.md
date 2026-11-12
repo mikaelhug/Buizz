@@ -4,7 +4,7 @@ Buizz tests trading strategies against historic and live US stock and ETF data, 
 
 ## Quick start (macOS)
 
-Requires Rust (version pinned in `rust-toolchain.toml`), `just`, `uv` and Node. Bots using LightGBM also need OpenMP on macOS (`brew install libomp`).
+Requires Rust (version pinned in `rust-toolchain.toml`), `just`, `uv` and Node. Bots using LightGBM also need OpenMP on macOS (`brew install libomp`). The spine reads FactSet's PDF reports with poppler's `pdftotext` and `pdfinfo` (`brew install poppler`; the image installs `poppler-utils`).
 
 ```sh
 just setup
@@ -57,13 +57,15 @@ The spine (`cargo run -p buizz-spine`) reads these environment variables. Empty 
 | `BUIZZ_SECURE_COOKIES` | `true` | Mark the session cookie `Secure`; set `false` for plain HTTP |
 | `BUIZZ_INGEST` | `true` | Run the scheduled data jobs; `false` for fixture-only work |
 | `BUIZZ_INGEST_SYMBOLS` | unset | A comma-separated list that limits prices, corporate actions, fundamentals, filings and Tiingo history to these symbols, for a quick real-data spine on a laptop; calendar, instruments, membership, rates, macro and borrow stay complete |
+| `BUIZZ_CLOCK_OFFSET_SECONDS` | `0` | Shifts the spine's clock by this many seconds, positive or negative; the end-to-end scenarios use it to run at noon New York time whatever the hour |
 | `ALPACA_KEY_ID`, `ALPACA_SECRET_KEY` | unset | Alpaca market data credentials; both are needed to enable Alpaca, the live feed and minute-bar backtests |
 | `ALPACA_DATA_URL` | `https://data.alpaca.markets` | Alpaca data endpoint |
 | `ALPACA_TRADING_URL` | `https://paper-api.alpaca.markets` | Alpaca endpoint for the calendar and assets |
 | `ALPACA_STREAM_URL` | `wss://stream.data.alpaca.markets/v2/iex` | Alpaca real-time stream |
+| `ALPACA_NEWS_URL` | `wss://stream.data.alpaca.markets/v1beta1/news` | Alpaca real-time news stream, recorded while ingest is on |
 | `TIINGO_API_KEY` | unset | Enables Tiingo daily history from 2000 to Alpaca's 2016 start |
 | `TIINGO_URL` | `https://api.tiingo.com` | Tiingo endpoint |
-| `SEC_USER_AGENT` | unset | Enables SEC EDGAR fundamentals, SIC codes and earnings releases, and Wikipedia's S&P 500 membership; the SEC requires a contact in the User-Agent, for example `name email@example.com`, and the same contact goes into the Wikipedia User-Agent |
+| `SEC_USER_AGENT` | unset | Enables SEC EDGAR fundamentals, SIC codes and earnings releases, and Wikipedia's S&P 500 membership; the SEC requires a contact in the User-Agent, for example `name email@example.com`, and the same contact goes into the Wikipedia and FactSet User-Agents, which it also enables |
 | `SEC_DATA_URL`, `SEC_WWW_URL` | `https://data.sec.gov`, `https://www.sec.gov` | EDGAR endpoints |
 | `TREASURY_URL` | `https://home.treasury.gov` | US Treasury rates endpoint |
 | `WIKIPEDIA_URL` | `https://en.wikipedia.org` | MediaWiki endpoint for S&P 500 membership |
@@ -71,6 +73,8 @@ The spine (`cargo run -p buizz-spine`) reads these environment variables. Empty 
 | `IBKR_FTP_ADDRESS` | `ftp2.interactivebrokers.com:21` | Interactive Brokers' public short stock FTP server, read daily by the `borrow` job |
 | `FRED_API_KEY` | unset | Enables the FRED macro series for bots (`ctx.macro`); a free key from fred.stlouisfed.org. Without it the `macro` job reports that FRED is not configured |
 | `FRED_URL` | `https://api.stlouisfed.org` | FRED endpoint |
+| `CBOE_URL` | `https://cdn.cboe.com` | CBOE endpoint for the daily VIX and VIX3M history files |
+| `FED_URL` | `https://www.federalreserve.gov` | Federal Reserve Board site, read for the FOMC meeting calendar |
 | `BUIZZ_DUCKDB_MEMORY` | `1GB` | Memory the market store may use for queries and writes before it spills to `market.duckdb.tmp/` in the data directory |
 | `BUIZZ_DUCKDB_THREADS` | `2` | Threads the market store uses |
 | `RUST_LOG` | `info` | Log filter |

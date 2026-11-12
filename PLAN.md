@@ -58,7 +58,7 @@ if __name__ == "__main__":
     run(RedGreen)
 ```
 
-Also on `Context`: `history(symbols, tf, bars, adjust)`, `fundamentals(symbols, metrics)`, `calendar(start, end)`, `universe_at(on, n)`, `macro(series, start, end)`, `universe`, `portfolio`, `events`, `clock`, `session`, `state`, `order`, `cancel`, `log`.
+Also on `Context`: `history(symbols, tf, bars, adjust)`, `fundamentals(symbols, metrics)`, `calendar(start, end)`, `universe_at(on, n)`, `macro(series, start, end)`, `fomc(start, end)`, `universe`, `portfolio`, `events`, `clock`, `session`, `state`, `order`, `cancel`, `log`.
 
 ## Data
 
@@ -70,7 +70,9 @@ Also on `Context`: `history(symbols, tf, bars, adjust)`, `fundamentals(symbols, 
 | Interactive Brokers | Short availability, recorded daily | Public FTP file; not used by runs yet |
 | SEC EDGAR | Point-in-time fundamentals, SIC codes, earnings-release times | Raw XBRL facts plus canonical metrics; submissions |
 | US Treasury | Risk-free rate for Sharpe and bots | |
-| FRED | Macro series for bots (T-bill, 10-year, Moody's Aaa/Baa, CPI-U) with every ALFRED vintage | Free API key |
+| FRED | Macro series for bots (T-bill, 10-year, Moody's Aaa/Baa, CPI-U, unemployment, real-time Sahm rule, daily 10-year and spreads) with every ALFRED vintage | Free API key |
+| CBOE | Daily VIX (from its 2003 methodology) and VIX3M closes for bots | Free history files |
+| Federal Reserve Board | FOMC meeting calendar for bots | Public pages |
 
 Verified limits: Alpaca Basic 200 calls/min, history since 2016 minus the latest 15 minutes, 30 IEX stream symbols, minute bars include extended hours (filter to the session); Tiingo free 50 req/h, 1000/day, 500 symbols/month; EDGAR 10 req/s with a contact User-Agent. EODHD is dropped (its free tier adds nothing here).
 
@@ -82,7 +84,7 @@ Reuse from HUG (port the logic, cite the file in the slice brief):
 - EDGAR companyfacts parsing, FY/Q classification, share-scale fix, concept map — `../HUG/backend/adapters/edgar/{client,adapter,concept_map}.py`
 - UI primitives and rules — `../HUG/frontend/src/components/ui/{Dialog,Toaster}.tsx`, `../HUG/CLAUDE.md:66-83`
 
-Tables. DuckDB: `instrument`, `calendar`, `bar_1d`, `bar_1m`, `corporate_action`, `fundamental_fact`, `rate_daily`, `macro_observation`, `company`, `earnings_release`, `index_member`, `index_history`, `borrow_availability`, `coverage`, `ingest_batch`. SQLite: `run`, `run_order`, `ledger_entry`, `equity_point`, `run_event`, `job_run`, `source_fetch`. No `bot` table (scan `bots/`), no `position` table (fold the ledger). `bar_1m` and `fundamental_fact` have no primary key (DuckDB index memory): writers replace bars per symbol-session and dedupe facts on their identity fields. `equity_point` is written at session close only, plus the moment a drawdown stop leaves an intraday run flat; intraday marks go out over SSE.
+Tables. DuckDB: `instrument`, `calendar`, `bar_1d`, `bar_1m`, `corporate_action`, `fundamental_fact`, `rate_daily`, `macro_observation`, `fomc_meeting`, `company`, `earnings_release`, `index_member`, `index_history`, `borrow_availability`, `coverage`, `ingest_batch`. SQLite: `run`, `run_order`, `ledger_entry`, `equity_point`, `run_event`, `job_run`, `source_fetch`. No `bot` table (scan `bots/`), no `position` table (fold the ledger). `bar_1m` and `fundamental_fact` have no primary key (DuckDB index memory): writers replace bars per symbol-session and dedupe facts on their identity fields. `equity_point` is written at session close only, plus the moment a drawdown stop leaves an intraday run flat; intraday marks go out over SSE.
 
 Known parity gap, stated honestly: live minute bars are IEX (partial volume), backtests use SIP history. Live fills are tagged `feed=iex`; the volume cap is ADV-based so it is identical in both modes. Daily live runs use the official daily bar and no stream slots.
 
@@ -96,6 +98,19 @@ Known parity gap, stated honestly: live minute bars are IEX (partial volume), ba
 - Notices: a run that finishes, fails or ends at its drawdown stop raises a toast linking to it, derived from the shared event stream.
 - Single admin login (password → HttpOnly session cookie).
 - Shell: sticky topbar with the live-updates status in words, a light/dark/system theme menu and a title per page. Definitions open from an `Info` button (a popover), not from `title` alone, so they work on touch and keyboard.
+
+## Next: backtests screen, live paper decides
+
+Approved design. A backtest is a pass/fail screen, never a scoreboard; only live paper results rank bots. Slices ship one at a time; delete each once done.
+
+- Lifecycle is derived from runs, never stored. A version is bot code hash + params; a live run is that version with its own "since live" clock. Stages: draft (no screening backtest at the current hash), screened (a variant passes the gate), live incubating (< 20 sessions), live tracking (inside the backtest's envelope), live falsified (outside it; flagged, retiring is the owner's click), proven (probabilistic Sharpe of daily excess return over SPY ≥ 1 − 0.05/M, M = live runs ever started), retired (live run ended with a reason).
+- Gate (longest pre-holdout preset, default costs, current hash): completed, no data warnings or drawdown stop, ≥ 10 round trips, Sharpe > 0, not dominated by SPY (Sharpe ≥ SPY's or max drawdown lower).
+- Variants: a variant is a run's merged params, coerced to the default's type. Sweeps send a grid in the request (`POST /api/bots/{name}/sweeps`, `buizz sweep --grid`), cartesian product ≤ 256, skip variants already run, same seed, existing backtest queue (slots = CPUs − 1). Trials are counted in SQL over all runs as distinct (hash, variant). Research view: spread, median, gate passes and a luck line (σ·√(2 ln N)); no best-backtest ranking. Go live with the plateau variant (best neighbourhood median), at most 3 live variants per bot, `source_run` recorded.
+- Envelope from the source backtest: 5th percentile of rolling N-session excess return, 95th percentile window drawdown, backtest volatility; falsified at ≥ 20 sessions if excess < band, drawdown deeper, or vol > 1.5×.
+- Live processes live for one session (`EndReason::SessionEnd`, working orders stay in the engine), started through `live_slots` (2), so daily bots are effectively unlimited. `before_close` daily bots fetch session minute bars over REST instead of leasing stream slots. Intraday bots: N Alpaca stream accounts pooled by the feed manager (cap 30 × N); a symbol stays on its connection until released.
+- UI: Bots page is a live-first table (return since live, SPY same window, excess ± SE, drawdown, verdict, sparkline vs SPY; no backtest numbers), not-live bots below with screening summary, Sweep and Go live. League replaces the leaderboard: live runs ≥ 20 sessions ranked by probabilistic Sharpe of excess over SPY, retired runs kept, a "too early" group. Bot detail splits into Live | Research. `SpineEvent::LiveSession` pushes per-session summaries; no full reloads on every run status.
+- Data: state migration adds `run.variant` (generated from `config.params`), `run.source_run`, `run.live_stats` (cache written at each live session close); unique live run per (bot, variant).
+- Slices: (1) live-first Bots view + League, backtest leaderboard deleted; (2) session-scoped live processes + `live_slots`; (3) variants live; (4) sweeps + Research tab; (5) envelope and falsification; (6) N stream accounts + REST minute bars for `before_close` (independent); (7) optional replay of the live window.
 
 ## Added beyond the request
 
@@ -123,8 +138,6 @@ Out of v1: brokers and real money; options, crypto, FX; tick/quote simulation; e
 1. Walk the whole website end to end in a browser and fix what is broken or unclear.
 2. Confirm every worktree branch is merged into `main` and pruned.
 3. Code review each module of Buizz (one review per crate, the SDK and the web app); fix confirmed findings.
-   Known issues to fold into the reviews:
-   - No time seam: the runner, feed, ingest, API and supervisor call the wall clock directly, so the live e2e scenarios must sleep between 23:28 and 00:11 ET. Add one `now()` in `buizz_core::time` with a test offset.
 4. Implement the bot backlog in `bots/BRIEFS.md`, one Opus 5.5 agent per bot, each followed by a critical review of that implementation against its brief. Contract gaps (G1–G13) land as their own PRs before the bots they block.
    Landed: G1 calendar lookahead (`ctx.calendar`), G12 past universes (`ctx.universe_at`), G15 rates and FRED series (`ctx.macro`; the Welch–Goyal `dp`, `ep`, `bm` and `ntis` have no free point-in-time source and still block gbm_ranker).
    Gap decisions (free sources first; nothing is ever derived or modelled in place of data):

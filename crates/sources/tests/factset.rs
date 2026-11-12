@@ -11,9 +11,9 @@ fn date(text: &str) -> NaiveDate {
     text.parse().unwrap()
 }
 
-fn facts(file: &str, url: &str) -> BTreeMap<Key, (Decimal, Option<NaiveDate>)> {
+async fn facts(file: &str, url: &str) -> BTreeMap<Key, (Decimal, Option<NaiveDate>)> {
     let path = format!("{}/fixtures/factset/{file}", env!("CARGO_MANIFEST_DIR"));
-    let (text, stamped) = read_pdf(&std::fs::read(path).unwrap()).unwrap();
+    let (text, stamped) = read_pdf(&std::fs::read(path).unwrap()).await.unwrap();
     let issue = Issue::from_url(url).unwrap();
     assert!(
         stamped.iter().all(|day| *day == issue.issue_date),
@@ -39,8 +39,8 @@ fn facts(file: &str, url: &str) -> BTreeMap<Key, (Decimal, Option<NaiveDate>)> {
         .collect()
 }
 
-#[test]
-fn each_era_of_the_report_yields_the_figures_it_states_and_nothing_it_does_not() {
+#[tokio::test]
+async fn each_era_of_the_report_yields_the_figures_it_states_and_nothing_it_does_not() {
     use EstimateMetric::*;
     use EstimateScope::*;
     let quarter = |year, quarter| Some(EstimatePeriod::Quarter(year, quarter));
@@ -51,7 +51,8 @@ fn each_era_of_the_report_yields_the_figures_it_states_and_nothing_it_does_not()
     let tables = facts(
         "earningsinsight_10.7.11.pdf",
         "http://www.factset.com/websitefiles/PDFs/earningsinsight/earningsinsight_10.7.11",
-    );
+    )
+    .await;
     assert_eq!(tables[&index(ForwardPe)], stated("10.9"));
     assert_eq!(tables[&index(ForwardEps)], stated("107.12"));
     assert_eq!(tables[&index(IndexPrice)], stated("1164.97"));
@@ -72,7 +73,8 @@ fn each_era_of_the_report_yields_the_figures_it_states_and_nothing_it_does_not()
     let wednesday = facts(
         "earningsinsight_2.1.13.pdf",
         "http://www.factset.com:80/websitefiles/PDFs/earningsinsight/earningsinsight_2.1.13",
-    );
+    )
+    .await;
     assert_eq!(wednesday[&index(ForwardPe)], dated("13.3", "2013-01-31"));
     assert_eq!(wednesday[&index(ForwardEps)], dated("112.79", "2013-01-31"));
     assert_eq!(
@@ -92,7 +94,7 @@ fn each_era_of_the_report_yields_the_figures_it_states_and_nothing_it_does_not()
     let modern = facts(
         "EarningsInsight_112224.pdf",
         "https://advantage.factset.com/hubfs/Website/Resources%20Section/Research%20Desk/Earnings%20Insight/EarningsInsight_112224.pdf",
-    );
+    ).await;
     for (key, value) in [
         (index(ForwardPe), "22.0"),
         (index(ForwardPe5yAvg), "19.6"),

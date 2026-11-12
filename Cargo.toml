@@ -30,7 +30,7 @@ buizz-api = { path = "crates/api" }
 
 anyhow = "1.0.104"
 axum = { version = "0.8.9", features = ["ws", "macros"] }
-axum-extra = { version = "0.12.6", features = ["cookie"] }
+axum-extra = { version = "0.12.6", features = ["cookie", "query"] }
 blake3 = "1.8.7"
 chrono = { version = "0.4.45", default-features = false, features = ["std", "clock", "serde"] }
 chrono-tz = "0.10.4"
@@ -38,11 +38,11 @@ csv = "1.4.0"
 duckdb = { version = "1.20000.1", features = ["bundled", "chrono"] }
 futures = "0.3.34"
 nix = { version = "0.31.3", features = ["signal", "process"] }
-pdf-extract = "0.12.1"
 rand = "0.10.3"
 regex = "1.13.1"
 reqwest = { version = "0.13.5", default-features = false, features = ["rustls", "json", "gzip", "query"] }
 rmp-serde = "1.3.1"
+roxmltree = "0.21.2"
 rmpv = "1.3.1"
 rusqlite = { version = "0.42.0", features = ["bundled", "chrono"] }
 rust_decimal = { version = "1.43.0", features = ["serde-str"] }
@@ -63,3 +63,9 @@ tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
 utoipa = { version = "6.0.0", features = ["axum_extras", "chrono", "decimal", "preserve_order"] }
 utoipa-axum = "0.3.0"
+
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false

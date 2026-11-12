@@ -1,0 +1,22 @@
+{
+  "id": 8,
+  "result": {
+    "articles": [
+      {
+        "backfilled": false,
+        "created_at": 1732114930000000000,
+        "headline": "BBB CEO Buys Shares",
+        "id": 42133817,
+        "received_at": 1732114931000000000,
+        "source": "benzinga",
+        "summary": "",
+        "symbols": [
+          "BBB"
+        ],
+        "updated_at": 1732114930000000000
+      }
+    ],
+    "kind": "news"
+  },
+  "type": "data"
+}

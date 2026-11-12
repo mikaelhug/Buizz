@@ -11,7 +11,7 @@ export type BotTab = (typeof BOT_TABS)[number];
 
 export type Route =
   | { page: "bots" }
-  | { page: "bot"; name: string; run?: number; tab?: BotTab }
+  | { page: "bot"; name: string; run?: number; tab?: BotTab; symbol?: string }
   | { page: "leaderboard"; preset: Preset }
   | { page: "data" };
 
@@ -24,14 +24,14 @@ function isBotTab(value: string | undefined): value is BotTab {
 }
 
 function botRoute(name: string, rest: string[]): Route {
-  const [sub, id, last] = rest;
+  const [sub, id] = rest;
   const run = sub === "runs" ? Number(id) : Number.NaN;
-  const tab = Number.isInteger(run) ? last : sub;
+  const [view, symbol] = Number.isInteger(run) ? rest.slice(2) : rest;
   return {
     page: "bot",
     name,
     ...(Number.isInteger(run) ? { run } : {}),
-    ...(isBotTab(tab) ? { tab } : {}),
+    ...(view === "symbol" && symbol ? { symbol } : isBotTab(view) ? { tab: view } : {}),
   };
 }
 
@@ -56,6 +56,9 @@ export function href(route: Route): string {
     case "bot": {
       const base = `#/bots/${encodeURIComponent(route.name)}`;
       const run = route.run === undefined ? base : `${base}/runs/${route.run}`;
+      if (route.symbol !== undefined) {
+        return `${run}/symbol/${encodeURIComponent(route.symbol)}`;
+      }
       return route.tab === undefined || route.tab === "overview" ? run : `${run}/${route.tab}`;
     }
     case "leaderboard":
@@ -84,7 +87,7 @@ export function routeTitle(route: Route): string {
     case "bots":
       return "Bots";
     case "bot":
-      return route.run === undefined ? route.name : `${route.name} · Run #${route.run}`;
+      return [route.name, ...(route.run === undefined ? [] : [`Run #${route.run}`]), ...(route.symbol === undefined ? [] : [route.symbol])].join(" · ");
     case "leaderboard":
       return `Leaderboard · ${route.preset}`;
     case "data":
