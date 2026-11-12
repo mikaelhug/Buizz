@@ -54,6 +54,7 @@ const ALPACA_LAST_BAR: &str = "2016-04-29";
 const SPY_REVISED: &str = "2024-07-05";
 const HOLIDAY: &str = "2024-07-04";
 const UNKNOWN: &str = "BADX";
+const DELISTED_MEMBER: &str = "K";
 
 #[derive(Default)]
 struct Fake {
@@ -152,13 +153,18 @@ async fn bars(State(fake): State<Arc<Fake>>, Query(params): Query<Params>) -> Re
         rows.join(",")
     };
     let aapl = requested("AAPL", date(ALPACA_FIRST_BAR), date(ALPACA_LAST_BAR));
+    let delisted = requested(
+        DELISTED_MEMBER,
+        date(ALPACA_FIRST_BAR),
+        date(ALPACA_LAST_BAR),
+    );
     let spy = requested(
         "SPY",
         date(ALPACA_FIRST_BAR) + TimeDelta::days(1),
         date(CALENDAR_END),
     );
     json(format!(
-        r#"{{"bars":{{"AAPL":[{aapl}],"SPY":[{spy}]}},"next_page_token":null}}"#
+        r#"{{"bars":{{"AAPL":[{aapl}],"SPY":[{spy}],"{DELISTED_MEMBER}":[{delisted}]}},"next_page_token":null}}"#
     ))
 }
 
@@ -378,6 +384,13 @@ async fn rows(market: &MarketStore) -> Rows {
 }
 
 async fn spine(directory: &std::path::Path, url: &str) -> (MarketStore, StateStore, Ingest) {
+    spine_with(directory, sources(url)).await
+}
+
+async fn spine_with(
+    directory: &std::path::Path,
+    sources: Sources,
+) -> (MarketStore, StateStore, Ingest) {
     let market = MarketStore::open(&directory.join("market.duckdb"), 2)
         .await
         .unwrap();
@@ -393,7 +406,7 @@ async fn spine(directory: &std::path::Path, url: &str) -> (MarketStore, StateSto
         },
         market.clone(),
         state.clone(),
-        sources(url),
+        sources,
     );
     (market, state, ingest)
 }
@@ -519,6 +532,70 @@ async fn a_market_backup_restores_into_an_empty_store_and_ingest_starts_over() {
         .await
         .unwrap();
     assert!(next.batch_id > original.through);
+}
+
+#[tokio::test]
+async fn a_start_that_adds_a_macro_series_fetches_it_without_waiting_a_day() {
+    let fake = Arc::new(Fake::default());
+    let url = serve_fakes(fake.clone()).await;
+    let directory = tempfile::tempdir().unwrap();
+    let without_cboe = Sources {
+        cboe: None,
+        ..sources(&url)
+    };
+    let (market, state, ingest) = spine_with(directory.path(), without_cboe).await;
+    let first_at = stamp("2024-07-05T21:00:00Z");
+    let ran_vix = |report: TickReport| report.ran.iter().any(|(job, _)| *job == "vix");
+    assert!(ran_vix(ingest.tick(first_at).await.unwrap()));
+    drop((ingest, market, state));
+
+    let (market, _state, restarted) = spine(directory.path(), &url).await;
+    let hour_later = first_at + TimeDelta::hours(1);
+    assert!(ran_vix(restarted.tick(hour_later).await.unwrap()));
+    assert!(
+        !market
+            .macro_observations(MacroSeries::Vix3m)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert!(!ran_vix(
+        restarted
+            .tick(hour_later + TimeDelta::minutes(1))
+            .await
+            .unwrap()
+    ));
+}
+
+#[tokio::test]
+async fn a_delisted_member_alpaca_no_longer_lists_stays_tradable_until_its_last_bar() {
+    let fake = Arc::new(Fake::default());
+    let url = serve_fakes(fake.clone()).await;
+    let directory = tempfile::tempdir().unwrap();
+    let (market, _state, ingest) = spine(directory.path(), &url).await;
+    let first_at = stamp("2024-07-05T21:00:00Z");
+    market
+        .replace_index_history(
+            DataSource::Wikipedia,
+            sp500(&["SPY", DELISTED_MEMBER]),
+            first_at.exchange_date(),
+        )
+        .await
+        .unwrap();
+    ingest.tick(first_at).await.unwrap();
+    ingest.tick(first_at + TimeDelta::hours(25)).await.unwrap();
+    let instruments = market.instruments().await.unwrap();
+    let listing = |symbol: &str| {
+        instruments
+            .iter()
+            .find(|instrument| instrument.symbol.as_str() == symbol)
+            .map(|instrument| (instrument.active, instrument.last_session))
+    };
+    assert_eq!(
+        listing(DELISTED_MEMBER),
+        Some((false, Some(date(ALPACA_LAST_BAR))))
+    );
+    assert_eq!(listing("SPY"), Some((true, None)));
 }
 
 #[tokio::test]

@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use buizz_core::market::{
-    AssetClass, DataSource, Dataset, Instrument, RiskFreeRate, Session, Symbol,
+    AssetClass, DataSource, Dataset, Instrument, RiskFreeRate, Session, StockIndex, Symbol,
 };
 use buizz_core::ops::JobOutcome;
 use buizz_core::time::Timestamp;
@@ -131,6 +131,40 @@ impl Ingest {
                     .map_or(AssetClass::Stock, |known| known.asset_class),
             };
         }
+        let priced = self
+            .symbol_coverage(Dataset::Bars1d, DataSource::Alpaca)
+            .await?;
+        let latest = priced.values().map(|coverage| coverage.last).max();
+        let ended = |symbol: &Symbol| {
+            priced
+                .get(symbol)
+                .map(|coverage| coverage.last)
+                .filter(|last| Some(*last) < latest)
+        };
+        for asset in assets.iter_mut().filter(|asset| !asset.active) {
+            asset.last_session = ended(&asset.symbol);
+        }
+        let listed: BTreeSet<Symbol> = assets.iter().map(|asset| asset.symbol.clone()).collect();
+        let unlisted_members: BTreeSet<Symbol> = self
+            .market
+            .index_history(StockIndex::Sp500)
+            .await?
+            .map(|history| history.members)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|member| member.symbol)
+            .filter(|symbol| !listed.contains(symbol) && priced.contains_key(symbol))
+            .collect();
+        assets.extend(unlisted_members.into_iter().map(|symbol| Instrument {
+            name: String::new(),
+            exchange: String::new(),
+            asset_class: AssetClass::Stock,
+            active: false,
+            shortable: false,
+            first_session: None,
+            last_session: ended(&symbol),
+            symbol,
+        }));
         let changed: Vec<Instrument> = assets
             .into_iter()
             .filter(|asset| stored.get(&asset.symbol) != Some(asset))

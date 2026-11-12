@@ -19,7 +19,7 @@ const SHARE_SCALE_REFERENCE_DAYS: i64 = 400;
 
 #[derive(Deserialize)]
 struct CompanyFacts {
-    cik: u32,
+    #[serde(default)]
     facts: BTreeMap<String, Mapped>,
 }
 
@@ -99,6 +99,7 @@ struct Source<'a> {
 
 pub fn normalize_company_facts(
     symbol: &Symbol,
+    cik: u32,
     payload: &[u8],
     calendar: &Calendar,
 ) -> Result<Vec<FundamentalFact>, SourceError> {
@@ -107,7 +108,7 @@ pub fn normalize_company_facts(
     let lookup = |taxonomy: &str, concept: &str| company.facts.get(taxonomy)?.0.get(concept);
     let mut collector = Collector {
         symbol,
-        cik: company.cik,
+        cik,
         calendar,
         cover_counts: cover_counts(lookup(DEI, COVER_PAGE_SHARES)),
         facts: Vec::new(),
