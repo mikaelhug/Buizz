@@ -70,7 +70,7 @@ Also on `Context`: `history(symbols, tf, bars, adjust)`, `fundamentals(symbols, 
 | Interactive Brokers | Short availability, recorded daily | Public FTP file; not used by runs yet |
 | SEC EDGAR | Point-in-time fundamentals, SIC codes, earnings-release times | Raw XBRL facts plus canonical metrics; submissions |
 | US Treasury | Risk-free rate for Sharpe and bots | |
-| FRED | Macro series for bots (T-bill, 10-year, Moody's Aaa/Baa, CPI-U, unemployment, real-time Sahm rule, daily 10-year and spreads, weekly jobless claims, industrial production, building permits, real retail sales) with every ALFRED vintage | Free API key |
+| FRED | Macro series for bots (T-bill, 10-year, Moody's Aaa/Baa, CPI-U, unemployment, real-time Sahm rule, daily 10-year and spreads, weekly jobless claims, industrial production, building permits, advance retail sales) with every ALFRED vintage | Free API key |
 | CBOE | Daily VIX (from its 2003 methodology) and VIX3M closes for bots | Free history files |
 | Federal Reserve Board | FOMC meeting calendar for bots | Public pages |
 

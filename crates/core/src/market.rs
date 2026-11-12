@@ -644,8 +644,8 @@ pub enum MacroSeries {
     Indpro,
     #[serde(rename = "permit")]
     Permit,
-    #[serde(rename = "rrsfs")]
-    Rrsfs,
+    #[serde(rename = "rsafs")]
+    Rsafs,
     #[serde(rename = "vix")]
     Vix,
     #[serde(rename = "vix3m")]
@@ -702,7 +702,7 @@ impl MacroSeries {
         Self::Ccsa,
         Self::Indpro,
         Self::Permit,
-        Self::Rrsfs,
+        Self::Rsafs,
     ];
     pub const CBOE: [Self; 2] = [Self::Vix, Self::Vix3m];
 
@@ -723,7 +723,7 @@ impl MacroSeries {
             Self::Ccsa => Some("CCSA"),
             Self::Indpro => Some("INDPRO"),
             Self::Permit => Some("PERMIT"),
-            Self::Rrsfs => Some("RRSFS"),
+            Self::Rsafs => Some("RSAFS"),
             Self::Sp500ForwardPe
             | Self::Sp500ForwardPe5yAvg
             | Self::Sp500ForwardPe10yAvg
@@ -762,7 +762,7 @@ impl MacroSeries {
             | Self::Ccsa
             | Self::Indpro
             | Self::Permit
-            | Self::Rrsfs
+            | Self::Rsafs
             | Self::Vix
             | Self::Vix3m => None,
             Self::Sp500ForwardPe => sector(EstimateScope::Sp500),

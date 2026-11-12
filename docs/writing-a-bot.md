@@ -181,7 +181,7 @@ training = {month: ctx.universe_at(month, 1000) for month in months}
 | `ccsa` | Continued claims (insured unemployment), seasonally adjusted (FRED `CCSA`), a count of people | weekly, dated the Saturday that ends the week, released a week after `icsa` for it |
 | `indpro` | Industrial production, total index, seasonally adjusted (FRED `INDPRO`, Fed G.17), index points | monthly, dated the 1st, released mid-month after |
 | `permit` | New private housing units authorized by building permits (FRED `PERMIT`, Census), thousands at a seasonally adjusted annual rate | monthly, dated the 1st, released about 12 business days after |
-| `rrsfs` | Advance real retail and food services sales (FRED `RRSFS`: Census advance retail sales over CPI-U, as FRED published it), millions of 1982–84 dollars | monthly, dated the 1st, released mid-month after |
+| `rsafs` | Advance retail and food services sales, Census (FRED `RSAFS`), millions of dollars, not adjusted for inflation | monthly, dated the 1st, released mid-month after |
 | `vix` | CBOE Volatility Index close, from 2003-09-22 | daily |
 | `vix3m` | CBOE 3-Month Volatility Index close, from 2009-09-18 | daily |
 | `sp500_forward_pe` | S&P 500 forward 12-month P/E (FactSet Earnings Insight) | weekly, dated the report's issue date |

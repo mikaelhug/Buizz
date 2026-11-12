@@ -33,7 +33,7 @@ type MacroSeries = Literal[
     "ccsa",
     "indpro",
     "permit",
-    "rrsfs",
+    "rsafs",
     "vix",
     "vix3m",
     "sp500_forward_pe",
