@@ -545,7 +545,7 @@ impl Driver {
     }
 
     async fn lease_stream(&mut self) -> Flow<()> {
-        if !self.streams() || self.paused {
+        if !self.streams() || self.paused || self.timeline.session().date.is_none() {
             return Ok(());
         }
         let wanted = self.wanted();
