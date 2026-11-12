@@ -304,7 +304,7 @@ function RunPicker({ run, name, tab, recent, runsHref }: { run: Run; name: strin
         Run #{run.id}
       </button>
       {anchor && (
-        <Popover anchor={anchor} label="Switch run" width={380} onClose={() => setAnchor(null)}>
+        <Popover anchor={anchor} label="Switch run" width={460} onClose={() => setAnchor(null)}>
           <div className="popover-title">Recent runs</div>
           <ul className="run-options">
             {shown.map((option) => (
