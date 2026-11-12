@@ -3,6 +3,7 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 use buizz_core::market::{
     AssetClass, DataSource, Dataset, Instrument, RiskFreeRate, Session, Symbol,
 };
+use buizz_core::ops::JobOutcome;
 use buizz_core::time::Timestamp;
 use chrono::{Datelike, NaiveDate, TimeDelta};
 
@@ -202,6 +203,20 @@ impl Ingest {
                 .await?;
             batch.success(summary.rows);
         }
-        Ok(batch.finish("rates"))
+        let closed = self
+            .market
+            .calendar(to, now.exchange_date())
+            .await?
+            .sessions()
+            .iter()
+            .rfind(|session| session.close <= now)
+            .map(|session| session.date);
+        let work = batch.finish("rates");
+        Ok(match closed {
+            Some(closed) if work.outcome == JobOutcome::Noop && to < closed => {
+                Work::waiting(format!("rates: {closed} is not published yet"))
+            }
+            _ => work,
+        })
     }
 }

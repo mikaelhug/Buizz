@@ -91,7 +91,7 @@ pub fn last_job_success(connection: &Connection, job: &str) -> Result<Option<Job
         .query_row(
             &format!(
                 "SELECT {JOB_COLUMNS} FROM job_run \
-                 WHERE job = ? AND outcome IN ('ok', 'partial', 'noop') ORDER BY id DESC LIMIT 1"
+                 WHERE job = ? AND outcome IN ('ok', 'partial', 'noop', 'waiting') ORDER BY id DESC LIMIT 1"
             ),
             [job],
             job_run,

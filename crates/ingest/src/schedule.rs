@@ -95,11 +95,11 @@ fn delta(duration: Duration) -> TimeDelta {
 pub(crate) fn due_at(spec: &JobSpec, latest: Option<&JobRun>, failures: u32) -> Option<Timestamp> {
     let run = latest?;
     let wait = match run.outcome {
-        Some(JobOutcome::Noop | JobOutcome::Backoff) => SHORT_RETRY,
+        Some(JobOutcome::Waiting | JobOutcome::Backoff) => SHORT_RETRY,
         Some(JobOutcome::Failed) => {
             FIRST_FAILURE_RETRY.saturating_mul(1 << failures.saturating_sub(1).min(16))
         }
-        Some(JobOutcome::Ok) => spec.every,
+        Some(JobOutcome::Ok | JobOutcome::Noop) => spec.every,
         Some(JobOutcome::Partial) | None => Duration::ZERO,
     };
     Some(run.started_at + delta(wait.min(spec.every)))

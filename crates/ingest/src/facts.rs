@@ -122,7 +122,9 @@ impl Ingest {
         symbol: &Symbol,
         last_filed: Option<NaiveDate>,
     ) -> Result<bool, IngestError> {
-        let latest = self.latest_fetch(DataSource::Edgar, dataset, symbol).await?;
+        let latest = self
+            .latest_fetch(DataSource::Edgar, dataset, symbol)
+            .await?;
         Ok(latest.is_none_or(|fetch| {
             let fresh = read(&fetch)
                 && fetch.at + SAFETY_REFRESH > now

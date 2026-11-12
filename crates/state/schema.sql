@@ -81,7 +81,7 @@ CREATE TABLE IF NOT EXISTS job_run (
     job TEXT NOT NULL,
     started_at INTEGER NOT NULL,
     finished_at INTEGER,
-    outcome TEXT CHECK (outcome IN ('ok', 'partial', 'noop', 'backoff', 'failed')),
+    outcome TEXT CHECK (outcome IN ('ok', 'partial', 'noop', 'waiting', 'backoff', 'failed')),
     rows INTEGER NOT NULL DEFAULT 0,
     message TEXT
 ) STRICT;

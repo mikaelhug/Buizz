@@ -43,7 +43,7 @@ impl Ingest {
             .min(u64::from(SYMBOLS_PER_MONTH).saturating_sub(monthly.symbols))
             .min(SYMBOLS_PER_RUN);
         let Some(alpaca_floor) = alpaca.values().map(|coverage| coverage.first).min() else {
-            return Ok(Work::noop(
+            return Ok(Work::waiting(
                 "Tiingo history: no Alpaca history to extend yet",
             ));
         };

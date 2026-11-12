@@ -19,7 +19,7 @@ impl Ingest {
             return Ok(Work::noop("the short stock file lists no US ticker"));
         };
         if self.market.latest_borrow().await? >= Some(at) {
-            return Ok(Work::noop(format!(
+            return Ok(Work::waiting(format!(
                 "borrow snapshot of {at} already stored"
             )));
         }

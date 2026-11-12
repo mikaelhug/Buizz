@@ -34,14 +34,14 @@ impl Ingest {
             .iter()
             .rposition(|session| session.close <= settled)
         else {
-            return Ok(Work::noop("no settled session in the calendar"));
+            return Ok(Work::waiting("no settled session in the calendar"));
         };
         let target = sessions[target_index];
         let revised_from = sessions[target_index.saturating_sub(REVISED_SESSIONS - 1)].date;
         let dormant_before = sessions[target_index.saturating_sub(MAX_LAG_SESSIONS)].date;
         let symbols = self.priced_symbols().await?;
         if symbols.is_empty() {
-            return Ok(Work::noop("no instruments to price"));
+            return Ok(Work::waiting("no instruments to price"));
         }
         let covered = self
             .symbol_coverage(Dataset::Bars1d, DataSource::Alpaca)

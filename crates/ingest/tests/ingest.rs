@@ -443,7 +443,22 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
     }
     assert_eq!(failed_events, 1);
 
-    let second = ingest.tick(first_at + TimeDelta::hours(48)).await.unwrap();
+    fake.revised.store(true, Ordering::SeqCst);
+    let revised = ingest.tick(first_at + TimeDelta::hours(6)).await.unwrap();
+    assert!(revised.ran.contains(&("bars_1d", JobOutcome::Ok)));
+    let spy = market
+        .bars_between(
+            Timeframe::Day,
+            vec![Symbol::new("SPY")],
+            stamp("2024-07-05T00:00:00Z"),
+            stamp("2024-07-06T00:00:00Z"),
+        )
+        .await
+        .unwrap();
+    assert_eq!(spy[0].close, (alpaca_close(date(SPY_REVISED)) + 1).into());
+
+    let second_at = first_at + TimeDelta::hours(25);
+    let second = ingest.tick(second_at).await.unwrap();
     assert_eq!(
         second.ran,
         vec![
@@ -464,6 +479,14 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
         ]
     );
     assert_eq!(rows(&market).await, backfilled);
+    let calendar = ingest
+        .job_views(second_at)
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|view| view.name == "calendar")
+        .unwrap();
+    assert_eq!(calendar.next_due, Some(second_at + TimeDelta::days(1)));
     assert_eq!(fake.last_bars.lock().unwrap()["symbols"], "SPY");
     assert_eq!(fake.hits("tiingo"), 1);
     let mut snapshots: Vec<_> = std::fs::read_dir(directory.path().join("snapshots"))
@@ -471,10 +494,10 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
         .map(|entry| entry.unwrap().file_name().into_string().unwrap())
         .collect();
     snapshots.sort();
-    assert_eq!(snapshots, ["market-2024-07-07", "state-2024-07-07.db"]);
+    assert_eq!(snapshots, ["market-2024-07-06", "state-2024-07-06.db"]);
     let borrow = directory
         .path()
-        .join("snapshots/market-2024-07-07/borrow_availability.parquet");
+        .join("snapshots/market-2024-07-06/borrow_availability.parquet");
     assert!(borrow.exists());
 
     *fake.closed.lock().unwrap() = Some(date("2025-01-09"));
@@ -492,7 +515,7 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
     assert_eq!(recovered.ran, vec![("bars_1d", JobOutcome::Noop)]);
 
     fake.rate_limit_bars.store(true, Ordering::SeqCst);
-    let limited_at = first_at + TimeDelta::hours(55);
+    let limited_at = first_at + TimeDelta::hours(55) + TimeDelta::minutes(10);
     let limited = ingest.tick(limited_at).await.unwrap();
     assert!(limited.ran.contains(&("bars_1d", JobOutcome::Backoff)));
     let fetch = state
@@ -512,23 +535,12 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
     assert_eq!(fake.hits("bars"), hits);
 
     fake.rate_limit_bars.store(false, Ordering::SeqCst);
-    fake.revised.store(true, Ordering::SeqCst);
     fake.listed_later.store(true, Ordering::SeqCst);
     fake.action_requests.lock().unwrap().clear();
-    let inside_sip_delay = stamp("2024-07-08T20:10:00Z");
-    let revised = ingest.tick(inside_sip_delay).await.unwrap();
-    assert!(revised.ran.contains(&("bars_1d", JobOutcome::Ok)));
-    assert!(fake.last_bars.lock().unwrap()["end"].starts_with(SPY_REVISED));
-    let spy = market
-        .bars_between(
-            Timeframe::Day,
-            vec![Symbol::new("SPY")],
-            stamp("2024-07-05T00:00:00Z"),
-            stamp("2024-07-06T00:00:00Z"),
-        )
-        .await
-        .unwrap();
-    assert_eq!(spy[0].close, (alpaca_close(date(SPY_REVISED)) + 1).into());
+    let inside_sip_delay = stamp("2024-07-09T20:10:00Z");
+    let later = ingest.tick(inside_sip_delay).await.unwrap();
+    assert!(later.ran.contains(&("bars_1d", JobOutcome::Ok)));
+    assert!(fake.last_bars.lock().unwrap()["end"].starts_with("2024-07-08"));
     let action_starts: Vec<(String, String)> = fake
         .action_requests
         .lock()
@@ -543,7 +555,7 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
     assert_eq!(
         action_starts,
         vec![
-            (String::new(), "2024-03-10".to_owned()),
+            (String::new(), "2024-03-11".to_owned()),
             ("MSFT".to_owned(), "2015-12-02".to_owned()),
         ]
     );

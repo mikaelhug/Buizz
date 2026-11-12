@@ -31,6 +31,10 @@ impl Work {
         Self::of(JobOutcome::Noop, 0, message)
     }
 
+    pub fn waiting(message: impl Into<String>) -> Self {
+        Self::of(JobOutcome::Waiting, 0, message)
+    }
+
     pub fn backoff(rows: u64, message: impl Into<String>) -> Self {
         Self::of(JobOutcome::Backoff, rows, message)
     }

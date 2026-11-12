@@ -1556,6 +1556,7 @@
           "ok",
           "partial",
           "noop",
+          "waiting",
           "backoff",
           "failed"
         ]
