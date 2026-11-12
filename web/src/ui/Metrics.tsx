@@ -233,10 +233,10 @@ export function MetricGroups({ metrics, benchmark, months }: GroupsProps) {
   const [open, setOpen] = useState(false);
   const stat = (key: MetricKey) => metricStat(key, metrics, benchmark);
   const groups: { title: string; headline: Stat; rows: Stat[] }[] = [
+    { title: `vs ${benchmark?.symbol ?? "benchmark"}`, headline: excessCagrStat(metrics, benchmark), rows: [excessStat(metrics, benchmark), stat("alpha"), stat("beta")] },
     { title: "Returns", headline: stat("total_return"), rows: [stat("cagr"), monthStat("Best month", months?.best), monthStat("Worst month", months?.worst), stat("sessions")] },
     { title: "Risk", headline: stat("max_drawdown"), rows: [stat("volatility"), stat("sharpe"), stat("sortino"), stat("calmar")] },
     { title: "Trading", headline: stat("trades"), rows: [stat("win_rate"), stat("profit_factor"), stat("turnover"), stat("exposure")] },
-    { title: `vs ${benchmark?.symbol ?? "benchmark"}`, headline: excessCagrStat(metrics, benchmark), rows: [excessStat(metrics, benchmark), stat("alpha"), stat("beta")] },
   ];
   return (
     <>

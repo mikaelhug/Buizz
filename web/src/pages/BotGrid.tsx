@@ -114,7 +114,7 @@ type SortKey = "bot" | "stage" | "headline" | "cagr" | "return" | "drawdown" | "
 
 const SORT: SortColumns<Entry, SortKey> = {
   bot: { value: (entry) => entry.bot.name },
-  stage: { value: (entry) => (needsAttention(entry) ? -1 : STAGE_RANK[entry.stage]) },
+  stage: { value: (entry) => (needsAttention(entry) ? -1 : STAGE_RANK[entry.stage]) + 0.5 - Math.atan(headline(entry) ?? -Infinity) / Math.PI },
   headline: { value: headline, descending: true },
   cagr: { value: (entry) => figures(entry).cagr, descending: true },
   return: { value: (entry) => figures(entry).ret, descending: true },
