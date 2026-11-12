@@ -322,8 +322,10 @@ fn previous_closes(
         return Ok(BTreeMap::new());
     }
     let sql = format!(
-        "SELECT symbol, date, close FROM bar_1d WHERE {}",
-        vec!["(symbol = ? AND date = ?)"; wanted.len()].join(" OR ")
+        "SELECT b.symbol, b.date, b.close FROM bar_1d b \
+         JOIN (VALUES {}) AS wanted(symbol, date) \
+         ON b.symbol = wanted.symbol AND b.date = wanted.date",
+        vec!["(?, ?)"; wanted.len()].join(", ")
     );
     let params: Params = wanted
         .keys()
