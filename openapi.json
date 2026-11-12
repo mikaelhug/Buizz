@@ -1568,6 +1568,35 @@
           "iex"
         ]
       },
+      "FeedConnection": {
+        "type": "object",
+        "required": [
+          "cap",
+          "used",
+          "connected"
+        ],
+        "properties": {
+          "cap": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "used": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "connected": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "FeedHolder": {
         "type": "object",
         "required": [
@@ -1595,7 +1624,7 @@
         "required": [
           "cap",
           "used",
-          "connected",
+          "connections",
           "holders"
         ],
         "properties": {
@@ -1609,14 +1638,17 @@
             "format": "int32",
             "minimum": 0
           },
-          "connected": {
-            "type": "boolean"
-          },
           "error": {
             "type": [
               "string",
               "null"
             ]
+          },
+          "connections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeedConnection"
+            }
           },
           "holders": {
             "type": "array",

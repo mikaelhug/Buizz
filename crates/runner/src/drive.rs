@@ -18,14 +18,14 @@ use buizz_core::run::{
 use buizz_core::time::Timestamp;
 use buizz_core::visibility::{close_auction_session, open_auction_session, order_session};
 use buizz_engine::{Cycle, Decision, DrawdownStop, Engine, EngineError, Outbox};
-use buizz_feed::FeedLease;
+use buizz_feed::{FeedLease, LATE_BAR_GRACE};
 use buizz_ingest::IngestError;
 use buizz_market::MarketError;
 use buizz_state::{RunOutcome, StateError, StepCommit};
 use buizz_supervisor::{
     BotProcess, BotSpec, LiveProcess, OutputStream, ProcessEvent, SupervisorError, bot_hash,
 };
-use chrono::NaiveDate;
+use chrono::{NaiveDate, TimeDelta};
 use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
 use serde::{Deserialize, Serialize};
@@ -41,6 +41,8 @@ const IDLE_RECHECK: Duration = Duration::from_secs(60);
 const EVENT_PAGE: u32 = 1000;
 const ORDER_PAGE: u32 = 1000;
 const BACKTEST_EQUITY_EVERY: Duration = Duration::from_millis(250);
+const SESSION_MINUTES_RETRY_INITIAL: Duration = Duration::from_secs(1);
+const SESSION_MINUTES_RETRY_MAX: Duration = Duration::from_secs(60);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Control {
@@ -439,6 +441,8 @@ struct Driver {
     step_seq: u64,
     bot_state: Option<Vec<u8>>,
     arrived_while_deciding: Option<(Timestamp, Timestamp)>,
+    session_minutes: Option<Timestamp>,
+    session_minutes_retry: Option<(u32, Timestamp)>,
     equity_shown_at: Option<tokio::time::Instant>,
     unshown_equity: Option<EquityPoint>,
     day_mark: Option<Timestamp>,
@@ -518,6 +522,8 @@ impl Driver {
             step_seq: last_step,
             bot_state,
             arrived_while_deciding: None,
+            session_minutes: None,
+            session_minutes_retry: None,
             equity_shown_at: None,
             unshown_equity: None,
             spec,
@@ -535,7 +541,51 @@ impl Driver {
     }
 
     fn streams(&self) -> bool {
-        self.live() && self.run.config.needs_minute_bars()
+        self.live() && self.run.config.timeframe == Timeframe::Minute
+    }
+
+    fn fetches_session_minutes(&self, point: &Point) -> bool {
+        self.live() && point.pre_close && !self.streams()
+    }
+
+    fn session_minutes_due(&self, point: &Point) -> Timestamp {
+        let ready = point.visible_at + LATE_BAR_GRACE;
+        self.session_minutes_retry
+            .map_or(ready, |(_, retry_at)| ready.max(retry_at))
+    }
+
+    async fn fetch_session_minutes(&mut self, point: &Point) -> Flow<()> {
+        self.enter_session(&point.session).await?;
+        let symbols = self.timeline.tracked().clone();
+        let fetched = self
+            .inner
+            .feed
+            .session_minutes(symbols, &point.session, point.visible_at)
+            .await;
+        match fetched {
+            Ok(()) => {
+                self.session_minutes = Some(point.visible_at);
+                self.session_minutes_retry = None;
+                Ok(())
+            }
+            Err(error) => {
+                let attempt = self.session_minutes_retry.map_or(0, |(attempt, _)| attempt);
+                let delay = SESSION_MINUTES_RETRY_INITIAL
+                    .saturating_mul(1 << attempt.min(6))
+                    .min(SESSION_MINUTES_RETRY_MAX);
+                let retry_at =
+                    Timestamp::now() + TimeDelta::from_std(delay).expect("the retry delay fits");
+                self.session_minutes_retry = Some((attempt + 1, retry_at));
+                self.record(RunEventKind::Log {
+                    level: LogLevel::Warn,
+                    message: format!(
+                        "fetching the session's minute bars failed, retrying in {} s: {error}",
+                        delay.as_secs()
+                    ),
+                })
+                .await
+            }
+        }
     }
 
     fn wanted(&self) -> BTreeSet<Symbol> {
@@ -656,6 +706,12 @@ impl Driver {
                 continue;
             }
             match next.filter(|point| self.processable(point)) {
+                Some(point)
+                    if self.fetches_session_minutes(&point)
+                        && self.session_minutes != Some(point.visible_at) =>
+                {
+                    self.fetch_session_minutes(&point).await?;
+                }
                 Some(_) if !self.benched() && self.link.is_none() => self.await_bot().await?,
                 Some(point) => {
                     self.cycle(&point).await?;
@@ -674,7 +730,10 @@ impl Driver {
                     if next.is_none() {
                         self.timeline.refresh().await?;
                     }
-                    self.idle().await?;
+                    let due = next
+                        .filter(|point| self.fetches_session_minutes(point))
+                        .map(|point| self.session_minutes_due(&point));
+                    self.idle(due).await?;
                 }
             }
         }
@@ -697,6 +756,9 @@ impl Driver {
     }
 
     fn processable(&mut self, point: &Point) -> bool {
+        if self.fetches_session_minutes(point) {
+            return Timestamp::now() >= self.session_minutes_due(point);
+        }
         let marks = *self.watermarks.borrow_and_update();
         let timeframe = if point.pre_close {
             Timeframe::Minute
@@ -800,9 +862,9 @@ impl Driver {
         }
     }
 
-    async fn cycle(&mut self, point: &Point) -> Flow<()> {
-        let entering = self.session.map(|session| session.date) != Some(point.session.date);
-        if entering || self.timeline.session().date != Some(point.session.date) {
+    async fn enter_session(&mut self, session: &Session) -> Flow<()> {
+        let entering = self.session.map(|current| current.date) != Some(session.date);
+        if entering || self.timeline.session().date != Some(session.date) {
             if self.live() {
                 self.timeline.refresh().await?;
                 if entering {
@@ -810,9 +872,18 @@ impl Driver {
                 }
             }
             let held = self.held();
-            self.timeline.enter(&point.session, &held).await?;
-            self.backfill_newcomers(point.session.date).await?;
+            self.timeline.enter(session, &held).await?;
+            self.backfill_newcomers(session.date).await?;
             self.lease_stream().await?;
+        }
+        Ok(())
+    }
+
+    async fn cycle(&mut self, point: &Point) -> Flow<()> {
+        let entered_to_fetch = self.fetches_session_minutes(point)
+            && self.timeline.session().date == Some(point.session.date);
+        if !entered_to_fetch {
+            self.enter_session(&point.session).await?;
         }
         let bars = if point.pre_close {
             self.timeline.session_so_far(point).await?
@@ -1040,9 +1111,11 @@ impl Driver {
         Ok(())
     }
 
-    async fn idle(&mut self) -> Flow<()> {
+    async fn idle(&mut self, due: Option<Timestamp>) -> Flow<()> {
+        let until_due = due.map(|at| (at - Timestamp::now()).to_std().unwrap_or_default());
         tokio::select! {
             _ = self.watermarks.changed() => self.daily_bars_arrived(),
+            () = sleep_for(until_due) => {}
             _ = self.control.changed() => self.reconcile().await?,
             socket = self.sockets.recv() => self.attach(socket).await?,
             event = next_process_event(&mut self.process) => self.on_process(event).await?,
@@ -1434,6 +1507,13 @@ impl Driver {
 async fn next_process_event(process: &mut Option<Process>) -> Option<ProcessEvent> {
     match process {
         Some(process) => process.events().recv().await,
+        None => std::future::pending().await,
+    }
+}
+
+async fn sleep_for(duration: Option<Duration>) {
+    match duration {
+        Some(duration) => tokio::time::sleep(duration).await,
         None => std::future::pending().await,
     }
 }

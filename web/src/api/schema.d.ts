@@ -556,6 +556,14 @@ export interface components {
         };
         /** @enum {string} */
         Feed: "sip" | "iex";
+        FeedConnection: {
+            /** Format: int32 */
+            cap: number;
+            /** Format: int32 */
+            used: number;
+            connected: boolean;
+            error?: string | null;
+        };
         FeedHolder: {
             run_id: components["schemas"]["RunId"];
             bot: string;
@@ -566,8 +574,8 @@ export interface components {
             cap: number;
             /** Format: int32 */
             used: number;
-            connected: boolean;
             error?: string | null;
+            connections: components["schemas"]["FeedConnection"][];
             holders: components["schemas"]["FeedHolder"][];
         };
         Fill: {

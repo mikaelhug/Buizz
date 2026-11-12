@@ -165,6 +165,9 @@ impl Spine {
             .stdout(log.try_clone().expect("the spine log"))
             .stderr(log)
             .kill_on_drop(true);
+        if let Some(keys) = self.fake.stream_keys() {
+            command.env("ALPACA_STREAM_KEYS", keys);
+        }
         if self.options.tiingo {
             command
                 .env("TIINGO_API_KEY", "e2e-tiingo")

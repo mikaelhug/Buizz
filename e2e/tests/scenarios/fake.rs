@@ -9,6 +9,7 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use buizz_core::market::{AssetClass, Bar, CorporateActionKind, MacroSeries, Symbol};
 use buizz_core::time::Timestamp;
+use buizz_sources::alpaca_stream::SYMBOL_CAP;
 use chrono::{Datelike, NaiveDate, NaiveTime, TimeDelta};
 use serde_json::{Number, Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -20,6 +21,7 @@ use crate::world::World;
 const PAGE_ROWS: usize = 1000;
 const FOMC_CALENDAR: &str = include_str!("../../../crates/sources/fixtures/fed/fomccalendars.htm");
 const RETRY_AFTER_SECONDS: &str = "3600";
+const SYMBOL_LIMIT_EXCEEDED: &str = r#"[{"T":"error","code":405,"msg":"symbol limit exceeded"}]"#;
 
 type Params = HashMap<String, String>;
 
@@ -29,6 +31,8 @@ struct Fake {
     disconnects: broadcast::Sender<()>,
     hits: Mutex<BTreeMap<&'static str, u32>>,
     rate_limited: Mutex<BTreeMap<&'static str, u32>>,
+    stream_accounts: usize,
+    subscriptions: Mutex<BTreeMap<String, BTreeSet<Symbol>>>,
 }
 
 impl Fake {
@@ -73,7 +77,11 @@ pub struct FakeProviders {
 }
 
 impl FakeProviders {
-    pub async fn serve(mut world: World) -> Self {
+    pub async fn serve(world: World) -> Self {
+        Self::serve_stream_accounts(world, 1).await
+    }
+
+    pub async fn serve_stream_accounts(mut world: World, stream_accounts: usize) -> Self {
         let released = world.released.take();
         let fake = Arc::new(Fake {
             world: Mutex::new(world),
@@ -81,6 +89,8 @@ impl FakeProviders {
             disconnects: broadcast::Sender::new(4),
             hits: Mutex::default(),
             rate_limited: Mutex::default(),
+            stream_accounts,
+            subscriptions: Mutex::default(),
         });
         let router = Router::new()
             .route("/v2/calendar", get(calendar))
@@ -126,6 +136,24 @@ impl FakeProviders {
             ftp_address,
             fake,
         }
+    }
+
+    pub fn stream_keys(&self) -> Option<String> {
+        let accounts = self.fake.stream_accounts;
+        (accounts > 1).then(|| {
+            (1..=accounts)
+                .map(|account| format!("e2e-stream-{account}:e2e-stream-secret-{account}"))
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
+    }
+
+    pub fn stream_subscriptions(&self) -> BTreeMap<String, BTreeSet<Symbol>> {
+        self.fake
+            .subscriptions
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
     }
 
     pub fn stream_url(&self) -> String {
@@ -723,13 +751,16 @@ async fn converse(fake: Arc<Fake>, mut socket: WebSocket) {
     {
         return;
     }
-    loop {
+    let account = loop {
         match socket.recv().await {
-            Some(Ok(Message::Text(text))) if text.contains(r#""auth""#) => break,
+            Some(Ok(Message::Text(text))) if text.contains(r#""auth""#) => {
+                let auth: Value = serde_json::from_str(&text).unwrap_or_default();
+                break auth["key"].as_str().unwrap_or_default().to_owned();
+            }
             Some(Ok(_)) => {}
             _ => return,
         }
-    }
+    };
     if !send(
         &mut socket,
         r#"[{"T":"success","msg":"authenticated"}]"#.to_owned(),
@@ -756,14 +787,23 @@ async fn converse(fake: Arc<Fake>, mut socket: WebSocket) {
                         subscribed.retain(|symbol| !listed.contains(symbol));
                         BTreeSet::new()
                     } else {
-                        let added = listed.difference(&subscribed).cloned().collect();
-                        subscribed.extend(listed);
-                        added
+                        listed.difference(&subscribed).cloned().collect()
                     };
-                    let ack = json!([{"T": "subscription", "trades": [], "quotes": [], "bars": subscribed}]);
-                    std::iter::once(ack.to_string())
-                        .chain(stream_frames(&fake, &added, None, sent_through))
-                        .collect()
+                    if subscribed.len() + added.len() > SYMBOL_CAP {
+                        vec![SYMBOL_LIMIT_EXCEEDED.to_owned()]
+                    } else {
+                        subscribed.extend(added.iter().cloned());
+                        if request["bars"].is_array() {
+                            fake.subscriptions
+                                .lock()
+                                .unwrap_or_else(PoisonError::into_inner)
+                                .insert(account.clone(), subscribed.clone());
+                        }
+                        let ack = json!([{"T": "subscription", "trades": [], "quotes": [], "bars": subscribed}]);
+                        std::iter::once(ack.to_string())
+                            .chain(stream_frames(&fake, &added, None, sent_through))
+                            .collect()
+                    }
                 }
                 Some(Ok(_)) => Vec::new(),
                 _ => return,

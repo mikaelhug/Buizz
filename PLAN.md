@@ -111,7 +111,7 @@ Approved design. A backtest is a pass/fail screen, never a scoreboard; only live
 - Headline metric everywhere: CAGR versus SPY over the same window (bot CAGR − SPY CAGR); plain CAGR and total return stay visible as secondary numbers. Windows under a year are marked as annualized from N sessions.
 - UI: the not-live table gains a screening summary and Sweep. Bot detail splits into Live | Research. Stage "screened" means only "has a completed backtest of the current code" until the gate lands in slice 4.
 - Data: state migration adds `run.variant` (generated from `config.params`) and `run.source_run`; unique live run per (bot, variant).
-- Slices: (2) session-scoped live processes + `live_slots`; (3) variants live; (4) sweeps + Research tab; (5) envelope and falsification; (6) N stream accounts + REST minute bars for `before_close` (independent); (7) optional replay of the live window.
+- Slices: (2) session-scoped live processes + `live_slots`; (3) variants live; (4) sweeps + Research tab; (5) envelope and falsification; (7) optional replay of the live window.
 
 ## Added beyond the request
 
@@ -160,7 +160,7 @@ The cluster's spine is the data spine: it runs ingest (including the borrow reco
 
 Follows `~/akrell/akrell-apps` conventions (pattern: `apps/base/bande-logs/`, guide: `~/Private/Kubit/docs/apps-repository.md`, workflow: `~/Private/mappr/.github/workflows/release.yaml`):
 - `apps/base/buizz/`: namespace, `buizz-data` PVC (Longhorn, RWO), single-replica `Recreate` Deployment (non-root, read-only root, emptyDir `/tmp`, 60s grace), Service, HTTPRoute `buizz.mikaelhug.se`, ImageRepository.
-- `apps/akrell/buizz/`: `ghcr.sops.yaml`, `buizz.sops.yaml` (`ALPACA_KEY_ID`, `ALPACA_SECRET_KEY`, `TIINGO_API_KEY`, `SEC_USER_AGENT`, `FRED_API_KEY`, `BUIZZ_ADMIN_PASSWORD`), image policy.
+- `apps/akrell/buizz/`: `ghcr.sops.yaml`, `buizz.sops.yaml` (`ALPACA_KEY_ID`, `ALPACA_SECRET_KEY`, optional `ALPACA_STREAM_KEYS`, `TIINGO_API_KEY`, `SEC_USER_AGENT`, `FRED_API_KEY`, `BUIZZ_ADMIN_PASSWORD`), image policy.
 - Default chosen: public route + app login, as `bro`/`engly`/`vabblarna` do. Say so if you prefer a LAN-only MetalLB IP.
 - The spine runs ingest there, so the `borrow` job records Interactive Brokers' short availability daily from the first deploy; `just dev` runs with ingest off and records nothing.
 - `buizz-data` PVC of 50 GiB; pod requests 1 CPU and 2 GiB, limits 4 CPU and 4 GiB, `BUIZZ_DUCKDB_MEMORY=1GB`, `BUIZZ_DUCKDB_THREADS=2` (sizing in `docs/architecture.md`).
