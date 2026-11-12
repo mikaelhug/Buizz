@@ -380,18 +380,8 @@
 
 .split {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0 var(--sp-4);
-}
-
-@media (min-width: 960px) {
-  .split {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
-}
-
-.split.split-wide {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 540px), 1fr));
+  gap: 0 var(--sp-4);
 }
 
 .skeleton {

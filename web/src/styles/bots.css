@@ -49,7 +49,7 @@
   border-bottom: 1px dashed var(--border-strong);
 }
 
-.actions-cell {
+.table .actions-cell {
   text-align: right;
 }
 

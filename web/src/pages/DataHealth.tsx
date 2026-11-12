@@ -82,14 +82,14 @@ export function DataHealth() {
           <strong>Ingest is off.</strong> Scheduled data jobs do not run while <code>BUIZZ_INGEST=false</code>; runs use the data already stored.
         </div>
       )}
-      <div className="split">
+      <div className="data-panels">
         <FeedPanel feed={feed} />
         <WarningsPanel health={health} />
+        <BackfillPanel health={health} />
+        <ProcessesPanel processes={processes} />
+        <JobsPanel jobs={jobs} ingest={health.data?.ingest_enabled} />
+        <CoveragePanel health={health} />
       </div>
-      <BackfillPanel health={health} />
-      <ProcessesPanel processes={processes} />
-      <JobsPanel jobs={jobs} ingest={health.data?.ingest_enabled} />
-      <CoveragePanel health={health} />
     </div>
   );
 }
@@ -334,7 +334,7 @@ function JobsPanel({ jobs, ingest }: { jobs: Resource<Job[]>; ingest: boolean | 
   const flash = useFlash(jobs.data, (job) => job.name);
   const scheduled = ingest !== false;
   return (
-    <section className="panel">
+    <section className="panel jobs-panel">
       <header className="panel-head">
         <h2>Jobs</h2>
         {!scheduled && <span className="pill">Not scheduled</span>}
@@ -507,7 +507,7 @@ function CoveragePanel({ health }: { health: Resource<Schemas["DataHealth"]> }) 
   const matching = sorting.order((health.data?.coverage ?? []).filter((row) => matches(needle, row.symbol, label(row.dataset), label(row.source))));
   const rows = matching.slice(0, COVERAGE_ROWS_SHOWN);
   return (
-    <section className="panel">
+    <section className="panel coverage-panel">
       <header className="panel-head">
         <h2>Coverage</h2>
         <TableFilter label="Filter coverage" value={query} onChange={setQuery} />

@@ -269,6 +269,44 @@
   outline-offset: -2px;
 }
 
+.overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  column-gap: var(--sp-4);
+  align-items: start;
+}
+
+@container page (min-width: 1500px) {
+  .overview {
+    grid-template-columns: minmax(0, 1fr) minmax(440px, 30%);
+  }
+
+  .overview > * {
+    grid-column: 1 / -1;
+  }
+
+  .overview > .chart-panel {
+    grid-column: 1;
+  }
+
+  .overview > .metrics-panel {
+    grid-row: 1 / span 2;
+    grid-column: 2;
+  }
+
+  .overview .metric-groups {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .overview .equity-chart {
+    height: clamp(420px, 48vh, 640px);
+  }
+
+  .overview .chart-stage-tall .equity-chart {
+    height: clamp(500px, 58vh, 760px);
+  }
+}
+
 .metric-groups {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
@@ -632,9 +670,9 @@
   }
 
   .tabs {
-    margin-inline: calc(var(--sp-3) * -1);
+    margin-inline: calc(var(--gutter) * -1);
     margin-bottom: var(--sp-3);
-    padding-inline: var(--sp-3);
+    padding-inline: var(--gutter);
   }
 
   .table.fin td.reason {

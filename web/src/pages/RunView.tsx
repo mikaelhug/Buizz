@@ -86,7 +86,7 @@ export function RunView({ name, runId, pinned, tab, symbol, botHash, recent, run
         {tab === "trades" && <Trades runId={runId} positionsHref={tabHref("events")} symbolHref={symbolHref} />}
         {tab === "orders" && <Orders runId={runId} active={!run.data.finished_at} symbolHref={symbolHref} />}
         {tab === "events" && (
-          <div className="split split-wide">
+          <div className="split">
             <Positions runId={runId} clock={run.data.clock} symbolHref={symbolHref} />
             <Events runId={runId} />
           </div>
@@ -421,7 +421,7 @@ function Overview({ run, symbol, closeHref }: { run: Run; symbol: string | undef
   const benchmark = curve.data && (run.finished_at || run.mode === "live") ? { symbol: run.config.benchmark, metrics: curve.data.benchmark_metrics } : undefined;
 
   return (
-    <>
+    <div className="overview">
       <section className="panel chart-panel" aria-label="Equity">
         <StaleFailure resource={curve} />
         {curve.data ? (
@@ -462,13 +462,13 @@ function Overview({ run, symbol, closeHref }: { run: Run; symbol: string | undef
           <SymbolChart key={symbol} runId={run.id} symbol={symbol} sync={sync} />
         </section>
       )}
-      <section className="panel">
+      <section className="panel metrics-panel">
         <h2 className="visually-hidden">Metrics</h2>
         <MetricGroups metrics={run.metrics ?? curve.data?.interim_metrics} benchmark={benchmark} months={calendar?.range} />
       </section>
       {calendar && <MonthlyReturns calendar={calendar} benchmarkSymbol={run.config.benchmark} />}
       <Setup run={run} />
-    </>
+    </div>
   );
 }
 

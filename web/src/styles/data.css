@@ -212,6 +212,43 @@
   margin: 0;
 }
 
+.data-panels {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0 var(--sp-4);
+}
+
+@container page (min-width: 900px) {
+  .data-panels {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .data-panels > .jobs-panel,
+  .data-panels > .coverage-panel {
+    grid-column: 1 / -1;
+  }
+}
+
+@container page (min-width: 1800px) {
+  .data-panels {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .data-panels > .jobs-panel {
+    grid-column: span 2;
+  }
+}
+
+@container page (min-width: 2300px) {
+  .data-panels {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .data-panels > .coverage-panel {
+    grid-column: span 2;
+  }
+}
+
 @media (max-width: 640px) {
   .backfill li {
     grid-template-columns: minmax(0, 1fr) auto;
