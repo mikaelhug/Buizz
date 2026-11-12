@@ -1,0 +1,10 @@
+description = "Shu-Yu-Mulvey HMM baseline: daily 2-state hmmlearn refit on 3,000 SPY sessions, Bulla median filter, SPY or BIL"
+command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
+timeframe = "1d"
+wake = "bar"
+universe = { symbols = ["SPY", "BIL"] }
+step_timeout = 600
+params = { window = 3000, votes = 6, starts = 10, seed = 7 }
+
+[risk]
+max_gross_exposure = 1.0
