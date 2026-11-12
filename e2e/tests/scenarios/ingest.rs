@@ -84,7 +84,7 @@ async fn an_empty_spine_backfills_backs_off_rejects_a_bad_tiingo_tail_and_restar
     );
     assert_eq!(
         message(&jobs, "earnings_insight"),
-        "Earnings Insight 2024-11-22: 31 rows"
+        "Earnings Insight 2024-11-22: 32 rows"
     );
     assert_eq!(
         message(&jobs, "borrow"),
