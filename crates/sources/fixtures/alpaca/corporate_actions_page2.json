@@ -6,6 +6,24 @@
     "cash_dividends": [
       {"id": "7c2e1f30-5b1d-4a8e-9f0e-2d6a4b3c9e21", "symbol": "AAPL", "cusip": "037833100", "rate": 0.1, "special": true, "foreign": false, "ex_date": "2024-05-10", "record_date": "2024-05-13", "payable_date": "2024-05-16", "process_date": "2024-05-16"},
       {"id": "5a3d6c0e-0f64-4d3e-8a36-0c2c7c8d1a11", "symbol": "SPY", "cusip": "78462F103", "rate": 1.5395, "special": false, "foreign": false, "ex_date": "2024-06-21", "record_date": "2024-06-21", "payable_date": "2024-07-31", "process_date": "2024-07-31"}
+    ],
+    "stock_dividends": [
+      {"id": "0b1c2d3e-4f50-4617-8293-a4b5c6d7e8f9", "symbol": "UA", "cusip": "904311107", "rate": 1, "ex_date": "2024-05-20", "record_date": "2024-05-15", "payable_date": "2024-05-19", "process_date": "2024-05-20"}
+    ],
+    "spin_offs": [
+      {"id": "1c2d3e4f-5061-4728-93a4-b5c6d7e8f901", "source_symbol": "UTX", "source_cusip": "913017109", "source_rate": 2, "new_symbol": "OTIS", "new_cusip": "68902V107", "new_rate": 1, "ex_date": "2024-06-03", "record_date": "2024-05-20", "payable_date": "2024-06-02", "process_date": "2024-06-03"}
+    ],
+    "cash_mergers": [
+      {"id": "2d3e4f50-6172-4839-a4b5-c6d7e8f90a12", "acquirer_symbol": "OXY", "acquirer_cusip": "674599105", "acquiree_symbol": "APC", "acquiree_cusip": "032511107", "rate": 59, "effective_date": "2024-06-05", "payable_date": "2024-06-05", "process_date": "2024-06-05"}
+    ],
+    "stock_and_cash_mergers": [
+      {"id": "3e4f5061-7283-494a-b5c6-d7e8f90a1b23", "acquirer_symbol": "OXY", "acquirer_cusip": "674599105", "acquirer_rate": 0.2934, "acquiree_symbol": "CRC", "acquiree_cusip": "13057Q305", "acquiree_rate": 1, "cash_rate": 36.5, "effective_date": "2024-06-06", "payable_date": "2024-06-06", "process_date": "2024-06-06"}
+    ],
+    "worthless_removals": [
+      {"id": "4f506172-8394-4a5b-86c7-d8e9f0a1b2c3", "symbol": "SIVB", "cusip": "78486Q101", "process_date": "2024-06-07"}
+    ],
+    "name_changes": [
+      {"id": "50617283-94a5-4b6c-97d8-e9f0a1b2c3d4", "old_symbol": "FB", "old_cusip": "30303M102", "new_symbol": "META", "new_cusip": "30303M102", "process_date": "2024-06-10"}
     ]
   },
   "next_page_token": null

@@ -153,6 +153,7 @@ impl Ingest {
             .unwrap_or_default()
             .into_iter()
             .map(|member| member.symbol)
+            .chain(self.delivered_symbols().await?)
             .filter(|symbol| !listed.contains(symbol) && priced.contains_key(symbol))
             .collect();
         assets.extend(unlisted_members.into_iter().map(|symbol| Instrument {

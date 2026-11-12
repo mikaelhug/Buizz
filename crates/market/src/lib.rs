@@ -401,7 +401,28 @@ impl MarketStore {
         window: ActionWindow,
     ) -> Result<WriteSummary> {
         self.writer
-            .run(move |connection| write::corporate_actions(connection, source, actions, &window))
+            .run(move |connection| {
+                write::corporate_actions(connection, source, actions, &window, false)
+            })
+            .await
+    }
+
+    pub async fn replace_name_changes(
+        &self,
+        source: DataSource,
+        actions: Vec<CorporateAction>,
+        window: ActionWindow,
+    ) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| {
+                write::corporate_actions(connection, source, actions, &window, true)
+            })
+            .await
+    }
+
+    pub async fn actions_reaching_other_symbols(&self) -> Result<Vec<CorporateAction>> {
+        self.readers
+            .run(|connection| read::actions_reaching_other_symbols(connection))
             .await
     }
 

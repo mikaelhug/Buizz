@@ -366,8 +366,18 @@ impl Ingest {
         Ok(progress)
     }
 
+    async fn delivered_symbols(&self) -> Result<BTreeSet<Symbol>, IngestError> {
+        Ok(self
+            .market
+            .actions_reaching_other_symbols()
+            .await?
+            .iter()
+            .filter_map(|action| action.kind.delivered().cloned())
+            .collect())
+    }
+
     async fn priced_symbols(&self) -> Result<Vec<Priced>, IngestError> {
-        let members: BTreeMap<Symbol, bool> = self
+        let mut members: BTreeMap<Symbol, bool> = self
             .market
             .index_history(StockIndex::Sp500)
             .await?
@@ -378,6 +388,9 @@ impl Ingest {
                 *members.entry(member.symbol).or_default() |= member.end.is_none();
                 members
             });
+        for symbol in self.delivered_symbols().await? {
+            members.entry(symbol).or_default();
+        }
         let instruments: BTreeMap<Symbol, Instrument> = self
             .market
             .instruments()

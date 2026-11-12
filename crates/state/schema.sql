@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS ledger_entry (
     run_id INTEGER NOT NULL REFERENCES run (id) ON DELETE CASCADE,
     seq INTEGER NOT NULL,
     at INTEGER NOT NULL,
-    kind TEXT NOT NULL CHECK (kind IN ('deposit', 'fill', 'dividend', 'split', 'borrow_fee', 'liquidation', 'financing')),
+    kind TEXT NOT NULL CHECK (kind IN ('deposit', 'fill', 'dividend', 'split', 'borrow_fee', 'liquidation', 'financing', 'reorganization')),
     symbol TEXT,
     cash_delta TEXT NOT NULL,
     body TEXT NOT NULL,

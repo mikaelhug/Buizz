@@ -224,6 +224,71 @@ pub enum CorporateActionKind {
     CashDividend {
         rate: Decimal,
     },
+    StockDividend {
+        rate: Decimal,
+    },
+    SpinOff {
+        new_symbol: Symbol,
+        old_rate: Decimal,
+        new_rate: Decimal,
+    },
+    CashMerger {
+        rate: Decimal,
+    },
+    StockMerger {
+        acquirer: Symbol,
+        old_rate: Decimal,
+        new_rate: Decimal,
+        cash_rate: Decimal,
+    },
+    WorthlessRemoval,
+    NameChange {
+        new_symbol: Symbol,
+    },
+}
+
+impl CorporateActionKind {
+    pub fn share_ratio(&self) -> Option<(Decimal, Decimal)> {
+        match self {
+            Self::Split { old_rate, new_rate } => Some((*old_rate, *new_rate)),
+            Self::StockDividend { rate } => Some((Decimal::ONE, Decimal::ONE + *rate)),
+            _ => None,
+        }
+    }
+
+    pub fn delivered(&self) -> Option<&Symbol> {
+        match self {
+            Self::SpinOff { new_symbol, .. } => Some(new_symbol),
+            Self::StockMerger { acquirer, .. } => Some(acquirer),
+            _ => None,
+        }
+    }
+
+    pub fn ends_listing(&self) -> bool {
+        matches!(
+            self,
+            Self::CashMerger { .. }
+                | Self::StockMerger { .. }
+                | Self::WorthlessRemoval
+                | Self::NameChange { .. }
+        )
+    }
+
+    pub fn has_valid_rates(&self) -> bool {
+        let positive = |rates: &[Decimal]| rates.iter().all(|rate| *rate > Decimal::ZERO);
+        match self {
+            Self::Split { old_rate, new_rate }
+            | Self::SpinOff {
+                old_rate, new_rate, ..
+            }
+            | Self::StockMerger {
+                old_rate, new_rate, ..
+            } => positive(&[*old_rate, *new_rate]),
+            Self::StockDividend { rate } => positive(&[*rate]),
+            Self::CashDividend { rate } | Self::CashMerger { rate } => *rate >= Decimal::ZERO,
+            Self::WorthlessRemoval | Self::NameChange { .. } => true,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
@@ -242,29 +307,30 @@ pub struct AdjustmentFactor {
 }
 
 impl AdjustmentFactor {
-    pub fn for_action(
-        action: &CorporateAction,
-        adjustment: Adjustment,
-        previous_close: Option<Decimal>,
-    ) -> Option<Self> {
-        let (price, volume) = match (&action.kind, adjustment) {
-            (_, Adjustment::Raw) => return None,
-            (CorporateActionKind::Split { old_rate, new_rate }, _) => {
-                if *old_rate <= Decimal::ZERO || *new_rate <= Decimal::ZERO {
-                    return None;
-                }
-                (*old_rate / *new_rate, *new_rate / *old_rate)
-            }
-            (CorporateActionKind::CashDividend { .. }, Adjustment::Split) => return None,
-            (CorporateActionKind::CashDividend { rate }, Adjustment::All) => {
-                let close = previous_close.filter(|close| !close.is_zero())?;
-                (Decimal::ONE - *rate / close, Decimal::ONE)
-            }
-        };
+    pub fn for_shares(action: &CorporateAction, adjustment: Adjustment) -> Option<Self> {
+        if adjustment == Adjustment::Raw || !action.kind.has_valid_rates() {
+            return None;
+        }
+        let (old_rate, new_rate) = action.kind.share_ratio()?;
         Some(Self {
             ex_date: action.ex_date,
-            price,
-            volume,
+            price: old_rate / new_rate,
+            volume: new_rate / old_rate,
+        })
+    }
+
+    pub fn for_distribution(
+        ex_date: NaiveDate,
+        value: Decimal,
+        previous_close: Decimal,
+    ) -> Option<Self> {
+        if previous_close <= Decimal::ZERO || value < Decimal::ZERO || value >= previous_close {
+            return None;
+        }
+        Some(Self {
+            ex_date,
+            price: Decimal::ONE - value / previous_close,
+            volume: Decimal::ONE,
         })
     }
 

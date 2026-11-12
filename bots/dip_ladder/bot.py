@@ -30,9 +30,9 @@ def apply_fill(lots: Lots, rung: str, fill: Fill) -> None:
 
 
 def apply_split(lots: Lots, action: CorporateAction) -> None:
-    if action.kind["type"] != "split":
+    ratio = action.share_ratio
+    if ratio is None:
         return
-    ratio = Decimal(action.kind["new_rate"]) / Decimal(action.kind["old_rate"])
     held = list(lots.get(action.symbol, {}).values())
     if not held:
         return

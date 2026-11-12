@@ -26,14 +26,13 @@ pub fn buy_and_hold(
     }];
     for (session, bar) in held {
         while let Some(action) = actions.next_if(|action| action.ex_date <= session.date) {
-            match action.kind {
-                CorporateActionKind::CashDividend { rate } => dividends += shares * rate,
-                CorporateActionKind::Split { old_rate, new_rate }
-                    if old_rate > Decimal::ZERO && new_rate > Decimal::ZERO =>
-                {
-                    shares = shares * new_rate / old_rate;
-                }
-                CorporateActionKind::Split { .. } => {}
+            if !action.kind.has_valid_rates() {
+                continue;
+            }
+            if let CorporateActionKind::CashDividend { rate } = action.kind {
+                dividends += shares * rate;
+            } else if let Some((old_rate, new_rate)) = action.kind.share_ratio() {
+                shares = shares * new_rate / old_rate;
             }
         }
         if !dividends.is_zero() && bar.open > Decimal::ZERO {

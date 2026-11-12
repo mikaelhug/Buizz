@@ -2,17 +2,15 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::ops::RangeInclusive;
 
 use buizz_core::market::{
-    Bar, BorrowAvailability, Company, CorporateAction, CorporateActionKind, DataSource, Dataset,
-    EarningsInsight, EarningsRelease, EstimateFact, FomcMeeting, FundamentalFact, IndexHistory,
-    InsiderFiling, Instrument, MacroObservation, NewsArticle, RiskFreeRate, SecFiling, Session,
-    Symbol,
+    Bar, BorrowAvailability, Company, CorporateAction, DataSource, Dataset, EarningsInsight,
+    EarningsRelease, EstimateFact, FomcMeeting, FundamentalFact, IndexHistory, InsiderFiling,
+    Instrument, MacroObservation, NewsArticle, RiskFreeRate, SecFiling, Session, Symbol,
 };
 use buizz_core::time::Timestamp;
 use chrono::NaiveDate;
 use duckdb::{Appender, Connection, Transaction, params};
-use rust_decimal::Decimal;
 
-use crate::codec::{Dec, Ts, action_columns, feed_name, wire_name};
+use crate::codec::{ActionColumns, Dec, Ts, feed_name, wire_name};
 use crate::{ActionWindow, Result, WriteSummary};
 
 const STAGED: [&str; 11] = [
@@ -114,7 +112,10 @@ const KEYS: [(&str, &[&str]); 10] = [
     ("instrument", &["symbol"]),
     ("calendar", &["date"]),
     ("bar_1d", &["symbol", "date"]),
-    ("corporate_action", &["symbol", "ex_date", "kind"]),
+    (
+        "corporate_action",
+        &["symbol", "ex_date", "kind", "other_symbol"],
+    ),
     ("rate_daily", &["date"]),
     ("macro_observation", &["series", "date", "published"]),
     ("fomc_meeting", &["date", "scheduled"]),
@@ -368,6 +369,7 @@ pub(crate) fn corporate_actions(
     source: DataSource,
     actions: Vec<CorporateAction>,
     window: &ActionWindow,
+    renames: bool,
 ) -> Result<WriteSummary> {
     let ActionWindow {
         symbols: covered,
@@ -376,30 +378,44 @@ pub(crate) fn corporate_actions(
         covered_to,
     } = window;
     let (from, to) = (*from, *to);
-    let unique: BTreeMap<(Symbol, NaiveDate, &'static str), CorporateAction> = actions
+    let unique: BTreeMap<(Symbol, NaiveDate, &'static str, String), CorporateAction> = actions
         .into_iter()
-        .filter(|action| match action.kind {
-            CorporateActionKind::Split { old_rate, new_rate }
-                if old_rate <= Decimal::ZERO || new_rate <= Decimal::ZERO =>
-            {
-                tracing::warn!(symbol = %action.symbol, ex_date = %action.ex_date, %old_rate, %new_rate, "refused a split without positive rates");
-                false
+        .filter(|action| {
+            let valid = action.kind.has_valid_rates();
+            if !valid {
+                tracing::warn!(symbol = %action.symbol, ex_date = %action.ex_date, kind = ?action.kind, "refused a corporate action without positive rates");
             }
-            _ => true,
+            valid
         })
         .map(|action| {
-            let kind = action_columns(&action.kind).kind;
-            ((action.symbol.clone(), action.ex_date, kind), action)
+            let columns = ActionColumns::of(&action.kind);
+            (
+                (
+                    action.symbol.clone(),
+                    action.ex_date,
+                    columns.kind,
+                    columns.other_symbol,
+                ),
+                action,
+            )
         })
         .collect();
     let mut coverage = Coverage::new();
     if let Some(covered_to) = covered_to {
+        if renames {
+            cover(&mut coverage, None, from);
+            cover(&mut coverage, None, *covered_to);
+        }
         for symbol in covered {
             cover(&mut coverage, Some(symbol), from);
             cover(&mut coverage, Some(symbol), *covered_to);
         }
     }
     let source_name = wire_name(&source);
+    let scope = match renames {
+        true => "c.kind = 'name_change'",
+        false => "c.kind <> 'name_change' AND c.symbol IN (SELECT symbol FROM action_scope)",
+    };
     write_batch(
         connection,
         source,
@@ -411,14 +427,15 @@ pub(crate) fn corporate_actions(
                 "corporate_action",
                 unique.values(),
                 |appender, action| {
-                    let columns = action_columns(&action.kind);
+                    let columns = ActionColumns::of(&action.kind);
                     appender.append_row(params![
                         action.symbol.as_str(),
                         action.ex_date,
                         columns.kind,
-                        columns.old_rate,
-                        columns.new_rate,
-                        columns.rate,
+                        columns.other_symbol,
+                        columns.old_rate.map(Dec),
+                        columns.new_rate.map(Dec),
+                        columns.rate.map(Dec),
                         source_name,
                         batch_id,
                     ])
@@ -432,10 +449,13 @@ pub(crate) fn corporate_actions(
             }
             appender.flush()?;
             drop(appender);
-            let withdrawn = "FROM main.corporate_action c WHERE c.source = ? \
-                 AND c.ex_date BETWEEN ? AND ? AND c.symbol IN (SELECT symbol FROM action_scope) \
+            let withdrawn = format!(
+                "FROM main.corporate_action c WHERE c.source = ? \
+                 AND c.ex_date BETWEEN ? AND ? AND {scope} \
                  AND NOT EXISTS (SELECT 1 FROM stage_corporate_action s \
-                 WHERE s.symbol = c.symbol AND s.ex_date = c.ex_date AND s.kind = c.kind)";
+                 WHERE s.symbol = c.symbol AND s.ex_date = c.ex_date AND s.kind = c.kind \
+                 AND s.other_symbol = c.other_symbol)"
+            );
             transaction.execute(
                 &format!("INSERT INTO main.corporate_action_revision SELECT c.*, ? {withdrawn}"),
                 params![batch_id, source_name, from, to],
@@ -1089,8 +1109,9 @@ pub(crate) fn news_articles(
 
 #[cfg(test)]
 mod tests {
-    use buizz_core::market::{Adjustment, AdjustmentFactor, AssetClass};
+    use buizz_core::market::{Adjustment, AdjustmentFactor, AssetClass, CorporateActionKind};
     use chrono::NaiveTime;
+    use rust_decimal::Decimal;
 
     use super::*;
 
@@ -1193,12 +1214,17 @@ mod tests {
             through: date,
             covered_to: Some(date),
         };
-        let written =
-            corporate_actions(&mut connection, DataSource::Alpaca, vec![split(0)], &window)
-                .unwrap();
+        let written = corporate_actions(
+            &mut connection,
+            DataSource::Alpaca,
+            vec![split(0)],
+            &window,
+            false,
+        )
+        .unwrap();
         assert_eq!(written.rows, 0);
         assert!(
-            AdjustmentFactor::for_action(&split(0), Adjustment::Split, None).is_none(),
+            AdjustmentFactor::for_shares(&split(0), Adjustment::Split).is_none(),
             "a zero rate must not divide"
         );
     }

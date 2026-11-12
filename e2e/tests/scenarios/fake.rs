@@ -392,6 +392,7 @@ async fn corporate_actions(
                 "cash_dividends",
                 json!({"symbol": action.symbol, "ex_date": action.ex_date, "rate": number(rate)}),
             ),
+            ref other => panic!("the fake Alpaca serves splits and cash dividends, not {other:?}"),
         };
         lists[list] = json!([entry]);
     }

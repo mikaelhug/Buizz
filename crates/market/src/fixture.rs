@@ -6,7 +6,7 @@ use rust_decimal::Decimal;
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
 
-use crate::codec::action_kind;
+use crate::codec::ActionColumns;
 use crate::{MarketError, Result};
 
 pub(crate) async fn rows<T: DeserializeOwned>(dir: &Path, name: &str) -> Result<Vec<T>> {
@@ -55,6 +55,8 @@ pub(crate) struct ActionRow {
     symbol: Symbol,
     ex_date: NaiveDate,
     kind: String,
+    #[serde(default)]
+    other_symbol: String,
     old_rate: Option<Decimal>,
     new_rate: Option<Decimal>,
     rate: Option<Decimal>,
@@ -62,13 +64,19 @@ pub(crate) struct ActionRow {
 
 impl ActionRow {
     pub(crate) fn into_action(self) -> Result<CorporateAction> {
-        let kind =
-            action_kind(&self.kind, self.old_rate, self.new_rate, self.rate).ok_or_else(|| {
-                MarketError::Fixture(format!(
-                    "corporate action {} {} has kind {:?} without its rates",
-                    self.symbol, self.ex_date, self.kind
-                ))
-            })?;
+        let kind = ActionColumns::parse(
+            &self.kind,
+            &self.other_symbol,
+            self.old_rate,
+            self.new_rate,
+            self.rate,
+        )
+        .ok_or_else(|| {
+            MarketError::Fixture(format!(
+                "corporate action {} {} has kind {:?} without its rates",
+                self.symbol, self.ex_date, self.kind
+            ))
+        })?;
         Ok(CorporateAction {
             symbol: self.symbol,
             ex_date: self.ex_date,

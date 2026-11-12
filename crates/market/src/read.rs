@@ -4,9 +4,10 @@ use buizz_core::market::{
     Adjustment, AdjustmentFactor, AssetClass, Bar, Calendar, Company, CorporateAction,
     CorporateActionKind, Coverage, DataSource, Dataset, EarningsInsight, EarningsRelease,
     EstimateFact, EstimateMetric, EstimateScope, Feed, FomcAnnouncement, FomcMeeting,
-    FundamentalMetric, FundamentalPoint, HISTORY_FLOORS, IndexHistory, IndexMember, InsiderOwner,
-    InsiderTrade, InsiderTransaction, Instrument, InstrumentProfile, MacroObservation, MacroPoint,
-    MacroSeries, NewsArticle, RiskFreeRate, SIP_DELAY, Session, StockIndex, Symbol, Timeframe,
+    FundamentalMetric, FundamentalPoint, HISTORY_FLOORS, HISTORY_START, IndexHistory, IndexMember,
+    InsiderOwner, InsiderTrade, InsiderTransaction, Instrument, InstrumentProfile,
+    MacroObservation, MacroPoint, MacroSeries, NewsArticle, RiskFreeRate, SIP_DELAY, Session,
+    StockIndex, Symbol, Timeframe,
 };
 use buizz_core::ops::{CoverageGap, DataWarning, UNEXPLAINED_MOVE_THRESHOLD};
 use buizz_core::protocol::BarRow;
@@ -22,7 +23,7 @@ use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
 
 use crate::codec::{
-    Dec, Params, Sym, Ts, Wire, action_kind, placeholders, symbol_params, wire_name,
+    ActionColumns, Dec, Params, Sym, Ts, Wire, placeholders, symbol_params, wire_name,
 };
 use crate::{ChartBars, ChartRequest, HistoryRequest, Result};
 
@@ -165,6 +166,7 @@ fn visible_bars(
         Timeframe::Day => count + 1,
         Timeframe::Minute => (count + 1).div_ceil(MINUTES_PER_SESSION) + 1,
     };
+    let listed_since = listings_started(connection, calendar, &symbols, as_of)?;
     let mut pending = symbols;
     let mut visible = BTreeMap::new();
     while !pending.is_empty() {
@@ -184,13 +186,18 @@ fn visible_bars(
         )?;
         let mut found: BTreeMap<Symbol, Vec<Bar>> = BTreeMap::new();
         for bar in fetched {
-            if is_visible(calendar, timeframe, &bar, as_of) {
+            let listed = listed_since
+                .get(&bar.symbol)
+                .is_none_or(|since| bar.start >= *since);
+            if listed && is_visible(calendar, timeframe, &bar, as_of) {
                 found.entry(bar.symbol.clone()).or_default().push(bar);
             }
         }
         pending.retain(|symbol| {
             let enough = found.get(symbol).map_or(0, Vec::len) >= count;
-            if enough || from.is_none() {
+            let exhausted = from
+                .is_none_or(|from| listed_since.get(symbol).is_some_and(|since| from <= *since));
+            if enough || exhausted {
                 if let Some(mut bars) = found.remove(symbol) {
                     bars.drain(..bars.len().saturating_sub(count));
                     visible.insert(symbol.clone(), bars);
@@ -203,6 +210,23 @@ fn visible_bars(
         lookback *= 2;
     }
     Ok(visible)
+}
+
+fn listings_started(
+    connection: &Connection,
+    calendar: &Calendar,
+    symbols: &[Symbol],
+    as_of: Timestamp,
+) -> Result<BTreeMap<Symbol, Timestamp>> {
+    let mut started = BTreeMap::new();
+    for action in corporate_actions(connection, symbols, HISTORY_START, as_of.exchange_date())? {
+        if let Some(since) = corporate_action_visible_at(action.ex_date, calendar)
+            .filter(|visible_at| action.kind.ends_listing() && *visible_at <= as_of)
+        {
+            started.insert(action.symbol, since);
+        }
+    }
+    Ok(started)
 }
 
 fn to_f64(value: Decimal) -> f64 {
@@ -385,51 +409,103 @@ fn adjustment_factors(
                     .is_some_and(|visible_at| visible_at <= as_of)
             })
             .collect();
-    let closes = if adjustment == Adjustment::All {
-        previous_closes(connection, calendar, &actions)?
-    } else {
-        BTreeMap::new()
-    };
     let mut factors: BTreeMap<Symbol, Vec<AdjustmentFactor>> = BTreeMap::new();
     for action in &actions {
-        let previous_close = closes
-            .get(&(action.symbol.clone(), action.ex_date))
-            .copied();
-        if let Some(factor) = AdjustmentFactor::for_action(action, adjustment, previous_close) {
+        if let Some(factor) = AdjustmentFactor::for_shares(action, adjustment) {
             factors
                 .entry(action.symbol.clone())
                 .or_default()
                 .push(factor);
         }
     }
+    if adjustment == Adjustment::All {
+        for (symbol, factor) in distribution_factors(connection, calendar, &actions, as_of)? {
+            factors.entry(symbol).or_default().push(factor);
+        }
+    }
     Ok(factors)
 }
 
-fn previous_closes(
+fn distribution_factors(
     connection: &Connection,
     calendar: &Calendar,
     actions: &[CorporateAction],
-) -> Result<BTreeMap<(Symbol, NaiveDate), Decimal>> {
-    let wanted: BTreeMap<(Symbol, NaiveDate), NaiveDate> = actions
+    as_of: Timestamp,
+) -> Result<Vec<(Symbol, AdjustmentFactor)>> {
+    let ex_session = |ex_date: NaiveDate| {
+        corporate_action_visible_at(ex_date, calendar)
+            .and_then(|open| calendar.session(open.exchange_date()))
+    };
+    let distributions: Vec<(&CorporateAction, NaiveDate)> = actions
         .iter()
-        .filter(|action| matches!(action.kind, CorporateActionKind::CashDividend { .. }))
+        .filter(|action| {
+            matches!(
+                action.kind,
+                CorporateActionKind::CashDividend { .. } | CorporateActionKind::SpinOff { .. }
+            ) && action.kind.has_valid_rates()
+        })
         .filter_map(|action| {
             calendar
                 .previous_before(action.ex_date)
-                .map(|session| ((action.symbol.clone(), session.date), action.ex_date))
+                .map(|previous| (action, previous.date))
         })
         .collect();
+    let mut wanted: BTreeSet<(Symbol, NaiveDate)> = BTreeSet::new();
+    for (action, previous) in &distributions {
+        wanted.insert((action.symbol.clone(), *previous));
+        if let CorporateActionKind::SpinOff { new_symbol, .. } = &action.kind
+            && let Some(session) = ex_session(action.ex_date)
+            && session.close <= as_of
+        {
+            wanted.insert((new_symbol.clone(), session.date));
+        }
+    }
+    let prices = daily_prices(connection, &wanted)?;
+    let mut values: BTreeMap<(Symbol, NaiveDate), (Decimal, NaiveDate)> = BTreeMap::new();
+    for (action, previous) in &distributions {
+        let value = match &action.kind {
+            CorporateActionKind::CashDividend { rate } => Some(*rate),
+            CorporateActionKind::SpinOff {
+                new_symbol,
+                old_rate,
+                new_rate,
+            } => ex_session(action.ex_date)
+                .and_then(|session| prices.get(&(new_symbol.clone(), session.date)))
+                .map(|(open, _)| *open * *new_rate / *old_rate),
+            _ => None,
+        };
+        if let Some(value) = value {
+            values
+                .entry((action.symbol.clone(), action.ex_date))
+                .or_insert((Decimal::ZERO, *previous))
+                .0 += value;
+        }
+    }
+    Ok(values
+        .into_iter()
+        .filter_map(|((symbol, ex_date), (value, previous))| {
+            let (_, close) = prices.get(&(symbol.clone(), previous))?;
+            AdjustmentFactor::for_distribution(ex_date, value, *close)
+                .map(|factor| (symbol, factor))
+        })
+        .collect())
+}
+
+fn daily_prices(
+    connection: &Connection,
+    wanted: &BTreeSet<(Symbol, NaiveDate)>,
+) -> Result<BTreeMap<(Symbol, NaiveDate), (Decimal, Decimal)>> {
     if wanted.is_empty() {
         return Ok(BTreeMap::new());
     }
     let sql = format!(
-        "SELECT b.symbol, b.date, b.close FROM bar_1d b \
+        "SELECT b.symbol, b.date, b.open, b.close FROM bar_1d b \
          JOIN (VALUES {}) AS wanted(symbol, date) \
          ON b.symbol = wanted.symbol AND b.date = wanted.date",
         vec!["(?, ?)"; wanted.len()].join(", ")
     );
     let params: Params = wanted
-        .keys()
+        .iter()
         .flat_map(|(symbol, date)| {
             [
                 Box::new(symbol.as_str().to_owned()) as Box<dyn ToSql>,
@@ -441,19 +517,12 @@ fn previous_closes(
     let rows = statement
         .query_map(params_from_iter(params.iter()), |row| {
             Ok((
-                row.get::<_, Sym>(0)?.0,
-                row.get::<_, NaiveDate>(1)?,
-                row.get::<_, Dec>(2)?.0,
+                (row.get::<_, Sym>(0)?.0, row.get::<_, NaiveDate>(1)?),
+                (row.get::<_, Dec>(2)?.0, row.get::<_, Dec>(3)?.0),
             ))
         })?
-        .collect::<duckdb::Result<Vec<_>>>()?;
-    Ok(rows
-        .into_iter()
-        .filter_map(|(symbol, date, close)| {
-            let ex_date = wanted.get(&(symbol.clone(), date))?;
-            Some(((symbol, *ex_date), close))
-        })
-        .collect())
+        .collect::<duckdb::Result<_>>()?;
+    Ok(rows)
 }
 
 pub(crate) fn corporate_actions(
@@ -465,37 +534,53 @@ pub(crate) fn corporate_actions(
     if symbols.is_empty() {
         return Ok(Vec::new());
     }
-    let sql = format!(
-        "SELECT symbol, ex_date, kind, old_rate, new_rate, rate FROM corporate_action \
-         WHERE symbol IN ({}) AND ex_date BETWEEN ? AND ? ORDER BY symbol, ex_date, kind",
-        placeholders(symbols.len())
-    );
     let mut params = symbol_params(symbols);
     params.push(Box::new(from));
     params.push(Box::new(to));
+    select_actions(
+        connection,
+        &format!(
+            "symbol IN ({}) AND ex_date BETWEEN ? AND ?",
+            placeholders(symbols.len())
+        ),
+        params,
+    )
+}
+
+pub(crate) fn actions_reaching_other_symbols(
+    connection: &Connection,
+) -> Result<Vec<CorporateAction>> {
+    select_actions(connection, "other_symbol <> ''", Params::new())
+}
+
+fn select_actions(
+    connection: &Connection,
+    condition: &str,
+    params: Params,
+) -> Result<Vec<CorporateAction>> {
+    let sql = format!(
+        "SELECT symbol, ex_date, kind, other_symbol, old_rate, new_rate, rate \
+         FROM corporate_action WHERE {condition} ORDER BY symbol, ex_date, kind, other_symbol"
+    );
     let mut statement = connection.prepare_cached(&sql)?;
     let rows = statement
         .query_map(params_from_iter(params.iter()), |row| {
-            Ok((
-                row.get::<_, Sym>(0)?.0,
-                row.get::<_, NaiveDate>(1)?,
-                row.get::<_, String>(2)?,
-                row.get::<_, Option<Dec>>(3)?.map(|rate| rate.0),
+            let kind = ActionColumns::parse(
+                &row.get::<_, String>(2)?,
+                &row.get::<_, String>(3)?,
                 row.get::<_, Option<Dec>>(4)?.map(|rate| rate.0),
                 row.get::<_, Option<Dec>>(5)?.map(|rate| rate.0),
-            ))
-        })?
-        .collect::<duckdb::Result<Vec<_>>>()?;
-    Ok(rows
-        .into_iter()
-        .filter_map(|(symbol, ex_date, kind, old_rate, new_rate, rate)| {
-            action_kind(&kind, old_rate, new_rate, rate).map(|kind| CorporateAction {
+                row.get::<_, Option<Dec>>(6)?.map(|rate| rate.0),
+            );
+            let (symbol, ex_date) = (row.get::<_, Sym>(0)?.0, row.get(1)?);
+            Ok(kind.map(|kind| CorporateAction {
                 symbol,
                 ex_date,
                 kind,
-            })
-        })
-        .collect())
+            }))
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    Ok(rows.into_iter().flatten().collect())
 }
 
 pub(crate) fn fundamentals(

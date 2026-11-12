@@ -200,6 +200,16 @@ class CorporateAction(msgspec.Struct, frozen=True, tag_field="type", tag="corpor
     ex_date: date
     kind: dict[str, Any]
 
+    @property
+    def share_ratio(self) -> Decimal | None:
+        match self.kind["type"]:
+            case "split":
+                return Decimal(self.kind["new_rate"]) / Decimal(self.kind["old_rate"])
+            case "stock_dividend":
+                return 1 + Decimal(self.kind["rate"])
+            case _:
+                return None
+
 
 type Event = Fill | OrderUpdate | CorporateAction
 

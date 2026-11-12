@@ -868,7 +868,7 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
     };
     assert_eq!(latest(UNKNOWN).await, FetchStatus::Rejected);
     assert_eq!(latest("MSFT").await, FetchStatus::Empty);
-    let action_starts: Vec<(String, String)> = fake
+    let action_starts: Vec<(String, String, bool)> = fake
         .action_requests
         .lock()
         .unwrap()
@@ -876,14 +876,16 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
         .filter(|params| !params.contains_key("page_token"))
         .map(|params| {
             let symbols = params.get("symbols").cloned().unwrap_or_default();
-            (symbols, params["start"].clone())
+            let renames = params["types"] == "name_change";
+            (symbols, params["start"].clone(), renames)
         })
         .collect();
     assert_eq!(
         action_starts,
         vec![
-            (String::new(), "2024-03-12".to_owned()),
-            ("BADX,MSFT".to_owned(), "2015-12-02".to_owned()),
+            (String::new(), "2024-03-12".to_owned(), true),
+            (String::new(), "2024-03-12".to_owned(), false),
+            ("BADX,MSFT".to_owned(), "2015-12-02".to_owned(), false),
         ]
     );
 

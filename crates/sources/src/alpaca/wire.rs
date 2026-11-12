@@ -134,13 +134,18 @@ pub struct ActionsPage {
 }
 
 #[derive(Default, Deserialize)]
+#[serde(default)]
 struct ActionLists {
-    #[serde(default)]
     forward_splits: Vec<WireSplit>,
-    #[serde(default)]
     reverse_splits: Vec<WireSplit>,
-    #[serde(default)]
-    cash_dividends: Vec<WireDividend>,
+    cash_dividends: Vec<WireRate>,
+    stock_dividends: Vec<WireRate>,
+    spin_offs: Vec<WireSpinOff>,
+    cash_mergers: Vec<WireCashMerger>,
+    stock_mergers: Vec<WireStockMerger>,
+    stock_and_cash_mergers: Vec<WireStockMerger>,
+    worthless_removals: Vec<WireRemoval>,
+    name_changes: Vec<WireNameChange>,
 }
 
 #[derive(Deserialize)]
@@ -154,11 +159,56 @@ struct WireSplit {
 }
 
 #[derive(Deserialize)]
-struct WireDividend {
+struct WireRate {
     symbol: String,
     ex_date: NaiveDate,
     #[serde(deserialize_with = "decimal")]
     rate: Decimal,
+}
+
+#[derive(Deserialize)]
+struct WireSpinOff {
+    source_symbol: String,
+    #[serde(deserialize_with = "decimal")]
+    source_rate: Decimal,
+    new_symbol: String,
+    #[serde(deserialize_with = "decimal")]
+    new_rate: Decimal,
+    ex_date: NaiveDate,
+}
+
+#[derive(Deserialize)]
+struct WireCashMerger {
+    acquiree_symbol: String,
+    #[serde(deserialize_with = "decimal")]
+    rate: Decimal,
+    effective_date: NaiveDate,
+}
+
+#[derive(Deserialize)]
+struct WireStockMerger {
+    acquirer_symbol: String,
+    #[serde(deserialize_with = "decimal")]
+    acquirer_rate: Decimal,
+    acquiree_symbol: String,
+    #[serde(deserialize_with = "decimal")]
+    acquiree_rate: Decimal,
+    #[serde(default, deserialize_with = "decimal")]
+    cash_rate: Decimal,
+    effective_date: NaiveDate,
+}
+
+#[derive(Deserialize)]
+struct WireRemoval {
+    symbol: String,
+    process_date: NaiveDate,
+}
+
+#[derive(Deserialize)]
+struct WireNameChange {
+    old_symbol: String,
+    new_symbol: String,
+    process_date: NaiveDate,
 }
 
 impl Paged for ActionsPage {
@@ -170,29 +220,70 @@ impl Paged for ActionsPage {
 impl ActionsPage {
     pub fn into_actions(self) -> Vec<CorporateAction> {
         let lists = self.corporate_actions;
-        let splits = lists
-            .forward_splits
-            .into_iter()
-            .chain(lists.reverse_splits)
-            .map(|split| CorporateAction {
-                symbol: Symbol::new(&split.symbol),
-                ex_date: split.ex_date,
-                kind: CorporateActionKind::Split {
+        let action = |symbol: &str, ex_date, kind| CorporateAction {
+            symbol: Symbol::new(symbol),
+            ex_date,
+            kind,
+        };
+        let mut actions = Vec::new();
+        for split in lists.forward_splits.into_iter().chain(lists.reverse_splits) {
+            actions.push(action(
+                &split.symbol,
+                split.ex_date,
+                CorporateActionKind::Split {
                     old_rate: split.old_rate,
                     new_rate: split.new_rate,
                 },
-            });
-        let dividends = lists
-            .cash_dividends
+            ));
+        }
+        for dividend in lists.cash_dividends {
+            let kind = CorporateActionKind::CashDividend {
+                rate: dividend.rate,
+            };
+            actions.push(action(&dividend.symbol, dividend.ex_date, kind));
+        }
+        for dividend in lists.stock_dividends {
+            let kind = CorporateActionKind::StockDividend {
+                rate: dividend.rate,
+            };
+            actions.push(action(&dividend.symbol, dividend.ex_date, kind));
+        }
+        for spin_off in lists.spin_offs {
+            let kind = CorporateActionKind::SpinOff {
+                new_symbol: Symbol::new(&spin_off.new_symbol),
+                old_rate: spin_off.source_rate,
+                new_rate: spin_off.new_rate,
+            };
+            actions.push(action(&spin_off.source_symbol, spin_off.ex_date, kind));
+        }
+        for merger in lists.cash_mergers {
+            let kind = CorporateActionKind::CashMerger { rate: merger.rate };
+            actions.push(action(&merger.acquiree_symbol, merger.effective_date, kind));
+        }
+        for merger in lists
+            .stock_mergers
             .into_iter()
-            .map(|dividend| CorporateAction {
-                symbol: Symbol::new(&dividend.symbol),
-                ex_date: dividend.ex_date,
-                kind: CorporateActionKind::CashDividend {
-                    rate: dividend.rate,
-                },
-            });
-        splits.chain(dividends).collect()
+            .chain(lists.stock_and_cash_mergers)
+        {
+            let kind = CorporateActionKind::StockMerger {
+                acquirer: Symbol::new(&merger.acquirer_symbol),
+                old_rate: merger.acquiree_rate,
+                new_rate: merger.acquirer_rate,
+                cash_rate: merger.cash_rate,
+            };
+            actions.push(action(&merger.acquiree_symbol, merger.effective_date, kind));
+        }
+        for removal in lists.worthless_removals {
+            let kind = CorporateActionKind::WorthlessRemoval;
+            actions.push(action(&removal.symbol, removal.process_date, kind));
+        }
+        for change in lists.name_changes {
+            let kind = CorporateActionKind::NameChange {
+                new_symbol: Symbol::new(&change.new_symbol),
+            };
+            actions.push(action(&change.old_symbol, change.process_date, kind));
+        }
+        actions
     }
 }
 

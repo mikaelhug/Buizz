@@ -19,7 +19,7 @@ use chrono::{Datelike, NaiveDate, TimeDelta};
 use rust_decimal::{Decimal, RoundingStrategy};
 use serde::{Deserialize, Serialize};
 
-pub const ENGINE_VERSION: u32 = 6;
+pub const ENGINE_VERSION: u32 = 7;
 
 #[derive(Debug, thiserror::Error)]
 pub enum EngineError {
@@ -61,6 +61,24 @@ fn locked_on_close(order: &Order, session: &Session, at: Timestamp) -> bool {
         && order.session == Some(session.date)
         && at > session.close - TimeDelta::minutes(MOC_CUTOFF_MINUTES)
         && at < session.close
+}
+
+struct Terms<'a> {
+    delivered: Option<(&'a Symbol, Decimal, Decimal)>,
+    cash_rate: Decimal,
+}
+
+fn action_name(kind: &CorporateActionKind) -> &'static str {
+    match kind {
+        CorporateActionKind::Split { .. } => "split",
+        CorporateActionKind::CashDividend { .. } => "cash dividend",
+        CorporateActionKind::StockDividend { .. } => "stock dividend",
+        CorporateActionKind::SpinOff { .. } => "spin-off",
+        CorporateActionKind::CashMerger { .. } => "cash merger",
+        CorporateActionKind::StockMerger { .. } => "stock merger",
+        CorporateActionKind::WorthlessRemoval => "worthless removal",
+        CorporateActionKind::NameChange { .. } => "name change",
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -400,35 +418,126 @@ impl Engine {
 
     fn apply_actions(&mut self, cycle: &Cycle<'_>) {
         for action in cycle.actions {
-            if let CorporateActionKind::Split { old_rate, new_rate } = action.kind
-                && (old_rate <= Decimal::ZERO || new_rate <= Decimal::ZERO)
-            {
+            if !action.kind.has_valid_rates() {
                 self.outbox.warnings.push(format!(
-                    "the {} split on {} has a rate of {old_rate} for {new_rate} and was not applied",
-                    action.symbol, action.ex_date
+                    "the {} {} on {} has rates that are not positive and was not applied",
+                    action.symbol,
+                    action_name(&action.kind),
+                    action.ex_date
                 ));
                 continue;
             }
             self.outbox
                 .step_events
                 .push(StepEvent::CorporateAction(action.clone()));
-            let held = self.state.portfolio.qty(&action.symbol);
-            match action.kind {
-                CorporateActionKind::CashDividend { rate } if held != 0 => self.post(
-                    cycle.start,
-                    LedgerKind::Dividend {
-                        symbol: action.symbol.clone(),
-                        qty: held,
-                        rate,
-                        amount: round_cash(Decimal::from(held) * rate),
-                    },
-                ),
-                CorporateActionKind::CashDividend { .. } => {}
-                CorporateActionKind::Split { old_rate, new_rate } => {
-                    self.split(cycle.start, &action.symbol, old_rate, new_rate);
-                }
+            if let Some((old_rate, new_rate)) = action.kind.share_ratio() {
+                self.split(cycle.start, &action.symbol, old_rate, new_rate);
+                continue;
             }
+            let closes = action.kind.ends_listing()
+                && !matches!(action.kind, CorporateActionKind::NameChange { .. });
+            if closes {
+                self.close_where(cycle.start, OrderStatus::Cancelled, |order| {
+                    order.symbol == action.symbol
+                });
+                self.state.last_close.remove(&action.symbol);
+            }
+            let held = self.state.portfolio.qty(&action.symbol);
+            if held == 0 {
+                continue;
+            }
+            let terms = match &action.kind {
+                CorporateActionKind::CashDividend { rate } => {
+                    self.post(
+                        cycle.start,
+                        LedgerKind::Dividend {
+                            symbol: action.symbol.clone(),
+                            qty: held,
+                            rate: *rate,
+                            amount: round_cash(Decimal::from(held) * *rate),
+                        },
+                    );
+                    continue;
+                }
+                CorporateActionKind::SpinOff {
+                    new_symbol,
+                    old_rate,
+                    new_rate,
+                } => Terms {
+                    delivered: Some((new_symbol, *old_rate, *new_rate)),
+                    cash_rate: Decimal::ZERO,
+                },
+                CorporateActionKind::StockMerger {
+                    acquirer,
+                    old_rate,
+                    new_rate,
+                    cash_rate,
+                } => Terms {
+                    delivered: Some((acquirer, *old_rate, *new_rate)),
+                    cash_rate: *cash_rate,
+                },
+                CorporateActionKind::CashMerger { rate } => Terms {
+                    delivered: None,
+                    cash_rate: *rate,
+                },
+                CorporateActionKind::WorthlessRemoval => Terms {
+                    delivered: None,
+                    cash_rate: Decimal::ZERO,
+                },
+                CorporateActionKind::Split { .. }
+                | CorporateActionKind::StockDividend { .. }
+                | CorporateActionKind::NameChange { .. } => continue,
+            };
+            self.reorganize(cycle, action, held, if closes { 0 } else { held }, terms);
         }
+    }
+
+    fn reorganize(
+        &mut self,
+        cycle: &Cycle<'_>,
+        action: &CorporateAction,
+        held: i64,
+        kept: i64,
+        terms: Terms<'_>,
+    ) {
+        let mut cash = Decimal::from(held) * terms.cash_rate;
+        let (mut new_symbol, mut new_qty, mut price) = (None, 0, Decimal::ZERO);
+        if let Some((symbol, old_rate, new_rate)) = terms.delivered {
+            let (whole, fraction) = split_qty(held, old_rate, new_rate);
+            let open = cycle
+                .bars
+                .iter()
+                .find(|bar| bar.symbol == *symbol)
+                .map(|bar| bar.open)
+                .or_else(|| self.state.last_close.get(symbol).copied());
+            match open {
+                Some(open) => {
+                    price = round_price(open);
+                    self.state.last_close.insert(symbol.clone(), price);
+                }
+                None => self.outbox.warnings.push(format!(
+                    "{symbol} has no price at the open of {}, so the {whole} shares of it from the {} {} are held at no cost and their fraction is paid nothing",
+                    cycle.session.date,
+                    action.symbol,
+                    action_name(&action.kind)
+                )),
+            }
+            cash += fraction * price;
+            new_symbol = Some(symbol.clone());
+            new_qty = whole;
+        }
+        self.post(
+            cycle.start,
+            LedgerKind::Reorganization {
+                symbol: action.symbol.clone(),
+                qty_before: held,
+                qty_after: kept,
+                new_symbol,
+                new_qty,
+                price,
+                cash: round_cash(cash),
+            },
+        );
     }
 
     fn split(&mut self, at: Timestamp, symbol: &Symbol, old_rate: Decimal, new_rate: Decimal) {
@@ -1251,6 +1360,121 @@ mod tests {
         assert_eq!(expired.status, OrderStatus::Expired);
         assert_eq!(expired.qty, 10);
         assert_eq!(expired.order_type, limit);
+    }
+
+    fn hold_through(kind: CorporateActionKind) -> (Engine, Decimal, Outbox) {
+        let (first, second, third) = (session(20), session(21), session(22));
+        let mut engine = Engine::new(&config("100000", "0"), first.open);
+        step(
+            &mut engine,
+            &first,
+            &[bar(&first, "100", "99", "100")],
+            &[("AAA", 1_000_000)],
+        );
+        submit(&mut engine, &first, vec![buy("AAA-1", 101)]);
+        step(
+            &mut engine,
+            &second,
+            &[bar(&second, "100", "99", "100")],
+            &[("AAA", 1_000_000)],
+        );
+        let limit = OrderType::Limit {
+            limit_price: Decimal::from(90),
+        };
+        submit(
+            &mut engine,
+            &second,
+            vec![order("AAA-2", OrderSize::Qty { qty: -101 }, limit)],
+        );
+        engine.drain();
+        let cash = engine.portfolio().cash;
+        let action = CorporateAction {
+            symbol: Symbol::new("AAA"),
+            ex_date: third.date,
+            kind,
+        };
+        let delivered = Bar {
+            symbol: Symbol::new("BBB"),
+            ..bar(&third, "30", "29", "31")
+        };
+        engine.run_cycle(&Cycle {
+            session: &third,
+            start: third.open,
+            visible_at: third.close,
+            bars: &[bar(&third, "60", "59", "60"), delivered],
+            official: &[],
+            actions: &[action],
+            average_daily_volume: &BTreeMap::new(),
+            delisted: &[],
+            risk_free_rate: None,
+        });
+        let outbox = engine.drain();
+        (engine, cash, outbox)
+    }
+
+    #[test]
+    fn corporate_actions_settle_held_shares_on_their_terms() {
+        let dec = |text: &str| text.parse::<Decimal>().unwrap();
+        let (aaa, bbb) = (Symbol::new("AAA"), Symbol::new("BBB"));
+
+        let (engine, cash, _) =
+            hold_through(CorporateActionKind::StockDividend { rate: dec("0.05") });
+        assert_eq!(engine.portfolio().qty(&aaa), 106, "101 × 1.05 = 106.05");
+        assert_eq!(
+            engine.portfolio().cash - cash,
+            dec("4.76"),
+            "0.05 × 100 / 1.05"
+        );
+
+        let (engine, cash, _) = hold_through(CorporateActionKind::SpinOff {
+            new_symbol: bbb.clone(),
+            old_rate: dec("3"),
+            new_rate: dec("2"),
+        });
+        let portfolio = engine.portfolio();
+        assert_eq!(portfolio.qty(&aaa), 101);
+        assert_eq!(portfolio.qty(&bbb), 67, "101 × 2 / 3 = 67.33");
+        assert_eq!(
+            portfolio.cash - cash,
+            dec("10.00"),
+            "0.33 × 30 at BBB's open"
+        );
+        assert_eq!(portfolio.positions[&bbb].cost_basis, dec("2010"), "67 × 30");
+        assert_eq!(
+            portfolio.equity(),
+            cash + dec("10.00") + Decimal::from(101 * 60 + 67 * 31)
+        );
+
+        let (engine, cash, outbox) =
+            hold_through(CorporateActionKind::CashMerger { rate: dec("125") });
+        assert_eq!(engine.portfolio().qty(&aaa), 0);
+        assert_eq!(engine.portfolio().cash - cash, dec("12625.00"));
+        assert!(
+            outbox
+                .orders
+                .iter()
+                .any(|order| order.client_id == "AAA-2" && order.status == OrderStatus::Cancelled),
+            "a working order for the acquired company is cancelled"
+        );
+
+        let (engine, cash, _) = hold_through(CorporateActionKind::StockMerger {
+            acquirer: bbb.clone(),
+            old_rate: dec("1"),
+            new_rate: dec("0.5"),
+            cash_rate: dec("10"),
+        });
+        assert_eq!(engine.portfolio().qty(&aaa), 0);
+        assert_eq!(engine.portfolio().qty(&bbb), 50, "101 × 0.5 = 50.5");
+        assert_eq!(
+            engine.portfolio().cash - cash,
+            dec("1025.00"),
+            "101 × 10 + 0.5 × 30"
+        );
+
+        let (engine, cash, _) = hold_through(CorporateActionKind::WorthlessRemoval);
+        assert_eq!(engine.portfolio().qty(&aaa), 0);
+        assert_eq!(engine.portfolio().cash, cash);
+        assert_eq!(engine.portfolio().equity(), cash);
     }
 
     #[test]

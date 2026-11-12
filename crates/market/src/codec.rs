@@ -94,42 +94,108 @@ pub(crate) fn feed_name(feed: Feed) -> &'static str {
     }
 }
 
+#[derive(Default)]
 pub(crate) struct ActionColumns {
     pub kind: &'static str,
-    pub old_rate: Option<Dec>,
-    pub new_rate: Option<Dec>,
-    pub rate: Option<Dec>,
+    pub other_symbol: String,
+    pub old_rate: Option<Decimal>,
+    pub new_rate: Option<Decimal>,
+    pub rate: Option<Decimal>,
 }
 
-pub(crate) fn action_columns(kind: &CorporateActionKind) -> ActionColumns {
-    match kind {
-        CorporateActionKind::Split { old_rate, new_rate } => ActionColumns {
-            kind: "split",
-            old_rate: Some(Dec(*old_rate)),
-            new_rate: Some(Dec(*new_rate)),
-            rate: None,
-        },
-        CorporateActionKind::CashDividend { rate } => ActionColumns {
-            kind: "cash_dividend",
-            old_rate: None,
-            new_rate: None,
-            rate: Some(Dec(*rate)),
-        },
-    }
-}
-
-pub(crate) fn action_kind(
-    kind: &str,
-    old_rate: Option<Decimal>,
-    new_rate: Option<Decimal>,
-    rate: Option<Decimal>,
-) -> Option<CorporateActionKind> {
-    match (kind, old_rate, new_rate, rate) {
-        ("split", Some(old_rate), Some(new_rate), _) => {
-            Some(CorporateActionKind::Split { old_rate, new_rate })
+impl ActionColumns {
+    pub(crate) fn of(kind: &CorporateActionKind) -> Self {
+        let other = |symbol: &Symbol| symbol.as_str().to_owned();
+        match kind {
+            CorporateActionKind::Split { old_rate, new_rate } => Self {
+                kind: "split",
+                old_rate: Some(*old_rate),
+                new_rate: Some(*new_rate),
+                ..Self::default()
+            },
+            CorporateActionKind::CashDividend { rate } => Self {
+                kind: "cash_dividend",
+                rate: Some(*rate),
+                ..Self::default()
+            },
+            CorporateActionKind::StockDividend { rate } => Self {
+                kind: "stock_dividend",
+                rate: Some(*rate),
+                ..Self::default()
+            },
+            CorporateActionKind::SpinOff {
+                new_symbol,
+                old_rate,
+                new_rate,
+            } => Self {
+                kind: "spin_off",
+                other_symbol: other(new_symbol),
+                old_rate: Some(*old_rate),
+                new_rate: Some(*new_rate),
+                rate: None,
+            },
+            CorporateActionKind::CashMerger { rate } => Self {
+                kind: "cash_merger",
+                rate: Some(*rate),
+                ..Self::default()
+            },
+            CorporateActionKind::StockMerger {
+                acquirer,
+                old_rate,
+                new_rate,
+                cash_rate,
+            } => Self {
+                kind: "stock_merger",
+                other_symbol: other(acquirer),
+                old_rate: Some(*old_rate),
+                new_rate: Some(*new_rate),
+                rate: Some(*cash_rate),
+            },
+            CorporateActionKind::WorthlessRemoval => Self {
+                kind: "worthless_removal",
+                ..Self::default()
+            },
+            CorporateActionKind::NameChange { new_symbol } => Self {
+                kind: "name_change",
+                other_symbol: other(new_symbol),
+                ..Self::default()
+            },
         }
-        ("cash_dividend", _, _, Some(rate)) => Some(CorporateActionKind::CashDividend { rate }),
-        _ => None,
+    }
+
+    pub(crate) fn parse(
+        kind: &str,
+        other_symbol: &str,
+        old_rate: Option<Decimal>,
+        new_rate: Option<Decimal>,
+        rate: Option<Decimal>,
+    ) -> Option<CorporateActionKind> {
+        let other = || (!other_symbol.is_empty()).then(|| Symbol::new(other_symbol));
+        Some(match kind {
+            "split" => CorporateActionKind::Split {
+                old_rate: old_rate?,
+                new_rate: new_rate?,
+            },
+            "cash_dividend" => CorporateActionKind::CashDividend { rate: rate? },
+            "stock_dividend" => CorporateActionKind::StockDividend { rate: rate? },
+            "spin_off" => CorporateActionKind::SpinOff {
+                new_symbol: other()?,
+                old_rate: old_rate?,
+                new_rate: new_rate?,
+            },
+            "cash_merger" => CorporateActionKind::CashMerger { rate: rate? },
+            "stock_merger" => CorporateActionKind::StockMerger {
+                acquirer: other()?,
+                old_rate: old_rate?,
+                new_rate: new_rate?,
+                cash_rate: rate?,
+            },
+            "worthless_removal" => CorporateActionKind::WorthlessRemoval,
+            "name_change" => CorporateActionKind::NameChange {
+                new_symbol: other()?,
+            },
+            _ => return None,
+        })
     }
 }
 

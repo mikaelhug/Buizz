@@ -56,13 +56,14 @@ CREATE TABLE IF NOT EXISTS bar_1m (
 CREATE TABLE IF NOT EXISTS corporate_action (
     symbol VARCHAR NOT NULL,
     ex_date DATE NOT NULL,
-    kind VARCHAR NOT NULL CHECK (kind IN ('split', 'cash_dividend')),
+    kind VARCHAR NOT NULL CHECK (kind IN ('split', 'cash_dividend', 'stock_dividend', 'spin_off', 'cash_merger', 'stock_merger', 'worthless_removal', 'name_change')),
+    other_symbol VARCHAR NOT NULL DEFAULT '',
     old_rate DECIMAL(18, 8),
     new_rate DECIMAL(18, 8),
     rate DECIMAL(18, 8),
     source VARCHAR NOT NULL,
     batch_id BIGINT NOT NULL,
-    PRIMARY KEY (symbol, ex_date, kind)
+    PRIMARY KEY (symbol, ex_date, kind, other_symbol)
 );
 
 CREATE TABLE IF NOT EXISTS fundamental_fact (
@@ -163,6 +164,7 @@ CREATE TABLE instrument_revision AS SELECT *, CAST(NULL AS BIGINT) AS superseded
 CREATE TABLE calendar_revision AS SELECT *, CAST(NULL AS BIGINT) AS superseded_by FROM calendar LIMIT 0;
 CREATE TABLE bar_1d_revision AS SELECT *, CAST(NULL AS BIGINT) AS superseded_by FROM bar_1d LIMIT 0;
 CREATE TABLE corporate_action_revision AS SELECT *, CAST(NULL AS BIGINT) AS superseded_by FROM corporate_action LIMIT 0;
+ALTER TABLE corporate_action_revision ALTER COLUMN other_symbol SET DEFAULT '';
 CREATE TABLE rate_daily_revision AS SELECT *, CAST(NULL AS BIGINT) AS superseded_by FROM rate_daily LIMIT 0;
 CREATE TABLE macro_observation_revision AS SELECT *, CAST(NULL AS BIGINT) AS superseded_by FROM macro_observation LIMIT 0;
 CREATE TABLE company_revision AS SELECT *, CAST(NULL AS BIGINT) AS superseded_by FROM company LIMIT 0;

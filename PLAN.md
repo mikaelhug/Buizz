@@ -17,7 +17,7 @@ Waves 0–3 are merged: every crate, the SDK, the web UI, six example bots, the 
   - `visible_at`: 1m bar = bar start + 60s; daily bar = session close; fundamentals = next session open after the SEC `filed` date.
   - Per-bar cycle in the engine: at bar start, order expiry → corporate actions → fills (opening auction, then at the open or on touch, then the closing auction); at the bar's `visible_at`, mark → risk limits → wake bot → accept orders. Bar N's cycle completes before bar N+1's, so an order decided on bar N fills at bar N+1 open.
   - Whole shares only (signed); splits pay cash in lieu. A target-weight order resolving to zero shares is recorded as rejected `zero_quantity`.
-  - Fills use raw prices; splits and dividends hit positions on the ex-date. Bots may ask for back-adjusted history, computed only from actions known at the clock.
+  - Fills use raw prices; splits, dividends, spin-offs, mergers and worthless removals hit positions on their ex or effective date. Bots may ask for back-adjusted history, computed only from actions known at the clock.
 - **Deterministic:** no wall clock in the engine, seeded, ordered maps, `result_hash` per run. Same inputs → same hash.
 - **Money:** `rust_decimal` in the ledger, strings on the wire, UTC everywhere. Bars reach bots as f64 columnar buffers; floats never enter the ledger.
 

@@ -237,10 +237,7 @@ impl OpenTrip {
 pub fn round_trips(ledger: &[LedgerEntry]) -> Vec<RoundTrip> {
     let mut open: HashMap<&Symbol, OpenTrip> = HashMap::new();
     let mut closed = Vec::new();
-    for entry in ledger {
-        let Some(symbol) = entry.kind.symbol() else {
-            continue;
-        };
+    for (entry, symbol, change, cash) in ledger.iter().flat_map(legs) {
         let order = match &entry.kind {
             LedgerKind::Fill { order_id, .. } => Some(*order_id),
             _ => None,
@@ -248,12 +245,10 @@ pub fn round_trips(ledger: &[LedgerEntry]) -> Vec<RoundTrip> {
         let trip = open
             .entry(symbol)
             .or_insert_with(|| OpenTrip::new(0, Decimal::ZERO, entry.at, order));
-        let cash = entry.kind.cash_delta();
         let before = trip.qty;
-        let after = match &entry.kind {
-            LedgerKind::Fill { qty, .. } | LedgerKind::Liquidation { qty, .. } => before + qty,
-            LedgerKind::Split { qty_after, .. } => *qty_after,
-            _ => before,
+        let after = match change {
+            QtyChange::By(qty) => before + qty,
+            QtyChange::To(qty) => qty,
         };
         if before.signum() * after.signum() < 0 {
             let closing =
@@ -279,6 +274,42 @@ pub fn round_trips(ledger: &[LedgerEntry]) -> Vec<RoundTrip> {
         }
     }
     closed
+}
+
+enum QtyChange {
+    By(i64),
+    To(i64),
+}
+
+fn legs(entry: &LedgerEntry) -> Vec<(&LedgerEntry, &Symbol, QtyChange, Decimal)> {
+    let cash = entry.kind.cash_delta();
+    match &entry.kind {
+        LedgerKind::Deposit { .. } | LedgerKind::Financing { .. } => Vec::new(),
+        LedgerKind::Fill { symbol, qty, .. } | LedgerKind::Liquidation { symbol, qty, .. } => {
+            vec![(entry, symbol, QtyChange::By(*qty), cash)]
+        }
+        LedgerKind::Split {
+            symbol, qty_after, ..
+        } => vec![(entry, symbol, QtyChange::To(*qty_after), cash)],
+        LedgerKind::Reorganization {
+            symbol,
+            qty_after,
+            new_symbol,
+            new_qty,
+            price,
+            ..
+        } => {
+            let transferred = Decimal::from(*new_qty) * *price;
+            let mut legs = vec![(entry, symbol, QtyChange::To(*qty_after), cash + transferred)];
+            if let Some(new_symbol) = new_symbol {
+                legs.push((entry, new_symbol, QtyChange::By(*new_qty), -transferred));
+            }
+            legs
+        }
+        LedgerKind::Dividend { symbol, .. } | LedgerKind::BorrowFee { symbol, .. } => {
+            vec![(entry, symbol, QtyChange::By(0), cash)]
+        }
+    }
 }
 
 fn win_rate(trips: &[RoundTrip]) -> Option<f64> {

@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use buizz_core::market::{
-    Adjustment, CorporateAction, CorporateActionKind, DataSource, FundamentalFact,
+    Adjustment, Bar, CorporateAction, CorporateActionKind, DataSource, Feed, FundamentalFact,
     FundamentalMetric, InsiderFiling, InsiderOwner, InsiderTransaction, NewsArticle, PeriodType,
     Session, Symbol, Timeframe,
 };
@@ -646,4 +646,123 @@ async fn news_keeps_every_version_and_shows_each_from_when_it_was_known() {
         [("2026-11-05T20:41:12Z".to_owned(), false)]
     );
     assert_eq!(versions("2026-11-05T22:10:00Z").await.len(), 3);
+}
+
+#[tokio::test]
+async fn reorganizations_adjust_history_once_priced_and_a_reused_ticker_starts_afresh() {
+    let (_dir, store) = november_2026().await;
+    let daily = |symbol: &str, date: &str, open: i64, close: i64| Bar {
+        symbol: Symbol::new(symbol),
+        start: format!("{date}T14:30:00Z").parse().unwrap(),
+        open: Decimal::from(open),
+        high: Decimal::from(open.max(close)),
+        low: Decimal::from(open.min(close)),
+        close: Decimal::from(close),
+        volume: 1_000,
+        feed: Feed::Sip,
+    };
+    let bars = vec![
+        daily("AAA", "2026-11-02", 100, 100),
+        daily("AAA", "2026-11-03", 100, 100),
+        daily("AAA", "2026-11-04", 90, 90),
+        daily("AAA", "2026-11-05", 90, 90),
+        daily("AAA", "2026-11-06", 72, 72),
+        daily("BBB", "2026-11-04", 20, 20),
+        daily("CCC", "2026-11-02", 50, 50),
+        daily("CCC", "2026-11-03", 50, 50),
+        daily("CCC", "2026-11-09", 5, 5),
+        daily("CCC", "2026-11-10", 5, 5),
+    ];
+    store
+        .upsert_bars(DataSource::Fixture, Timeframe::Day, bars)
+        .await
+        .unwrap();
+    let action = |symbol: &str, date: &str, kind| CorporateAction {
+        symbol: Symbol::new(symbol),
+        ex_date: date.parse().unwrap(),
+        kind,
+    };
+    let actions = vec![
+        action(
+            "AAA",
+            "2026-11-04",
+            CorporateActionKind::SpinOff {
+                new_symbol: Symbol::new("BBB"),
+                old_rate: Decimal::TWO,
+                new_rate: Decimal::ONE,
+            },
+        ),
+        action(
+            "AAA",
+            "2026-11-06",
+            CorporateActionKind::StockDividend {
+                rate: "0.25".parse().unwrap(),
+            },
+        ),
+        action(
+            "CCC",
+            "2026-11-04",
+            CorporateActionKind::CashMerger {
+                rate: Decimal::from(51),
+            },
+        ),
+    ];
+    let window = ActionWindow {
+        symbols: vec![Symbol::new("AAA"), Symbol::new("CCC")],
+        from: "2026-11-02".parse().unwrap(),
+        through: "2026-11-13".parse().unwrap(),
+        covered_to: None,
+    };
+    store
+        .replace_corporate_actions(DataSource::Fixture, actions, window)
+        .await
+        .unwrap();
+    let closes = |symbol: &'static str, adjust, clock: &'static str| {
+        let store = store.clone();
+        async move {
+            history(
+                &store,
+                &[symbol],
+                Timeframe::Day,
+                10,
+                adjust,
+                clock.parse().unwrap(),
+            )
+            .await
+            .iter()
+            .map(|row| row.close)
+            .collect::<Vec<_>>()
+        }
+    };
+
+    assert_close(
+        &closes("AAA", Adjustment::All, "2026-11-04T15:00:00Z").await,
+        &[100.0, 100.0],
+        1e-9,
+        "the spun-off shares have no price until their first session closes",
+    );
+    assert_close(
+        &closes("AAA", Adjustment::All, "2026-11-04T21:00:00Z").await,
+        &[90.0, 90.0, 90.0],
+        1e-9,
+        "half a BBB at its 20 open is 10 of the 100 close: 1 - 10/100",
+    );
+    assert_close(
+        &closes("AAA", Adjustment::Split, "2026-11-06T21:00:00Z").await,
+        &[80.0, 80.0, 72.0, 72.0, 72.0],
+        1e-9,
+        "a 25% stock dividend divides earlier prices by 1.25, a spin-off is no split",
+    );
+    assert_close(
+        &closes("CCC", Adjustment::Raw, "2026-11-03T21:00:00Z").await,
+        &[50.0, 50.0],
+        1e-9,
+        "the acquired company's history while it traded",
+    );
+    assert_close(
+        &closes("CCC", Adjustment::Raw, "2026-11-10T21:00:00Z").await,
+        &[5.0, 5.0],
+        1e-9,
+        "the listing that later reuses the ticker starts after the merger",
+    );
 }

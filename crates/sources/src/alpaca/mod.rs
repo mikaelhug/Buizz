@@ -30,6 +30,8 @@ pub use buizz_core::market::ALPACA_HISTORY_START as HISTORY_START;
 pub const MAX_PAGE_LIMIT: u32 = 10_000;
 pub const ACTIONS_PAGE_LIMIT: u32 = 1_000;
 pub const ACTIONS_SYMBOLS_PER_REQUEST: usize = 100;
+const ACTION_TYPES: &str = "forward_split,reverse_split,cash_dividend,stock_dividend,spin_off,\
+    cash_merger,stock_merger,stock_and_cash_merger,worthless_removal,name_change";
 pub const NEWS_PAGE_LIMIT: u32 = 50;
 pub const NEWS_HISTORY_START: NaiveDate = NaiveDate::from_ymd_opt(2015, 1, 1).expect("valid date");
 
@@ -236,7 +238,10 @@ impl AlpacaClient {
     ) -> Result<Vec<CorporateAction>, SourceError> {
         let mut actions = Vec::new();
         for chunk in symbols.chunks(ACTIONS_SYMBOLS_PER_REQUEST) {
-            actions.extend(self.actions(Some(join_symbols(chunk)), from, to).await?);
+            actions.extend(
+                self.actions(Some(join_symbols(chunk)), ACTION_TYPES, from, to)
+                    .await?,
+            );
         }
         Ok(sum_dividends_per_ex_date(actions))
     }
@@ -247,22 +252,28 @@ impl AlpacaClient {
         to: NaiveDate,
     ) -> Result<Vec<CorporateAction>, SourceError> {
         Ok(sum_dividends_per_ex_date(
-            self.actions(None, from, to).await?,
+            self.actions(None, ACTION_TYPES, from, to).await?,
         ))
+    }
+
+    pub async fn name_changes(
+        &self,
+        from: NaiveDate,
+        to: NaiveDate,
+    ) -> Result<Vec<CorporateAction>, SourceError> {
+        self.actions(None, "name_change", from, to).await
     }
 
     async fn actions(
         &self,
         symbols: Option<String>,
+        types: &str,
         from: NaiveDate,
         to: NaiveDate,
     ) -> Result<Vec<CorporateAction>, SourceError> {
         let url = format!("{}/v1/corporate-actions", self.config.data_url);
         let mut query = vec![
-            (
-                "types",
-                "forward_split,reverse_split,cash_dividend".to_owned(),
-            ),
+            ("types", types.to_owned()),
             ("start", from.to_string()),
             ("end", to.to_string()),
             ("limit", ACTIONS_PAGE_LIMIT.to_string()),
@@ -327,7 +338,7 @@ fn sum_dividends_per_ex_date(actions: Vec<CorporateAction>) -> Vec<CorporateActi
                     .entry((action.symbol, action.ex_date))
                     .or_default() += rate;
             }
-            CorporateActionKind::Split { .. } => merged.push(action),
+            _ => merged.push(action),
         }
     }
     merged.extend(

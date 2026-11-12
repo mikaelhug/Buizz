@@ -44,6 +44,15 @@ pub enum LedgerKind {
         qty_after: i64,
         cash_in_lieu: Decimal,
     },
+    Reorganization {
+        symbol: Symbol,
+        qty_before: i64,
+        qty_after: i64,
+        new_symbol: Option<Symbol>,
+        new_qty: i64,
+        price: Decimal,
+        cash: Decimal,
+    },
     BorrowFee {
         symbol: Symbol,
         qty: i64,
@@ -68,6 +77,7 @@ impl LedgerKind {
             Self::Fill { symbol, .. }
             | Self::Dividend { symbol, .. }
             | Self::Split { symbol, .. }
+            | Self::Reorganization { symbol, .. }
             | Self::BorrowFee { symbol, .. }
             | Self::Liquidation { symbol, .. } => Some(symbol),
         }
@@ -84,6 +94,7 @@ impl LedgerKind {
             } => -round_cash(Decimal::from(*qty) * *price) - *commission,
             Self::Dividend { amount, .. } => *amount,
             Self::Split { cash_in_lieu, .. } => *cash_in_lieu,
+            Self::Reorganization { cash, .. } => *cash,
             Self::BorrowFee { amount, .. } | Self::Financing { amount, .. } => -*amount,
             Self::Liquidation { qty, price, .. } => -round_cash(Decimal::from(*qty) * *price),
         }
@@ -199,6 +210,33 @@ impl Portfolio {
                 }
                 position.qty = *qty_after;
                 position.last_price = round_price(position.last_price * *old_rate / *new_rate);
+            }
+            LedgerKind::Reorganization {
+                symbol,
+                qty_before,
+                qty_after,
+                new_symbol,
+                new_qty,
+                price,
+                cash,
+            } => {
+                let transferred = Decimal::from(*new_qty) * *price;
+                let position = self.positions.entry(symbol.clone()).or_default();
+                if *qty_after == 0 {
+                    position.realized_pnl += *cash + transferred - position.cost_basis;
+                    position.cost_basis = Decimal::ZERO;
+                } else if *qty_before != 0 {
+                    position.cost_basis -= transferred;
+                    position.realized_pnl += *cash;
+                }
+                position.qty = *qty_after;
+                if let Some(new_symbol) = new_symbol
+                    && *new_qty != 0
+                {
+                    let received = self.positions.entry(new_symbol.clone()).or_default();
+                    received.trade(*new_qty, *price);
+                    received.last_price = *price;
+                }
             }
         }
         self.positions

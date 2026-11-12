@@ -1,5 +1,4 @@
 from collections import Counter
-from decimal import Decimal
 from typing import Any, Literal, TypedDict
 
 import numpy as np
@@ -178,8 +177,8 @@ class DonchianBreakout(Bot):
         placed: dict[str, Placed] = ctx.state.get("placed", {})
         fills: dict[str, list[Fill]] = {}
         for event in ctx.events:
-            if isinstance(event, CorporateAction) and event.kind.get("type") == "split" and event.symbol in trades:
-                ratio = float(Decimal(event.kind["new_rate"]) / Decimal(event.kind["old_rate"]))
+            if isinstance(event, CorporateAction) and event.share_ratio is not None and event.symbol in trades:
+                ratio = float(event.share_ratio)
                 split(trades[event.symbol], ratio)
                 for order in placed.values():
                     if order["symbol"] == event.symbol and order["kind"] == "unit":

@@ -47,8 +47,15 @@ impl Fetched {
         let tracked = &self.tracked;
         self.actions
             .retain(|action| tracked.contains(&action.symbol));
+        let delivered: Vec<Symbol> = self
+            .actions
+            .iter()
+            .filter(|action| held.contains(&action.symbol))
+            .filter_map(|action| action.kind.delivered().cloned())
+            .collect();
         self.average_daily_volume
             .retain(|symbol, _| tracked.contains(symbol));
+        self.tracked.extend(delivered);
     }
 }
 

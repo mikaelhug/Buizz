@@ -263,11 +263,58 @@ async fn alpaca_client_pages_filters_and_normalizes_against_fixtures() {
         )
         .await
         .unwrap();
-    assert_eq!(actions.len(), 4);
+    assert_eq!(actions.len(), 10);
     let kinds: Vec<_> = actions
         .iter()
         .map(|a| (a.symbol.as_str(), a.ex_date, a.kind.clone()))
         .collect();
+    for expected in [
+        (
+            "UA",
+            "2024-05-20",
+            CorporateActionKind::StockDividend { rate: decimal("1") },
+        ),
+        (
+            "UTX",
+            "2024-06-03",
+            CorporateActionKind::SpinOff {
+                new_symbol: Symbol::new("OTIS"),
+                old_rate: decimal("2"),
+                new_rate: decimal("1"),
+            },
+        ),
+        (
+            "APC",
+            "2024-06-05",
+            CorporateActionKind::CashMerger {
+                rate: decimal("59"),
+            },
+        ),
+        (
+            "CRC",
+            "2024-06-06",
+            CorporateActionKind::StockMerger {
+                acquirer: Symbol::new("OXY"),
+                old_rate: decimal("1"),
+                new_rate: decimal("0.2934"),
+                cash_rate: decimal("36.5"),
+            },
+        ),
+        ("SIVB", "2024-06-07", CorporateActionKind::WorthlessRemoval),
+        (
+            "FB",
+            "2024-06-10",
+            CorporateActionKind::NameChange {
+                new_symbol: Symbol::new("META"),
+            },
+        ),
+    ] {
+        let (symbol, ex_date, kind) = expected;
+        assert!(
+            kinds.contains(&(symbol, date(ex_date), kind.clone())),
+            "{symbol} {kind:?}"
+        );
+    }
     assert!(kinds.contains(&(
         "NVDA",
         date("2024-06-10"),
