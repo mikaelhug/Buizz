@@ -30,7 +30,7 @@ mod write;
 
 pub(crate) const SCHEMA: &str = include_str!("../schema.sql");
 pub const FILE_NAME: &str = "market.duckdb";
-const UNRECOVERABLE: [&str; 13] = [
+const UNRECOVERABLE: [&str; 14] = [
     "ingest_batch",
     "borrow_availability",
     "index_member",
@@ -44,6 +44,7 @@ const UNRECOVERABLE: [&str; 13] = [
     "company_revision",
     "earnings_release_revision",
     "index_member_revision",
+    "index_history_revision",
 ];
 pub const TIMESTAMP_RESOLUTION: TimeDelta = TimeDelta::microseconds(1);
 
@@ -673,4 +674,32 @@ fn visible_through(timeframe: Timeframe, bars: &[Bar], calendar: &Calendar) -> O
             Some(bar_visible_at(timeframe, bar.start, session))
         })
         .max()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_revision_table_is_backed_up() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        migrate::migrate(&mut connection).unwrap();
+        let mut statement = connection
+            .prepare(
+                "SELECT table_name FROM duckdb_tables() WHERE schema_name = 'main' \
+                 AND table_name LIKE '%\\_revision' ESCAPE '\\' ORDER BY table_name",
+            )
+            .unwrap();
+        let revisions: Vec<String> = statement
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .collect::<duckdb::Result<_>>()
+            .unwrap();
+        assert_eq!(revisions.len(), 10);
+        let missing: Vec<&String> = revisions
+            .iter()
+            .filter(|table| !UNRECOVERABLE.contains(&table.as_str()))
+            .collect();
+        assert!(missing.is_empty(), "not backed up: {missing:?}");
+    }
 }
