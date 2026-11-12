@@ -231,6 +231,7 @@ pub enum EndReason {
     Stopped,
     RiskLimit,
     Failed,
+    SessionEnd,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

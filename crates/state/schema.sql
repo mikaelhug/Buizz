@@ -22,7 +22,10 @@ CREATE TABLE IF NOT EXISTS run (
     result_hash TEXT,
     metrics TEXT,
     badges TEXT NOT NULL DEFAULT '[]',
-    message TEXT
+    message TEXT,
+    bot_processes INTEGER NOT NULL DEFAULT 0,
+    bot_seconds REAL NOT NULL DEFAULT 0,
+    bot_peak_memory INTEGER NOT NULL DEFAULT 0
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS run_by_bot ON run (bot, created_at);

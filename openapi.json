@@ -382,6 +382,25 @@
         }
       }
     },
+    "/api/data/processes": {
+      "get": {
+        "tags": [
+          "data"
+        ],
+        "operationId": "data_processes",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotProcesses"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/events": {
       "get": {
         "tags": [
@@ -1017,6 +1036,31 @@
           }
         }
       },
+      "BotFootprint": {
+        "type": "object",
+        "required": [
+          "bot",
+          "mode",
+          "runs",
+          "usage"
+        ],
+        "properties": {
+          "bot": {
+            "type": "string"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/Mode"
+          },
+          "runs": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "usage": {
+            "$ref": "#/components/schemas/BotUsage"
+          }
+        }
+      },
       "BotManifest": {
         "type": "object",
         "required": [
@@ -1056,6 +1100,24 @@
             "type": "integer",
             "format": "int32",
             "minimum": 0
+          }
+        }
+      },
+      "BotProcesses": {
+        "type": "object",
+        "required": [
+          "slots",
+          "footprints"
+        ],
+        "properties": {
+          "slots": {
+            "$ref": "#/components/schemas/ProcessSlots"
+          },
+          "footprints": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BotFootprint"
+            }
           }
         }
       },
@@ -1149,6 +1211,30 @@
                 "type": "null"
               }
             ]
+          }
+        }
+      },
+      "BotUsage": {
+        "type": "object",
+        "required": [
+          "processes",
+          "seconds",
+          "peak_memory"
+        ],
+        "properties": {
+          "processes": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "seconds": {
+            "type": "number",
+            "format": "double"
+          },
+          "peak_memory": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
           }
         }
       },
@@ -2479,6 +2565,25 @@
           }
         }
       },
+      "ProcessSlots": {
+        "type": "object",
+        "required": [
+          "backtest",
+          "live"
+        ],
+        "properties": {
+          "backtest": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "live": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
       "RejectReason": {
         "type": "string",
         "enum": [
@@ -2885,7 +2990,8 @@
           "desired",
           "config",
           "created_at",
-          "badges"
+          "badges",
+          "usage"
         ],
         "properties": {
           "id": {
@@ -2982,6 +3088,9 @@
               "string",
               "null"
             ]
+          },
+          "usage": {
+            "$ref": "#/components/schemas/BotUsage"
           }
         }
       },
@@ -3174,6 +3283,28 @@
                 "type": "string",
                 "enum": [
                   "feed"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "run_id",
+              "usage",
+              "type"
+            ],
+            "properties": {
+              "run_id": {
+                "$ref": "#/components/schemas/RunId"
+              },
+              "usage": {
+                "$ref": "#/components/schemas/BotUsage"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "usage"
                 ]
               }
             }

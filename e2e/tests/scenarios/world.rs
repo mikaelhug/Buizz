@@ -197,6 +197,33 @@ impl World {
         }
     }
 
+    pub fn overnight(now: Timestamp) -> Self {
+        let mut world = Self::live(now);
+        let today = world.live_session();
+        let date = today.date + TimeDelta::days(1);
+        let at = |time: Timestamp| {
+            Timestamp::at_exchange_time(date, time.exchange_time()).expect("the time exists")
+        };
+        let tomorrow = Session {
+            date,
+            open: at(today.open),
+            close: at(today.close),
+        };
+        world.sessions.push(tomorrow);
+        for session in [today, tomorrow] {
+            for (index, symbol) in LIVE_SYMBOLS.iter().enumerate() {
+                let base = Decimal::from(100 + 50 * index);
+                world.daily.push(bar(
+                    symbol,
+                    session.open,
+                    [base, base + Decimal::ONE, base - Decimal::ONE, base],
+                    50_000_000,
+                ));
+            }
+        }
+        world
+    }
+
     pub fn recorded_sources() -> Self {
         let sources = repository().join("crates/sources/fixtures");
         let read = |name: &str| {

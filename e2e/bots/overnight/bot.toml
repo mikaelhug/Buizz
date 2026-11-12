@@ -1,0 +1,4 @@
+description = "Rests a good-till-cancelled bid far below AAA on its first close and reports its steps and working orders every close"
+command = ["uv", "run", "--frozen", "--quiet", "--project", "../../../sdk/python", "python", "bot.py"]
+timeframe = "1d"
+universe = { symbols = ["AAA"] }

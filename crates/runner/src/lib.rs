@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex, PoisonError};
 
 use axum::extract::ws::WebSocket;
-use buizz_core::api::{RunSummary, SparkPoint, SpineEvent, StartBacktest};
+use buizz_core::api::{ProcessSlots, RunSummary, SparkPoint, SpineEvent, StartBacktest};
 use buizz_core::market::{Dataset, Instrument, StockIndex, Symbol, Timeframe};
 use buizz_core::money::CASH_DECIMALS;
 use buizz_core::ops::{CoverageGap, DataWarning};
@@ -382,6 +382,10 @@ impl Runner {
 
     pub fn log_path(&self, run_id: RunId) -> PathBuf {
         self.inner.supervisor.log_path(run_id)
+    }
+
+    pub fn process_slots(&self) -> ProcessSlots {
+        self.inner.supervisor.slots()
     }
 
     pub async fn benchmark(&self, run: &RunSummary) -> Result<Vec<SparkPoint>, RunnerError> {

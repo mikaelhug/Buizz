@@ -24,6 +24,7 @@ pub(crate) fn protected_routes() -> OpenApiRouter<Api> {
         .routes(routes!(data::data_health))
         .routes(routes!(data::data_jobs))
         .routes(routes!(data::data_feed))
+        .routes(routes!(data::data_processes))
         .routes(routes!(events::events))
 }
 

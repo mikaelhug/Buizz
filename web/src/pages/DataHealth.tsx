@@ -28,6 +28,7 @@ export function DataHealth() {
   const health = useResource(() => must(api.GET("/api/data/health")), []);
   const jobs = useResource(() => must(api.GET("/api/data/jobs")), []);
   const feed = useResource(() => must(api.GET("/api/data/feed")), []);
+  const processes = useResource(() => must(api.GET("/api/data/processes")), []);
 
   useSpineEvents((event) => {
     if (event.type === "job") {
@@ -39,6 +40,8 @@ export function DataHealth() {
       health.reload();
     } else if (event.type === "feed") {
       feed.mutate(() => event.slots);
+    } else if (event.type === "usage") {
+      processes.reload();
     }
   });
 
@@ -84,6 +87,7 @@ export function DataHealth() {
         <WarningsPanel health={health} />
       </div>
       <BackfillPanel health={health} />
+      <ProcessesPanel processes={processes} />
       <JobsPanel jobs={jobs} ingest={health.data?.ingest_enabled} />
       <CoveragePanel health={health} />
     </div>
@@ -358,7 +362,95 @@ function JobsPanel({ jobs, ingest }: { jobs: Resource<Job[]>; ingest: boolean | 
   );
 }
 
+type Footprint = Schemas["BotFootprint"];
+type FootprintColumn = "bot" | "mode" | "runs" | "processes" | "seconds" | "peak";
+
+const FOOTPRINT_COLUMNS: SortColumns<Footprint, FootprintColumn> = {
+  bot: { value: (row) => row.bot },
+  mode: { value: (row) => row.mode },
+  runs: { value: (row) => row.runs, descending: true },
+  processes: { value: (row) => row.usage.processes, descending: true },
+  seconds: { value: (row) => perProcess(row), descending: true },
+  peak: { value: (row) => row.usage.peak_memory, descending: true },
+};
+
+function perProcess(row: Footprint): number {
+  return row.usage.seconds / Math.max(row.usage.processes, 1);
+}
+
+function footprintKey(row: Footprint): string {
+  return `${row.bot}-${row.mode}`;
+}
+
+function ProcessesPanel({ processes }: { processes: Resource<Schemas["BotProcesses"]> }) {
+  const sorting = useSort("processes", FOOTPRINT_COLUMNS, { key: "peak", descending: true });
+  const flash = useFlash(processes.data?.footprints, footprintKey);
+  return (
+    <section className="panel">
+      <header className="panel-head">
+        <h2>Bot processes</h2>
+        <Info label="Bot processes">
+          Each bot's measured peak memory, Python included, and how long its processes ran. Backtests run up to the backtest slots at once; live bots start one process per session and up to the live slots start at once.
+        </Info>
+        {processes.data && (
+          <span className="muted">
+            {fmt.integer(processes.data.slots.backtest)} backtest · {fmt.integer(processes.data.slots.live)} live slots
+          </span>
+        )}
+      </header>
+      <StaleFailure resource={processes} />
+      {!processes.data ? (
+        processes.error ? <Failure message={processes.error} onRetry={processes.reload} /> : <Loading shape="table" />
+      ) : processes.data.footprints.length === 0 ? (
+        <p className="empty">No bot process has run yet.</p>
+      ) : (
+        <div className="table-wrap table-scroll">
+          <table className="table fin">
+            <thead>
+              <tr>
+                <SortHeader sorting={sorting} column="bot">
+                  Bot
+                </SortHeader>
+                <SortHeader sorting={sorting} column="mode">
+                  Mode
+                </SortHeader>
+                <SortHeader sorting={sorting} column="runs" numeric>
+                  Runs
+                </SortHeader>
+                <SortHeader sorting={sorting} column="processes" numeric>
+                  Processes
+                </SortHeader>
+                <SortHeader sorting={sorting} column="seconds" numeric>
+                  Per process
+                </SortHeader>
+                <SortHeader sorting={sorting} column="peak" numeric>
+                  Peak memory
+                </SortHeader>
+              </tr>
+            </thead>
+            <tbody>
+              {sorting.order(processes.data.footprints).map((row) => (
+                <tr key={footprintKey(row)} {...flash.row(footprintKey(row))}>
+                  <td>
+                    <a href={href({ page: "bot", name: row.bot })}>{row.bot}</a>
+                  </td>
+                  <td>{row.mode}</td>
+                  <td className="r num">{fmt.integer(row.runs)}</td>
+                  <td className="r num">{fmt.integer(row.usage.processes)}</td>
+                  <td className="r num">{fmt.duration(perProcess(row))}</td>
+                  <td className="r num">{fmt.memory(row.usage.peak_memory)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
 type CoverageRow = Schemas["Coverage"];
+
 type CoverageColumn = "dataset" | "symbol" | "source" | "first" | "last" | "updated";
 
 const COVERAGE_COLUMNS: SortColumns<CoverageRow, CoverageColumn> = {

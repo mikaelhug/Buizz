@@ -10,7 +10,7 @@ bots/red_green/
   bot.py
 ```
 
-The spine rescans `bots/` on every request, so a new or edited bot shows up without a restart. A folder is a bot when it holds a `bot.toml`; folders starting with `.` are ignored. Each run records a content hash of the folder and never continues under different code: when a backtest is (re)started after a restart, or a live run is started, resumed or restarted after its bot crashed, with edited bot code, the backtest fails and the live run pauses with the reason. Stop it and start a new run.
+The spine rescans `bots/` on every request, so a new or edited bot shows up without a restart. A folder is a bot when it holds a `bot.toml`; folders starting with `.` are ignored. Each run records a content hash of the folder and never continues under different code: when a backtest is (re)started after a restart, or a live run is started, resumed, starts its bot for a new session or restarts it after a crash, with edited bot code, the backtest fails and the live run pauses with the reason. Stop it and start a new run.
 
 ## Python environment and shared code
 
@@ -90,7 +90,9 @@ The spine starts `command` with `BUIZZ_SPINE_URL`, `BUIZZ_RUN_ID` and `BUIZZ_RUN
 from buizz import Bot, Context, run
 ```
 
-A bot subclasses `Bot` and implements `on_step(ctx)`. `on_start(ctx)` runs once after the spine's `ready` and `on_end(ctx, reason)` once when the run ends for this process. `reason` is an `EndReason`: `completed`, `paused`, `stopped`, `risk_limit` (the drawdown stop, see [Risk limits](#risk-limits)) or `failed` as the spine sent it, or `disconnected` when the connection went away without one. A pause or stop can arrive in the middle of `on_step`, while it waits on a query or as the SIGTERM that stops the process: the step is abandoned (its orders and state changes are not sent) and `on_end` still runs, with about 10 seconds before the process is killed.
+A bot subclasses `Bot` and implements `on_step(ctx)`. `on_start(ctx)` runs once after the spine's `ready` and `on_end(ctx, reason)` once when the run ends for this process. `reason` is an `EndReason`: `completed`, `paused`, `stopped`, `risk_limit` (the drawdown stop, see [Risk limits](#risk-limits)), `failed` or `session_end` as the spine sent it, or `disconnected` when the connection went away without one. A pause or stop can arrive in the middle of `on_step`, while it waits on a query or as the SIGTERM that stops the process: the step is abandoned (its orders and state changes are not sent) and `on_end` still runs, with about 10 seconds before the process is killed.
+
+A backtest is one process from start to end. A live run is one process per session: it starts at the session's first wake and gets `session_end` after the step of its last wake, so a daily bot lives a few seconds a day and a 1m bot from the open to the close. `on_start` therefore runs once per live session, and its work must fit in `step_timeout` together with the connection; keep it to validating params. Anything kept on `self` (a cache of histories, a fitted model) is gone at the next session: rebuild it from `ctx.history` when it is missing, and put what cannot be rebuilt in `ctx.state`, which carries over with the holdings and the working orders.
 
 Outside `on_step` only `params`, `universe`, `state`, `portfolio` and `position` are usable. The step members (`clock`, `session`, `bars`, `events`), queries, orders, cancels and logs raise `UsageError` there; `on_end` can still read the state and print to stdout, which goes to the log file.
 

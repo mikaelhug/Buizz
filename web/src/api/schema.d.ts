@@ -180,6 +180,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/data/processes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["data_processes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/events": {
         parameters: {
             query?: never;
@@ -411,6 +427,13 @@ export interface components {
             bot_hash: string;
             runs: components["schemas"]["RunSummary"][];
         };
+        BotFootprint: {
+            bot: string;
+            mode: components["schemas"]["Mode"];
+            /** Format: int32 */
+            runs: number;
+            usage: components["schemas"]["BotUsage"];
+        };
         BotManifest: {
             description?: string;
             command: string[];
@@ -422,6 +445,10 @@ export interface components {
             risk?: components["schemas"]["RiskLimits"];
             /** Format: int32 */
             step_timeout?: number;
+        };
+        BotProcesses: {
+            slots: components["schemas"]["ProcessSlots"];
+            footprints: components["schemas"]["BotFootprint"][];
         };
         /** @enum {string} */
         BotStatus: "idle" | "live" | "paused" | "backtesting" | "stopped" | "error";
@@ -438,6 +465,14 @@ export interface components {
             /** Format: int32 */
             holdout_runs: number;
             last_run_at?: components["schemas"]["Timestamp"] | null;
+        };
+        BotUsage: {
+            /** Format: int32 */
+            processes: number;
+            /** Format: double */
+            seconds: number;
+            /** Format: int64 */
+            peak_memory: number;
         };
         ChartFill: {
             order_id: components["schemas"]["OrderId"];
@@ -770,6 +805,12 @@ export interface components {
             splits: components["schemas"]["ChartSplit"][];
             position?: components["schemas"]["ChartPosition"] | null;
         };
+        ProcessSlots: {
+            /** Format: int32 */
+            backtest: number;
+            /** Format: int32 */
+            live: number;
+        };
         /** @enum {string} */
         RejectReason: "unknown_symbol" | "duplicate_client_id" | "zero_quantity" | "invalid_limit_price" | "no_price" | "not_shortable" | "max_position_weight" | "max_gross_exposure" | "invalid_size" | "no_stream_slot" | "invalid_stop_price" | "auction_closed" | "auction_unavailable";
         Reproducibility: {
@@ -877,6 +918,7 @@ export interface components {
             badges: components["schemas"]["RunBadge"][];
             reproducibility?: components["schemas"]["Reproducibility"] | null;
             message?: string | null;
+            usage: components["schemas"]["BotUsage"];
         };
         SessionInfo: {
             authenticated: boolean;
@@ -923,6 +965,11 @@ export interface components {
             slots: components["schemas"]["FeedSlots"];
             /** @enum {string} */
             type: "feed";
+        } | {
+            run_id: components["schemas"]["RunId"];
+            usage: components["schemas"]["BotUsage"];
+            /** @enum {string} */
+            type: "usage";
         };
         StartBacktest: {
             preset?: components["schemas"]["PeriodPreset"] | null;
@@ -1291,6 +1338,25 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobView"][];
+                };
+            };
+        };
+    };
+    data_processes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BotProcesses"];
                 };
             };
         };

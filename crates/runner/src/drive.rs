@@ -23,13 +23,13 @@ use buizz_ingest::IngestError;
 use buizz_market::MarketError;
 use buizz_state::{RunOutcome, StateError, StepCommit};
 use buizz_supervisor::{
-    BotProcess, BotSpec, LiveProcess, OutputStream, ProcessEvent, SupervisorError, bot_hash,
+    BotProcess, BotSpec, OutputStream, ProcessEvent, Reaped, Restarts, SupervisorError, bot_hash,
 };
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
 use serde::{Deserialize, Serialize};
-use tokio::sync::{mpsc, watch};
+use tokio::sync::{OwnedSemaphorePermit, mpsc, watch};
 
 use crate::commit::Committer;
 use crate::link::{BotLink, LinkError};
@@ -86,38 +86,6 @@ fails_with!(
     IngestError,
     crate::RunnerError
 );
-
-enum Process {
-    Backtest(BotProcess),
-    Live(LiveProcess),
-}
-
-impl Process {
-    fn events(&mut self) -> &mut mpsc::Receiver<ProcessEvent> {
-        match self {
-            Self::Backtest(process) => process.events(),
-            Self::Live(process) => process.events(),
-        }
-    }
-
-    async fn stop(self) {
-        let stopped = match self {
-            Self::Backtest(mut process) => {
-                if tokio::time::timeout(EXIT_GRACE, process.wait())
-                    .await
-                    .is_ok()
-                {
-                    return;
-                }
-                process.kill().await
-            }
-            Self::Live(process) => process.stop().await,
-        };
-        if let Err(error) = stopped {
-            tracing::warn!(%error, "stopping a bot process failed");
-        }
-    }
-}
 
 #[derive(Default)]
 struct Pending {
@@ -262,7 +230,7 @@ pub(crate) async fn run(mut launch: Launch) {
     inner.forget(run_id, &token);
 }
 
-type Prepared = (Option<tokio::sync::OwnedSemaphorePermit>, BTreeSet<Symbol>);
+type Prepared = (Option<OwnedSemaphorePermit>, BTreeSet<Symbol>);
 
 async fn prepare(
     inner: &Inner,
@@ -431,8 +399,12 @@ struct Driver {
     session: Option<Session>,
     minutes: BTreeSet<Symbol>,
     link: Option<BotLink>,
-    process: Option<Process>,
+    process: Option<BotProcess>,
+    live_slot: Option<OwnedSemaphorePermit>,
+    restarts: Restarts,
+    respawn_at: Option<tokio::time::Instant>,
     status: RunStatus,
+    launched: bool,
     paused: bool,
     event_seq: u64,
     step_seq: u64,
@@ -508,7 +480,11 @@ impl Driver {
             minutes,
             link: None,
             process: None,
+            live_slot: None,
+            restarts: inner.supervisor.restarts(),
+            respawn_at: None,
             status: run.status,
+            launched: false,
             paused: false,
             event_seq: last_event_seq(&inner, run.id).await?,
             step_seq: last_step,
@@ -652,10 +628,9 @@ impl Driver {
                 continue;
             }
             match next.filter(|point| self.processable(point)) {
-                Some(_) if !self.benched() && self.link.is_none() => self.await_bot().await?,
                 Some(point) => {
                     self.cycle(&point).await?;
-                    if self.frame.due && self.link.is_some() && !self.arrived_while_deciding() {
+                    if self.frame.due && !self.arrived_while_deciding() {
                         self.wake().await?;
                     }
                 }
@@ -677,7 +652,7 @@ impl Driver {
     }
 
     fn deliverable(&self) -> bool {
-        self.benched() || (self.link.is_some() && self.session.is_some())
+        self.benched() || self.session.is_some()
     }
 
     fn arrived_while_deciding(&self) -> bool {
@@ -720,26 +695,70 @@ impl Driver {
                 self.frame.discard();
                 self.launch().await
             }
-            DesiredState::Running if self.process.is_none() => self.launch().await,
+            DesiredState::Running if !self.launched => self.launch().await,
             _ => Ok(()),
         }
     }
 
     async fn launch(&mut self) -> Flow<()> {
+        self.launched = true;
         if self.engine.drawdown_stop().is_some() {
             self.enter_next_session().await?;
             return self.lease_stream().await;
         }
-        if let Some(message) = self.outdated().await? {
-            return match self.run.mode {
-                Mode::Backtest => Err(Exit::Failed(message)),
-                Mode::Live => self.pause(EndReason::Failed, Some(message)).await,
-            };
+        if self.refuse_outdated().await? {
+            return Ok(());
         }
         self.enter_next_session().await?;
         self.lease_stream().await?;
         if self.paused {
             return Ok(());
+        }
+        let status = match self.run.mode {
+            Mode::Backtest => RunStatus::Starting,
+            Mode::Live => RunStatus::Running,
+        };
+        self.set_status(status, None).await
+    }
+
+    async fn refuse_outdated(&mut self) -> Flow<bool> {
+        let Some(message) = self.outdated().await? else {
+            return Ok(false);
+        };
+        match self.run.mode {
+            Mode::Backtest => Err(Exit::Failed(message)),
+            Mode::Live => {
+                self.pause(EndReason::Failed, Some(message)).await?;
+                Ok(true)
+            }
+        }
+    }
+
+    async fn spawn_bot(&mut self) -> Flow<()> {
+        if self.live() {
+            let supervisor = self.inner.supervisor.clone();
+            let respawn_at = self.respawn_at.take();
+            let mut ready = std::pin::pin!(async {
+                if let Some(at) = respawn_at {
+                    tokio::time::sleep_until(at).await;
+                }
+                supervisor.live_slot().await
+            });
+            let slot = loop {
+                tokio::select! {
+                    slot = &mut ready => break slot,
+                    _ = self.control.changed() => {
+                        self.reconcile().await?;
+                        if self.benched() {
+                            return Ok(());
+                        }
+                    }
+                }
+            };
+            if self.refuse_outdated().await? {
+                return Ok(());
+            }
+            self.live_slot = Some(slot);
         }
         let launch = buizz_supervisor::Launch {
             run_id: self.run.id,
@@ -749,12 +768,89 @@ impl Driver {
                 ..self.spec.clone()
             },
         };
-        let supervisor = &self.inner.supervisor;
-        self.process = Some(match self.run.mode {
-            Mode::Backtest => Process::Backtest(supervisor.spawn(&launch).await?),
-            Mode::Live => Process::Live(supervisor.keep_alive(launch)),
+        match self.inner.supervisor.spawn(&launch).await {
+            Ok(process) => {
+                self.process = Some(process);
+                Ok(())
+            }
+            Err(error) if self.live() => self.crashed(error.to_string()).await,
+            Err(error) => Err(error.into()),
+        }
+    }
+
+    async fn crashed(&mut self, message: String) -> Flow<()> {
+        self.live_slot = None;
+        match self.restarts.after_crash() {
+            Some((attempt, delay)) => {
+                self.respawn_at = Some(tokio::time::Instant::now() + delay);
+                self.record(RunEventKind::Log {
+                    level: LogLevel::Warn,
+                    message: format!(
+                        "{message}; restarting the bot in {} s (attempt {attempt})",
+                        delay.as_secs()
+                    ),
+                })
+                .await
+            }
+            None => {
+                let message = format!("{message}; the bot crashed too often, the run is paused");
+                self.pause(EndReason::Failed, Some(message)).await
+            }
+        }
+    }
+
+    async fn stop_process(&mut self) -> Flow<()> {
+        self.live_slot = None;
+        let Some(process) = self.process.take() else {
+            return Ok(());
+        };
+        match process.finish(EXIT_GRACE).await {
+            Ok(Some(reaped)) => self.record_usage(reaped).await,
+            Ok(None) => Ok(()),
+            Err(error) => {
+                tracing::warn!(run = %self.run.id, %error, "stopping a bot process failed");
+                Ok(())
+            }
+        }
+    }
+
+    async fn record_usage(&mut self, reaped: Reaped) -> Flow<()> {
+        let usage = self
+            .inner
+            .state
+            .add_usage(self.run.id, reaped.wall.as_secs_f64(), reaped.peak_memory)
+            .await?;
+        self.inner.broadcast(SpineEvent::Usage {
+            run_id: self.run.id,
+            usage,
         });
-        self.set_status(RunStatus::Starting, None).await
+        Ok(())
+    }
+
+    fn wakes_later_this_session(&self) -> bool {
+        let Some(session) = self.session else {
+            return false;
+        };
+        let wake = self.run.config.wake;
+        let mut after = self.after;
+        while let Some(point) = self
+            .timeline
+            .next_point(after)
+            .filter(|point| point.session.date == session.date)
+        {
+            if wake.is_due(point.visible_at, &point.session) {
+                return true;
+            }
+            after = point.visible_at;
+        }
+        false
+    }
+
+    async fn end_session(&mut self) -> Flow<()> {
+        if let Some(link) = self.link.take() {
+            link.end(EndReason::SessionEnd, None).await;
+        }
+        self.stop_process().await
     }
 
     async fn pause(&mut self, reason: EndReason, message: Option<String>) -> Flow<()> {
@@ -766,9 +862,7 @@ impl Driver {
         if let Some(link) = self.link.take() {
             link.end(reason, message.clone()).await;
         }
-        if let Some(process) = self.process.take() {
-            process.stop().await;
-        }
+        self.stop_process().await?;
         self.control_tx.send_if_modified(|control| {
             let changed = control.desired != DesiredState::Paused;
             control.desired = DesiredState::Paused;
@@ -785,15 +879,13 @@ impl Driver {
         }
     }
 
-    async fn dismiss_bot(&mut self) {
+    async fn dismiss_bot(&mut self) -> Flow<()> {
         self.frame.discard();
         if let Some(link) = self.link.take() {
             link.end(EndReason::RiskLimit, Some(DRAWDOWN_STOP.to_owned()))
                 .await;
         }
-        if let Some(process) = self.process.take() {
-            process.stop().await;
-        }
+        self.stop_process().await
     }
 
     async fn cycle(&mut self, point: &Point) -> Flow<()> {
@@ -863,10 +955,7 @@ impl Driver {
         self.absorb();
         match self.engine.drawdown_stop() {
             Some(DrawdownStop::Flat) => Err(Exit::DrawdownStopped),
-            Some(DrawdownStop::Closing) => {
-                self.dismiss_bot().await;
-                Ok(())
-            }
+            Some(DrawdownStop::Closing) => self.dismiss_bot().await,
             None => Ok(()),
         }
     }
@@ -972,13 +1061,12 @@ impl Driver {
             self.frame.discard();
             return self.commit(false).await;
         }
-        if self.link.is_none() {
-            if self.live() {
-                return Ok(());
-            }
-            self.await_bot().await?;
+        self.summon().await?;
+        self.step().await?;
+        if self.live() && self.link.is_some() && !self.wakes_later_this_session() {
+            self.end_session().await?;
         }
-        self.step().await
+        Ok(())
     }
 
     fn publish_equity(&self) {
@@ -1010,10 +1098,21 @@ impl Driver {
         });
     }
 
-    async fn await_bot(&mut self) -> Flow<()> {
+    async fn summon(&mut self) -> Flow<()> {
+        while self.link.is_none() && !self.benched() {
+            if self.process.is_none() {
+                self.spawn_bot().await?;
+            } else {
+                self.await_link().await?;
+            }
+        }
+        Ok(())
+    }
+
+    async fn await_link(&mut self) -> Flow<()> {
         let timeout = self.spec.manifest.step_timeout();
         let deadline = tokio::time::Instant::now() + timeout;
-        while self.link.is_none() {
+        while self.link.is_none() && self.process.is_some() {
             tokio::select! {
                 socket = self.sockets.recv() => self.attach(socket).await?,
                 event = next_process_event(&mut self.process) => self.on_process(event).await?,
@@ -1141,6 +1240,7 @@ impl Driver {
         match answered {
             None => self.reconcile().await,
             Some(Ok(ack)) => {
+                self.live_slot = None;
                 self.arrived_while_deciding = asked.zip(self.visible_through());
                 self.frame.discard();
                 self.frame.holdings = Some(holdings);
@@ -1293,36 +1393,23 @@ impl Driver {
                 },
                 message: line,
             },
-            Some(ProcessEvent::Restarting { attempt, delay }) => RunEventKind::Log {
-                level: LogLevel::Warn,
-                message: format!(
-                    "restarting the bot in {} s (attempt {attempt})",
-                    delay.as_secs()
-                ),
-            },
-            Some(ProcessEvent::Exited { code }) => {
+            Some(ProcessEvent::Exited(reaped)) => {
                 self.link = None;
-                self.record(RunEventKind::BotExited { code }).await?;
+                self.process = None;
+                self.record(RunEventKind::BotExited { code: reaped.code })
+                    .await?;
+                self.record_usage(reaped).await?;
+                let message = match reaped.code {
+                    Some(code) => format!("the bot exited with code {code}"),
+                    None => "the bot was killed by a signal".to_owned(),
+                };
                 if !self.live() {
-                    self.process = None;
-                    return Err(Exit::Failed(match code {
-                        Some(code) => format!("the bot exited with code {code}"),
-                        None => "the bot was killed by a signal".to_owned(),
-                    }));
+                    return Err(Exit::Failed(message));
                 }
-                return Ok(());
-            }
-            Some(ProcessEvent::Outdated) => {
-                self.link = None;
-                let message = self.outdated_message();
-                return self.pause(EndReason::Failed, Some(message)).await;
+                return self.crashed(message).await;
             }
             None => {
                 self.process = None;
-                if self.live() && !self.paused {
-                    let message = "the bot crashed too often; the run is paused".to_owned();
-                    return self.pause(EndReason::Failed, Some(message)).await;
-                }
                 return Ok(());
             }
         };
@@ -1388,8 +1475,8 @@ impl Driver {
         if let Some(link) = self.link.take() {
             link.end(reason, message.clone()).await;
         }
-        if let Some(process) = self.process.take() {
-            process.stop().await;
+        if let Err(Exit::Failed(error)) = self.stop_process().await {
+            tracing::warn!(run = %self.run.id, %error, "cannot record the bot's resource usage");
         }
         if matches!(status, Some(RunStatus::Cancelled | RunStatus::Failed)) {
             self.engine.cancel_all(self.after);
@@ -1416,7 +1503,7 @@ impl Driver {
     }
 }
 
-async fn next_process_event(process: &mut Option<Process>) -> Option<ProcessEvent> {
+async fn next_process_event(process: &mut Option<BotProcess>) -> Option<ProcessEvent> {
     match process {
         Some(process) => process.events().recv().await,
         None => std::future::pending().await,

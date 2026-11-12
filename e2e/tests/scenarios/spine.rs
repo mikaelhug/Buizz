@@ -59,6 +59,7 @@ pub struct Spine {
     pub fake: FakeProviders,
     options: Options,
     dir: TempDir,
+    clock_shift: TimeDelta,
     child: Option<Child>,
     client: Client,
     cookie: String,
@@ -110,6 +111,7 @@ impl Spine {
             fake,
             options,
             dir,
+            clock_shift: TimeDelta::zero(),
             child: None,
             client: Client::new(),
             cookie: String::new(),
@@ -140,7 +142,7 @@ impl Spine {
             .env("BUIZZ_BIND", "127.0.0.1:0")
             .env(
                 "BUIZZ_CLOCK_OFFSET_SECONDS",
-                CLOCK_OFFSET.num_seconds().to_string(),
+                (*CLOCK_OFFSET + self.clock_shift).num_seconds().to_string(),
             )
             .env("BUIZZ_ADMIN_PASSWORD", &self.password)
             .env("BUIZZ_SECURE_COOKIES", "false")
@@ -242,6 +244,11 @@ impl Spine {
     }
 
     pub async fn restart(&mut self) {
+        self.launch().await;
+    }
+
+    pub async fn restart_later(&mut self, by: TimeDelta) {
+        self.clock_shift += by;
         self.launch().await;
     }
 

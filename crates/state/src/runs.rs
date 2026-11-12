@@ -1,6 +1,6 @@
 use std::ops::RangeInclusive;
 
-use buizz_core::api::{RunSummary, SparkPoint};
+use buizz_core::api::{BotFootprint, BotUsage, RunSummary, SparkPoint};
 use buizz_core::ledger::{LedgerEntry, LedgerKind, Portfolio};
 use buizz_core::market::Symbol;
 use buizz_core::order::{Fill, Order, OrderId};
@@ -23,7 +23,7 @@ const LIVE_RUN_CONFLICT: &str = "UNIQUE constraint failed: run.bot";
 
 const RUN_COLUMNS: &str = "id, bot, mode, status, desired, config, created_at, started_at, \
     finished_at, clock, equity, metrics, result_hash, badges, bot_hash, engine_version, seed, \
-    data_watermark, message";
+    data_watermark, message, bot_processes, bot_seconds, bot_peak_memory";
 
 fn tag_of<T: Serialize>(value: &T) -> Result<String> {
     match serde_json::to_value(value)?.get("type") {
@@ -57,6 +57,11 @@ fn run_summary(row: &Row) -> rusqlite::Result<RunSummary> {
             data_watermark: read_optional(row, 17, read_timestamp)?,
         }),
         message: row.get(18)?,
+        usage: BotUsage {
+            processes: row.get(19)?,
+            seconds: row.get(20)?,
+            peak_memory: read_u64(row, 21)?,
+        },
     })
 }
 
@@ -171,6 +176,50 @@ pub fn set_desired(connection: &Connection, run_id: RunId, desired: DesiredState
         params![enum_text(&desired)?, run_id.0],
     )?;
     require_changed(changed, run_id)
+}
+
+pub fn add_usage(
+    connection: &Connection,
+    run_id: RunId,
+    seconds: f64,
+    peak_memory: u64,
+) -> Result<BotUsage> {
+    Ok(connection.query_row(
+        "UPDATE run SET bot_processes = bot_processes + 1, bot_seconds = bot_seconds + ?, \
+         bot_peak_memory = MAX(bot_peak_memory, ?) WHERE id = ? \
+         RETURNING bot_processes, bot_seconds, bot_peak_memory",
+        params![seconds, int(peak_memory)?, run_id.0],
+        |row| {
+            Ok(BotUsage {
+                processes: row.get(0)?,
+                seconds: row.get(1)?,
+                peak_memory: read_u64(row, 2)?,
+            })
+        },
+    )?)
+}
+
+pub fn footprints(connection: &Connection) -> Result<Vec<BotFootprint>> {
+    let mut statement = connection.prepare(
+        "SELECT bot, mode, COUNT(*), SUM(bot_processes), SUM(bot_seconds), MAX(bot_peak_memory) \
+         FROM run WHERE bot_processes > 0 GROUP BY bot, mode \
+         ORDER BY MAX(bot_peak_memory) DESC, bot, mode",
+    )?;
+    let footprints = statement
+        .query_map([], |row| {
+            Ok(BotFootprint {
+                bot: row.get(0)?,
+                mode: read_enum(row, 1)?,
+                runs: row.get(2)?,
+                usage: BotUsage {
+                    processes: row.get(3)?,
+                    seconds: row.get(4)?,
+                    peak_memory: read_u64(row, 5)?,
+                },
+            })
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    Ok(footprints)
 }
 
 pub fn finish(connection: &Connection, run_id: RunId, outcome: &RunOutcome) -> Result<()> {

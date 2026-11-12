@@ -77,6 +77,34 @@ pub struct RunSummary {
     pub badges: Vec<RunBadge>,
     pub reproducibility: Option<Reproducibility>,
     pub message: Option<String>,
+    pub usage: BotUsage,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct BotUsage {
+    pub processes: u32,
+    pub seconds: f64,
+    pub peak_memory: u64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct ProcessSlots {
+    pub backtest: u32,
+    pub live: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct BotFootprint {
+    pub bot: String,
+    pub mode: Mode,
+    pub runs: u32,
+    pub usage: BotUsage,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct BotProcesses {
+    pub slots: ProcessSlots,
+    pub footprints: Vec<BotFootprint>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -315,6 +343,10 @@ pub enum SpineEvent {
     Feed {
         slots: FeedSlots,
     },
+    Usage {
+        run_id: RunId,
+        usage: BotUsage,
+    },
 }
 
 impl SpineEvent {
@@ -327,6 +359,7 @@ impl SpineEvent {
             Self::Log { .. } => "log",
             Self::Job { .. } => "job",
             Self::Feed { .. } => "feed",
+            Self::Usage { .. } => "usage",
         }
     }
 }

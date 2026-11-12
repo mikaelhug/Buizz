@@ -1,10 +1,11 @@
-use buizz_core::api::{BotSummary, EquitySeries, FeedSlots, OrderView, RunSummary};
-use buizz_core::order::OrderStatus;
-use buizz_core::run::{RunEventKind, RunId, RunStatus};
+use buizz_core::api::{BotProcesses, BotSummary, EquitySeries, FeedSlots, OrderView, RunSummary};
+use buizz_core::order::{OrderStatus, TimeInForce};
+use buizz_core::run::{Mode, RunEventKind, RunId, RunStatus};
 use chrono::TimeDelta;
 use nix::errno::Errno;
 use nix::sys::signal::killpg;
 use nix::unistd::Pid;
+use reqwest::Method;
 use serde_json::{Value, json};
 
 use crate::browser;
@@ -162,4 +163,91 @@ async fn live_pause_resume_and_stop_in_the_browser_while_an_unpaused_twin_matche
     let twin = live_run(&spine, "tape_twin").await;
     let twin = through_the_close(&spine, twin.id).await;
     assert_matches_backtest(&spine, &twin).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_daily_live_bot_is_one_process_per_session_and_keeps_its_state_and_resting_order() {
+    let fake = FakeProviders::serve(World::overnight(now())).await;
+    let mut spine = Spine::start(
+        fake.clone(),
+        Options {
+            bots: &["overnight"],
+            tiingo: false,
+        },
+    )
+    .await;
+    spine.ingested().await;
+    let run: RunSummary = spine.post("/api/bots/overnight/live", json!({})).await;
+    eventually("the live run to wait for the close", || async {
+        (spine.run(run.id).await.status == RunStatus::Running).then_some(())
+    })
+    .await;
+    assert!(
+        bot_pids(&spine.events(run.id).await).is_empty(),
+        "no bot process before the session's first wake"
+    );
+
+    let tomorrow = fake.world(|world| world.live_session());
+    spine.stop().await;
+    spine
+        .restart_later(tomorrow.close + TimeDelta::minutes(45) - now())
+        .await;
+    let run = eventually("both closes to be stepped", || async {
+        let run = spine.run(run.id).await;
+        (run.usage.processes == 2).then_some(run)
+    })
+    .await;
+
+    assert_eq!(run.clock, Some(tomorrow.close));
+    assert_eq!(run.status, RunStatus::Running);
+    let steps: Vec<String> = spine
+        .logs(run.id)
+        .await
+        .into_iter()
+        .map(|(_, message)| message)
+        .filter(|message| message.starts_with("step "))
+        .collect();
+    assert_eq!(
+        steps,
+        [
+            "step 1, 1 in this process, working none",
+            "step 2, 1 in this process, working rest",
+        ],
+        "a new process each session, with the saved state and the resting order"
+    );
+    let events = spine.events(run.id).await;
+    let pids = bot_pids(&events);
+    assert_eq!(pids.len(), 2, "one bot process per session");
+    assert!(pids.iter().all(|pid| !alive(*pid)), "both processes exited");
+    assert!(
+        !events
+            .iter()
+            .any(|event| matches!(event.kind, RunEventKind::BotExited { .. })),
+        "the sessions ended without a crash: {events:#?}"
+    );
+    let (_, output) = spine
+        .request(Method::GET, &format!("/api/runs/{}/logs", run.id), None)
+        .await;
+    assert!(
+        output.contains("ended with session_end after step 1")
+            && output.contains("ended with session_end after step 2"),
+        "{output}"
+    );
+
+    let orders = spine.orders(run.id).await;
+    let [rest] = orders.as_slice() else {
+        panic!("one order: {orders:#?}");
+    };
+    assert_eq!(rest.order.client_id, "rest");
+    assert_eq!(rest.order.tif, TimeInForce::Gtc);
+    assert_eq!(rest.order.status, OrderStatus::Working);
+
+    assert!(run.usage.peak_memory > 0, "{:?}", run.usage);
+    let processes: BotProcesses = spine.get("/api/data/processes").await;
+    let footprint = processes
+        .footprints
+        .iter()
+        .find(|footprint| footprint.bot == "overnight" && footprint.mode == Mode::Live)
+        .expect("the live bot's footprint");
+    assert_eq!(footprint.usage, run.usage);
 }

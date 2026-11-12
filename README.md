@@ -77,6 +77,7 @@ The spine (`cargo run -p buizz-spine`) reads these environment variables. Empty 
 | `FED_URL` | `https://www.federalreserve.gov` | Federal Reserve Board site, read for the FOMC meeting calendar |
 | `BUIZZ_DUCKDB_MEMORY` | `1GB` | Memory the market store may use for queries and writes before it spills to `market.duckdb.tmp/` in the data directory |
 | `BUIZZ_DUCKDB_THREADS` | `2` | Threads the market store uses |
+| `BUIZZ_LIVE_SLOTS` | `2` | Live bot processes that may start and take their first step of a session at once; backtests run on one fewer than the CPUs |
 | `RUST_LOG` | `info` | Log filter |
 
 `just dev` sets `BUIZZ_ADMIN_PASSWORD=buizz-dev-admin`, `BUIZZ_SECURE_COOKIES=false`, `BUIZZ_INGEST=false`, `BUIZZ_BIND=127.0.0.1:8080` and `BUIZZ_FIXTURE_DIR=fixtures/market`.

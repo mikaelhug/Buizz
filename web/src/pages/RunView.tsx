@@ -68,6 +68,8 @@ export function RunView({ name, runId, pinned, tab, symbol, botHash, recent, run
       run.reload();
     } else if (event.type === "equity") {
       mark({ at: event.at, equity: event.equity });
+    } else if (event.type === "usage") {
+      run.mutate((current) => ({ ...current, usage: event.usage }));
     }
   });
 
@@ -290,7 +292,25 @@ function RunBar({ run, name, tab, botHash, recent, logsHref, runsHref }: RunBarP
             </Info>
           </dd>
         </div>
+        {run.usage.processes > 0 && (
+          <div>
+            <dt>
+              Bot peak
+              <Info label="Bot processes">
+                The most memory any of this run's bot processes held, Python included, and how long they ran in all. A live run starts one process per session.
+              </Info>
+            </dt>
+            <dd className="num">
+              {fmt.memory(run.usage.peak_memory)}
+              <span className="facts-sub">
+                {" · "}
+                {fmt.integer(run.usage.processes)} {run.usage.processes === 1 ? "process" : "processes"}, {fmt.duration(run.usage.seconds)}
+              </span>
+            </dd>
+          </div>
+        )}
       </dl>
+
     </section>
   );
 }

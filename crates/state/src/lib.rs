@@ -8,7 +8,7 @@ use std::ops::RangeInclusive;
 use std::path::Path;
 use std::sync::Arc;
 
-use buizz_core::api::{RunSummary, SparkPoint};
+use buizz_core::api::{BotFootprint, BotUsage, RunSummary, SparkPoint};
 use buizz_core::ledger::{LedgerEntry, Portfolio};
 use buizz_core::market::{DataSource, Dataset, Symbol};
 use buizz_core::ops::{JobOutcome, JobRun, SourceFetch};
@@ -173,6 +173,23 @@ impl StateStore {
         self.db
             .transaction(move |transaction| runs::finish(transaction, run_id, &outcome))
             .await
+    }
+
+    pub async fn add_usage(
+        &self,
+        run_id: RunId,
+        seconds: f64,
+        peak_memory: u64,
+    ) -> Result<BotUsage> {
+        self.db
+            .transaction(move |transaction| {
+                runs::add_usage(transaction, run_id, seconds, peak_memory)
+            })
+            .await
+    }
+
+    pub async fn footprints(&self) -> Result<Vec<BotFootprint>> {
+        self.db.read(runs::footprints).await
     }
 
     pub async fn append_events(&self, run_id: RunId, events: Vec<RunEvent>) -> Result<()> {

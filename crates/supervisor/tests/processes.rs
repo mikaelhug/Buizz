@@ -32,7 +32,7 @@ fn gone(pid: u32) -> bool {
 }
 
 #[tokio::test]
-async fn process_groups_logs_and_restarts() {
+async fn process_groups_logs_and_exits() {
     let temp = tempfile::tempdir().unwrap();
     let bots = temp.path().join("bots");
 
@@ -67,7 +67,8 @@ async fn process_groups_logs_and_restarts() {
     let supervisor = Supervisor::new(SupervisorConfig {
         spine_url: "ws://127.0.0.1:1".into(),
         log_dir: temp.path().join("logs"),
-        max_parallel_backtests: 2,
+        backtest_slots: 2,
+        live_slots: 1,
         restart_delay: Duration::from_millis(10),
         kill_grace: Duration::from_secs(2),
     });
@@ -99,93 +100,17 @@ async fn process_groups_logs_and_restarts() {
     let log = fs::read_to_string(supervisor.log_path(RunId(1))).unwrap();
     assert!(log.contains("out") && log.contains("err") && log.contains("ready"));
 
-    let mut live = supervisor.keep_alive(Launch {
-        run_id: RunId(2),
-        token: "secret".into(),
-        bot: crashing,
-    });
-    let mut restarts = Vec::new();
-    let mut exits = 0;
-    while let Some(event) = live.events().recv().await {
-        match event {
-            ProcessEvent::Restarting { attempt, delay } => restarts.push((attempt, delay)),
-            ProcessEvent::Exited { code } => {
-                assert_eq!(code, Some(3));
-                exits += 1;
-            }
-            _ => {}
-        }
-    }
-    assert_eq!(exits, 6);
-    let expected: Vec<_> = [10, 20, 40, 80, 160]
-        .iter()
-        .zip(1u32..)
-        .map(|(ms, attempt)| (attempt, Duration::from_millis(*ms)))
-        .collect();
-    assert_eq!(restarts, expected);
-    live.stop().await.unwrap();
-}
-
-#[tokio::test]
-async fn stopping_a_chatty_live_bot_nobody_reads_returns() {
-    let temp = tempfile::tempdir().unwrap();
-    let bots = temp.path().join("bots");
-    let chatty = write_bot(
-        &bots,
-        "chatty",
-        "i=0\nwhile [ $i -lt 3000 ]; do echo line $i; i=$((i+1)); done\nexec sleep 300\n",
-    );
-    let supervisor = Supervisor::new(SupervisorConfig {
-        spine_url: "ws://127.0.0.1:1".into(),
-        log_dir: temp.path().join("logs"),
-        max_parallel_backtests: 1,
-        restart_delay: Duration::from_millis(10),
-        kill_grace: Duration::from_secs(2),
-    });
-    let live = supervisor.keep_alive(Launch {
-        run_id: RunId(3),
-        token: "secret".into(),
-        bot: chatty,
-    });
-    tokio::time::sleep(Duration::from_millis(500)).await;
-    tokio::time::timeout(Duration::from_secs(10), live.stop())
+    let mut crashing = supervisor
+        .spawn(&Launch {
+            run_id: RunId(2),
+            token: "secret".into(),
+            bot: crashing,
+        })
         .await
-        .expect("stop returns while the event queue is full")
         .unwrap();
-}
-
-#[tokio::test]
-async fn a_crashed_live_bot_whose_code_changed_is_not_restarted() {
-    let temp = tempfile::tempdir().unwrap();
-    let bots = temp.path().join("bots");
-    let edited = write_bot(&bots, "edited", "exit 3\n");
-    let supervisor = Supervisor::new(SupervisorConfig {
-        spine_url: "ws://127.0.0.1:1".into(),
-        log_dir: temp.path().join("logs"),
-        max_parallel_backtests: 1,
-        restart_delay: Duration::from_millis(200),
-        kill_grace: Duration::from_secs(2),
-    });
-    let script = edited.dir.join("run.sh");
-    let mut live = supervisor.keep_alive(Launch {
-        run_id: RunId(4),
-        token: "secret".into(),
-        bot: edited,
-    });
-    let mut seen = Vec::new();
-    while let Some(event) = live.events().recv().await {
-        if matches!(event, ProcessEvent::Exited { .. }) {
-            fs::write(&script, "exit 4\n").unwrap();
-        }
-        seen.push(event);
-    }
-    let exits = seen
-        .iter()
-        .filter(|event| matches!(event, ProcessEvent::Exited { .. }))
-        .count();
-    assert_eq!(exits, 1);
-    assert_eq!(seen.last(), Some(&ProcessEvent::Outdated));
-    live.stop().await.unwrap();
+    let reaped = crashing.wait().await.unwrap();
+    assert_eq!(reaped.code, Some(3));
+    assert!(reaped.peak_memory > 0, "{reaped:?}");
 }
 
 const SECRET: &str = "BUIZZ_ADMIN_PASSWORD";
@@ -207,7 +132,8 @@ async fn bots_see_only_the_protocol_and_toolchain_environment() {
     let supervisor = Supervisor::new(SupervisorConfig {
         spine_url: "ws://127.0.0.1:1".into(),
         log_dir: temp.path().join("logs"),
-        max_parallel_backtests: 1,
+        backtest_slots: 1,
+        live_slots: 1,
         restart_delay: Duration::from_millis(10),
         kill_grace: Duration::from_secs(2),
     });

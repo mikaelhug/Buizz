@@ -41,6 +41,7 @@ pub struct Config {
     pub ingest_symbols: Option<BTreeSet<Symbol>>,
     pub duckdb_memory: String,
     pub duckdb_threads: usize,
+    pub live_slots: usize,
 }
 
 const MIN_ADMIN_PASSWORD_CHARS: usize = 12;
@@ -166,6 +167,9 @@ impl Config {
             duckdb_threads: var_or("BUIZZ_DUCKDB_THREADS", "2")
                 .parse()
                 .context("BUIZZ_DUCKDB_THREADS must be a whole number")?,
+            live_slots: var_or("BUIZZ_LIVE_SLOTS", "2")
+                .parse()
+                .context("BUIZZ_LIVE_SLOTS must be a whole number")?,
         })
     }
 
