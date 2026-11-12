@@ -114,15 +114,21 @@ impl Candidates {
         self.0
             .into_iter()
             .filter_map(|((metric, scope, period), found)| {
-                let mut values = found.iter().filter_map(|other| other.value);
-                let value = values.next()?;
-                if values.any(|other| other != value) {
-                    return None;
-                }
-                let mut dates = found.iter().filter_map(|other| other.as_of);
-                let as_of = dates
-                    .next()
-                    .filter(|first| dates.all(|date| date == *first));
+                let (current, dated): (Vec<Found>, Vec<Found>) =
+                    found.into_iter().partition(|other| other.as_of.is_none());
+                let value = agreed(current.iter().chain(&dated).filter_map(|other| other.value))
+                    .or_else(|| agreed(current.iter().filter_map(|other| other.value)))?;
+                let as_of = agreed(
+                    dated
+                        .iter()
+                        .filter(|other| other.value.is_none_or(|stated| stated == value))
+                        .filter_map(|other| other.as_of),
+                )
+                .filter(|_| {
+                    dated
+                        .iter()
+                        .all(|other| other.value.is_none_or(|stated| stated == value))
+                });
                 Some(EstimateFact {
                     metric,
                     scope,
@@ -133,6 +139,11 @@ impl Candidates {
             })
             .collect()
     }
+}
+
+fn agreed<T: PartialEq>(mut values: impl Iterator<Item = T>) -> Option<T> {
+    let first = values.next()?;
+    values.all(|other| other == first).then_some(first)
 }
 
 pub fn parse(report: &EarningsInsight) -> Vec<EstimateFact> {
@@ -218,7 +229,7 @@ fn valuation(found: &mut Candidates, sentence: &str, previous: &str, issued: Nai
     let sector = lower.contains("sector");
     for captures in STATED_PE.captures_iter(sentence) {
         let whole = captures.get(0).expect("the match");
-        if !trailing && about_the_index(sentence, whole.start()) {
+        if !trailing && !sector && about_the_index(sentence, whole.start()) {
             found.index(EstimateMetric::ForwardPe, group(&captures, 1));
         }
     }

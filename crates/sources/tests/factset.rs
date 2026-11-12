@@ -151,3 +151,38 @@ fn report_names_follow_the_url_patterns_factset_used_since_2011() {
         None
     );
 }
+
+#[test]
+fn a_dated_topic_figure_does_not_cancel_the_headline_forward_pe() {
+    let issued = date("2025-10-31");
+    let report = EarningsInsight {
+        report: "2025-10-31".to_owned(),
+        issue_date: issued,
+        published: issued,
+        url: String::new(),
+        retrieved_from: String::new(),
+        digest: String::new(),
+        text: "Valuation: The forward 12-month P/E ratio for the S&P 500 is 22.9. \
+               On October 29, the forward 12-month P/E ratio for the S&P 500 was 23.1, \
+               which was the third straight day above 23.0. This forward 12-month P/E ratio \
+               was based on a closing price of 6890.59 and a forward 12-month EPS estimate of $298.56."
+            .to_owned(),
+    };
+    let facts: BTreeMap<EstimateMetric, (Decimal, Option<NaiveDate>)> = parse(&report)
+        .into_iter()
+        .map(|fact| (fact.metric, (fact.value, fact.as_of)))
+        .collect();
+    let october_29 = Some(date("2025-10-29"));
+    assert_eq!(
+        facts[&EstimateMetric::ForwardPe],
+        ("22.9".parse().unwrap(), None)
+    );
+    assert_eq!(
+        facts[&EstimateMetric::ForwardEps],
+        ("298.56".parse().unwrap(), october_29)
+    );
+    assert_eq!(
+        facts[&EstimateMetric::IndexPrice],
+        ("6890.59".parse().unwrap(), october_29)
+    );
+}
