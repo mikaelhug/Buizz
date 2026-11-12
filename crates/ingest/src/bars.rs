@@ -14,6 +14,7 @@ const REQUESTS_PER_RUN: usize = 600;
 const SETTLE_MARGIN: TimeDelta = TimeDelta::minutes(15);
 const SETTLING: TimeDelta = TimeDelta::hours(24);
 const MAX_LAG_SESSIONS: usize = 20;
+const REFUSED_REQUEST: [u16; 2] = [400, 422];
 const DORMANT_RETRY: TimeDelta = TimeDelta::days(7);
 
 impl Ingest {
@@ -202,7 +203,7 @@ impl Ingest {
 fn refused_request(error: &SourceError) -> bool {
     match error {
         SourceError::Decode(_) => true,
-        SourceError::Status { status, .. } => (400..500).contains(status),
+        SourceError::Status { status, .. } => REFUSED_REQUEST.contains(status),
         _ => false,
     }
 }
