@@ -1,25 +1,14 @@
 import math
-from datetime import date, timedelta
 
 import numpy as np
 import numpy.typing as npt
+from buizz_bots.monthly import MAX_SESSIONS_PER_MONTH, anchor_session, trailing_return
 from buizz_bots.sessions import last_session_of_month
 
-from buizz import Bot, Context, History, run
+from buizz import Bot, Context, run
 
 VARIANCE_DAYS_PER_YEAR = 261
-MAX_SESSIONS_PER_MONTH = 23
 TRUNCATED_WEIGHT = 1e-4
-
-
-def month_start(day: date, months_back: int) -> date:
-    index = day.year * 12 + day.month - 1 - months_back
-    return date(index // 12, index % 12 + 1, 1)
-
-
-def close_on(history: History, day: date) -> float | None:
-    found = np.flatnonzero(history.start.astype("datetime64[ns]").astype("datetime64[D]") == np.datetime64(day))
-    return float(history.close[found[0]]) if found.size else None
 
 
 def ex_ante_volatility(closes: npt.NDArray[np.float64], centre_of_mass: float) -> float:
@@ -42,26 +31,20 @@ class TrendFollowing(Bot):
         centre_of_mass = float(ctx.params["vol_com_days"])
         max_gross = float(ctx.params["max_gross"])
         today = ctx.session.date
-        first_day = month_start(today, months)
-        if not (anchor_month := ctx.calendar(first_day, month_start(today, months - 1) - timedelta(days=1))):
-            ctx.log(f"the calendar has no session in {first_day:%Y-%m}, no signal yet", level="warn")
+        if (anchor := anchor_session(ctx, months)) is None:
+            ctx.log(f"the calendar has no session {months} months back, no signal yet", level="warn")
             return
-        anchor = anchor_month[-1].date
         vol_sessions = math.ceil(math.log(TRUNCATED_WEIGHT) / math.log(centre_of_mass / (centre_of_mass + 1)))
         history = ctx.history(
             [*assets, cash], "1d", max(vol_sessions, MAX_SESSIONS_PER_MONTH * (months + 1)) + 1, adjust="all"
         )
 
-        def trailing_return(symbol: str) -> float | None:
-            start, end = close_on(history[symbol], anchor), close_on(history[symbol], today)
-            return None if start is None or end is None else end / start - 1
-
-        if (cash_return := trailing_return(cash)) is None:
+        if (cash_return := trailing_return(history[cash], anchor, today)) is None:
             ctx.log(f"no {months}-month return of {cash} since the {anchor} close, no excess returns", level="warn")
             return
         signals: dict[str, tuple[float, float]] = {}
         for asset in assets:
-            if (total := trailing_return(asset)) is None:
+            if (total := trailing_return(history[asset], anchor, today)) is None:
                 continue
             if (vol := ex_ante_volatility(history[asset].close[-(vol_sessions + 1) :], centre_of_mass)) > 0:
                 signals[asset] = (total, vol)
