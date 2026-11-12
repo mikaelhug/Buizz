@@ -2,7 +2,8 @@ use std::path::{Path, PathBuf};
 
 use buizz_core::market::{
     Adjustment, CorporateAction, CorporateActionKind, DataSource, FundamentalFact,
-    FundamentalMetric, PeriodType, Session, Symbol, Timeframe,
+    FundamentalMetric, InsiderFiling, InsiderOwner, InsiderTransaction, NewsArticle, PeriodType,
+    Session, Symbol, Timeframe,
 };
 use buizz_core::protocol::BarRow;
 use buizz_core::time::Timestamp;
@@ -377,4 +378,182 @@ async fn a_late_closure_stays_a_published_session_until_it_was_announced() {
         dates("2018-12-03T14:30:00Z"),
         ["2018-12-03", "2018-12-04", "2018-12-06", "2018-12-07"].map(day)
     );
+}
+
+async fn november_2026() -> (tempfile::TempDir, MarketStore) {
+    let dir = tempfile::tempdir().unwrap();
+    let store = MarketStore::open(&dir.path().join(FILE_NAME), 1)
+        .await
+        .unwrap();
+    let sessions: Vec<Session> = "2026-11-02"
+        .parse::<NaiveDate>()
+        .unwrap()
+        .iter_days()
+        .take(12)
+        .filter(|date| date.weekday().number_from_monday() <= 5)
+        .map(|date| Session {
+            date,
+            open: format!("{date}T14:30:00Z").parse().unwrap(),
+            close: format!("{date}T21:00:00Z").parse().unwrap(),
+        })
+        .collect();
+    store
+        .upsert_sessions(DataSource::Fixture, sessions)
+        .await
+        .unwrap();
+    (dir, store)
+}
+
+fn insider_filing(accession: &str, form: &str, accepted_at: &str, price: i64) -> InsiderFiling {
+    let accepted_at: Timestamp = accepted_at.parse().unwrap();
+    InsiderFiling {
+        symbol: Symbol::new("AAPL"),
+        issuer_cik: 320193,
+        accession: accession.to_owned(),
+        form: form.to_owned(),
+        filed: accepted_at.exchange_date(),
+        accepted_at,
+        owners: vec![InsiderOwner {
+            cik: 1780525,
+            name: "Newstead Jennifer".to_owned(),
+            director: false,
+            officer: true,
+            ten_percent_owner: false,
+            other: false,
+            officer_title: Some("SVP, GC and Government Affairs".to_owned()),
+        }],
+        transactions: vec![InsiderTransaction {
+            security: "Common Stock".to_owned(),
+            date: "2026-11-03".parse().unwrap(),
+            code: "S".to_owned(),
+            acquired: false,
+            shares: Some(Decimal::from(2399)),
+            price: Some(Decimal::new(price, 2)),
+            shares_after: Some(Decimal::from(29997)),
+            direct: true,
+        }],
+    }
+}
+
+#[tokio::test]
+async fn an_insider_trade_is_seen_from_the_next_open_and_its_amendment_is_a_later_fact() {
+    let (_dir, store) = november_2026().await;
+    let original = insider_filing("0001140361-26-042149", "4", "2026-11-05T23:30:13Z", 32575);
+    let amendment = insider_filing("0001140361-26-043001", "4/A", "2026-11-09T15:00:00Z", 32757);
+    let written = store
+        .append_insider_filings(DataSource::Edgar, vec![original.clone(), amendment])
+        .await
+        .unwrap();
+    assert_eq!(written.rows, 2);
+    let again = store
+        .append_insider_filings(DataSource::Edgar, vec![original])
+        .await
+        .unwrap();
+    assert_eq!(again.rows, 0);
+    let since: NaiveDate = "2026-11-01".parse().unwrap();
+    let seen = |clock: &str| {
+        let store = store.clone();
+        let clock: Timestamp = clock.parse().unwrap();
+        async move {
+            store
+                .insider_trades(vec![Symbol::new("AAPL")], since, clock)
+                .await
+                .unwrap()
+                .into_iter()
+                .map(|trade| {
+                    (
+                        trade.form,
+                        trade.transaction.price.unwrap(),
+                        trade.available_at.to_string(),
+                    )
+                })
+                .collect::<Vec<_>>()
+        }
+    };
+
+    assert!(seen("2026-11-06T14:29:59Z").await.is_empty());
+    let original_seen = (
+        "4".to_owned(),
+        Decimal::new(32575, 2),
+        "2026-11-06T14:30:00Z".to_owned(),
+    );
+    assert_eq!(
+        seen("2026-11-06T14:30:00Z").await,
+        std::slice::from_ref(&original_seen)
+    );
+    assert_eq!(
+        seen("2026-11-09T21:00:00Z").await,
+        std::slice::from_ref(&original_seen)
+    );
+    assert_eq!(
+        seen("2026-11-10T14:30:00Z").await,
+        [
+            original_seen,
+            (
+                "4/A".to_owned(),
+                Decimal::new(32757, 2),
+                "2026-11-10T14:30:00Z".to_owned()
+            )
+        ]
+    );
+}
+
+fn article(updated_at: &str, received_at: &str, backfilled: bool) -> NewsArticle {
+    NewsArticle {
+        id: 24843171,
+        symbols: vec![Symbol::new("AAPL"), Symbol::new("QQQ")],
+        headline: format!("Apple Shares Rise ({updated_at})"),
+        summary: String::new(),
+        source: "benzinga".to_owned(),
+        created_at: "2026-11-05T20:41:12Z".parse().unwrap(),
+        updated_at: updated_at.parse().unwrap(),
+        received_at: received_at.parse().unwrap(),
+        backfilled,
+    }
+}
+
+#[tokio::test]
+async fn news_keeps_every_version_and_shows_each_from_when_it_was_known() {
+    let (_dir, store) = november_2026().await;
+    let original = article("2026-11-05T20:41:12Z", "2026-11-05T20:41:13Z", false);
+    let edit = article("2026-11-05T20:47:55Z", "2026-11-05T20:47:56Z", false);
+    let later_edit = article("2026-11-05T22:10:00Z", "2026-11-07T05:00:00Z", true);
+    let recorded = store
+        .append_news(DataSource::AlpacaStream, vec![original.clone(), edit], None)
+        .await
+        .unwrap();
+    assert_eq!(recorded.rows, 2);
+    let backfill = store
+        .append_news(
+            DataSource::Alpaca,
+            vec![later_edit, original],
+            Some(("2026-11-05".parse().unwrap(), "2026-11-05".parse().unwrap())),
+        )
+        .await
+        .unwrap();
+    assert_eq!(backfill.rows, 1, "the stream already holds the original");
+    let versions = |clock: &str| {
+        let store = store.clone();
+        let clock: Timestamp = clock.parse().unwrap();
+        async move {
+            store
+                .news(
+                    vec![Symbol::new("QQQ")],
+                    "2026-11-05".parse().unwrap(),
+                    clock,
+                )
+                .await
+                .unwrap()
+                .into_iter()
+                .map(|article| (article.updated_at.to_string(), article.backfilled))
+                .collect::<Vec<_>>()
+        }
+    };
+
+    assert!(versions("2026-11-05T20:41:12Z").await.is_empty());
+    assert_eq!(
+        versions("2026-11-05T20:47:55Z").await,
+        [("2026-11-05T20:41:12Z".to_owned(), false)]
+    );
+    assert_eq!(versions("2026-11-05T22:10:00Z").await.len(), 3);
 }

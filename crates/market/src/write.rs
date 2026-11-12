@@ -2,8 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use buizz_core::market::{
     Bar, BorrowAvailability, Company, CorporateAction, CorporateActionKind, DataSource, Dataset,
-    EarningsRelease, FundamentalFact, IndexHistory, Instrument, MacroObservation, RiskFreeRate,
-    SecFiling, Session, Symbol,
+    EarningsRelease, FundamentalFact, IndexHistory, InsiderFiling, Instrument, MacroObservation,
+    NewsArticle, RiskFreeRate, SecFiling, Session, Symbol,
 };
 use buizz_core::time::Timestamp;
 use chrono::NaiveDate;
@@ -802,6 +802,142 @@ pub(crate) fn borrow_availability(
             }
             appender.flush()?;
             Ok(unique.len() as u64)
+        },
+    )
+}
+
+pub(crate) fn insider_filings(
+    connection: &mut Connection,
+    source: DataSource,
+    filings: Vec<InsiderFiling>,
+) -> Result<WriteSummary> {
+    let unique: BTreeMap<(Symbol, String), InsiderFiling> = filings
+        .into_iter()
+        .map(|filing| ((filing.symbol.clone(), filing.accession.clone()), filing))
+        .collect();
+    let mut coverage = Coverage::new();
+    for filing in unique.values() {
+        cover(&mut coverage, Some(&filing.symbol), filing.filed);
+    }
+    write_batch(
+        connection,
+        source,
+        Dataset::InsiderTrades,
+        coverage,
+        |transaction, batch_id| {
+            let mut stored = transaction.prepare_cached(
+                "SELECT count(*) > 0 FROM main.insider_filing WHERE symbol = ? AND accession = ?",
+            )?;
+            let mut filed = transaction.appender("insider_filing")?;
+            let mut owners = transaction.appender("insider_owner")?;
+            let mut trades = transaction.appender("insider_transaction")?;
+            let mut rows = 0;
+            for filing in unique.values() {
+                let symbol = filing.symbol.as_str();
+                let known: bool =
+                    stored.query_row(params![symbol, filing.accession], |row| row.get(0))?;
+                if known {
+                    continue;
+                }
+                filed.append_row(params![
+                    symbol,
+                    filing.issuer_cik,
+                    filing.accession,
+                    filing.form,
+                    filing.filed,
+                    Ts(filing.accepted_at),
+                    batch_id,
+                ])?;
+                for owner in &filing.owners {
+                    owners.append_row(params![
+                        symbol,
+                        filing.accession,
+                        owner.cik,
+                        owner.name,
+                        owner.director,
+                        owner.officer,
+                        owner.ten_percent_owner,
+                        owner.other,
+                        owner.officer_title,
+                        batch_id,
+                    ])?;
+                }
+                for (line, trade) in (0_u32..).zip(&filing.transactions) {
+                    trades.append_row(params![
+                        symbol,
+                        filing.accession,
+                        line,
+                        trade.security,
+                        trade.date,
+                        trade.code,
+                        trade.acquired,
+                        trade.shares.map(Dec),
+                        trade.price.map(Dec),
+                        trade.shares_after.map(Dec),
+                        trade.direct,
+                        batch_id,
+                    ])?;
+                }
+                rows += 1;
+            }
+            filed.flush()?;
+            owners.flush()?;
+            trades.flush()?;
+            Ok(rows)
+        },
+    )
+}
+
+pub(crate) fn news_articles(
+    connection: &mut Connection,
+    source: DataSource,
+    articles: Vec<NewsArticle>,
+    window: Option<(NaiveDate, NaiveDate)>,
+) -> Result<WriteSummary> {
+    let mut coverage = Coverage::new();
+    match window {
+        Some((first, last)) => {
+            cover(&mut coverage, None, first);
+            cover(&mut coverage, None, last);
+        }
+        None => {
+            for article in &articles {
+                cover(&mut coverage, None, article.received_at.exchange_date());
+            }
+        }
+    }
+    write_batch(
+        connection,
+        source,
+        Dataset::News,
+        coverage,
+        |transaction, batch_id| {
+            let mut statement = transaction.prepare_cached(
+                "INSERT OR IGNORE INTO main.news_article VALUES (?, ?, ?, \
+                 list_filter(string_split(?, ','), lambda symbol: symbol <> ''), ?, ?, ?, ?, ?, ?)",
+            )?;
+            let mut rows = 0;
+            for article in &articles {
+                let symbols = article
+                    .symbols
+                    .iter()
+                    .map(Symbol::as_str)
+                    .collect::<Vec<_>>()
+                    .join(",");
+                rows += statement.execute(params![
+                    article.id,
+                    Ts(article.updated_at),
+                    Ts(article.created_at),
+                    symbols,
+                    article.headline,
+                    article.summary,
+                    article.source,
+                    Ts(article.received_at),
+                    article.backfilled,
+                    batch_id,
+                ])? as u64;
+            }
+            Ok(rows)
         },
     )
 }

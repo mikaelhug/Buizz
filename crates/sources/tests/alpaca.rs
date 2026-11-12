@@ -78,6 +78,19 @@ async fn actions(
     }
 }
 
+async fn news(
+    State(seen): State<Seen>,
+    headers: HeaderMap,
+    Query(params): Query<Params>,
+) -> Response {
+    record(&seen, "news", &headers, &params);
+    if params.contains_key("page_token") {
+        json(include_str!("../fixtures/alpaca/news_page2.json"))
+    } else {
+        json(include_str!("../fixtures/alpaca/news_page1.json"))
+    }
+}
+
 async fn serve_fixtures() -> (String, Seen) {
     let seen = Seen::default();
     let router = Router::new()
@@ -85,6 +98,7 @@ async fn serve_fixtures() -> (String, Seen) {
         .route("/v2/calendar", get(calendar))
         .route("/v2/assets", get(assets))
         .route("/v1/corporate-actions", get(actions))
+        .route("/v1beta1/news", get(news))
         .with_state(seen.clone());
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}", listener.local_addr().unwrap());
@@ -284,4 +298,40 @@ async fn alpaca_client_pages_filters_and_normalizes_against_fixtures() {
             rate: decimal("1.5395")
         }
     )));
+}
+
+#[tokio::test]
+async fn news_history_pages_through_a_window_and_is_marked_backfilled() {
+    let (url, seen) = serve_fixtures().await;
+    let client = AlpacaClient::new(AlpacaConfig {
+        data_url: url.clone(),
+        trading_url: url,
+        ..AlpacaConfig::new("key".to_owned(), "secret".to_owned())
+    })
+    .unwrap();
+    let (from, to) = (at("2026-10-30", "00:00"), at("2026-10-31", "00:00"));
+    let before = Timestamp::now();
+
+    let first = client.news_page(from, to, None).await.unwrap();
+    let second = client.news_page(from, to, first.next).await.unwrap();
+    assert!(second.next.is_none());
+    let articles: Vec<_> = first.articles.iter().chain(&second.articles).collect();
+    assert_eq!(
+        articles
+            .iter()
+            .map(|article| (article.id, article.symbols.len()))
+            .collect::<Vec<_>>(),
+        [(24843171, 2), (24843302, 1)]
+    );
+    assert!(
+        articles
+            .iter()
+            .all(|article| article.backfilled && article.received_at >= before)
+    );
+    let requests = seen.lock().unwrap().clone();
+    let (_, params) = &requests[0];
+    assert_eq!(params["start"], from.to_string());
+    assert_eq!(params["end"], to.to_string());
+    assert_eq!(params["sort"], "asc");
+    assert!(requests[1].1.contains_key("page_token"));
 }

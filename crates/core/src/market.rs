@@ -415,6 +415,66 @@ pub struct EarningsRelease {
     pub accepted_at: Timestamp,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InsiderOwner {
+    pub cik: u32,
+    pub name: String,
+    pub director: bool,
+    pub officer: bool,
+    pub ten_percent_owner: bool,
+    pub other: bool,
+    pub officer_title: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InsiderTransaction {
+    pub security: String,
+    pub date: NaiveDate,
+    pub code: String,
+    pub acquired: bool,
+    pub shares: Option<Decimal>,
+    pub price: Option<Decimal>,
+    pub shares_after: Option<Decimal>,
+    pub direct: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct InsiderFiling {
+    pub symbol: Symbol,
+    pub issuer_cik: u32,
+    pub accession: String,
+    pub form: String,
+    pub filed: NaiveDate,
+    pub accepted_at: Timestamp,
+    pub owners: Vec<InsiderOwner>,
+    pub transactions: Vec<InsiderTransaction>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InsiderTrade {
+    pub symbol: Symbol,
+    pub accession: String,
+    pub form: String,
+    pub filed: NaiveDate,
+    pub accepted_at: Timestamp,
+    pub available_at: Timestamp,
+    pub owners: Vec<InsiderOwner>,
+    pub transaction: InsiderTransaction,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NewsArticle {
+    pub id: u64,
+    pub symbols: Vec<Symbol>,
+    pub headline: String,
+    pub summary: String,
+    pub source: String,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
+    pub received_at: Timestamp,
+    pub backfilled: bool,
+}
+
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, ToSchema,
 )]
@@ -551,6 +611,8 @@ pub enum Dataset {
     IndexMembership,
     Borrow,
     Macro,
+    InsiderTrades,
+    News,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]

@@ -3,7 +3,7 @@ use buizz_core::time::Timestamp;
 use chrono::NaiveDate;
 use serde::Deserialize;
 
-use super::EARNINGS_FORMS;
+use super::{EARNINGS_FORMS, INSIDER_FORMS};
 use crate::http::SourceError;
 
 const RESULTS_OF_OPERATIONS: &str = "2.02";
@@ -11,8 +11,23 @@ const RESULTS_OF_OPERATIONS: &str = "2.02";
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Submissions {
     pub company: Company,
-    pub releases: Vec<EarningsRelease>,
+    pub filings: Filings,
     pub older_pages: Vec<FilingsPage>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Filings {
+    pub releases: Vec<EarningsRelease>,
+    pub ownership: Vec<OwnershipFiling>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OwnershipFiling {
+    pub accession: String,
+    pub form: String,
+    pub filed: NaiveDate,
+    pub accepted_at: Timestamp,
+    pub document: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
@@ -20,6 +35,12 @@ pub struct FilingsPage {
     pub name: String,
     #[serde(rename = "filingTo")]
     pub filing_to: NaiveDate,
+}
+
+impl OwnershipFiling {
+    pub fn is_xml(&self) -> bool {
+        self.document.ends_with(".xml")
+    }
 }
 
 #[derive(Deserialize)]
@@ -50,6 +71,8 @@ struct Columns {
     accepted: Vec<String>,
     form: Vec<String>,
     items: Vec<String>,
+    #[serde(rename = "primaryDocument", default)]
+    document: Vec<String>,
 }
 
 fn decode<T: for<'de> Deserialize<'de>>(payload: &[u8]) -> Result<T, SourceError> {
@@ -72,7 +95,7 @@ pub fn normalize_submissions(symbol: &Symbol, payload: &[u8]) -> Result<Submissi
                 .and(wire.sic_description)
                 .filter(|text| !text.is_empty()),
         },
-        releases: earnings_releases(symbol, cik, &wire.filings.recent)?,
+        filings: filings(symbol, cik, &wire.filings.recent)?,
         older_pages: wire
             .filings
             .files
@@ -91,15 +114,11 @@ pub fn normalize_filings_page(
     symbol: &Symbol,
     cik: u32,
     payload: &[u8],
-) -> Result<Vec<EarningsRelease>, SourceError> {
-    earnings_releases(symbol, cik, &decode(payload)?)
+) -> Result<Filings, SourceError> {
+    filings(symbol, cik, &decode(payload)?)
 }
 
-fn earnings_releases(
-    symbol: &Symbol,
-    cik: u32,
-    columns: &Columns,
-) -> Result<Vec<EarningsRelease>, SourceError> {
+fn filings(symbol: &Symbol, cik: u32, columns: &Columns) -> Result<Filings, SourceError> {
     let rows = columns.accession.len();
     let lengths = [
         columns.filed.len(),
@@ -113,8 +132,26 @@ fn earnings_releases(
             "submissions filing columns differ in length".to_owned(),
         ));
     }
-    let mut releases = Vec::new();
+    let mut filings = Filings::default();
     for row in 0..rows {
+        let accepted_at = || -> Result<Timestamp, SourceError> {
+            columns.accepted[row].parse().map_err(|_| {
+                SourceError::Decode(format!(
+                    "acceptance time {:?} of {}",
+                    columns.accepted[row], columns.accession[row]
+                ))
+            })
+        };
+        if INSIDER_FORMS.contains(&columns.form[row].as_str()) {
+            filings.ownership.push(OwnershipFiling {
+                accession: columns.accession[row].clone(),
+                form: columns.form[row].clone(),
+                filed: columns.filed[row],
+                accepted_at: accepted_at()?,
+                document: columns.document.get(row).cloned().unwrap_or_default(),
+            });
+            continue;
+        }
         let announces_results = EARNINGS_FORMS.contains(&columns.form[row].as_str())
             && columns.items[row]
                 .split(',')
@@ -122,21 +159,15 @@ fn earnings_releases(
         if !announces_results {
             continue;
         }
-        let accepted_at: Timestamp = columns.accepted[row].parse().map_err(|_| {
-            SourceError::Decode(format!(
-                "acceptance time {:?} of {}",
-                columns.accepted[row], columns.accession[row]
-            ))
-        })?;
-        releases.push(EarningsRelease {
+        filings.releases.push(EarningsRelease {
             symbol: symbol.clone(),
             cik,
             accession: columns.accession[row].clone(),
             form: columns.form[row].clone(),
             filed: columns.filed[row],
             report_date: columns.report_date[row].parse().ok(),
-            accepted_at,
+            accepted_at: accepted_at()?,
         });
     }
-    Ok(releases)
+    Ok(filings)
 }
