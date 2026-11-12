@@ -1,6 +1,5 @@
-from datetime import UTC, datetime
-
 import numpy as np
+from buizz_bots.monthly import session_days
 from hmmlearn.hmm import GaussianHMM
 from numpy.typing import NDArray
 
@@ -29,12 +28,14 @@ class RegimeHmmSpy(Bot):
         votes_needed: int = ctx.params["votes"]
         history = ctx.history([STOCKS], "1d", window + votes_needed, adjust="all")[STOCKS]
         returns = 100 * np.diff(np.log(history.close))
-        dates = [datetime.fromtimestamp(int(ns) / 1e9, UTC).date().isoformat() for ns in history.start[1:]]
+        dates: list[str] = session_days(history).astype(str).tolist()[1:]
         if len(returns) < window:
             return
         through: str | None = ctx.state.get("through")
-        votes: list[bool] = ctx.state.get("votes", []) if through in dates else []
-        first = dates.index(through) + 1 if through in dates else max(window - 1, len(returns) - votes_needed)
+        fresh = max(window - 1, len(returns) - votes_needed)
+        resume = dates.index(through) + 1 if through in dates else 0
+        votes: list[bool] = ctx.state.get("votes", []) if resume >= fresh else []
+        first = max(resume, fresh)
         for day in range(first, len(returns)):
             fitted = returns[day + 1 - window : day + 1]
             votes = [*votes, high_volatility_at_end(fitted, ctx.params["starts"], ctx.params["seed"])][-votes_needed:]
@@ -45,9 +46,10 @@ class RegimeHmmSpy(Bot):
         held = CASH if turbulent > votes_needed - turbulent else STOCKS
         if held == ctx.state.get("held"):
             return
+        tie = ", a tie stays in SPY" if 2 * turbulent == votes_needed else ""
         why = (
             f"{turbulent} of the last {votes_needed} Viterbi end states of {window}-session SPY fits to {dates[-1]} "
-            f"were high volatility"
+            f"were high volatility{tie}"
         )
         ctx.rebalance(
             {STOCKS if held == CASH else CASH: 0.0, held: 1.0},
