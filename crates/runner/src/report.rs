@@ -160,6 +160,8 @@ async fn source_backtest(
         .filter(|backtest| {
             !backtest.config.holdout
                 && backtest.config.params == run.config.params
+                && backtest.config.cost == run.config.cost
+                && backtest.config.risk == run.config.risk
                 && hash(backtest) == hash(run)
         })
         .max_by_key(|backtest| {
