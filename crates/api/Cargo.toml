@@ -16,6 +16,7 @@ buizz-market.workspace = true
 buizz-metrics.workspace = true
 buizz-runner.workspace = true
 buizz-state.workspace = true
+buizz-supervisor.workspace = true
 chrono.workspace = true
 futures.workspace = true
 rand.workspace = true
@@ -30,7 +31,6 @@ utoipa-axum.workspace = true
 
 [dev-dependencies]
 buizz-sources.workspace = true
-buizz-supervisor.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true
 tower.workspace = true

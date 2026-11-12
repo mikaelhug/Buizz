@@ -6,11 +6,12 @@ use buizz_core::api::{
 };
 use buizz_core::market::{RiskFreeRate, Symbol};
 use buizz_core::performance::Metrics;
-use buizz_core::run::{CostModel, Mode, Period, PeriodPreset, RunStatus};
+use buizz_core::run::{CostModel, Mode, Period, PeriodPreset, RunConfig, RunStatus};
 use buizz_core::time::Timestamp;
 use buizz_market::MarketStore;
 use buizz_metrics::Screened;
 use buizz_state::{RunFilter, StateStore};
+use buizz_supervisor::BotSpec;
 use chrono::NaiveDate;
 use tokio::sync::OnceCell;
 
@@ -94,20 +95,20 @@ impl Benchmarks {
     }
 }
 
-pub(crate) fn screening_period(run: &RunSummary) -> Option<PeriodPreset> {
-    let period = Period {
-        from: run.config.start,
-        to: run.config.end?,
-    };
-    (run.config.cost == CostModel::default())
-        .then(|| PeriodPreset::of(period, run.created_at.exchange_date()))
-        .flatten()
-}
-
-fn latest_variants(runs: Vec<RunSummary>) -> BTreeMap<PeriodPreset, Vec<RunSummary>> {
+fn latest_variants(
+    runs: Vec<RunSummary>,
+    standard: impl Fn(&RunConfig) -> bool,
+) -> BTreeMap<PeriodPreset, Vec<RunSummary>> {
     let mut presets: BTreeMap<PeriodPreset, Vec<RunSummary>> = BTreeMap::new();
     for run in runs {
-        let Some(preset) = screening_period(&run) else {
+        let Some(to) = run.config.end.filter(|_| standard(&run.config)) else {
+            continue;
+        };
+        let period = Period {
+            from: run.config.start,
+            to,
+        };
+        let Some(preset) = PeriodPreset::of(period, run.created_at.exchange_date()) else {
             continue;
         };
         let variants = presets.entry(preset).or_default();
@@ -139,32 +140,36 @@ impl Runner {
         }
     }
 
+    pub(crate) fn standard(&self, config: &RunConfig, spec: &BotSpec) -> bool {
+        config.cost == CostModel::default()
+            && config.risk == spec.manifest.risk
+            && config.start_cash == self.inner.config.start_cash
+    }
+
     async fn screened_runs(
         &self,
-        bot: &str,
-        bot_hash: &str,
+        spec: &BotSpec,
     ) -> Result<BTreeMap<PeriodPreset, Vec<RunSummary>>, RunnerError> {
         let runs = self
             .inner
             .state
             .runs(RunFilter {
-                bot: Some(bot.to_owned()),
-                bot_hash: Some(bot_hash.to_owned()),
+                bot: Some(spec.name.clone()),
+                bot_hash: Some(spec.content_hash.clone()),
                 mode: Some(Mode::Backtest),
                 statuses: SCREENED_STATUSES.to_vec(),
                 ..RunFilter::default()
             })
             .await?;
-        Ok(latest_variants(runs))
+        Ok(latest_variants(runs, |config| self.standard(config, spec)))
     }
 
     pub async fn screening(
         &self,
-        bot: &str,
-        bot_hash: &str,
+        spec: &BotSpec,
         benchmarks: &Benchmarks,
     ) -> Result<Option<Screening>, RunnerError> {
-        let presets = self.screened_runs(bot, bot_hash).await?;
+        let presets = self.screened_runs(spec).await?;
         let Some(preset) = gate_preset(&presets) else {
             return Ok(None);
         };
@@ -187,7 +192,7 @@ impl Runner {
 
     pub async fn research(&self, bot: &str) -> Result<Research, RunnerError> {
         let spec = self.bot(bot).await?;
-        let presets = self.screened_runs(bot, &spec.content_hash).await?;
+        let presets = self.screened_runs(&spec).await?;
         let trials = self.inner.state.trials(bot).await?;
         let benchmarks = self.benchmarks();
         let gate_preset = gate_preset(&presets);

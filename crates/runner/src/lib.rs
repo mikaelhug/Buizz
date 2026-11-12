@@ -18,7 +18,7 @@ use buizz_core::money::CASH_DECIMALS;
 use buizz_core::ops::{CoverageGap, DataWarning};
 use buizz_core::performance::Metrics;
 use buizz_core::run::{
-    CostModel, DesiredState, MAX_SWEEP_VARIANTS, Mode, PeriodPreset, RunBadge, RunConfig, RunEvent,
+    DesiredState, MAX_SWEEP_VARIANTS, Mode, PeriodPreset, RunBadge, RunConfig, RunEvent,
     RunEventKind, RunId, RunStatus, UNIVERSE_SESSIONS, UniverseSpec, coerce_param,
 };
 use buizz_core::time::Timestamp;
@@ -309,7 +309,7 @@ impl Runner {
             .filter(|run| {
                 run.config.start == period.from
                     && run.config.end == Some(period.to)
-                    && run.config.cost == CostModel::default()
+                    && self.standard(&run.config, &spec)
             })
             .map(|run| run.config.params)
             .collect();
