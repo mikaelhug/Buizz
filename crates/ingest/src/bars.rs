@@ -168,13 +168,17 @@ impl Ingest {
                     }
                 }
                 for symbol in chunk.iter().filter(|symbol| dormant.contains(*symbol)) {
+                    let rows = received.get(symbol).copied().unwrap_or_default();
+                    if rows == 0 && chunk.len() > 1 {
+                        pending.push(vec![symbol.clone()]);
+                        continue;
+                    }
                     let key = FetchKey::new(
                         DataSource::Alpaca,
                         Dataset::Bars1d,
                         Some(symbol),
                         Some((from, target.date)),
                     );
-                    let rows = received.get(symbol).copied().unwrap_or_default();
                     self.record_fetched(now, &key, rows).await?;
                 }
             }

@@ -153,11 +153,15 @@ async fn bars(State(fake): State<Arc<Fake>>, Query(params): Query<Params>) -> Re
         rows.join(",")
     };
     let aapl = requested("AAPL", date(ALPACA_FIRST_BAR), date(ALPACA_LAST_BAR));
-    let delisted = requested(
-        DELISTED_MEMBER,
-        date(ALPACA_FIRST_BAR),
-        date(ALPACA_LAST_BAR),
-    );
+    let alone = params["symbols"] == DELISTED_MEMBER;
+    let delisted = match alone {
+        true => requested(
+            DELISTED_MEMBER,
+            date(ALPACA_FIRST_BAR),
+            date(ALPACA_LAST_BAR),
+        ),
+        false => String::new(),
+    };
     let spy = requested(
         "SPY",
         date(ALPACA_FIRST_BAR) + TimeDelta::days(1),
@@ -568,7 +572,7 @@ async fn a_start_that_adds_a_macro_series_fetches_it_without_waiting_a_day() {
 }
 
 #[tokio::test]
-async fn a_delisted_member_alpaca_no_longer_lists_stays_tradable_until_its_last_bar() {
+async fn a_delisted_member_alpaca_prices_only_when_asked_alone_stays_tradable_until_its_last_bar() {
     let fake = Arc::new(Fake::default());
     let url = serve_fakes(fake.clone()).await;
     let directory = tempfile::tempdir().unwrap();
