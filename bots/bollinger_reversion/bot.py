@@ -3,6 +3,7 @@ from typing import NamedTuple
 
 import numpy as np
 import numpy.typing as npt
+from buizz_bots.monthly import session_days
 from buizz_bots.preclose import ProxyLog, session_so_far
 
 from buizz import Bot, Context, History, run
@@ -51,8 +52,7 @@ def signal(closes: npt.NDArray[np.float64], rules: Rules) -> Signal | None:
 
 
 def sessions_held(history: History, entered: date) -> int:
-    days = history.start.astype("datetime64[ns]").astype("datetime64[D]")
-    return int((days > np.datetime64(entered)).sum()) + 1
+    return int((session_days(history) > np.datetime64(entered)).sum()) + 1
 
 
 def read_signals(ctx: Context, history: dict[str, History], rules: Rules, held: list[str]) -> dict[str, Signal]:
@@ -93,6 +93,7 @@ class BollingerReversion(Bot):
         readings = read_signals(ctx, history, rules, held)
         equity = float(ctx.portfolio.equity)
         staying_value = 0.0
+        staying = 0
         for symbol in held:
             reading = readings.get(symbol)
             days = sessions_held(history[symbol], date.fromisoformat(entries[symbol]))
@@ -104,14 +105,14 @@ class BollingerReversion(Bot):
                 closes = history[symbol].close
                 price = reading.close if reading is not None else float(closes[-1]) if len(closes) else 0.0
                 staying_value += abs(ctx.position(symbol).qty) * price
+                staying += 1
                 continue
-            del entries[symbol]
             ctx.order_target_weight(symbol, 0, at="close", reason=reason)
         candidates = sorted(
             (reading.z, symbol)
             for symbol, reading in readings.items()
             if symbol in ctx.universe and symbol not in held and reading.enters(rules)
-        )[: max(max_positions - len(entries), 0)]
+        )[: max(max_positions - staying, 0)]
         if candidates and equity > 0:
             headroom = max(1 - staying_value / equity, 0.0)
             weight = min(1 / max_positions, headroom / len(candidates))
