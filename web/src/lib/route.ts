@@ -1,9 +1,4 @@
 import { useEffect, useSyncExternalStore } from "react";
-import type { Schemas } from "../api/client";
-
-export type Preset = Schemas["PeriodPreset"];
-
-export const PRESETS: readonly Preset[] = ["1y", "3y", "5y", "10y", "holdout"];
 
 export const BOT_TABS = ["overview", "trades", "orders", "events", "logs", "runs"] as const;
 
@@ -12,12 +7,8 @@ export type BotTab = (typeof BOT_TABS)[number];
 export type Route =
   | { page: "bots" }
   | { page: "bot"; name: string; run?: number; tab?: BotTab; symbol?: string }
-  | { page: "leaderboard"; preset: Preset }
+  | { page: "league" }
   | { page: "data" };
-
-function isPreset(value: string | undefined): value is Preset {
-  return PRESETS.some((preset) => preset === value);
-}
 
 function isBotTab(value: string | undefined): value is BotTab {
   return BOT_TABS.some((tab) => tab === value && tab !== "overview");
@@ -40,8 +31,8 @@ function parse(hash: string): Route {
   if (page === "bots" && name) {
     return botRoute(name, rest);
   }
-  if (page === "leaderboard") {
-    return { page: "leaderboard", preset: isPreset(name) ? name : "1y" };
+  if (page === "league") {
+    return { page: "league" };
   }
   if (page === "data") {
     return { page: "data" };
@@ -61,8 +52,8 @@ export function href(route: Route): string {
       }
       return route.tab === undefined || route.tab === "overview" ? run : `${run}/${route.tab}`;
     }
-    case "leaderboard":
-      return `#/leaderboard/${route.preset}`;
+    case "league":
+      return "#/league";
     case "data":
       return "#/data";
   }
@@ -88,8 +79,8 @@ export function routeTitle(route: Route): string {
       return "Bots";
     case "bot":
       return [route.name, ...(route.run === undefined ? [] : [`Run #${route.run}`]), ...(route.symbol === undefined ? [] : [route.symbol])].join(" · ");
-    case "leaderboard":
-      return `Leaderboard · ${route.preset}`;
+    case "league":
+      return "League";
     case "data":
       return "Data";
   }

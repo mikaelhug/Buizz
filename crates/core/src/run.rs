@@ -409,6 +409,8 @@ pub enum RunStatus {
 }
 
 impl RunStatus {
+    pub const ACTIVE: [Self; 4] = [Self::Queued, Self::Starting, Self::Running, Self::Paused];
+
     pub fn is_finished(self) -> bool {
         matches!(self, Self::Completed | Self::Failed | Self::Cancelled)
     }

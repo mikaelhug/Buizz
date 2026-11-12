@@ -33,8 +33,9 @@ export function BotDetail({ name, runId, tab, symbol }: Props) {
   if (!detail.data) {
     return detail.error ? <Failure message={detail.error} onRetry={detail.reload} /> : <Loading shape="chart" />;
   }
-  const { summary, runs } = detail.data;
-  const selected = runId ?? summary.live_run ?? summary.stats_run ?? runs[0]?.id;
+  const { summary, runs, status, holdout_runs: holdoutRuns } = detail.data;
+  const live = summary.live[0]?.run;
+  const selected = runId ?? live?.id ?? runs.find((run) => run.metrics)?.id ?? runs[0]?.id;
   const showRun = (run: Run) => {
     detail.reload();
     if (run.id !== selected) {
@@ -49,11 +50,11 @@ export function BotDetail({ name, runId, tab, symbol }: Props) {
         <div className="detail-title">
           <h1>{summary.name}</h1>
           <span className="tf">{summary.timeframe}</span>
-          <StatusPill status={summary.status} />
-          {summary.holdout_runs > 0 && <HoldoutBadge runs={summary.holdout_runs} />}
+          <StatusPill status={status} />
+          {holdoutRuns > 0 && <HoldoutBadge runs={holdoutRuns} />}
         </div>
         <div className="detail-actions">
-          <BotActions bot={summary} onChanged={showRun} />
+          <BotActions name={name} live={live} onChanged={showRun} />
           <button type="button" className="btn btn-sm btn-primary" onClick={() => setBacktesting(true)}>
             Backtest
           </button>
@@ -83,7 +84,8 @@ export function BotDetail({ name, runId, tab, symbol }: Props) {
       )}
       {backtesting && (
         <BacktestDialog
-          bot={summary}
+          name={name}
+          holdoutRuns={holdoutRuns}
           risk={detail.data.manifest.risk ?? {}}
           onClose={() => setBacktesting(false)}
           onStarted={(run) => {

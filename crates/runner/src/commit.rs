@@ -1,6 +1,11 @@
-use buizz_state::{StateError, StateStore, StepCommit};
+use std::sync::Arc;
+
+use buizz_core::run::{Mode, RunId};
+use buizz_state::{StateError, StepCommit};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
+
+use crate::{Inner, report};
 
 pub(crate) struct Committer {
     queue: mpsc::Sender<StepCommit>,
@@ -8,14 +13,18 @@ pub(crate) struct Committer {
 }
 
 impl Committer {
-    pub(crate) fn spawn(state: StateStore, last_step: u64) -> Self {
+    pub(crate) fn spawn(inner: Arc<Inner>, run_id: RunId, mode: Mode, last_step: u64) -> Self {
         let (queue, mut commits) = mpsc::channel::<StepCommit>(1);
         let task = tokio::spawn(async move {
             let mut step_seq = last_step;
             while let Some(mut commit) = commits.recv().await {
                 step_seq += 1;
                 commit.step_seq = step_seq;
-                state.commit_step(commit).await?;
+                let session_closed = !commit.equity_points.is_empty();
+                inner.state.commit_step(commit).await?;
+                if mode == Mode::Live && session_closed {
+                    report::live_session(&inner, run_id).await;
+                }
             }
             Ok(())
         });

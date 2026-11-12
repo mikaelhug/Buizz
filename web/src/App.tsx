@@ -5,7 +5,7 @@ import { href, type Route, routeTitle, useDocumentTitle, useRoute } from "./lib/
 import { BotDetail } from "./pages/BotDetail";
 import { BotGrid } from "./pages/BotGrid";
 import { DataHealth } from "./pages/DataHealth";
-import { Leaderboard } from "./pages/Leaderboard";
+import { League } from "./pages/League";
 import { Login, Unreachable } from "./pages/Login";
 import { DialogHost } from "./ui/Dialog";
 import { ErrorBoundary } from "./ui/ErrorBoundary";
@@ -66,7 +66,7 @@ export function App() {
 
 const NAV: { route: Route; text: string; page: Route["page"][] }[] = [
   { route: { page: "bots" }, text: "Bots", page: ["bots", "bot"] },
-  { route: { page: "leaderboard", preset: "1y" }, text: "Leaderboard", page: ["leaderboard"] },
+  { route: { page: "league" }, text: "League", page: ["league"] },
   { route: { page: "data" }, text: "Data", page: ["data"] },
 ];
 
@@ -121,7 +121,7 @@ function Shell({ onLoggedOut }: { onLoggedOut: () => void }) {
         <ErrorBoundary resetOn={href(route)}>
           {route.page === "bots" && <BotGrid />}
           {route.page === "bot" && <BotDetail key={route.name} name={route.name} runId={route.run} tab={route.tab ?? "overview"} symbol={route.symbol} />}
-          {route.page === "leaderboard" && <Leaderboard preset={route.preset} />}
+          {route.page === "league" && <League />}
           {route.page === "data" && <DataHealth />}
         </ErrorBoundary>
       </main>

@@ -6,6 +6,7 @@ export type StreamStatus = "connecting" | "open" | "down";
 
 const EVENT_TYPES: Record<SpineEvent["type"], true> = {
   run_status: true,
+  live_session: true,
   equity: true,
   order: true,
   fill: true,
