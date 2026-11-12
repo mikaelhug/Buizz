@@ -61,8 +61,8 @@ impl TreasuryClient {
             ("field_tdr_date_value", &year.to_string()),
             ("_format", "csv"),
         ]);
-        let csv = self.http.send(request).await?.text().await?;
-        parse_par_yield_csv(&csv)
+        let csv = self.http.fetch(request).await?;
+        parse_par_yield_csv(&String::from_utf8_lossy(&csv))
     }
 }
 

@@ -112,7 +112,7 @@ impl TiingoClient {
             .get(url)
             .header(AUTHORIZATION, format!("Token {}", self.api_key))
             .query(&[("startDate", from.to_string()), ("endDate", to.to_string())]);
-        let body = self.http.send(request).await?.bytes().await?;
+        let body = self.http.fetch(request).await?;
         let rows: Vec<Row> = serde_json::from_slice(&body)
             .map_err(|error| SourceError::Decode(error.to_string()))?;
         rows.into_iter().filter_map(Row::into_daily).collect()

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use reqwest::header::{HeaderMap, RETRY_AFTER};
-use reqwest::{RequestBuilder, Response, StatusCode};
+use reqwest::{RequestBuilder, StatusCode};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Deserializer, de};
 use serde_json::Number;
@@ -73,14 +73,14 @@ impl HttpClient {
         &self.client
     }
 
-    pub async fn send(&self, request: RequestBuilder) -> Result<Response, SourceError> {
+    pub async fn fetch(&self, request: RequestBuilder) -> Result<Vec<u8>, SourceError> {
         let mut retry_delay = FIRST_RETRY_DELAY;
         for attempt in 0..=RETRIES {
             let last = attempt == RETRIES;
             let Some(this) = request.try_clone() else {
-                return self.send_once(request).await;
+                return self.fetch_once(request).await;
             };
-            match self.send_once(this).await {
+            match self.fetch_once(this).await {
                 Err(SourceError::RateLimited { retry_after })
                     if !last && retry_after.is_some_and(|wait| wait <= MAX_INLINE_WAIT) =>
                 {
@@ -96,7 +96,7 @@ impl HttpClient {
         unreachable!("the last attempt returns")
     }
 
-    async fn send_once(&self, request: RequestBuilder) -> Result<Response, SourceError> {
+    async fn fetch_once(&self, request: RequestBuilder) -> Result<Vec<u8>, SourceError> {
         self.wait_for_slot().await;
         let response = request.send().await?;
         let status = response.status();
@@ -113,7 +113,7 @@ impl HttpClient {
                 body,
             });
         }
-        Ok(response)
+        Ok(response.bytes().await?.to_vec())
     }
 
     async fn hold(&self, wait: Duration) {
@@ -134,7 +134,13 @@ impl HttpClient {
 
 fn transient(error: &SourceError) -> bool {
     match error {
-        SourceError::Http(error) => error.is_timeout() || error.is_connect() || error.is_request(),
+        SourceError::Http(error) => {
+            error.is_timeout()
+                || error.is_connect()
+                || error.is_request()
+                || error.is_body()
+                || error.is_decode()
+        }
         SourceError::Status { status, .. } => *status >= 500,
         _ => false,
     }
@@ -164,4 +170,48 @@ pub(crate) fn json_decimal(number: &Number) -> Option<Decimal> {
 pub(crate) fn decimal<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Decimal, D::Error> {
     let number = Number::deserialize(deserializer)?;
     json_decimal(&number).ok_or_else(|| de::Error::custom(format!("{number} is not a decimal")))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::TcpListener;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn a_body_cut_off_midway_is_fetched_again() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/", listener.local_addr().unwrap());
+        let served = Arc::new(AtomicUsize::new(0));
+        let counter = Arc::clone(&served);
+        tokio::spawn(async move {
+            loop {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut request = [0_u8; 1024];
+                let _ = socket.read(&mut request).await;
+                let response = if counter.fetch_add(1, Ordering::SeqCst) == 0 {
+                    "HTTP/1.1 200 OK\r\nContent-Length: 20\r\n\r\npartial"
+                } else {
+                    "HTTP/1.1 200 OK\r\nContent-Length: 8\r\n\r\ncomplete"
+                };
+                socket.write_all(response.as_bytes()).await.unwrap();
+                socket.shutdown().await.unwrap();
+            }
+        });
+        let client = HttpClient::new(
+            "buizz-test",
+            RateLimit {
+                requests: 100,
+                per: Duration::from_secs(1),
+                cooldown: Duration::from_secs(1),
+            },
+        )
+        .unwrap();
+        let body = client.fetch(client.client().get(url)).await.unwrap();
+        assert_eq!(body, b"complete");
+        assert_eq!(served.load(Ordering::SeqCst), 2);
+    }
 }

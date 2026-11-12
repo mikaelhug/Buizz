@@ -37,13 +37,8 @@ impl NasdaqClient {
 
     pub async fn etf_symbols(&self) -> Result<BTreeSet<Symbol>, SourceError> {
         let url = format!("{}{SYMBOL_DIRECTORY}", self.base_url);
-        let text = self
-            .http
-            .send(self.http.client().get(url))
-            .await?
-            .text()
-            .await?;
-        normalize_etf_symbols(&text)
+        let body = self.http.fetch(self.http.client().get(url)).await?;
+        normalize_etf_symbols(&String::from_utf8_lossy(&body))
     }
 }
 

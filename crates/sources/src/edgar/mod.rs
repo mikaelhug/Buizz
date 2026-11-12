@@ -153,8 +153,7 @@ impl EdgarClient {
     }
 
     async fn fetch(&self, url: String) -> Result<Vec<u8>, SourceError> {
-        let response = self.http.send(self.http.client().get(url)).await?;
-        Ok(response.bytes().await?.to_vec())
+        self.http.fetch(self.http.client().get(url)).await
     }
 }
 

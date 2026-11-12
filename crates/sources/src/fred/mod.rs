@@ -98,14 +98,8 @@ impl FredClient {
             ("file_type", "json"),
             ("realtime_start", since.as_str()),
         ]);
-        let page: WireVintageDates = self
-            .http
-            .send(request)
-            .await
-            .map_err(without_url)?
-            .json()
-            .await
-            .map_err(|error| SourceError::Http(error.without_url()))?;
+        let body = self.http.fetch(request).await.map_err(without_url)?;
+        let page: WireVintageDates = decode(&body)?;
         Ok(page.vintage_dates)
     }
 
@@ -133,14 +127,8 @@ impl FredClient {
                     ("offset", &offset),
                 ])
                 .query(&EVERY_VINTAGE);
-            let page: WirePage = self
-                .http
-                .send(request)
-                .await
-                .map_err(without_url)?
-                .json()
-                .await
-                .map_err(|error| SourceError::Http(error.without_url()))?;
+            let body = self.http.fetch(request).await.map_err(without_url)?;
+            let page: WirePage = decode(&body)?;
             let received = page.observations.len();
             observations.extend(page.observations);
             if received == 0 || observations.len() >= page.count {
@@ -172,6 +160,10 @@ pub fn normalize(
             })
         })
         .collect()
+}
+
+fn decode<T: serde::de::DeserializeOwned>(body: &[u8]) -> Result<T, SourceError> {
+    serde_json::from_slice(body).map_err(|error| SourceError::Decode(error.to_string()))
 }
 
 fn without_url(error: SourceError) -> SourceError {

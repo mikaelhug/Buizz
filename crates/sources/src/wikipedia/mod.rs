@@ -66,13 +66,11 @@ impl WikipediaClient {
             ("redirects", "1"),
         ];
         let url = format!("{}/w/api.php", self.base_url);
-        let response = self
+        let body = self
             .http
-            .send(self.http.client().get(url).query(&query))
+            .fetch(self.http.client().get(url).query(&query))
             .await?;
-        let parsed: Parsed = response
-            .json()
-            .await
+        let parsed: Parsed = serde_json::from_slice(&body)
             .map_err(|error| SourceError::Decode(format!("{title}: {error}")))?;
         Ok(parsed.parse.wikitext)
     }
