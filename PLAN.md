@@ -131,6 +131,8 @@ Out of v1: brokers and real money; options, crypto, FX; tick/quote simulation; e
 
 ## After Wave 3
 
+Open data-trust work: a ticker an ended company left behind still needs its own listing. Prices sit under a company's current ticker (Alpaca maps earlier names onto it) and S&P 500 members that ended under a ticker another company took later lack their bars (STI SunTrust, TE TECO, PARA Paramount: Alpaca's default `asof` answers for today's holder), renamed members are keyed by their old ticker (DPS, CHK have no bars; KDP and EXE hold them), and a renamed-away ticker keeps duplicate bars before its rename (FB holds Facebook's 2016–2022 bars beside META, classed as the ETF that took FB in 2025). Next: fetch an ended member's bars with `asof` inside its membership and keep them only up to its listing-ending action, key membership through Alpaca's name changes, withdraw the bars a renamed-away ticker duplicates, and keep per-listing instrument metadata. Symbols Tiingo extended before the split and dividend cross-check landed are not cross-checked yet.
+
 1. Walk the whole website end to end in a browser and fix what is broken or unclear.
 2. Confirm every worktree branch is merged into `main` and pruned.
 3. Code review each module of Buizz (one review per crate, the SDK and the web app); fix confirmed findings.
