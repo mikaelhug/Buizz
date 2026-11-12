@@ -38,6 +38,7 @@ const HASHED_ASSETS: &str = "/assets/";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ApiConfig {
+    pub admin_username: String,
     pub admin_password: String,
     pub web_dir: Option<PathBuf>,
     pub secure_cookies: bool,

@@ -6,7 +6,7 @@ use tokio::process::Command;
 
 use crate::browser;
 use crate::fake::FakeProviders;
-use crate::spine::{Options, Spine, eventually, now};
+use crate::spine::{Options, Spine, USERNAME, eventually, now};
 use crate::world::{World, repository};
 
 async fn cli_sweep(spine: &Spine) -> Vec<String> {
@@ -25,6 +25,7 @@ async fn cli_sweep(spine: &Spine) -> Vec<String> {
             "slow=20,40.0",
         ])
         .env("BUIZZ_URL", &spine.base)
+        .env("BUIZZ_ADMIN_USERNAME", USERNAME)
         .env("BUIZZ_ADMIN_PASSWORD", &spine.password)
         .output()
         .await

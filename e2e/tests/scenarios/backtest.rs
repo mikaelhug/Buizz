@@ -8,7 +8,7 @@ use tokio::process::Command;
 use crate::browser;
 use crate::expect::{assert_same, scenario};
 use crate::fake::FakeProviders;
-use crate::spine::{Options, Spine};
+use crate::spine::{Options, Spine, USERNAME};
 use crate::world::{World, decimal, repository};
 
 async fn cli_backtest(spine: &Spine, config: &RunConfig) -> (RunId, Vec<String>) {
@@ -26,6 +26,7 @@ async fn cli_backtest(spine: &Spine, config: &RunConfig) -> (RunId, Vec<String>)
             "slippage_per_share=0",
         ])
         .env("BUIZZ_URL", &spine.base)
+        .env("BUIZZ_ADMIN_USERNAME", USERNAME)
         .env("BUIZZ_ADMIN_PASSWORD", &spine.password)
         .output()
         .await
@@ -225,7 +226,7 @@ async fn red_green_backtest_matches_the_hand_computation_from_the_cli_the_api_an
     spine.ingested().await;
     assert_eq!(spine.anonymous("/api/bots").await, StatusCode::UNAUTHORIZED);
     assert_eq!(
-        spine.login("wrong").await.status(),
+        spine.login(USERNAME, "wrong").await.status(),
         StatusCode::UNAUTHORIZED
     );
 

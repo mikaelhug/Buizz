@@ -5,6 +5,7 @@ import { BrandMark } from "../ui/Icon";
 import { Info } from "../ui/Popover";
 
 export function Login({ onLoggedIn }: { onLoggedIn: () => void }) {
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -14,10 +15,10 @@ export function Login({ onLoggedIn }: { onLoggedIn: () => void }) {
     setBusy(true);
     setError(undefined);
     try {
-      await mustSucceed(api.POST("/api/auth/login", { body: { password } }));
+      await mustSucceed(api.POST("/api/auth/login", { body: { username, password } }));
       onLoggedIn();
     } catch (failure) {
-      setError(failure instanceof ApiFailure && failure.status === 401 ? "Wrong password" : errorMessage(failure));
+      setError(failure instanceof ApiFailure && failure.status === 401 ? "Wrong username or password" : errorMessage(failure));
       setBusy(false);
     }
   };
@@ -25,6 +26,7 @@ export function Login({ onLoggedIn }: { onLoggedIn: () => void }) {
   return (
     <main className="login">
       <form
+        method="post"
         className="login-card"
         onSubmit={(event) => {
           event.preventDefault();
@@ -35,23 +37,40 @@ export function Login({ onLoggedIn }: { onLoggedIn: () => void }) {
           <BrandMark />
           Buizz
         </h1>
-        <input
-          className="input"
-          type="password"
-          autoComplete="current-password"
-          placeholder="Password"
-          aria-label="Password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          autoFocus
-          required
-        />
+        <label className="login-field">
+          Username
+          <input
+            className="input"
+            type="text"
+            name="username"
+            autoComplete="username"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            value={username}
+            onChange={(event) => setUsername(event.target.value)}
+            autoFocus
+            required
+          />
+        </label>
+        <label className="login-field">
+          Password
+          <input
+            className="input"
+            type="password"
+            name="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            required
+          />
+        </label>
         {error && (
           <p className="form-error" role="alert">
             {error}
           </p>
         )}
-        <button type="submit" className="btn btn-primary" disabled={busy || password.length === 0}>
+        <button type="submit" className="btn btn-primary" disabled={busy || username.length === 0 || password.length === 0}>
           Sign in
         </button>
       </form>

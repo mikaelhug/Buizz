@@ -17,6 +17,7 @@ use tokio::time::{Instant, sleep, timeout};
 use crate::fake::FakeProviders;
 use crate::world::repository;
 
+pub const USERNAME: &str = "e2e-admin";
 const DEADLINE: Duration = Duration::from_secs(180);
 const POLL: Duration = Duration::from_millis(100);
 const EVENTS_PAGE: u32 = 1000;
@@ -144,6 +145,7 @@ impl Spine {
                 "BUIZZ_CLOCK_OFFSET_SECONDS",
                 (*CLOCK_OFFSET + self.clock_shift).num_seconds().to_string(),
             )
+            .env("BUIZZ_ADMIN_USERNAME", USERNAME)
             .env("BUIZZ_ADMIN_PASSWORD", &self.password)
             .env("BUIZZ_SECURE_COOKIES", "false")
             .env("BUIZZ_WEB_DIR", repository().join("web/dist"))
@@ -192,7 +194,7 @@ impl Spine {
         .await;
         self.child = Some(child);
         self.base = format!("http://{addr}");
-        let login = self.login(&self.password).await;
+        let login = self.login(USERNAME, &self.password).await;
         assert_eq!(login.status(), StatusCode::NO_CONTENT, "{}", self.log());
         let cookie = login
             .headers()
@@ -208,10 +210,10 @@ impl Spine {
             .to_owned();
     }
 
-    pub async fn login(&self, password: &str) -> reqwest::Response {
+    pub async fn login(&self, username: &str, password: &str) -> reqwest::Response {
         self.client
             .post(format!("{}/api/auth/login", self.base))
-            .json(&json!({ "password": password }))
+            .json(&json!({ "username": username, "password": password }))
             .send()
             .await
             .expect("login is answered")

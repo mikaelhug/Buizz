@@ -41,7 +41,7 @@ The other bots in `bots/` need real data: set the provider keys below and start 
 | `buizz backtest bots/<name> --from YYYY-MM-DD --to YYYY-MM-DD [--param key=value]...` | Backtest a bot, wait, print metrics and an order summary |
 | `buizz sweep bots/<name> [--preset 10y] --grid key=v1,v2,...` | Queue a backtest for every combination of param values; variants already run are skipped |
 
-`buizz` is the SDK's console script; run it with `uv run --frozen buizz` inside `sdk/python`. It talks to a running spine: `BUIZZ_URL` (default `http://127.0.0.1:8080`) and `BUIZZ_ADMIN_PASSWORD` (the spine's admin password, used to log in). `--param` values are parsed as JSON and fall back to strings. A `--param` key that is not in the bot's `bot.toml` params, or a `--cost` field that is not in the cost model, is refused before the run is queued. The spine runs the bot from its own `bots/` directory, so the argument only selects the folder name.
+`buizz` is the SDK's console script; run it with `uv run --frozen buizz` inside `sdk/python`. It talks to a running spine: `BUIZZ_URL` (default `http://127.0.0.1:8080`) `BUIZZ_ADMIN_USERNAME` (default `admin`) and `BUIZZ_ADMIN_PASSWORD` (the spine's admin login). `--param` values are parsed as JSON and fall back to strings. A `--param` key that is not in the bot's `bot.toml` params, or a `--cost` field that is not in the cost model, is refused before the run is queued. The spine runs the bot from its own `bots/` directory, so the argument only selects the folder name.
 
 ## Configuration
 
@@ -49,6 +49,7 @@ The spine (`cargo run -p buizz-spine`) reads these environment variables. Empty 
 
 | Variable | Default | Meaning |
 |---|---|---|
+| `BUIZZ_ADMIN_USERNAME` | `admin` | The username of the single admin login, so password managers can fill the form |
 | `BUIZZ_ADMIN_PASSWORD` | required | The single admin password for the web UI and API, at least 12 characters |
 | `BUIZZ_BIND` | `0.0.0.0:8080` | Listen address, `host:port`; with port 0 the spine picks a free port and logs it as `spine listening addr=<host:port>` |
 | `BUIZZ_DATA_DIR` | `data` | Where `market.duckdb`, `state.db` and `backups/` live |
