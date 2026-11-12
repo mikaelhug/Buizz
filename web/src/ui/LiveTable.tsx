@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 import type { Schemas } from "../api/client";
-import { fmt, tone } from "../lib/format";
+import { fmt, label, tone } from "../lib/format";
 import { href } from "../lib/route";
-import { Info } from "./Popover";
+import { Explain, Info } from "./Popover";
 import { StatusPill } from "./Status";
 import { SortHeader, type SortColumns, type Sorting, type SortValue } from "./Table";
 
@@ -97,9 +97,81 @@ export function LiveStatus({ live }: { live: Live }) {
   return retired(live) ? <span className="pill pill-retired">retired</span> : <StatusPill status={live.run.status} />;
 }
 
+type Breach = Schemas["EnvelopeBreach"];
+
+const VOLATILITY_LIMIT = 1.5;
+const DECAY = "Live results usually fall short of their backtest: 26–58% decay against the backtest is normal, so only leaving the band counts, never merely trailing the backtest.";
+
+const BREACH_NAMES: Record<Breach, string> = { excess: "excess return", drawdown: "drawdown", volatility: "volatility" };
+
+const VERDICT_ABOUT: Record<Schemas["LiveVerdict"], string> = {
+  incubating: "Fewer than 20 live sessions: too early to judge. Leaving the band counts only from session 20.",
+  tracking: "Inside the source backtest's envelope on every test, but not yet proven.",
+  no_backtest:
+    "No completed backtest of this code and params outside the holdout, so there is no envelope to leave: this run is never falsified. Its live results alone can still prove it.",
+  falsified: "Outside the source backtest's envelope, so the backtest no longer describes this run. Nothing stops it automatically; retiring it stays your call.",
+  proven: "The probabilistic Sharpe of daily excess return over the benchmark reached 1 − 0.05 ÷ live runs started, and the run is inside its envelope.",
+};
+
+function EnvelopeTests({ live, stats }: { live: Live; stats: Stats }) {
+  const envelope = stats.envelope;
+  if (!envelope) {
+    return null;
+  }
+  const backtestVolatility = envelope.volatility;
+  const volatilityLimit = backtestVolatility === null || backtestVolatility === undefined ? undefined : backtestVolatility * VOLATILITY_LIMIT;
+  const tests: { breach: Breach; name: string; value: string; band: string }[] = [
+    { breach: "excess", name: "Excess return", value: fmt.change(stats.excess_return), band: `at least ${fmt.change(envelope.excess_floor)}, the 5th percentile` },
+    { breach: "drawdown", name: "Max drawdown", value: fmt.percent(stats.max_drawdown), band: `at most ${fmt.percent(envelope.drawdown_ceiling)}, the 95th percentile` },
+    {
+      breach: "volatility",
+      name: "Volatility",
+      value: fmt.percent(stats.volatility),
+      band: `at most ${fmt.percent(volatilityLimit)}, ${VOLATILITY_LIMIT}× the backtest's ${fmt.percent(backtestVolatility)}`,
+    },
+  ];
+  return (
+    <>
+      <p>
+        Envelope from backtest <a href={href({ page: "bot", name: live.run.bot, run: envelope.source })}>#{envelope.source}</a>, over its {fmt.integer(envelope.windows)} rolling windows of{" "}
+        {fmt.integer(stats.sessions)} sessions (as old as this run) across {fmt.integer(envelope.source_sessions)} backtest sessions.
+        {envelope.windows === 0 && " The run is now older than its backtest, so only the volatility test applies."}
+      </p>
+      <table className="envelope-tests">
+        <tbody>
+          {tests.map((test) => {
+            const failed = envelope.breaches.includes(test.breach);
+            return (
+              <tr key={test.breach} className={failed ? "down" : undefined}>
+                <th scope="row">{test.name}</th>
+                <td className="num">{test.value}</td>
+                <td>
+                  {failed ? "outside: " : "inside: "}
+                  {test.band}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </>
+  );
+}
+
 function Verdict({ live }: { live: Live }) {
-  const verdict = stat(live, (stats) => stats.verdict) ?? "incubating";
-  return <span className={`pill pill-${verdict}`}>{verdict}</span>;
+  const stats = live.run.live_stats;
+  const verdict = stats?.verdict ?? "incubating";
+  const breaches = stats?.envelope?.breaches ?? [];
+  return (
+    <Explain label={`Verdict: ${label(verdict)}`} className={`pill pill-${verdict} explained`} trigger={label(verdict)}>
+      <p>
+        {VERDICT_ABOUT[verdict]}
+        {verdict === "falsified" && ` Failed: ${breaches.map((breach) => BREACH_NAMES[breach]).join(", ")}.`}
+      </p>
+      {stats && <EnvelopeTests live={live} stats={stats} />}
+      <p>{DECAY}</p>
+    </Explain>
+  );
 }
 
 const negative = (value: number | null | undefined) => (value === null || value === undefined ? value : -value);
@@ -186,7 +258,8 @@ export const LIVE_COLUMNS: Record<LiveKey, Column> = {
   },
   verdict: {
     label: "Verdict",
-    about: "Incubating until 20 live sessions, then tracking",
+    about:
+      "Incubating until 20 live sessions. Then falsified once the run leaves its source backtest's envelope (excess return below the 5th percentile of the backtest's rolling windows of the same age, drawdown beyond their 95th percentile, or volatility above 1.5× the backtest's), proven once its confidence reaches 1 − 0.05 ÷ live runs started, no backtest when it has no source backtest, otherwise tracking. Click a verdict for its tests",
     value: (live) => stat(live, (stats) => stats.verdict) ?? "incubating",
     cell: (live) => <Verdict live={live} />,
   },

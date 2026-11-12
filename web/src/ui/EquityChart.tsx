@@ -40,6 +40,7 @@ import {
   presetStart,
   type Sample,
   presetsWithin,
+  wallTime,
 } from "./chart/model";
 import type { ChartSync, Link } from "./chart/sync";
 import { RangePresets, SCALE_MODES, type ScaleMode, ScaleSwitch } from "./chart/Toolbar";
@@ -53,6 +54,7 @@ type Props = {
   benchmarkSymbol?: string;
   events?: Schemas["RunEvent"][] | undefined;
   sync?: ChartSync | undefined;
+  envelope?: Schemas["LivePoint"][] | undefined;
 };
 
 const PANE = { equity: 0, drawdown: 1, exposure: 2 } as const;
@@ -84,12 +86,14 @@ type Model = {
   benchmarkPoints: Schemas["SparkPoint"][];
   intraday: boolean;
   marks: Mark[];
+  floor: Sample[];
 };
 
 type Chart = {
   api: IChartApi;
   equity: ISeriesApi<"Line">;
   benchmark: ISeriesApi<"Line">;
+  floor: ISeriesApi<"Line">;
   drawdown: ISeriesApi<"Baseline">;
   benchmarkDrawdown: ISeriesApi<"Line">;
   markers: ISeriesMarkersPluginApi<Time>;
@@ -99,7 +103,7 @@ type Chart = {
 };
 
 function emptyModel(): Model {
-  return { strategy: curves([]), benchmark: curves([]), points: [], benchmarkPoints: [], intraday: false, marks: [] };
+  return { strategy: curves([]), benchmark: curves([]), points: [], benchmarkPoints: [], intraday: false, marks: [], floor: [] };
 }
 
 function extendsDrawn(points: Point[], drawn: Point[]): boolean {
@@ -139,7 +143,7 @@ function summary(model: Model, names: Record<SeriesKey, string>): string {
   if (!Number.isFinite(first) || !Number.isFinite(last)) {
     return `${names.strategy} equity chart, no data yet.`;
   }
-  const describe = (key: SeriesKey) => {
+  const describe = (key: "strategy" | "benchmark") => {
     const line = model[key];
     const end = line.equity.at(-1);
     const start = line.equity[0];
@@ -152,7 +156,11 @@ function summary(model: Model, names: Record<SeriesKey, string>): string {
   return `Equity from ${wallDate(first, model.intraday)} to ${wallDate(last, model.intraday)}. ${describe("strategy")}; ${describe("benchmark")}.`;
 }
 
-export function EquityChart({ runId, points, benchmark, bot, benchmarkSymbol, events, sync }: Props) {
+function floorLine(envelope: Schemas["LivePoint"][] | undefined): Sample[] {
+  return (envelope ?? []).flatMap((point) => (point.floor === null || point.floor === undefined ? [] : [{ time: wallTime(point.at), value: Number(point.floor) }]));
+}
+
+export function EquityChart({ runId, points, benchmark, bot, benchmarkSymbol, events, sync, envelope }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const chart = useRef<Chart | null>(null);
   const model = useRef<Model>(emptyModel());
@@ -165,15 +173,16 @@ export function EquityChart({ runId, points, benchmark, bot, benchmarkSymbol, ev
   const [activePreset, setActivePreset] = useState<Preset | null>("All");
   const [presets, setPresets] = useState<Preset[]>([]);
   const [mode, setMode] = useState<ScaleMode>("price");
-  const [hidden, setHidden] = useState<Record<SeriesKey, boolean>>({ strategy: false, benchmark: false });
+  const [hidden, setHidden] = useState<Record<SeriesKey, boolean>>({ strategy: false, benchmark: false, floor: false });
   const [exposure, setExposure] = useState(false);
-  const [readout, setReadout] = useState<Readout>({ intraday: false, strategy: {}, benchmark: {}, marks: [] });
+  const [readout, setReadout] = useState<Readout>({ intraday: false, strategy: {}, benchmark: {}, floor: {}, marks: [] });
   const [described, setDescribed] = useState("");
   const scheme = useColorScheme();
   const hintId = useId();
+  const floor = useMemo(() => floorLine(envelope), [envelope]);
 
   const names = useMemo<Record<SeriesKey, string>>(
-    () => ({ strategy: bot ?? "Strategy", benchmark: `${benchmarkSymbol ?? "Benchmark"} buy & hold` }),
+    () => ({ strategy: bot ?? "Strategy", benchmark: `${benchmarkSymbol ?? "Benchmark"} buy & hold`, floor: "Backtest band" }),
     [bot, benchmarkSymbol],
   );
 
@@ -181,7 +190,7 @@ export function EquityChart({ runId, points, benchmark, bot, benchmarkSymbol, ev
     const current = model.current;
     const time = hover.current ?? current.strategy.equity.at(-1)?.time ?? lastTime(current);
     if (!Number.isFinite(time)) {
-      setReadout({ intraday: current.intraday, strategy: {}, benchmark: {}, marks: [] });
+      setReadout({ intraday: current.intraday, strategy: {}, benchmark: {}, floor: {}, marks: [] });
       return;
     }
     const range = chart.current?.api.timeScale().getVisibleRange();
@@ -193,6 +202,7 @@ export function EquityChart({ runId, points, benchmark, bot, benchmarkSymbol, ev
       intraday: current.intraday,
       strategy: reading(current.strategy, time, from),
       benchmark: reading(current.benchmark, time, from),
+      floor: { value: asOf(current.floor, time)?.value },
       exposure: exposureSample?.time === sampled ? exposureSample?.value : undefined,
       marks: current.marks.filter((mark) => mark.time === sampled),
     });
@@ -248,6 +258,14 @@ export function EquityChart({ runId, points, benchmark, bot, benchmarkSymbol, ev
       lastValueVisible: false,
       crosshairMarkerRadius: 3,
     });
+    const floorSeries = api.addSeries(LineSeries, {
+      priceFormat: moneyFormat,
+      lineWidth: 1,
+      lineStyle: LineStyle.Dotted,
+      priceLineVisible: false,
+      lastValueVisible: false,
+      crosshairMarkerVisible: false,
+    });
     const equity = api.addSeries(LineSeries, { lineWidth: 2, priceLineVisible: false, priceFormat: moneyFormat, crosshairMarkerRadius: 4 });
     const benchmarkDrawdown = api.addSeries(
       LineSeries,
@@ -277,7 +295,7 @@ export function EquityChart({ runId, points, benchmark, bot, benchmarkSymbol, ev
       ...(equityPane ? [paneTitle(equityPane, "Equity")] : []),
       ...(drawdownPane ? [paneTitle(drawdownPane, "Drawdown from peak")] : []),
     ];
-    chart.current = { api, equity, benchmark: benchmarkSeries, drawdown, benchmarkDrawdown, markers: createSeriesMarkers(equity, []), titles };
+    chart.current = { api, equity, benchmark: benchmarkSeries, floor: floorSeries, drawdown, benchmarkDrawdown, markers: createSeriesMarkers(equity, []), titles };
     model.current = emptyModel();
 
     const onCrosshair = (param: MouseEventParams) => {
@@ -400,6 +418,7 @@ export function EquityChart({ runId, points, benchmark, bot, benchmarkSymbol, ev
     drawn.api.applyOptions(themedOptions());
     drawn.equity.applyOptions({ color: accent, baseLineColor: themeColor("--border-strong") });
     drawn.benchmark.applyOptions({ color: bench, baseLineVisible: false });
+    drawn.floor.applyOptions({ color: themeColor("--warn") });
     drawn.benchmarkDrawdown.applyOptions({ color: bench });
     drawn.drawdown.applyOptions({ bottomLineColor: down, bottomFillColor1: themeColor("--down", 0.08), bottomFillColor2: themeColor("--down", 0.32) });
     drawn.exposure?.series.applyOptions({ lineColor: accent, topColor: themeColor("--accent", 0.22), bottomColor: themeColor("--accent", 0.02) });
@@ -407,6 +426,16 @@ export function EquityChart({ runId, points, benchmark, bot, benchmarkSymbol, ev
     themeTitles([...drawn.titles, ...(drawn.exposure ? [drawn.exposure.title] : [])]);
     drawMarks();
   }, [scheme, exposure, drawMarks]);
+
+  useEffect(() => {
+    const drawn = chart.current;
+    if (!drawn) {
+      return;
+    }
+    model.current.floor = floor;
+    drawn.floor.setData(floor);
+    refresh();
+  }, [floor, refresh]);
 
   useEffect(() => {
     preset.current = "All";
@@ -495,6 +524,7 @@ export function EquityChart({ runId, points, benchmark, bot, benchmarkSymbol, ev
     drawn.drawdown.applyOptions({ visible: !hidden.strategy });
     drawn.benchmark.applyOptions({ visible: !hidden.benchmark });
     drawn.benchmarkDrawdown.applyOptions({ visible: !hidden.benchmark });
+    drawn.floor.applyOptions({ visible: !hidden.floor });
   }, [hidden]);
 
   const pick = (next: Preset) => {
@@ -540,7 +570,7 @@ export function EquityChart({ runId, points, benchmark, bot, benchmarkSymbol, ev
         </div>
       </div>
       <div className={exposure ? "chart-stage chart-stage-tall" : "chart-stage"}>
-        <Legend readout={readout} names={names} hidden={hidden} exposure={exposure} onToggle={(key) => setHidden((current) => ({ ...current, [key]: !current[key] }))} />
+        <Legend readout={readout} names={names} hidden={hidden} exposure={exposure} envelope={floor.length > 0} onToggle={(key) => setHidden((current) => ({ ...current, [key]: !current[key] }))} />
         <div ref={host} className="equity-chart" tabIndex={0} role="img" aria-label={described} aria-describedby={hintId} onKeyDown={onKeyDown} />
       </div>
       <p id={hintId} className="visually-hidden">

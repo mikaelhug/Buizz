@@ -70,6 +70,8 @@ export function RunView({ name, runId, pinned, tab, symbol, botHash, recent, run
       mark({ at: event.at, equity: event.equity });
     } else if (event.type === "usage") {
       run.mutate((current) => ({ ...current, usage: event.usage }));
+    } else if (event.type === "live_session") {
+      run.mutate((current) => ({ ...current, live_stats: event.summary.run.live_stats ?? null }));
     }
   });
 
@@ -434,6 +436,7 @@ function Overview({ run, symbol, closeHref }: { run: Run; symbol: string | undef
               benchmarkSymbol={run.config.benchmark}
               events={marks.data}
               sync={sync}
+              envelope={run.live_stats?.curve}
             />
           ) : (
             <p className="empty chart-empty">

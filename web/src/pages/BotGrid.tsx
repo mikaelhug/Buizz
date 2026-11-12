@@ -29,7 +29,7 @@ const STAGE_ABOUT =
   "Draft: no completed backtest of the bot's current code. Screened: at least one completed backtest of the current code; the real screening gate comes later. Live: a live paper run is going";
 
 function attention(live: Live): number {
-  if (live.run.status === "paused" && live.run.message) {
+  if (live.run.live_stats?.verdict === "falsified" || (live.run.status === "paused" && live.run.message)) {
     return 0;
   }
   return isRunning(live.run) ? 2 : 1;

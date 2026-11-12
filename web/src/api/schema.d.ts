@@ -571,6 +571,22 @@ export interface components {
         Dataset: "instruments" | "calendar" | "bars1d" | "bars1m" | "corporate_actions" | "fundamentals" | "rates" | "companies" | "earnings_releases" | "sec_filings" | "index_membership" | "borrow" | "macro" | "insider_trades" | "news" | "fomc";
         /** @enum {string} */
         DesiredState: "running" | "paused" | "stopped";
+        Envelope: {
+            source: components["schemas"]["RunId"];
+            /** Format: int32 */
+            source_sessions: number;
+            /** Format: int32 */
+            windows: number;
+            /** Format: double */
+            excess_floor?: number | null;
+            /** Format: double */
+            drawdown_ceiling?: number | null;
+            /** Format: double */
+            volatility?: number | null;
+            breaches: components["schemas"]["EnvelopeBreach"][];
+        };
+        /** @enum {string} */
+        EnvelopeBreach: "excess" | "drawdown" | "volatility";
         EquityPoint: {
             at: components["schemas"]["Timestamp"];
             equity: string;
@@ -646,6 +662,7 @@ export interface components {
             at: components["schemas"]["Timestamp"];
             equity: string;
             benchmark: string;
+            floor?: string | null;
         };
         LiveStats: {
             /** Format: date */
@@ -680,6 +697,7 @@ export interface components {
             /** Format: double */
             probabilistic_sharpe?: number | null;
             verdict: components["schemas"]["LiveVerdict"];
+            envelope?: components["schemas"]["Envelope"] | null;
             curve: components["schemas"]["LivePoint"][];
         };
         LiveSummary: {
@@ -688,7 +706,7 @@ export interface components {
             sessions_needed?: number | null;
         };
         /** @enum {string} */
-        LiveVerdict: "incubating" | "tracking";
+        LiveVerdict: "incubating" | "tracking" | "no_backtest" | "falsified" | "proven";
         /** @enum {string} */
         LogLevel: "debug" | "info" | "warn" | "error";
         LoginRequest: {

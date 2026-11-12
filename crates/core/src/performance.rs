@@ -5,6 +5,7 @@ use utoipa::ToSchema;
 
 use crate::market::Symbol;
 use crate::order::OrderId;
+use crate::run::RunId;
 use crate::time::Timestamp;
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -43,18 +44,32 @@ pub struct RoundTrip {
 pub enum LiveVerdict {
     Incubating,
     Tracking,
+    NoBacktest,
+    Falsified,
+    Proven,
 }
 
 impl LiveVerdict {
     pub const TRACKING_SESSIONS: u32 = 20;
+}
 
-    pub fn after(sessions: u32) -> Self {
-        if sessions < Self::TRACKING_SESSIONS {
-            Self::Incubating
-        } else {
-            Self::Tracking
-        }
-    }
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum EnvelopeBreach {
+    Excess,
+    Drawdown,
+    Volatility,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct Envelope {
+    pub source: RunId,
+    pub source_sessions: u32,
+    pub windows: u32,
+    pub excess_floor: Option<f64>,
+    pub drawdown_ceiling: Option<f64>,
+    pub volatility: Option<f64>,
+    pub breaches: Vec<EnvelopeBreach>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -72,6 +87,8 @@ pub struct LivePoint {
     pub equity: Decimal,
     #[serde(with = "crate::money::cash")]
     pub benchmark: Decimal,
+    #[serde(default, with = "crate::money::cash_option")]
+    pub floor: Option<Decimal>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -93,5 +110,6 @@ pub struct LiveStats {
     pub excess: Option<SharpeMoments>,
     pub probabilistic_sharpe: Option<f64>,
     pub verdict: LiveVerdict,
+    pub envelope: Option<Envelope>,
     pub curve: Vec<LivePoint>,
 }
