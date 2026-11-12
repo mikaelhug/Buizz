@@ -123,8 +123,6 @@ Out of v1: brokers and real money; options, crypto, FX; tick/quote simulation; e
 1. Walk the whole website end to end in a browser and fix what is broken or unclear.
 2. Confirm every worktree branch is merged into `main` and pruned.
 3. Code review each module of Buizz (one review per crate, the SDK and the web app); fix confirmed findings.
-   Known issues to fold into the reviews:
-   - No time seam: the runner, feed, ingest, API and supervisor call the wall clock directly, so the live e2e scenarios must sleep between 23:28 and 00:11 ET. Add one `now()` in `buizz_core::time` with a test offset.
 4. Implement the bot backlog in `bots/BRIEFS.md`, one Opus 5.5 agent per bot, each followed by a critical review of that implementation against its brief. Contract gaps (G1–G13) land as their own PRs before the bots they block.
    Landed: G1 calendar lookahead (`ctx.calendar`), G12 past universes (`ctx.universe_at`), G15 rates and FRED series (`ctx.macro`; the Welch–Goyal `dp`, `ep`, `bm` and `ntis` have no free point-in-time source and still block gbm_ranker).
    Gap decisions (free sources first; nothing is ever derived or modelled in place of data):

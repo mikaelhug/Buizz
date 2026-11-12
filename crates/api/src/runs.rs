@@ -14,6 +14,7 @@ use buizz_core::market::{Adjustment, Symbol};
 use buizz_core::money::round_price;
 use buizz_core::order::{Fill, OrderId};
 use buizz_core::run::{BotManifest, CostModel, Mode, Period, RunBadge, RunId, RunStatus};
+use buizz_core::time::Timestamp;
 use buizz_market::HistoryRequest;
 use buizz_state::RunFilter;
 use rust_decimal::Decimal;
@@ -22,7 +23,6 @@ use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use crate::AppState;
 use crate::error::Failure;
 use crate::extract::{Path, Query};
-use crate::time::exchange_today;
 
 const DEFAULT_RUNS: u32 = 100;
 const MAX_RUNS: u32 = 500;
@@ -384,7 +384,12 @@ pub(crate) async fn leaderboard(
     let (period, compared) = groups
         .into_iter()
         .max_by_key(|(period, compared)| (compared.len(), period.to))
-        .unwrap_or_else(|| (query.preset.resolve(exchange_today()), Vec::new()));
+        .unwrap_or_else(|| {
+            (
+                query.preset.resolve(Timestamp::now().exchange_date()),
+                Vec::new(),
+            )
+        });
     let benchmarks = benchmarks(&app, &compared).await?;
     let rows = compared
         .into_iter()

@@ -16,7 +16,7 @@ use buizz_feed::{FeedConfig, FeedError, FeedManager};
 use buizz_market::{FILE_NAME, MarketStore};
 use buizz_sources::alpaca::{AlpacaClient, AlpacaConfig};
 use buizz_sources::alpaca_stream::StreamConfig;
-use chrono::{NaiveTime, TimeDelta, Utc};
+use chrono::{NaiveTime, TimeDelta};
 use tokio::net::TcpListener;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
@@ -129,7 +129,7 @@ fn symbols(names: &[&str]) -> Vec<Symbol> {
 }
 
 fn whole_days_around_now() -> Vec<Session> {
-    let today = Utc::now().date_naive();
+    let today = Timestamp::now().exchange_date();
     let midnight = |date| Timestamp::at_exchange_time(date, NaiveTime::MIN).unwrap();
     (-2..=2)
         .map(|offset| today + TimeDelta::days(offset))
@@ -276,7 +276,7 @@ async fn leases_share_stream_slots_and_live_bars_land_with_gaps_backfilled() {
     .await;
     let slots = feed.slots().borrow().clone();
     assert_eq!((slots.used, slots.connected, slots.error), (3, true, None));
-    let now = Timestamp::from_datetime(Utc::now()).unwrap();
+    let now = Timestamp::now();
     let session_open = whole_days_around_now()
         .into_iter()
         .find(|session| session.open <= now && now < session.close)

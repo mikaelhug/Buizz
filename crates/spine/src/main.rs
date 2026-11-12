@@ -45,6 +45,7 @@ async fn main() -> Result<()> {
         )
         .with_ansi(std::io::stdout().is_terminal())
         .init();
+    buizz_core::time::offset_clock(config::clock_offset()?);
     let mut arguments = std::env::args().skip(1);
     match (
         arguments.next().as_deref(),

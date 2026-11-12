@@ -3,13 +3,13 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use buizz_core::api::{ApiError, BotDetail, BotStatus, BotSummary, RunSummary, StartBacktest};
 use buizz_core::run::{BotManifest, DesiredState, Mode, RunBadge, RunStatus};
+use buizz_core::time::Timestamp;
 use buizz_state::RunFilter;
 use futures::future::{try_join, try_join_all};
 
 use crate::AppState;
 use crate::error::Failure;
 use crate::extract::{JsonBody, Path};
-use crate::time::exchange_today;
 
 const RECENT_RUNS: u32 = 50;
 const SPARKLINE_POINTS: u32 = 60;
@@ -127,7 +127,7 @@ pub(crate) async fn start_backtest(
 ) -> Result<(StatusCode, Json<RunSummary>), Failure> {
     let run = app
         .runner
-        .start_backtest(&name, request, exchange_today())
+        .start_backtest(&name, request, Timestamp::now().exchange_date())
         .await?;
     Ok((StatusCode::CREATED, Json(run)))
 }

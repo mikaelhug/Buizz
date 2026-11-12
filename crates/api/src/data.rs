@@ -5,11 +5,11 @@ use axum::extract::State;
 use buizz_core::api::{DataHealth, FeedSlots, JobView};
 use buizz_core::market::{Coverage, DataSource, Dataset, Symbol, Timeframe, Watermarks};
 use buizz_core::ops::{CoverageGap, DataWarning};
+use buizz_core::time::Timestamp;
 use chrono::{NaiveDate, TimeDelta};
 
 use crate::AppState;
 use crate::error::Failure;
-use crate::time::now;
 
 const WARNING_WINDOW_DAYS: i64 = 365;
 
@@ -83,7 +83,7 @@ pub(crate) async fn data_health(State(app): State<AppState>) -> Result<Json<Data
     }));
     let stale_jobs = app
         .ingest
-        .job_views(now())
+        .job_views(Timestamp::now())
         .await?
         .iter()
         .filter(|job| job.stale)
@@ -102,7 +102,7 @@ pub(crate) async fn data_health(State(app): State<AppState>) -> Result<Json<Data
 #[utoipa::path(get, path = "/api/data/jobs", tag = "data",
     responses((status = 200, body = Vec<JobView>)))]
 pub(crate) async fn data_jobs(State(app): State<AppState>) -> Result<Json<Vec<JobView>>, Failure> {
-    Ok(Json(app.ingest.job_views(now()).await?))
+    Ok(Json(app.ingest.job_views(Timestamp::now()).await?))
 }
 
 #[utoipa::path(get, path = "/api/data/feed", tag = "data",

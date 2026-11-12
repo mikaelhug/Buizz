@@ -8,7 +8,7 @@ use buizz_core::time::Timestamp;
 use buizz_market::MarketStore;
 use buizz_sources::alpaca::{AlpacaClient, BarsRequest, SIP_DELAY};
 use buizz_sources::alpaca_stream::{self, StreamConfig, StreamEvent, StreamHandle};
-use chrono::{NaiveTime, TimeDelta, Utc};
+use chrono::{NaiveTime, TimeDelta};
 use futures::future::BoxFuture;
 use tokio::sync::watch;
 use tokio::time::Instant;
@@ -101,7 +101,7 @@ pub(crate) async fn run(inner: Arc<Inner>, config: StreamConfig, alpaca: AlpacaC
     }
     pump.reconcile(&mut leases).await;
     loop {
-        pump.settle_minutes(now());
+        pump.settle_minutes(Timestamp::now());
         pump.flush().await;
         pump.publish();
         let wake = pump.wake_at();
@@ -136,7 +136,7 @@ impl Pump {
             StreamEvent::Connected => {
                 self.connected = true;
                 self.problems.stream = None;
-                let now = minute_floor(now());
+                let now = minute_floor(Timestamp::now());
                 match self.settled_through {
                     Some(through) => self.request_backfill(self.subscribed.clone(), through, now),
                     None => self.settled_through = Some(now),
@@ -185,7 +185,7 @@ impl Pump {
     }
 
     async fn backfill_session(&mut self, symbols: BTreeSet<Symbol>) {
-        let now = now();
+        let now = Timestamp::now();
         let date = now.exchange_date();
         let calendar = match self.inner.market.calendar(date, date).await {
             Ok(calendar) => calendar,
@@ -259,7 +259,7 @@ impl Pump {
     }
 
     fn request_backfill(&mut self, symbols: BTreeSet<Symbol>, from: Timestamp, to: Timestamp) {
-        let floor = minute_floor(now()) - BACKFILL_LOOKBACK_LIMIT;
+        let floor = minute_floor(Timestamp::now()) - BACKFILL_LOOKBACK_LIMIT;
         let from = self
             .settled_through
             .map_or(from, |through| from.min(through))
@@ -422,7 +422,7 @@ async fn fetch_minutes(
         .calendar(from.exchange_date(), to.exchange_date())
         .await?;
     let sip_delay = TimeDelta::from_std(SIP_DELAY).expect("SIP delay fits a time delta");
-    let sip_until = minute_floor(now() - sip_delay).clamp(from, to);
+    let sip_until = minute_floor(Timestamp::now() - sip_delay).clamp(from, to);
     let request = |feed, from, to| BarsRequest {
         symbols: symbols.clone(),
         timeframe: Timeframe::Minute,
@@ -477,14 +477,10 @@ async fn sleep_until(wake: Option<Instant>) {
     }
 }
 
-fn now() -> Timestamp {
-    Timestamp::from_datetime(Utc::now()).expect("current time fits in i64 nanoseconds")
-}
-
 fn minute_floor(at: Timestamp) -> Timestamp {
     at - TimeDelta::nanoseconds(at.nanos().rem_euclid(60_000_000_000))
 }
 
 fn instant_at(at: Timestamp) -> Instant {
-    Instant::now() + (at - now()).to_std().unwrap_or_default()
+    Instant::now() + (at - Timestamp::now()).to_std().unwrap_or_default()
 }

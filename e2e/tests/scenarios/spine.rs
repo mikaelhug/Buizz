@@ -1,9 +1,12 @@
 use std::future::Future;
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 use std::time::Duration;
 
 use buizz_core::api::{JobView, RunSummary, SpineEvent};
 use buizz_core::run::{RunEvent, RunEventKind, RunId};
+use buizz_core::time::Timestamp;
+use chrono::{NaiveTime, TimeDelta};
 use reqwest::{Client, StatusCode, header};
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
@@ -18,6 +21,18 @@ const DEADLINE: Duration = Duration::from_secs(180);
 const POLL: Duration = Duration::from_millis(100);
 const EVENTS_PAGE: u32 = 1000;
 const LISTENING: &str = "spine listening addr=";
+const CLOCK_STARTS_AT: NaiveTime = NaiveTime::from_hms_opt(12, 0, 0).expect("a time");
+
+static CLOCK_OFFSET: LazyLock<TimeDelta> = LazyLock::new(|| {
+    let real = Timestamp::now();
+    let start = Timestamp::at_exchange_time(real.exchange_date(), CLOCK_STARTS_AT)
+        .expect("the start fits in a timestamp");
+    TimeDelta::seconds((start - real).num_seconds())
+});
+
+pub fn now() -> Timestamp {
+    Timestamp::now() + *CLOCK_OFFSET
+}
 
 pub async fn eventually<T, F: Future<Output = Option<T>>>(
     what: &str,
@@ -123,6 +138,10 @@ impl Spine {
             )
             .env("RUST_LOG", "info")
             .env("BUIZZ_BIND", "127.0.0.1:0")
+            .env(
+                "BUIZZ_CLOCK_OFFSET_SECONDS",
+                CLOCK_OFFSET.num_seconds().to_string(),
+            )
             .env("BUIZZ_ADMIN_PASSWORD", &self.password)
             .env("BUIZZ_SECURE_COOKIES", "false")
             .env("BUIZZ_WEB_DIR", repository().join("web/dist"))

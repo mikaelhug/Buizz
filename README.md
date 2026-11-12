@@ -57,6 +57,7 @@ The spine (`cargo run -p buizz-spine`) reads these environment variables. Empty 
 | `BUIZZ_SECURE_COOKIES` | `true` | Mark the session cookie `Secure`; set `false` for plain HTTP |
 | `BUIZZ_INGEST` | `true` | Run the scheduled data jobs; `false` for fixture-only work |
 | `BUIZZ_INGEST_SYMBOLS` | unset | A comma-separated list that limits prices, corporate actions, fundamentals, filings and Tiingo history to these symbols, for a quick real-data spine on a laptop; calendar, instruments, membership, rates, macro and borrow stay complete |
+| `BUIZZ_CLOCK_OFFSET_SECONDS` | `0` | Shifts the spine's clock by this many seconds, positive or negative; the end-to-end scenarios use it to run at noon New York time whatever the hour |
 | `ALPACA_KEY_ID`, `ALPACA_SECRET_KEY` | unset | Alpaca market data credentials; both are needed to enable Alpaca, the live feed and minute-bar backtests |
 | `ALPACA_DATA_URL` | `https://data.alpaca.markets` | Alpaca data endpoint |
 | `ALPACA_TRADING_URL` | `https://paper-api.alpaca.markets` | Alpaca endpoint for the calendar and assets |

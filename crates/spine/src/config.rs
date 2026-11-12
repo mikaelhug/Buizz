@@ -13,6 +13,7 @@ use buizz_sources::nasdaq::{self, NasdaqConfig};
 use buizz_sources::tiingo::{self, TiingoConfig};
 use buizz_sources::treasury::{self, TreasuryConfig};
 use buizz_sources::wikipedia::{self, WikipediaConfig};
+use chrono::TimeDelta;
 
 pub struct Config {
     pub bind: SocketAddr,
@@ -66,6 +67,16 @@ fn admin_password(value: Option<String>) -> Result<String> {
         "BUIZZ_ADMIN_PASSWORD must be at least {MIN_ADMIN_PASSWORD_CHARS} characters, it has {length}"
     );
     Ok(password)
+}
+
+pub fn clock_offset() -> Result<TimeDelta> {
+    var("BUIZZ_CLOCK_OFFSET_SECONDS").map_or(Ok(TimeDelta::zero()), |seconds| {
+        seconds
+            .parse()
+            .ok()
+            .and_then(TimeDelta::try_seconds)
+            .context("BUIZZ_CLOCK_OFFSET_SECONDS must be a whole number of seconds")
+    })
 }
 
 pub fn data_dir() -> PathBuf {
