@@ -1,20 +1,7 @@
-from datetime import date
-
-import numpy as np
-import numpy.typing as npt
+from buizz_bots.monthly import MAX_SESSIONS_PER_MONTH, month_end_closes
 from buizz_bots.sessions import last_session_of_month
 
-from buizz import Bot, Context, History, run
-
-MAX_SESSIONS_PER_MONTH = 23
-
-
-def month_end_closes(history: History, today: date) -> npt.NDArray[np.float64]:
-    days = history.start.astype("datetime64[ns]").astype("datetime64[D]")
-    if days.size == 0 or days[-1] != np.datetime64(today):
-        return np.empty(0)
-    months = days.astype("datetime64[M]")
-    return history.close[np.append(months[1:] != months[:-1], True)]
+from buizz import Bot, Context, run
 
 
 class Gtaa5(Bot):
