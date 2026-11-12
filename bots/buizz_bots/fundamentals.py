@@ -6,6 +6,7 @@ from itertools import pairwise
 from buizz import Context, FundamentalPoint, History, Metric, split_ratio, to_ns
 
 DOMESTIC_ANNUAL_FORMS = {"10-K", "10-K/A"}
+DOMESTIC_FORMS = DOMESTIC_ANNUAL_FORMS | {"10-Q", "10-Q/A"}
 MIN_GAP_DAYS = 300
 MAX_GAP_DAYS = 430
 MAX_STALENESS_DAYS = 548
