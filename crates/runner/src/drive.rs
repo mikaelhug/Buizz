@@ -43,6 +43,7 @@ const ORDER_PAGE: u32 = 1000;
 const BACKTEST_EQUITY_EVERY: Duration = Duration::from_millis(250);
 const SESSION_MINUTES_RETRY_INITIAL: Duration = Duration::from_secs(1);
 const SESSION_MINUTES_RETRY_MAX: Duration = Duration::from_secs(60);
+const SESSION_MINUTES_ATTEMPTS: u32 = 10;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Control {
@@ -549,17 +550,30 @@ impl Driver {
                 Ok(())
             }
             Err(error) => {
-                let attempt = self.session_minutes_retry.map_or(0, |(attempt, _)| attempt);
+                let failed = self.session_minutes_retry.map_or(0, |(failed, _)| failed) + 1;
+                if failed == SESSION_MINUTES_ATTEMPTS {
+                    self.session_minutes_retry = None;
+                    self.after = point.visible_at;
+                    return self
+                        .record(RunEventKind::Log {
+                            level: LogLevel::Warn,
+                            message: format!(
+                                "fetching the session's minute bars failed {failed} times, so the bot skips its before-close step on {} and the session is matched at its close without it: {error}",
+                                point.session.date
+                            ),
+                        })
+                        .await;
+                }
                 let delay = SESSION_MINUTES_RETRY_INITIAL
-                    .saturating_mul(1 << attempt.min(6))
+                    .saturating_mul(1 << (failed - 1).min(6))
                     .min(SESSION_MINUTES_RETRY_MAX);
                 let retry_at =
                     Timestamp::now() + TimeDelta::from_std(delay).expect("the retry delay fits");
-                self.session_minutes_retry = Some((attempt + 1, retry_at));
+                self.session_minutes_retry = Some((failed, retry_at));
                 self.record(RunEventKind::Log {
                     level: LogLevel::Warn,
                     message: format!(
-                        "fetching the session's minute bars failed, retrying in {} s: {error}",
+                        "fetching the session's minute bars failed (attempt {failed} of {SESSION_MINUTES_ATTEMPTS}), retrying in {} s: {error}",
                         delay.as_secs()
                     ),
                 })
