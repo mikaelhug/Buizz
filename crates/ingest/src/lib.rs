@@ -43,11 +43,12 @@ use crate::schedule::{JOBS, due_at};
 
 const EVENT_CAPACITY: usize = 64;
 const OTC: &str = "OTC";
-const CORE_ETFS: [&str; 40] = [
+const CORE_ETFS: [&str; 63] = [
     "SPY", "QQQ", "IWM", "DIA", "IVV", "VOO", "VTI", "MDY", "IJR", "EFA", "EEM", "VEU", "VWO",
     "AGG", "BND", "TLT", "IEF", "SHY", "SHV", "BIL", "LQD", "HYG", "TIP", "GLD", "SLV", "DBC",
     "GSG", "USO", "VNQ", "XLB", "XLC", "XLE", "XLF", "XLI", "XLK", "XLP", "XLRE", "XLU", "XLV",
-    "XLY",
+    "XLY", "MTUM", "QUAL", "USMV", "VLUE", "IWD", "IWF", "IWN", "IWO", "EWJ", "FXI", "EWZ", "EZU",
+    "IEI", "EMB", "MUB", "DBA", "UNG", "UUP", "FXE", "FXY", "SSO", "QLD", "UPRO",
 ];
 
 #[derive(Clone, Debug, PartialEq, Eq)]
