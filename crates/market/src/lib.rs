@@ -10,7 +10,7 @@ use buizz_core::market::{
     InsiderTrade, Instrument, InstrumentProfile, MacroObservation, MacroPoint, MacroSeries,
     NewsArticle, RiskFreeRate, SecFiling, Session, StockIndex, Symbol, Timeframe, Watermarks,
 };
-use buizz_core::ops::{CoverageGap, DataWarning};
+use buizz_core::ops::{ActionDisagreement, CoverageGap, DataWarning};
 use buizz_core::protocol::BarRow;
 use buizz_core::run::UniverseSpec;
 use buizz_core::time::Timestamp;
@@ -36,7 +36,7 @@ pub use restore::Restored;
 
 pub(crate) const SCHEMA: &str = include_str!("../schema.sql");
 pub const FILE_NAME: &str = "market.duckdb";
-const APPENDED: [(&str, &str); 16] = [
+const APPENDED: [(&str, &str); 17] = [
     ("ingest_batch", "id"),
     ("borrow_availability", "batch_id"),
     ("news_article", "batch_id"),
@@ -44,6 +44,7 @@ const APPENDED: [(&str, &str); 16] = [
     ("calendar_revision", "superseded_by"),
     ("bar_1d_revision", "superseded_by"),
     ("corporate_action_revision", "superseded_by"),
+    ("corporate_action_check_revision", "superseded_by"),
     ("rate_daily_revision", "superseded_by"),
     ("macro_observation_revision", "superseded_by"),
     ("fomc_meeting_revision", "superseded_by"),
@@ -918,6 +919,34 @@ impl MarketStore {
             })
             .await
     }
+
+    pub async fn action_disagreements(
+        &self,
+        symbols: Option<Vec<Symbol>>,
+        from: NaiveDate,
+        to: NaiveDate,
+    ) -> Result<Vec<DataWarning>> {
+        self.readers
+            .run(move |connection| {
+                read::action_disagreements(connection, symbols.as_deref(), from, to)
+            })
+            .await
+    }
+
+    pub async fn record_action_disagreements(
+        &self,
+        disagreements: Vec<ActionDisagreement>,
+    ) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| write::action_checks(connection, disagreements))
+            .await
+    }
+
+    pub async fn normalize_splits(&self, source: DataSource) -> Result<u64> {
+        self.writer
+            .run(move |connection| write::normalized_splits(connection, source))
+            .await
+    }
 }
 
 fn visible_through(timeframe: Timeframe, bars: &[Bar], calendar: &Calendar) -> Option<Timestamp> {
@@ -948,7 +977,7 @@ mod tests {
             .unwrap()
             .collect::<duckdb::Result<_>>()
             .unwrap();
-        assert_eq!(revisions.len(), 12);
+        assert_eq!(revisions.len(), 13);
         let missing: Vec<&String> = revisions
             .iter()
             .filter(|table| !APPENDED.iter().any(|(backed_up, _)| backed_up == table))

@@ -1,4 +1,5 @@
 use chrono::NaiveDate;
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -74,6 +75,26 @@ pub enum DataWarning {
         source: DataSource,
         message: String,
     },
+    ActionDisagreement(ActionDisagreement),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum CheckedAction {
+    Split,
+    CashDividend,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct ActionDisagreement {
+    pub symbol: Symbol,
+    pub ex_date: NaiveDate,
+    pub action: CheckedAction,
+    #[schema(value_type = Option<String>)]
+    pub alpaca: Option<Decimal>,
+    #[schema(value_type = Option<String>)]
+    pub tiingo: Option<Decimal>,
+    pub kept: DataSource,
 }
 
 pub const UNEXPLAINED_MOVE_THRESHOLD: f64 = 0.40;

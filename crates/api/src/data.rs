@@ -3,7 +3,9 @@ use std::collections::BTreeMap;
 use axum::Json;
 use axum::extract::State;
 use buizz_core::api::{BotProcesses, DataHealth, FeedSlots, JobView};
-use buizz_core::market::{Coverage, DataSource, Dataset, Symbol, Timeframe, Watermarks};
+use buizz_core::market::{
+    Coverage, DataSource, Dataset, HISTORY_START, Symbol, Timeframe, Watermarks,
+};
 use buizz_core::ops::{CoverageGap, DataWarning};
 use buizz_core::time::Timestamp;
 use chrono::{NaiveDate, TimeDelta};
@@ -61,6 +63,11 @@ async fn warnings(
         .filter_map(|gap| within_coverage(gap, &ranges))
         .collect();
     warnings.extend(app.market.unexplained_moves(symbols, from, to).await?);
+    warnings.extend(
+        app.market
+            .action_disagreements(None, HISTORY_START, to)
+            .await?,
+    );
     Ok(warnings)
 }
 

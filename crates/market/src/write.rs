@@ -2,10 +2,12 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::ops::RangeInclusive;
 
 use buizz_core::market::{
-    Bar, BorrowAvailability, Company, CorporateAction, DataSource, Dataset, EarningsInsight,
-    EarningsRelease, EstimateFact, FomcMeeting, FundamentalFact, IndexHistory, InsiderFiling,
-    Instrument, MacroObservation, NewsArticle, RiskFreeRate, SecFiling, Session, Symbol,
+    Bar, BorrowAvailability, Company, CorporateAction, CorporateActionKind, DataSource, Dataset,
+    EarningsInsight, EarningsRelease, EstimateFact, FomcMeeting, FundamentalFact, IndexHistory,
+    InsiderFiling, Instrument, MacroObservation, NewsArticle, RiskFreeRate, SecFiling, Session,
+    Symbol, split_rates,
 };
+use buizz_core::ops::ActionDisagreement;
 use buizz_core::time::Timestamp;
 use chrono::NaiveDate;
 use duckdb::{Appender, Connection, Transaction, params};
@@ -13,11 +15,12 @@ use duckdb::{Appender, Connection, Transaction, params};
 use crate::codec::{ActionColumns, Dec, Ts, feed_name, wire_name};
 use crate::{ActionWindow, Result, WriteSummary};
 
-const STAGED: [&str; 11] = [
+const STAGED: [&str; 12] = [
     "instrument",
     "calendar",
     "bar_1d",
     "corporate_action",
+    "corporate_action_check",
     "fundamental_fact",
     "rate_daily",
     "macro_observation",
@@ -108,7 +111,7 @@ fn stage<T>(
     Ok(count)
 }
 
-const KEYS: [(&str, &[&str]); 10] = [
+const KEYS: [(&str, &[&str]); 11] = [
     ("instrument", &["symbol"]),
     ("calendar", &["date"]),
     ("bar_1d", &["symbol", "date"]),
@@ -116,6 +119,7 @@ const KEYS: [(&str, &[&str]); 10] = [
         "corporate_action",
         &["symbol", "ex_date", "kind", "other_symbol"],
     ),
+    ("corporate_action_check", &["symbol", "ex_date", "action"]),
     ("rate_daily", &["date"]),
     ("macro_observation", &["series", "date", "published"]),
     ("fomc_meeting", &["date", "scheduled"]),
@@ -426,20 +430,7 @@ pub(crate) fn corporate_actions(
                 transaction,
                 "corporate_action",
                 unique.values(),
-                |appender, action| {
-                    let columns = ActionColumns::of(&action.kind);
-                    appender.append_row(params![
-                        action.symbol.as_str(),
-                        action.ex_date,
-                        columns.kind,
-                        columns.other_symbol,
-                        columns.old_rate.map(Dec),
-                        columns.new_rate.map(Dec),
-                        columns.rate.map(Dec),
-                        source_name,
-                        batch_id,
-                    ])
-                },
+                |appender, action| append_action(appender, action, &source_name, batch_id),
             )?;
             transaction.execute("DELETE FROM action_scope", [])?;
             let mut appender =
@@ -465,6 +456,109 @@ pub(crate) fn corporate_actions(
                 params![source_name, from, to],
             )?;
             replace_staged(transaction, "corporate_action", batch_id)
+        },
+    )
+}
+
+fn append_action(
+    appender: &mut Appender<'_>,
+    action: &CorporateAction,
+    source_name: &str,
+    batch_id: i64,
+) -> duckdb::Result<()> {
+    let columns = ActionColumns::of(&action.kind);
+    appender.append_row(params![
+        action.symbol.as_str(),
+        action.ex_date,
+        columns.kind,
+        columns.other_symbol,
+        columns.old_rate.map(Dec),
+        columns.new_rate.map(Dec),
+        columns.rate.map(Dec),
+        source_name,
+        batch_id,
+    ])
+}
+
+pub(crate) fn normalized_splits(connection: &mut Connection, source: DataSource) -> Result<u64> {
+    let source_name = wire_name(&source);
+    let mut statement = connection.prepare(
+        "SELECT symbol, ex_date, old_rate, new_rate FROM corporate_action \
+         WHERE kind = 'split' AND source = ? AND old_rate > 0 AND new_rate > 0",
+    )?;
+    let stored = statement
+        .query_map(params![source_name], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, NaiveDate>(1)?,
+                row.get::<_, Dec>(2)?.0,
+                row.get::<_, Dec>(3)?.0,
+            ))
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    drop(statement);
+    let changed: Vec<CorporateAction> = stored
+        .into_iter()
+        .filter_map(|(symbol, ex_date, old_rate, new_rate)| {
+            let (old, new) = split_rates(new_rate / old_rate);
+            (old != old_rate || new != new_rate).then(|| CorporateAction {
+                symbol: Symbol::new(&symbol),
+                ex_date,
+                kind: CorporateActionKind::Split {
+                    old_rate: old,
+                    new_rate: new,
+                },
+            })
+        })
+        .collect();
+    if changed.is_empty() {
+        return Ok(0);
+    }
+    let summary = write_batch(
+        connection,
+        source,
+        Dataset::CorporateActions,
+        Coverage::new(),
+        |transaction, batch_id| {
+            stage(
+                transaction,
+                "corporate_action",
+                &changed,
+                |appender, action| append_action(appender, action, &source_name, batch_id),
+            )?;
+            replace_staged(transaction, "corporate_action", batch_id)
+        },
+    )?;
+    Ok(summary.rows)
+}
+
+pub(crate) fn action_checks(
+    connection: &mut Connection,
+    checks: Vec<ActionDisagreement>,
+) -> Result<WriteSummary> {
+    write_batch(
+        connection,
+        DataSource::Tiingo,
+        Dataset::CorporateActions,
+        Coverage::new(),
+        |transaction, batch_id| {
+            stage(
+                transaction,
+                "corporate_action_check",
+                &checks,
+                |appender, check| {
+                    appender.append_row(params![
+                        check.symbol.as_str(),
+                        check.ex_date,
+                        wire_name(&check.action),
+                        check.alpaca.map(Dec),
+                        check.tiingo.map(Dec),
+                        wire_name(&check.kept),
+                        batch_id,
+                    ])
+                },
+            )?;
+            replace_staged(transaction, "corporate_action_check", batch_id)
         },
     )
 }
@@ -1109,7 +1203,7 @@ pub(crate) fn news_articles(
 
 #[cfg(test)]
 mod tests {
-    use buizz_core::market::{Adjustment, AdjustmentFactor, AssetClass, CorporateActionKind};
+    use buizz_core::market::{Adjustment, AdjustmentFactor, AssetClass};
     use chrono::NaiveTime;
     use rust_decimal::Decimal;
 

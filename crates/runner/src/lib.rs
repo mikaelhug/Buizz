@@ -641,7 +641,15 @@ impl Runner {
         if !gaps.is_empty() {
             return Err(RunnerError::CoverageGaps(gaps));
         }
-        Ok(market.unexplained_moves(symbols, config.start, end).await?)
+        let mut warnings = market
+            .unexplained_moves(symbols.clone(), config.start, end)
+            .await?;
+        warnings.extend(
+            market
+                .action_disagreements(Some(symbols), config.start, end)
+                .await?,
+        );
+        Ok(warnings)
     }
 
     async fn create(
@@ -921,5 +929,19 @@ fn describe(warning: &DataWarning) -> String {
             source,
             message,
         } => format!("{symbol} from {source:?} was rejected: {message}"),
+        DataWarning::ActionDisagreement(disagreement) => {
+            let value = |value: &Option<Decimal>| {
+                value.map_or("none".to_owned(), |value| value.normalize().to_string())
+            };
+            format!(
+                "Alpaca and Tiingo disagree on {}'s {:?} on {}: Alpaca {}, Tiingo {}; {:?} is used",
+                disagreement.symbol,
+                disagreement.action,
+                disagreement.ex_date,
+                value(&disagreement.alpaca),
+                value(&disagreement.tiingo),
+                disagreement.kept
+            )
+        }
     }
 }

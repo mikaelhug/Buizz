@@ -291,6 +291,21 @@ impl CorporateActionKind {
     }
 }
 
+const MAX_SPLIT_DENOMINATOR: i64 = 100;
+
+pub fn split_rates(factor: Decimal) -> (Decimal, Decimal) {
+    let tolerance = Decimal::new(1, 4);
+    (1..=MAX_SPLIT_DENOMINATOR)
+        .map(Decimal::from)
+        .find_map(|old_rate| {
+            let new_rate = (factor * old_rate).round();
+            let close =
+                !new_rate.is_zero() && ((new_rate / old_rate - factor) / factor).abs() <= tolerance;
+            close.then_some((old_rate, new_rate))
+        })
+        .unwrap_or((Decimal::ONE, factor))
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Adjustment {

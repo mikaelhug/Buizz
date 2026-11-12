@@ -19,3 +19,15 @@ INSERT INTO corporate_action_revision_next BY NAME SELECT *, '' AS other_symbol 
 DROP TABLE corporate_action_revision;
 ALTER TABLE corporate_action_revision_next RENAME TO corporate_action_revision;
 ALTER TABLE corporate_action_revision ALTER COLUMN other_symbol SET DEFAULT '';
+
+CREATE TABLE corporate_action_check (
+    symbol VARCHAR NOT NULL,
+    ex_date DATE NOT NULL,
+    action VARCHAR NOT NULL CHECK (action IN ('split', 'cash_dividend')),
+    alpaca DECIMAL(18, 8),
+    tiingo DECIMAL(18, 8),
+    kept VARCHAR NOT NULL,
+    batch_id BIGINT NOT NULL,
+    PRIMARY KEY (symbol, ex_date, action)
+);
+CREATE TABLE corporate_action_check_revision AS SELECT *, CAST(NULL AS BIGINT) AS superseded_by FROM corporate_action_check LIMIT 0;

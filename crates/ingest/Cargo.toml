@@ -13,6 +13,7 @@ buizz-sources.workspace = true
 buizz-state.workspace = true
 chrono.workspace = true
 futures.workspace = true
+rust_decimal.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true

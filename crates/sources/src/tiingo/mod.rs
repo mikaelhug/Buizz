@@ -2,7 +2,9 @@ use std::collections::HashMap;
 use std::fmt;
 use std::time::Duration;
 
-use buizz_core::market::{Bar, Calendar, CorporateAction, CorporateActionKind, Feed, Symbol};
+use buizz_core::market::{
+    Bar, Calendar, CorporateAction, CorporateActionKind, Feed, Symbol, split_rates,
+};
 use buizz_core::time::Timestamp;
 use chrono::NaiveDate;
 use reqwest::header::AUTHORIZATION;
@@ -177,13 +179,11 @@ pub fn normalize(
     let mut actions = Vec::new();
     for row in rows {
         if row.split_factor > Decimal::ZERO && row.split_factor != Decimal::ONE {
+            let (old_rate, new_rate) = split_rates(row.split_factor);
             actions.push(CorporateAction {
                 symbol: symbol.clone(),
                 ex_date: row.date,
-                kind: CorporateActionKind::Split {
-                    old_rate: Decimal::ONE,
-                    new_rate: row.split_factor,
-                },
+                kind: CorporateActionKind::Split { old_rate, new_rate },
             });
         }
         if row.div_cash > Decimal::ZERO {

@@ -571,6 +571,7 @@ dependencies = [
  "buizz-state",
  "chrono",
  "futures",
+ "rust_decimal",
  "tempfile",
  "thiserror",
  "tokio",

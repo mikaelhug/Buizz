@@ -1166,6 +1166,42 @@
   },
   "components": {
     "schemas": {
+      "ActionDisagreement": {
+        "type": "object",
+        "required": [
+          "symbol",
+          "ex_date",
+          "action",
+          "kept"
+        ],
+        "properties": {
+          "symbol": {
+            "$ref": "#/components/schemas/Symbol"
+          },
+          "ex_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "action": {
+            "$ref": "#/components/schemas/CheckedAction"
+          },
+          "alpaca": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tiingo": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kept": {
+            "$ref": "#/components/schemas/DataSource"
+          }
+        }
+      },
       "ApiError": {
         "type": "object",
         "required": [
@@ -1518,6 +1554,13 @@
           }
         }
       },
+      "CheckedAction": {
+        "type": "string",
+        "enum": [
+          "split",
+          "cash_dividend"
+        ]
+      },
       "CommissionTier": {
         "type": "object",
         "required": [
@@ -1782,6 +1825,27 @@
                 ]
               }
             }
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ActionDisagreement"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "action_disagreement"
+                    ]
+                  }
+                }
+              }
+            ]
           }
         ]
       },

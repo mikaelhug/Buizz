@@ -9,7 +9,7 @@ use buizz_core::market::{
     MacroObservation, MacroPoint, MacroSeries, NewsArticle, RiskFreeRate, SIP_DELAY, Session,
     StockIndex, Symbol, Timeframe,
 };
-use buizz_core::ops::{CoverageGap, DataWarning, UNEXPLAINED_MOVE_THRESHOLD};
+use buizz_core::ops::{ActionDisagreement, CoverageGap, DataWarning, UNEXPLAINED_MOVE_THRESHOLD};
 use buizz_core::protocol::BarRow;
 use buizz_core::time::Timestamp;
 use buizz_core::visibility::{
@@ -545,6 +545,40 @@ pub(crate) fn corporate_actions(
         ),
         params,
     )
+}
+
+pub(crate) fn action_disagreements(
+    connection: &Connection,
+    symbols: Option<&[Symbol]>,
+    from: NaiveDate,
+    to: NaiveDate,
+) -> Result<Vec<DataWarning>> {
+    let mut params: Params = vec![Box::new(from), Box::new(to)];
+    let mut sql = "SELECT symbol, ex_date, action, alpaca, tiingo, kept \
+                   FROM corporate_action_check WHERE ex_date BETWEEN ? AND ?"
+        .to_owned();
+    if let Some(symbols) = symbols {
+        if symbols.is_empty() {
+            return Ok(Vec::new());
+        }
+        sql.push_str(&format!(" AND symbol IN ({})", placeholders(symbols.len())));
+        params.extend(symbol_params(symbols));
+    }
+    sql.push_str(" ORDER BY symbol, ex_date, action");
+    let mut statement = connection.prepare_cached(&sql)?;
+    let rows = statement
+        .query_map(params_from_iter(params.iter()), |row| {
+            Ok(DataWarning::ActionDisagreement(ActionDisagreement {
+                symbol: row.get::<_, Sym>(0)?.0,
+                ex_date: row.get(1)?,
+                action: row.get::<_, Wire<_>>(2)?.0,
+                alpaca: row.get::<_, Option<Dec>>(3)?.map(|value| value.0),
+                tiingo: row.get::<_, Option<Dec>>(4)?.map(|value| value.0),
+                kept: row.get::<_, Wire<_>>(5)?.0,
+            }))
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    Ok(rows)
 }
 
 pub(crate) fn actions_reaching_other_symbols(

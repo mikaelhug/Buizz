@@ -1,12 +1,13 @@
-use buizz_core::market::{Bar, DataSource, Dataset, Symbol, Timeframe};
+use buizz_core::market::{Bar, CorporateAction, DataSource, Dataset, Symbol, Timeframe};
 use buizz_core::ops::FetchStatus;
 use buizz_core::time::Timestamp;
 use buizz_market::ActionWindow;
 use buizz_sources::tiingo::{
     OverlapVerdict, REQUESTS_PER_DAY, SYMBOLS_PER_MONTH, normalize, validate_overlap,
 };
-use chrono::TimeDelta;
+use chrono::{NaiveDate, TimeDelta};
 
+use crate::crosscheck::cross_check;
 use crate::fetch::{Batch, FetchKey, Work, read, waiting};
 use crate::{Ingest, IngestError, Priced, day_start};
 
@@ -29,13 +30,15 @@ impl Ingest {
         if let Some(work) = self.backoff_work(now, DataSource::Tiingo).await? {
             return Ok(work);
         }
+        self.market.normalize_splits(DataSource::Tiingo).await?;
         let history_start = self.config.history_start;
-        let calendar = self
-            .market
-            .calendar(history_start, now.exchange_date())
-            .await?;
+        let today = now.exchange_date();
+        let calendar = self.market.calendar(history_start, today).await?;
         let alpaca = self
             .symbol_coverage(Dataset::Bars1d, DataSource::Alpaca)
+            .await?;
+        let alpaca_actions = self
+            .symbol_coverage(Dataset::CorporateActions, DataSource::Alpaca)
             .await?;
         let daily = self
             .state
@@ -86,7 +89,7 @@ impl Ingest {
                 Some((history_start, gap_end)),
             );
             let window_end = first + TimeDelta::days(OVERLAP_WINDOW_DAYS);
-            let rows = match tiingo.daily(&symbol, history_start, window_end).await {
+            let rows = match tiingo.daily(&symbol, history_start, today).await {
                 Ok(rows) => rows,
                 Err(error) => {
                     self.record_failure(now, &key, &error).await?;
@@ -108,7 +111,7 @@ impl Ingest {
                 .await?;
             let overlap: Vec<Bar> = bars
                 .iter()
-                .filter(|bar| bar.start.exchange_date() >= first)
+                .filter(|bar| (first..=window_end).contains(&bar.start.exchange_date()))
                 .cloned()
                 .collect();
             let rejection = match validate_overlap(&alpaca_bars, &overlap) {
@@ -127,10 +130,15 @@ impl Ingest {
                 .into_iter()
                 .filter(|bar| bar.start.exchange_date() < first)
                 .collect();
-            let actions = actions
+            let (actions, alpaca_era): (Vec<CorporateAction>, Vec<CorporateAction>) = actions
                 .into_iter()
-                .filter(|action| action.ex_date < first)
-                .collect::<Vec<_>>();
+                .partition(|action| action.ex_date < first);
+            if alpaca_actions
+                .get(&symbol)
+                .is_some_and(|coverage| coverage.first <= history_start)
+            {
+                self.cross_check(&symbol, first, today, &alpaca_era).await?;
+            }
             let fetched = bars.len();
             let written = self
                 .market
@@ -152,6 +160,62 @@ impl Ingest {
             batch.success(written.rows);
         }
         Ok(batch.finish("Tiingo history"))
+    }
+
+    async fn cross_check(
+        &self,
+        symbol: &Symbol,
+        first: NaiveDate,
+        today: NaiveDate,
+        tiingo: &[CorporateAction],
+    ) -> Result<(), IngestError> {
+        let stored = self
+            .market
+            .corporate_actions(vec![symbol.clone()], first, today)
+            .await?;
+        let bars = self
+            .market
+            .bars_between(
+                Timeframe::Day,
+                vec![symbol.clone()],
+                day_start(first),
+                day_start(today + DAY),
+            )
+            .await?;
+        let check = cross_check(&stored, tiingo, &bars);
+        for (date, adopted) in check.adopted_splits {
+            let window = ActionWindow {
+                symbols: vec![symbol.clone()],
+                from: date,
+                through: date,
+                covered_to: None,
+            };
+            match adopted {
+                Some(split) => {
+                    self.market
+                        .replace_corporate_actions(DataSource::Tiingo, vec![split], window)
+                        .await?
+                }
+                None => {
+                    let kept = stored
+                        .iter()
+                        .filter(|action| {
+                            action.ex_date == date && action.kind.share_ratio().is_none()
+                        })
+                        .cloned()
+                        .collect();
+                    self.market
+                        .replace_corporate_actions(DataSource::Alpaca, kept, window)
+                        .await?
+                }
+            };
+        }
+        if !check.disagreements.is_empty() {
+            self.market
+                .record_action_disagreements(check.disagreements)
+                .await?;
+        }
+        Ok(())
     }
 
     async fn tiingo_candidate(

@@ -4,7 +4,7 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::get;
 use buizz_core::market::{
-    Bar, Calendar, CorporateAction, CorporateActionKind, Feed, Session, Symbol,
+    Bar, Calendar, CorporateAction, CorporateActionKind, Feed, Session, Symbol, split_rates,
 };
 use buizz_core::time::Timestamp;
 use buizz_sources::http::SourceError;
@@ -98,6 +98,15 @@ async fn daily_rows_normalize_into_raw_bars_and_corporate_actions() {
             new_rate: Decimal::from(4)
         }
     );
+}
+
+#[test]
+fn a_split_factor_off_by_float_noise_is_the_ratio_it_stands_for() {
+    let rates = |factor: &str| split_rates(factor.parse().unwrap());
+    assert_eq!(rates("7.000007"), (Decimal::ONE, Decimal::from(7)));
+    assert_eq!(rates("1.5"), (Decimal::TWO, Decimal::from(3)));
+    assert_eq!(rates("0.05"), (Decimal::from(20), Decimal::ONE));
+    assert_eq!(rates("0.142857"), (Decimal::from(7), Decimal::ONE));
 }
 
 #[tokio::test]

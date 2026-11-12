@@ -472,6 +472,15 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        ActionDisagreement: {
+            symbol: components["schemas"]["Symbol"];
+            /** Format: date */
+            ex_date: string;
+            action: components["schemas"]["CheckedAction"];
+            alpaca?: string | null;
+            tiingo?: string | null;
+            kept: components["schemas"]["DataSource"];
+        };
         ApiError: {
             error: string;
         };
@@ -565,6 +574,8 @@ export interface components {
             ex_date: string;
             ratio: string;
         };
+        /** @enum {string} */
+        CheckedAction: "split" | "cash_dividend";
         CommissionTier: {
             /** Format: int64 */
             above: number;
@@ -639,7 +650,10 @@ export interface components {
             message: string;
             /** @enum {string} */
             type: "overlap_rejected";
-        };
+        } | (components["schemas"]["ActionDisagreement"] & {
+            /** @enum {string} */
+            type: "action_disagreement";
+        });
         /** @enum {string} */
         Dataset: "instruments" | "calendar" | "bars1d" | "bars1m" | "corporate_actions" | "fundamentals" | "rates" | "companies" | "earnings_releases" | "sec_filings" | "index_membership" | "borrow" | "macro" | "insider_trades" | "news" | "fomc" | "estimates";
         /** @enum {string} */

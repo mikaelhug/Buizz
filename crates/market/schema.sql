@@ -66,6 +66,17 @@ CREATE TABLE IF NOT EXISTS corporate_action (
     PRIMARY KEY (symbol, ex_date, kind, other_symbol)
 );
 
+CREATE TABLE IF NOT EXISTS corporate_action_check (
+    symbol VARCHAR NOT NULL,
+    ex_date DATE NOT NULL,
+    action VARCHAR NOT NULL CHECK (action IN ('split', 'cash_dividend')),
+    alpaca DECIMAL(18, 8),
+    tiingo DECIMAL(18, 8),
+    kept VARCHAR NOT NULL,
+    batch_id BIGINT NOT NULL,
+    PRIMARY KEY (symbol, ex_date, action)
+);
+
 CREATE TABLE IF NOT EXISTS fundamental_fact (
     symbol VARCHAR NOT NULL,
     cik UINTEGER NOT NULL,
@@ -165,6 +176,7 @@ CREATE TABLE calendar_revision AS SELECT *, CAST(NULL AS BIGINT) AS superseded_b
 CREATE TABLE bar_1d_revision AS SELECT *, CAST(NULL AS BIGINT) AS superseded_by FROM bar_1d LIMIT 0;
 CREATE TABLE corporate_action_revision AS SELECT *, CAST(NULL AS BIGINT) AS superseded_by FROM corporate_action LIMIT 0;
 ALTER TABLE corporate_action_revision ALTER COLUMN other_symbol SET DEFAULT '';
+CREATE TABLE corporate_action_check_revision AS SELECT *, CAST(NULL AS BIGINT) AS superseded_by FROM corporate_action_check LIMIT 0;
 CREATE TABLE rate_daily_revision AS SELECT *, CAST(NULL AS BIGINT) AS superseded_by FROM rate_daily LIMIT 0;
 CREATE TABLE macro_observation_revision AS SELECT *, CAST(NULL AS BIGINT) AS superseded_by FROM macro_observation LIMIT 0;
 CREATE TABLE company_revision AS SELECT *, CAST(NULL AS BIGINT) AS superseded_by FROM company LIMIT 0;

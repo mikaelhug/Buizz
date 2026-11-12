@@ -18,6 +18,7 @@ const WARNING_KINDS: Record<Schemas["DataWarning"]["type"], string> = {
   coverage_gap: "Coverage gap",
   unexplained_move: "Unexplained move",
   overlap_rejected: "Overlap rejected",
+  action_disagreement: "Sources disagree",
 };
 
 const TIMEFRAMES: Record<Schemas["Timeframe"], string> = { "1d": "Daily", "1m": "Minute" };
@@ -203,6 +204,8 @@ function warningText(warning: Schemas["DataWarning"]): string {
       return `${fmt.change(warning.change)} on ${warning.date} with no corporate action`;
     case "overlap_rejected":
       return `${label(warning.source)}: ${warning.message}`;
+    case "action_disagreement":
+      return `${label(warning.action)} on ${warning.ex_date}: Alpaca ${warning.alpaca ?? "none"}, Tiingo ${warning.tiingo ?? "none"}; ${label(warning.kept)} is used`;
   }
 }
 
