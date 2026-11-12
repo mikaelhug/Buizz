@@ -195,6 +195,14 @@ async fn bots_see_index_membership_profiles_and_earnings_as_of_their_clock() {
             _ => None,
         })
         .collect();
+    let (unpublished, warnings): (Vec<String>, Vec<String>) = warnings
+        .into_iter()
+        .partition(|warning| warning.contains("macro series"));
+    assert_eq!(unpublished.len(), 1, "{unpublished:?}");
+    assert!(
+        unpublished[0].contains("sp500_forward_pe"),
+        "{unpublished:?}"
+    );
     let (removed, unpriced) = warnings.split_first().expect("data warnings");
     assert_eq!(removed, "CCC has no 1d bars from 2024-11-20 to 2024-11-24");
     assert_eq!(unpriced.len(), SP500_MEMBERS.start() - 2);

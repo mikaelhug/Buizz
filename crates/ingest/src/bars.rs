@@ -1,13 +1,14 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use buizz_core::market::{DataSource, Dataset, Feed, Symbol, Timeframe};
+use buizz_core::ops::FetchStatus;
 use buizz_core::time::Timestamp;
 use buizz_sources::alpaca::{BarsRequest, HISTORY_START, SIP_DELAY};
 use buizz_sources::http::SourceError;
 use chrono::{NaiveDate, TimeDelta};
 
 use crate::fetch::{Batch, FetchKey, Work, read, waiting};
-use crate::{Ingest, IngestError, Priced, day_start};
+use crate::{CORE_ETFS, Ingest, IngestError, Priced, day_start};
 
 const SYMBOLS_PER_REQUEST: usize = 1_000;
 const REQUESTS_PER_RUN: usize = 600;
@@ -16,6 +17,8 @@ const SETTLING: TimeDelta = TimeDelta::hours(24);
 const MAX_LAG_SESSIONS: usize = 20;
 const REFUSED_REQUEST: [u16; 2] = [400, 422];
 const DORMANT_RETRY: TimeDelta = TimeDelta::days(7);
+const INDEX_RANKS: usize = CORE_ETFS.len() + 1;
+const ALONE_PER_RUN: usize = 20;
 
 impl Ingest {
     pub(crate) async fn daily_bars(&self, now: Timestamp) -> Result<Work, IngestError> {
@@ -66,7 +69,13 @@ impl Ingest {
         let floor = self.config.history_start.max(HISTORY_START);
         let mut groups: BTreeMap<NaiveDate, Vec<Symbol>> = BTreeMap::new();
         let mut dormant: BTreeSet<Symbol> = BTreeSet::new();
-        for Priced { symbol, active, .. } in symbols {
+        let mut alone: Vec<(NaiveDate, Vec<Symbol>)> = Vec::new();
+        for Priced {
+            symbol,
+            active,
+            rank,
+        } in symbols
+        {
             if refused.contains(&symbol) {
                 continue;
             }
@@ -77,7 +86,17 @@ impl Ingest {
                     (None, Some(next)) => next,
                     (None, None) => continue,
                 },
-                _ if self.dormant_checked(now, &symbol, active).await? => continue,
+                _ if self.dormant_checked(now, &symbol, active).await? => {
+                    if last.is_none()
+                        && rank <= INDEX_RANKS
+                        && alone.len() < ALONE_PER_RUN
+                        && self.empty_only_among_many(&symbol).await?
+                    {
+                        dormant.insert(symbol.clone());
+                        alone.push((floor, vec![symbol]));
+                    }
+                    continue;
+                }
                 _ => {
                     dormant.insert(symbol.clone());
                     last.map_or(floor, |last| last + TimeDelta::days(1))
@@ -87,6 +106,7 @@ impl Ingest {
         }
         let mut groups: Vec<(NaiveDate, Vec<Symbol>)> = groups.into_iter().collect();
         groups.sort_by_key(|(from, _)| (*from != current_from, *from));
+        groups.extend(alone);
         let mut batch = Batch::default();
         let mut requests = 0;
         let mut current = true;
@@ -168,17 +188,13 @@ impl Ingest {
                     }
                 }
                 for symbol in chunk.iter().filter(|symbol| dormant.contains(*symbol)) {
-                    let rows = received.get(symbol).copied().unwrap_or_default();
-                    if rows == 0 && chunk.len() > 1 {
-                        pending.push(vec![symbol.clone()]);
-                        continue;
-                    }
                     let key = FetchKey::new(
                         DataSource::Alpaca,
                         Dataset::Bars1d,
                         Some(symbol),
                         Some((from, target.date)),
                     );
+                    let rows = received.get(symbol).copied().unwrap_or_default();
                     self.record_fetched(now, &key, rows).await?;
                 }
             }
@@ -189,6 +205,14 @@ impl Ingest {
                 .await?;
         }
         Ok(batch.finish("daily bars"))
+    }
+
+    async fn empty_only_among_many(&self, symbol: &Symbol) -> Result<bool, IngestError> {
+        let fetches = self
+            .state
+            .recent_fetches(DataSource::Alpaca, Dataset::Bars1d, Some(symbol.clone()), 2)
+            .await?;
+        Ok(matches!(fetches.as_slice(), [only] if only.status == FetchStatus::Empty))
     }
 
     async fn dormant_checked(
