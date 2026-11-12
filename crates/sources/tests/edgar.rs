@@ -6,8 +6,9 @@ use buizz_core::market::{
 };
 use buizz_core::time::Timestamp;
 use buizz_sources::edgar::{
-    EdgarClient, EdgarConfig, normalize_company_facts, normalize_daily_index,
+    EdgarClient, EdgarConfig, RATE_LIMIT, normalize_company_facts, normalize_daily_index,
 };
+use buizz_sources::http::SourceError;
 use chrono::{Datelike, NaiveDate, NaiveTime, TimeDelta, Weekday};
 use rust_decimal::Decimal;
 
@@ -17,6 +18,7 @@ const TICKERS: &str = include_str!("../fixtures/edgar/company_tickers.json");
 const FUND_TICKERS: &str = include_str!("../fixtures/edgar/company_tickers_mf.json");
 const SUBMISSIONS: &str = include_str!("../fixtures/edgar/submissions_sample.json");
 const SUBMISSIONS_PAGE: &str = include_str!("../fixtures/edgar/submissions_page_sample.json");
+const DAILY_INDEX: &str = include_str!("../fixtures/edgar/master_sample.idx");
 
 fn date(year: i32, month: u32, day: u32) -> NaiveDate {
     NaiveDate::from_ymd_opt(year, month, day).unwrap()
@@ -68,6 +70,10 @@ async fn serve_sec() -> String {
         .route(
             "/submissions/CIK0000320193-submissions-001.json",
             get(guarded(SUBMISSIONS_PAGE)),
+        )
+        .route(
+            "/Archives/edgar/daily-index/2026/QTR4/master.20261109.idx",
+            get(guarded(DAILY_INDEX)),
         );
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}", listener.local_addr().unwrap());
@@ -214,6 +220,28 @@ async fn submissions_give_the_sic_code_and_every_results_announcement() {
             .map(|release| release.filed)
             .collect::<Vec<_>>(),
         [date(2015, 7, 21), date(2015, 4, 27)]
+    );
+}
+
+#[tokio::test]
+async fn a_missing_daily_index_is_skipped_and_a_refusal_is_a_rate_limit() {
+    let url = serve_sec().await;
+    let client = |user_agent: &str| {
+        EdgarClient::new(EdgarConfig {
+            user_agent: user_agent.to_owned(),
+            data_url: url.clone(),
+            www_url: url.clone(),
+        })
+        .unwrap()
+    };
+    let polite = client(USER_AGENT_VALUE);
+    let filed = polite.daily_index(date(2026, 11, 9)).await.unwrap();
+    assert_eq!(filed.map(|filings| filings.len()), Some(3));
+    assert_eq!(polite.daily_index(date(2026, 11, 11)).await.unwrap(), None);
+    let refused = client("anonymous").daily_index(date(2026, 11, 9)).await;
+    assert!(
+        matches!(refused, Err(SourceError::RateLimited { retry_after }) if retry_after == Some(RATE_LIMIT.cooldown)),
+        "{refused:?}"
     );
 }
 

@@ -25,7 +25,8 @@ pub const ACCEPTED_FORMS: [&str; 8] = [
     "10-K", "10-K/A", "10-Q", "10-Q/A", "20-F", "20-F/A", "40-F", "40-F/A",
 ];
 pub const EARNINGS_FORMS: [&str; 2] = ["8-K", "8-K/A"];
-const MISSING_INDEX: [u16; 2] = [403, 404];
+const NOT_FOUND: u16 = 404;
+const REFUSED: u16 = 403;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EdgarConfig {
@@ -147,13 +148,22 @@ impl EdgarClient {
         );
         match self.fetch(url).await {
             Ok(body) => Ok(Some(normalize_daily_index(&body))),
-            Err(SourceError::Status { status, .. }) if MISSING_INDEX.contains(&status) => Ok(None),
+            Err(SourceError::Status {
+                status: NOT_FOUND, ..
+            }) => Ok(None),
             Err(error) => Err(error),
         }
     }
 
     async fn fetch(&self, url: String) -> Result<Vec<u8>, SourceError> {
-        self.http.fetch(self.http.client().get(url)).await
+        match self.http.fetch(self.http.client().get(url)).await {
+            Err(SourceError::Status {
+                status: REFUSED, ..
+            }) => Err(SourceError::RateLimited {
+                retry_after: Some(RATE_LIMIT.cooldown),
+            }),
+            outcome => outcome,
+        }
     }
 }
 
