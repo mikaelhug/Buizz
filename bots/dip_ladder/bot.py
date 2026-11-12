@@ -33,9 +33,14 @@ def apply_split(lots: Lots, action: CorporateAction) -> None:
     if action.kind["type"] != "split":
         return
     ratio = Decimal(action.kind["new_rate"]) / Decimal(action.kind["old_rate"])
-    for lot in lots.get(action.symbol, {}).values():
+    held = list(lots.get(action.symbol, {}).values())
+    if not held:
+        return
+    total = int(sum(lot["qty"] for lot in held) * ratio)
+    for lot in held:
         lot["qty"] = int(lot["qty"] * ratio)
         lot["cost"] = float(Decimal(str(lot["cost"])) / ratio)
+    held[-1]["qty"] += total - sum(lot["qty"] for lot in held)
 
 
 def settle(ctx: Context, lots: Lots, placed: dict[str, str]) -> None:

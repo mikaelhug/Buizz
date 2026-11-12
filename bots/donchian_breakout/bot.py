@@ -1,9 +1,9 @@
 from collections import Counter
-from datetime import timedelta
 from decimal import Decimal
 from typing import Any, Literal, TypedDict
 
 import numpy as np
+from buizz_bots.sessions import week_ends
 
 from buizz import Bot, Context, CorporateAction, Fill, History, run
 
@@ -43,12 +43,6 @@ def wilder_n(history: History, period: int) -> float | None:
     return n if n > 0 else None
 
 
-def week_ends(ctx: Context) -> bool:
-    today = ctx.session.date
-    later = ctx.calendar(today, today + timedelta(days=10))[1:]
-    return not later or later[0].date.isocalendar()[:2] != today.isocalendar()[:2]
-
-
 def side_name(side: int) -> str:
     return "long" if side > 0 else "short"
 
@@ -84,10 +78,13 @@ def fill_price(fills: list[Fill]) -> tuple[int, float]:
 
 def split(trade: Trade, ratio: float) -> None:
     trade["n"] /= ratio
-    for unit in trade["units"]:
+    units = trade["units"]
+    total = int(sum(unit["qty"] for unit in units) * ratio)
+    for unit in units:
         unit["qty"] = int(unit["qty"] * ratio)
         unit["price"] /= ratio
         unit["stop"] /= ratio
+    units[-1]["qty"] += total - sum(unit["qty"] for unit in units)
 
 
 def close_units(trades: dict[str, Trade], exits: list[tuple[Placed, list[Fill]]]) -> None:
@@ -95,7 +92,7 @@ def close_units(trades: dict[str, Trade], exits: list[tuple[Placed, list[Fill]]]
         trade = trades.get(order["symbol"])
         if trade is None:
             continue
-        shares, _ = fill_price(filled)
+        shares = abs(sum(fill.qty for fill in filled))
         for index in order["units"]:
             taken = min(shares, trade["units"][index]["qty"])
             trade["units"][index]["qty"] -= taken
@@ -182,7 +179,11 @@ class DonchianBreakout(Bot):
         fills: dict[str, list[Fill]] = {}
         for event in ctx.events:
             if isinstance(event, CorporateAction) and event.kind.get("type") == "split" and event.symbol in trades:
-                split(trades[event.symbol], float(Decimal(event.kind["new_rate"]) / Decimal(event.kind["old_rate"])))
+                ratio = float(Decimal(event.kind["new_rate"]) / Decimal(event.kind["old_rate"]))
+                split(trades[event.symbol], ratio)
+                for order in placed.values():
+                    if order["symbol"] == event.symbol and order["kind"] == "unit":
+                        order["n"] /= ratio
             elif isinstance(event, Fill) and event.client_id in placed:
                 fills.setdefault(event.client_id, []).append(event)
         exits = [
