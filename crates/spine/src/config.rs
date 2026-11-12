@@ -26,6 +26,7 @@ pub struct Config {
     pub ingest: bool,
     pub alpaca: Option<AlpacaConfig>,
     pub stream_url: String,
+    pub news_url: String,
     pub tiingo: Option<TiingoConfig>,
     pub edgar: Option<EdgarConfig>,
     pub fred: Option<FredConfig>,
@@ -116,6 +117,7 @@ impl Config {
             ingest: flag("BUIZZ_INGEST", true)?,
             alpaca,
             stream_url: var_or("ALPACA_STREAM_URL", alpaca_stream::STREAM_URL),
+            news_url: var_or("ALPACA_NEWS_URL", alpaca_stream::NEWS_URL),
             tiingo: var("TIINGO_API_KEY").map(|api_key| TiingoConfig {
                 base_url: var_or("TIINGO_URL", tiingo::BASE_URL),
                 ..TiingoConfig::new(api_key)
@@ -154,6 +156,13 @@ impl Config {
             duckdb_threads: var_or("BUIZZ_DUCKDB_THREADS", "2")
                 .parse()
                 .context("BUIZZ_DUCKDB_THREADS must be a whole number")?,
+        })
+    }
+
+    pub fn news_stream(&self) -> Option<StreamConfig> {
+        self.stream().map(|stream| StreamConfig {
+            url: self.news_url.clone(),
+            ..stream
         })
     }
 

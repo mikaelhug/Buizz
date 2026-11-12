@@ -1495,7 +1495,9 @@
           "sec_filings",
           "index_membership",
           "borrow",
-          "macro"
+          "macro",
+          "insider_trades",
+          "news"
         ]
       },
       "DesiredState": {

@@ -150,6 +150,7 @@ impl Spine {
             .env("ALPACA_DATA_URL", url)
             .env("ALPACA_TRADING_URL", url)
             .env("ALPACA_STREAM_URL", self.fake.stream_url())
+            .env("ALPACA_NEWS_URL", self.fake.stream_url())
             .env("SEC_USER_AGENT", "buizz-e2e e2e@example.test")
             .env("SEC_DATA_URL", url)
             .env("SEC_WWW_URL", url)

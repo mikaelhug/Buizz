@@ -35,6 +35,10 @@ pub fn open_auction_session(decided_at: Timestamp, calendar: &Calendar) -> Optio
     sessions.get(sessions.partition_point(|session| session.open <= decided_at))
 }
 
+pub fn filing_visible_at(accepted_at: Timestamp, calendar: &Calendar) -> Option<Timestamp> {
+    open_auction_session(accepted_at, calendar).map(|session| session.open)
+}
+
 pub fn close_auction_session(decided_at: Timestamp, calendar: &Calendar) -> Option<&Session> {
     let sessions = calendar.sessions();
     sessions.get(sessions.partition_point(|session| session.close <= decided_at))

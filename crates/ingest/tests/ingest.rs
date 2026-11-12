@@ -36,6 +36,8 @@ const TICKERS: &str = include_str!("../../sources/fixtures/edgar/company_tickers
 const FUND_TICKERS: &str = include_str!("../../sources/fixtures/edgar/company_tickers_mf.json");
 const SUBMISSIONS: &str = include_str!("../../sources/fixtures/edgar/submissions_sample.json");
 const COMPANY_FACTS: &str = include_str!("../../sources/fixtures/edgar/companyfacts_sample.json");
+const FORM_4: &str = include_str!("../../sources/fixtures/edgar/form4_sample.xml");
+const NO_NEWS: &str = r#"{"news":[],"next_page_token":null}"#;
 const YIELDS: &str = include_str!("../../sources/fixtures/treasury/par_yield_2025.csv");
 
 const HISTORY_START: &str = "2016-01-01";
@@ -241,6 +243,20 @@ async fn serve_fakes(fake: Arc<Fake>) -> String {
             get(|| async { json(SUBMISSIONS.to_owned()) }),
         )
         .route(
+            "/Archives/edgar/data/320193/000114036126042149/form4.xml",
+            get(|State(fake): State<Arc<Fake>>| async move {
+                fake.hit("form4");
+                FORM_4.into_response()
+            }),
+        )
+        .route(
+            "/v1beta1/news",
+            get(|State(fake): State<Arc<Fake>>| async move {
+                fake.hit("news");
+                json(NO_NEWS.to_owned())
+            }),
+        )
+        .route(
             "/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv/{year}/all",
             get(yields),
         )
@@ -293,7 +309,7 @@ async fn rows(market: &MarketStore) -> Rows {
         .await
         .unwrap()
         .into_iter()
-        .filter(|row| row.dataset != Dataset::SecFilings)
+        .filter(|row| !matches!(row.dataset, Dataset::SecFilings | Dataset::News))
         .map(|row| {
             format!(
                 "{:?} {:?} {:?} {} {}",
@@ -499,9 +515,11 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
             ("sec_index", JobOutcome::Noop),
             ("fundamentals", JobOutcome::Ok),
             ("filings", JobOutcome::Ok),
+            ("insider_trades", JobOutcome::Ok),
             ("rates", JobOutcome::Ok),
             ("borrow", JobOutcome::Noop),
             ("macro", JobOutcome::Noop),
+            ("news", JobOutcome::Noop),
             ("state_snapshot", JobOutcome::Ok),
             ("market_snapshot", JobOutcome::Ok),
             ("tiingo_history", JobOutcome::Failed),
@@ -606,9 +624,11 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
             ("sec_index", JobOutcome::Noop),
             ("fundamentals", JobOutcome::Noop),
             ("filings", JobOutcome::Noop),
+            ("insider_trades", JobOutcome::Noop),
             ("rates", JobOutcome::Noop),
             ("borrow", JobOutcome::Noop),
             ("macro", JobOutcome::Noop),
+            ("news", JobOutcome::Noop),
             ("state_snapshot", JobOutcome::Ok),
             ("market_snapshot", JobOutcome::Ok),
             ("tiingo_history", JobOutcome::Noop),

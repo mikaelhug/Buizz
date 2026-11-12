@@ -1,0 +1,11 @@
+{
+  "id": 7,
+  "request": {
+    "kind": "insider_trades",
+    "since": "2024-10-01",
+    "symbols": [
+      "BBB"
+    ]
+  },
+  "type": "query"
+}

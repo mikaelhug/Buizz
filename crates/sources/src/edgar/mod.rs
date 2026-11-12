@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
 
-use buizz_core::market::{Calendar, EarningsRelease, FundamentalFact, SecFiling, Symbol};
+use buizz_core::market::{Calendar, FundamentalFact, InsiderFiling, SecFiling, Symbol};
 use chrono::{Datelike, NaiveDate};
 use serde::Deserialize;
 
@@ -10,9 +10,14 @@ use crate::http::{HttpClient, RateLimit, SourceError};
 mod concepts;
 mod filings;
 mod normalize;
+mod ownership;
 
-pub use filings::{FilingsPage, Submissions, normalize_filings_page, normalize_submissions};
+pub use filings::{
+    Filings, FilingsPage, OwnershipFiling, Submissions, normalize_filings_page,
+    normalize_submissions,
+};
 pub use normalize::normalize_company_facts;
+pub use ownership::normalize_ownership;
 
 pub const DATA_URL: &str = "https://data.sec.gov";
 pub const WWW_URL: &str = "https://www.sec.gov";
@@ -25,6 +30,7 @@ pub const ACCEPTED_FORMS: [&str; 8] = [
     "10-K", "10-K/A", "10-Q", "10-Q/A", "20-F", "20-F/A", "40-F", "40-F/A",
 ];
 pub const EARNINGS_FORMS: [&str; 2] = ["8-K", "8-K/A"];
+pub const INSIDER_FORMS: [&str; 2] = ["4", "4/A"];
 const NOT_FOUND: u16 = 404;
 const REFUSED: u16 = 403;
 
@@ -133,9 +139,24 @@ impl EdgarClient {
         symbol: &Symbol,
         cik: u32,
         page: &FilingsPage,
-    ) -> Result<Vec<EarningsRelease>, SourceError> {
+    ) -> Result<Filings, SourceError> {
         let url = format!("{}/submissions/{}", self.data_url, page.name);
         normalize_filings_page(symbol, cik, &self.fetch(url).await?)
+    }
+
+    pub async fn ownership(
+        &self,
+        symbol: &Symbol,
+        cik: u32,
+        filing: &OwnershipFiling,
+    ) -> Result<InsiderFiling, SourceError> {
+        let document = filing.document.rsplit('/').next().unwrap_or_default();
+        let url = format!(
+            "{}/Archives/edgar/data/{cik}/{}/{document}",
+            self.www_url,
+            filing.accession.replace('-', "")
+        );
+        normalize_ownership(symbol, cik, filing, &self.fetch(url).await?)
     }
 
     pub async fn daily_index(&self, day: NaiveDate) -> Result<Option<Vec<SecFiling>>, SourceError> {
@@ -177,7 +198,10 @@ pub fn normalize_daily_index(payload: &[u8]) -> Vec<SecFiling> {
                 return None;
             };
             let form = form.trim();
-            if !ACCEPTED_FORMS.contains(&form) && !EARNINGS_FORMS.contains(&form) {
+            if ![&ACCEPTED_FORMS[..], &EARNINGS_FORMS, &INSIDER_FORMS]
+                .iter()
+                .any(|forms| forms.contains(&form))
+            {
                 return None;
             }
             let accession = file.trim().rsplit('/').next()?.strip_suffix(".txt")?;

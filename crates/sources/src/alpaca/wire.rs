@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
 use buizz_core::market::{
-    AssetClass, Bar, Calendar, CorporateAction, CorporateActionKind, Feed, Instrument, Session,
-    Symbol, Timeframe,
+    AssetClass, Bar, Calendar, CorporateAction, CorporateActionKind, Feed, Instrument, NewsArticle,
+    Session, Symbol, Timeframe,
 };
 use buizz_core::time::Timestamp;
 use chrono::{NaiveDate, NaiveTime};
@@ -194,4 +194,41 @@ impl ActionsPage {
             });
         splits.chain(dividends).collect()
     }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct WireNews {
+    id: u64,
+    #[serde(default)]
+    symbols: Vec<Symbol>,
+    headline: String,
+    #[serde(default)]
+    summary: String,
+    #[serde(default)]
+    source: String,
+    created_at: Timestamp,
+    updated_at: Timestamp,
+}
+
+impl WireNews {
+    pub fn into_article(self, received_at: Timestamp, backfilled: bool) -> NewsArticle {
+        NewsArticle {
+            id: self.id,
+            symbols: self.symbols,
+            headline: self.headline,
+            summary: self.summary,
+            source: self.source,
+            created_at: self.created_at,
+            updated_at: self.updated_at,
+            received_at,
+            backfilled,
+        }
+    }
+}
+
+#[derive(Deserialize)]
+pub struct NewsPage {
+    #[serde(default)]
+    pub news: Vec<WireNews>,
+    pub next_page_token: Option<String>,
 }
