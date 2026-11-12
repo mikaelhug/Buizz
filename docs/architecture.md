@@ -109,7 +109,7 @@ All under `BUIZZ_DATA_DIR` (default `data/`) unless noted.
 | `backups/market-YYYY-MM-DD/` | Daily Parquet copies of the market tables no source can give again | |
 | `logs/<run_id>.log` | Bot process output, one file per run | |
 
-Bots are read from `BUIZZ_BOTS_DIR`. Market data watermarks are held in memory and re-advanced on start from what the store contains.
+Bots are read from `BUIZZ_BOTS_DIR`. The daily watermark is stored in `market.duckdb` whenever it advances and read back on start; the minute watermark is held in memory and re-advanced by the feed manager.
 
 Restoring: stop the spine, then copy a `backups/state-YYYY-MM-DD.db` over `state.db` (its WAL files `state.db-wal` and `state.db-shm` removed first). For the market store, either keep `market.duckdb`, or start from an empty one and, before ingest has written a borrow snapshot, load the Parquet copies with DuckDB, for example `INSERT INTO borrow_availability SELECT * FROM 'backups/market-YYYY-MM-DD/borrow_availability.parquet'`, table by table; ingest then fetches everything else again. Both stores open older files and migrate them forward, and refuse a file a newer spine wrote.
 

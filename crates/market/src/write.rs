@@ -755,6 +755,14 @@ pub(crate) fn index_history(
     )
 }
 
+pub(crate) fn daily_watermark(connection: &Connection, through: Timestamp) -> Result<()> {
+    connection.execute(
+        "INSERT OR REPLACE INTO daily_watermark (through) VALUES (?)",
+        params![Ts(through)],
+    )?;
+    Ok(())
+}
+
 pub(crate) fn borrow_availability(
     connection: &mut Connection,
     source: DataSource,

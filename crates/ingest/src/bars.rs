@@ -161,20 +161,4 @@ impl Ingest {
             .await?;
         Ok(latest.is_some_and(|fetch| read(&fetch) && (!active || fetch.at + DORMANT_RETRY > now)))
     }
-
-    pub(crate) async fn restore_daily_watermark(&self) -> Result<(), IngestError> {
-        let covered = self
-            .symbol_coverage(Dataset::Bars1d, DataSource::Alpaca)
-            .await?;
-        let Some(last) = covered.values().map(|coverage| coverage.last).max() else {
-            return Ok(());
-        };
-        let calendar = self.market.calendar(last, last).await?;
-        if let Some(session) = calendar.session(last) {
-            self.market
-                .advance_watermark(Timeframe::Day, session.close)
-                .await?;
-        }
-        Ok(())
-    }
 }

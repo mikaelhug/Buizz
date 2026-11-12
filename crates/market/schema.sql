@@ -178,3 +178,8 @@ CREATE TABLE sec_filing (
     batch_id BIGINT NOT NULL,
     PRIMARY KEY (cik, accession)
 );
+
+CREATE TABLE daily_watermark (
+    id BOOLEAN PRIMARY KEY DEFAULT true CHECK (id),
+    through TIMESTAMP NOT NULL
+);

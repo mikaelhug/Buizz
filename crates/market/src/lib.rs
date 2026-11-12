@@ -123,7 +123,7 @@ pub struct MarketStore {
 impl MarketStore {
     pub async fn open(path: &Path, readers: usize) -> Result<Self> {
         let path = path.to_owned();
-        let (writer, pool, calendar) = tokio::task::spawn_blocking(move || {
+        let (writer, pool, calendar, day) = tokio::task::spawn_blocking(move || {
             let mut writer = Connection::open(path)?;
             migrate::migrate(&mut writer)?;
             write::prepare(&writer)?;
@@ -131,7 +131,8 @@ impl MarketStore {
                 .map(|_| writer.try_clone())
                 .collect::<duckdb::Result<Vec<_>>>()?;
             let calendar = read::calendar(&writer)?;
-            Ok::<_, MarketError>((writer, pool, calendar))
+            let day = read::daily_watermark(&writer)?;
+            Ok::<_, MarketError>((writer, pool, calendar, day))
         })
         .await??;
         Ok(Self {
@@ -139,7 +140,7 @@ impl MarketStore {
             readers: Lane::spawn("market-reader", pool)?,
             shared: Arc::new(Shared {
                 calendar: RwLock::new(Arc::new(calendar)),
-                watermarks: watch::Sender::new(Watermarks::default()),
+                watermarks: watch::Sender::new(Watermarks { day, minute: None }),
             }),
         })
     }
@@ -412,17 +413,17 @@ impl MarketStore {
     pub async fn advance_watermark(&self, timeframe: Timeframe, through: Timestamp) -> Result<()> {
         let shared = Arc::clone(&self.shared);
         self.writer
-            .run(move |_| {
-                shared.watermarks.send_if_modified(|watermarks| {
-                    let slot = match timeframe {
-                        Timeframe::Day => &mut watermarks.day,
-                        Timeframe::Minute => &mut watermarks.minute,
-                    };
-                    let advanced = slot.is_none_or(|current| current < through);
-                    if advanced {
-                        *slot = Some(through);
-                    }
-                    advanced
+            .run(move |connection| {
+                let current = shared.watermarks.borrow().get(timeframe);
+                if current.is_some_and(|current| current >= through) {
+                    return Ok(());
+                }
+                if timeframe == Timeframe::Day {
+                    write::daily_watermark(connection, through)?;
+                }
+                shared.watermarks.send_modify(|watermarks| match timeframe {
+                    Timeframe::Day => watermarks.day = Some(through),
+                    Timeframe::Minute => watermarks.minute = Some(through),
                 });
                 Ok(())
             })

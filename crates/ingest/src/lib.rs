@@ -221,9 +221,6 @@ impl Ingest {
         }
         let ingest = self.clone();
         Some(tokio::spawn(async move {
-            if let Err(error) = ingest.restore_daily_watermark().await {
-                tracing::error!(%error, "could not restore the daily watermark");
-            }
             let mut interval = tokio::time::interval(ingest.config.tick);
             interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
             loop {
