@@ -13,7 +13,9 @@ use rust_decimal::Decimal;
 use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 
 use crate::envelope::Backtest;
-use crate::{MIN_SPREAD, TRADING_DAYS, beta, max_drawdown, mean, sample_stdev, simple_returns};
+use crate::{
+    MIN_DAILY_VOLATILITY, TRADING_DAYS, beta, max_drawdown, mean, sample_stdev, simple_returns,
+};
 
 const CURVE_POINTS: usize = 60;
 const PROVEN_ALPHA: f64 = 0.05;
@@ -247,7 +249,7 @@ fn thin<T>(curve: Vec<T>) -> Vec<T> {
 }
 
 fn sharpe_moments(returns: &[f64]) -> Option<SharpeMoments> {
-    let stdev = sample_stdev(returns).filter(|stdev| *stdev > MIN_SPREAD)?;
+    let stdev = sample_stdev(returns).filter(|stdev| *stdev > MIN_DAILY_VOLATILITY)?;
     let center = mean(returns);
     let central = |power: i32| {
         mean(

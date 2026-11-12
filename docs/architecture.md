@@ -90,7 +90,7 @@ When bars arrive in live while the bot is still deciding, they coalesce into its
 
 **Crash safety.** The ledger and checkpoints are written in SQLite transactions, one per step. On start the runner recovers runs that were active.
 
-**Reproducibility.** A run records the bot content hash, engine version, seed, data watermark and its full config. The engine version is a number bumped whenever the engine's behaviour, its checkpoint or the meaning of a run's stored metrics changes (engine 6 measures alpha and beta against the total-return benchmark). A live run resumes from an older engine's checkpoint; a backtest refuses to, so its result never mixes two engines. A run never continues under different bot code: whenever the runner starts a bot process, each live session's and a crashed bot's restart included, the folder's hash is compared with the run's, failing a backtest and pausing a live run with the reason.
+**Reproducibility.** A run records the bot content hash, engine version, seed, data watermark and its full config. The engine version is a number bumped whenever the engine's behaviour, its checkpoint or the meaning of a run's stored metrics changes (engine 6 measures alpha and beta against the total-return benchmark and leaves Sharpe, Sortino and Calmar undefined for daily returns that vary by less than 0.001%). A live run resumes from an older engine's checkpoint; a backtest refuses to, so its result never mixes two engines. A run never continues under different bot code: whenever the runner starts a bot process, each live session's and a crashed bot's restart included, the folder's hash is compared with the run's, failing a backtest and pausing a live run with the reason.
 
 ## Data sources and limits
 

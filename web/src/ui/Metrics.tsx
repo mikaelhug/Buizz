@@ -58,7 +58,7 @@ export const METRICS: Record<MetricKey, MetricSpec> = {
     title: `Like Sharpe, but divided by downside deviation only, so upside swings are not penalised. ${DAILY}`,
     render: fmt.ratio,
     tone,
-    missing: (metrics) => needsSessions(metrics) ?? "no session below the T-bill rate",
+    missing: (metrics) => needsSessions(metrics) ?? "flat returns or no session below the T-bill rate",
   },
   max_drawdown: {
     key: "max_drawdown",
@@ -76,7 +76,7 @@ export const METRICS: Record<MetricKey, MetricSpec> = {
     title: "CAGR divided by the size of the max drawdown. Needs a year of sessions and some drawdown.",
     render: fmt.ratio,
     tone,
-    missing: needsYearOr("no drawdown"),
+    missing: needsYearOr("flat returns or no drawdown"),
   },
   win_rate: { key: "win_rate", label: "Win rate", name: "Win rate", title: "Share of closed trades that made money after costs.", render: fmt.percent, missing: () => "no closed trades" },
   profit_factor: {

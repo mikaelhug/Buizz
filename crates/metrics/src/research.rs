@@ -7,8 +7,8 @@ use rust_decimal::prelude::ToPrimitive;
 use serde_json::{Map, Value};
 
 use crate::{
-    MIN_SPREAD, TRADING_DAYS, benchmark_returns, daily_risk_free, max_drawdown, sample_stdev,
-    simple_returns,
+    MIN_DAILY_VOLATILITY, TRADING_DAYS, benchmark_returns, daily_risk_free, max_drawdown,
+    sample_stdev, simple_returns,
 };
 
 const GATE_ROUND_TRIPS: u32 = 10;
@@ -39,7 +39,7 @@ impl Matched {
         if returns.len() != benchmark.len() {
             return None;
         }
-        let volatility = sample_stdev(&returns).filter(|stdev| *stdev > MIN_SPREAD)?;
+        let volatility = sample_stdev(&returns).filter(|stdev| *stdev > MIN_DAILY_VOLATILITY)?;
         let scale = sample_stdev(&benchmark)? / volatility;
         let spread = config.cost.financing_spread.to_f64()? / TRADING_DAYS;
         let returns = screened
