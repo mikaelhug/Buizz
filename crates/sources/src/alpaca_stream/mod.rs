@@ -6,7 +6,7 @@ use std::env;
 use std::sync::Arc;
 use std::time::Duration;
 
-use buizz_core::market::{Bar, Symbol};
+use buizz_core::market::{Bar, NewsArticle, Symbol};
 use buizz_core::time::Timestamp;
 use chrono::TimeDelta;
 use futures::{SinkExt, StreamExt};
@@ -23,6 +23,7 @@ use crate::http::SourceError;
 
 pub const STREAM_URL: &str = "wss://stream.data.alpaca.markets/v2/iex";
 pub const STREAM_URL_ENV: &str = "ALPACA_STREAM_URL";
+pub const NEWS_URL: &str = "wss://stream.data.alpaca.markets/v1beta1/news";
 pub const SYMBOL_CAP: usize = 30;
 pub const AUTH_TIMEOUT: Duration = Duration::from_secs(10);
 const EVENT_BUFFER: usize = 1024;
@@ -107,6 +108,67 @@ pub fn spawn(config: StreamConfig) -> (StreamHandle, mpsc::Receiver<StreamEvent>
         },
         receiver,
     )
+}
+
+pub fn spawn_news(config: StreamConfig) -> mpsc::Receiver<NewsArticle> {
+    let (articles, receiver) = mpsc::channel(EVENT_BUFFER);
+    tokio::spawn(record_news(config, articles));
+    receiver
+}
+
+async fn record_news(config: StreamConfig, articles: mpsc::Sender<NewsArticle>) {
+    let mut delay = config.reconnect_initial;
+    loop {
+        let reason = match news_session(&config, &articles).await {
+            Exit::Stop => return,
+            Exit::Fatal(reason) => {
+                tracing::error!(%reason, "alpaca news stream stopped");
+                return;
+            }
+            Exit::Dropped(reason) => {
+                delay = config.reconnect_initial;
+                reason
+            }
+            Exit::Failed(reason) => reason,
+        };
+        tracing::warn!(%reason, ?delay, "alpaca news stream down, reconnecting");
+        tokio::time::sleep(delay).await;
+        delay = (delay * 2).min(config.reconnect_max);
+    }
+}
+
+async fn news_session(config: &StreamConfig, articles: &mpsc::Sender<NewsArticle>) -> Exit {
+    let mut socket = match establish(config).await {
+        Ok(socket) => socket,
+        Err(exit) => return exit,
+    };
+    if let Err(reason) = send(&mut socket, json!({"action": "subscribe", "news": ["*"]})).await {
+        return Exit::Dropped(reason);
+    }
+    loop {
+        let frames = match next_frames(&mut socket).await {
+            Ok(frames) => frames,
+            Err(reason) => return Exit::Dropped(reason),
+        };
+        let received_at = Timestamp::now();
+        for frame in frames {
+            match frame {
+                Frame::News(news) => {
+                    if articles
+                        .send(news.into_article(received_at, false))
+                        .await
+                        .is_err()
+                    {
+                        return Exit::Stop;
+                    }
+                }
+                Frame::Error { code, msg } => {
+                    return Exit::Dropped(format!("error ({code}): {msg}"));
+                }
+                _ => {}
+            }
+        }
+    }
 }
 
 enum Exit {
@@ -248,7 +310,7 @@ async fn serve(
                         Frame::Error { code, msg } => {
                             return Err(Exit::Dropped(format!("error ({code}): {msg}")));
                         }
-                        Frame::Success { .. } | Frame::Other => {}
+                        Frame::Success { .. } | Frame::News(_) | Frame::Other => {}
                     }
                 }
             }

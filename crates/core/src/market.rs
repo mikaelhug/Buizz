@@ -415,6 +415,66 @@ pub struct EarningsRelease {
     pub accepted_at: Timestamp,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InsiderOwner {
+    pub cik: u32,
+    pub name: String,
+    pub director: bool,
+    pub officer: bool,
+    pub ten_percent_owner: bool,
+    pub other: bool,
+    pub officer_title: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InsiderTransaction {
+    pub security: String,
+    pub date: NaiveDate,
+    pub code: String,
+    pub acquired: bool,
+    pub shares: Option<Decimal>,
+    pub price: Option<Decimal>,
+    pub shares_after: Option<Decimal>,
+    pub direct: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct InsiderFiling {
+    pub symbol: Symbol,
+    pub issuer_cik: u32,
+    pub accession: String,
+    pub form: String,
+    pub filed: NaiveDate,
+    pub accepted_at: Timestamp,
+    pub owners: Vec<InsiderOwner>,
+    pub transactions: Vec<InsiderTransaction>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InsiderTrade {
+    pub symbol: Symbol,
+    pub accession: String,
+    pub form: String,
+    pub filed: NaiveDate,
+    pub accepted_at: Timestamp,
+    pub available_at: Timestamp,
+    pub owners: Vec<InsiderOwner>,
+    pub transaction: InsiderTransaction,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NewsArticle {
+    pub id: u64,
+    pub symbols: Vec<Symbol>,
+    pub headline: String,
+    pub summary: String,
+    pub source: String,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
+    pub received_at: Timestamp,
+    pub backfilled: bool,
+}
+
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, ToSchema,
 )]
@@ -476,25 +536,50 @@ pub enum MacroSeries {
     Baa,
     #[serde(rename = "cpiaucns")]
     Cpiaucns,
+    #[serde(rename = "unrate")]
+    Unrate,
+    #[serde(rename = "sahmrealtime")]
+    Sahmrealtime,
+    #[serde(rename = "dgs10")]
+    Dgs10,
+    #[serde(rename = "t10y3m")]
+    T10y3m,
+    #[serde(rename = "baa10y")]
+    Baa10y,
+    #[serde(rename = "vix")]
+    Vix,
+    #[serde(rename = "vix3m")]
+    Vix3m,
 }
 
 impl MacroSeries {
-    pub const FRED: [Self; 5] = [
+    pub const FRED: [Self; 10] = [
         Self::Tb3ms,
         Self::Gs10,
         Self::Aaa,
         Self::Baa,
         Self::Cpiaucns,
+        Self::Unrate,
+        Self::Sahmrealtime,
+        Self::Dgs10,
+        Self::T10y3m,
+        Self::Baa10y,
     ];
+    pub const CBOE: [Self; 2] = [Self::Vix, Self::Vix3m];
 
     pub fn fred_id(self) -> Option<&'static str> {
         match self {
-            Self::Treasury3m => None,
+            Self::Treasury3m | Self::Vix | Self::Vix3m => None,
             Self::Tb3ms => Some("TB3MS"),
             Self::Gs10 => Some("GS10"),
             Self::Aaa => Some("AAA"),
             Self::Baa => Some("BAA"),
             Self::Cpiaucns => Some("CPIAUCNS"),
+            Self::Unrate => Some("UNRATE"),
+            Self::Sahmrealtime => Some("SAHMREALTIME"),
+            Self::Dgs10 => Some("DGS10"),
+            Self::T10y3m => Some("T10Y3M"),
+            Self::Baa10y => Some("BAA10Y"),
         }
     }
 }
@@ -516,6 +601,21 @@ pub struct MacroPoint {
     pub available_at: Timestamp,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct FomcMeeting {
+    pub date: NaiveDate,
+    pub scheduled: bool,
+    pub statement_at: Option<Timestamp>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FomcAnnouncement {
+    pub date: NaiveDate,
+    pub scheduled: bool,
+    pub statement_at: Option<Timestamp>,
+    pub available_at: Timestamp,
+}
+
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, ToSchema,
 )]
@@ -531,6 +631,8 @@ pub enum DataSource {
     Wikipedia,
     InteractiveBrokers,
     Nasdaq,
+    Cboe,
+    FederalReserve,
 }
 
 #[derive(
@@ -551,6 +653,9 @@ pub enum Dataset {
     IndexMembership,
     Borrow,
     Macro,
+    InsiderTrades,
+    News,
+    Fomc,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]

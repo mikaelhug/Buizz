@@ -62,6 +62,7 @@ The spine (`cargo run -p buizz-spine`) reads these environment variables. Empty 
 | `ALPACA_DATA_URL` | `https://data.alpaca.markets` | Alpaca data endpoint |
 | `ALPACA_TRADING_URL` | `https://paper-api.alpaca.markets` | Alpaca endpoint for the calendar and assets |
 | `ALPACA_STREAM_URL` | `wss://stream.data.alpaca.markets/v2/iex` | Alpaca real-time stream |
+| `ALPACA_NEWS_URL` | `wss://stream.data.alpaca.markets/v1beta1/news` | Alpaca real-time news stream, recorded while ingest is on |
 | `TIINGO_API_KEY` | unset | Enables Tiingo daily history from 2000 to Alpaca's 2016 start |
 | `TIINGO_URL` | `https://api.tiingo.com` | Tiingo endpoint |
 | `SEC_USER_AGENT` | unset | Enables SEC EDGAR fundamentals, SIC codes and earnings releases, and Wikipedia's S&P 500 membership; the SEC requires a contact in the User-Agent, for example `name email@example.com`, and the same contact goes into the Wikipedia User-Agent |
@@ -72,6 +73,8 @@ The spine (`cargo run -p buizz-spine`) reads these environment variables. Empty 
 | `IBKR_FTP_ADDRESS` | `ftp2.interactivebrokers.com:21` | Interactive Brokers' public short stock FTP server, read daily by the `borrow` job |
 | `FRED_API_KEY` | unset | Enables the FRED macro series for bots (`ctx.macro`); a free key from fred.stlouisfed.org. Without it the `macro` job reports that FRED is not configured |
 | `FRED_URL` | `https://api.stlouisfed.org` | FRED endpoint |
+| `CBOE_URL` | `https://cdn.cboe.com` | CBOE endpoint for the daily VIX and VIX3M history files |
+| `FED_URL` | `https://www.federalreserve.gov` | Federal Reserve Board site, read for the FOMC meeting calendar |
 | `BUIZZ_DUCKDB_MEMORY` | `1GB` | Memory the market store may use for queries and writes before it spills to `market.duckdb.tmp/` in the data directory |
 | `BUIZZ_DUCKDB_THREADS` | `2` | Threads the market store uses |
 | `RUST_LOG` | `info` | Log filter |

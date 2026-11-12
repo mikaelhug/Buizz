@@ -2,18 +2,20 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use buizz_core::market::{
     Adjustment, AdjustmentFactor, AssetClass, Bar, Calendar, Company, CorporateAction,
-    CorporateActionKind, Coverage, DataSource, Dataset, EarningsRelease, Feed, FundamentalMetric,
-    FundamentalPoint, HISTORY_FLOORS, IndexHistory, IndexMember, Instrument, InstrumentProfile,
-    MacroObservation, MacroPoint, MacroSeries, RiskFreeRate, SIP_DELAY, Session, StockIndex,
-    Symbol, Timeframe,
+    CorporateActionKind, Coverage, DataSource, Dataset, EarningsRelease, Feed, FomcAnnouncement,
+    FomcMeeting, FundamentalMetric, FundamentalPoint, HISTORY_FLOORS, IndexHistory, IndexMember,
+    InsiderOwner, InsiderTrade, InsiderTransaction, Instrument, InstrumentProfile,
+    MacroObservation, MacroPoint, MacroSeries, NewsArticle, RiskFreeRate, SIP_DELAY, Session,
+    StockIndex, Symbol, Timeframe,
 };
 use buizz_core::ops::{CoverageGap, DataWarning, UNEXPLAINED_MOVE_THRESHOLD};
 use buizz_core::protocol::BarRow;
 use buizz_core::time::Timestamp;
 use buizz_core::visibility::{
-    bar_visible_at, corporate_action_visible_at, published_before, published_visible_at,
+    bar_visible_at, corporate_action_visible_at, filing_visible_at, fomc_visible_at,
+    published_before, published_visible_at,
 };
-use chrono::NaiveDate;
+use chrono::{NaiveDate, NaiveTime};
 use duckdb::{Connection, ToSql, params, params_from_iter};
 use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
@@ -769,6 +771,158 @@ pub(crate) fn earnings_accessions(
     Ok(accessions)
 }
 
+pub(crate) fn insider_accessions(
+    connection: &Connection,
+    symbol: &Symbol,
+) -> Result<BTreeSet<String>> {
+    let mut statement =
+        connection.prepare_cached("SELECT accession FROM insider_filing WHERE symbol = ?")?;
+    let accessions = statement
+        .query_map([symbol.as_str()], |row| row.get(0))?
+        .collect::<duckdb::Result<_>>()?;
+    Ok(accessions)
+}
+
+pub(crate) fn insider_trades(
+    connection: &Connection,
+    calendar: &Calendar,
+    symbols: &[Symbol],
+    since: NaiveDate,
+    as_of: Timestamp,
+) -> Result<Vec<InsiderTrade>> {
+    let symbols = unique(symbols);
+    let sessions = calendar.sessions();
+    let opened = sessions.partition_point(|session| session.open <= as_of);
+    let Some(last_open) = opened.checked_sub(1).map(|index| sessions[index].open) else {
+        return Ok(Vec::new());
+    };
+    if symbols.is_empty() {
+        return Ok(Vec::new());
+    }
+    let visible = format!(
+        "f.symbol IN ({}) AND f.filed >= ? AND f.accepted_at < ?",
+        placeholders(symbols.len())
+    );
+    let params = || {
+        let mut params = symbol_params(&symbols);
+        params.push(Box::new(since));
+        params.push(Box::new(Ts(last_open)));
+        params
+    };
+    let mut statement = connection.prepare(&format!(
+        "SELECT o.symbol, o.accession, o.owner_cik, o.name, o.director, o.officer, \
+         o.ten_percent_owner, o.other, o.officer_title FROM insider_owner o \
+         JOIN insider_filing f ON f.symbol = o.symbol AND f.accession = o.accession \
+         WHERE {visible} ORDER BY o.symbol, o.accession, o.owner_cik"
+    ))?;
+    let mut owners: BTreeMap<(String, String), Vec<InsiderOwner>> = BTreeMap::new();
+    let rows = statement.query_map(params_from_iter(params().iter()), |row| {
+        Ok((
+            (row.get(0)?, row.get(1)?),
+            InsiderOwner {
+                cik: row.get(2)?,
+                name: row.get(3)?,
+                director: row.get(4)?,
+                officer: row.get(5)?,
+                ten_percent_owner: row.get(6)?,
+                other: row.get(7)?,
+                officer_title: row.get(8)?,
+            },
+        ))
+    })?;
+    for row in rows {
+        let (filing, owner) = row?;
+        owners.entry(filing).or_default().push(owner);
+    }
+    let mut statement = connection.prepare(&format!(
+        "SELECT f.symbol, f.accession, f.form, f.filed, f.accepted_at, t.security, t.date, \
+         t.code, t.acquired, t.shares, t.price, t.shares_after, t.direct \
+         FROM insider_transaction t \
+         JOIN insider_filing f ON f.symbol = t.symbol AND f.accession = t.accession \
+         WHERE {visible} ORDER BY f.symbol, f.accepted_at, f.accession, t.line"
+    ))?;
+    let trades = statement
+        .query_map(params_from_iter(params().iter()), |row| {
+            let symbol: String = row.get(0)?;
+            let accession: String = row.get(1)?;
+            let accepted_at = row.get::<_, Ts>(4)?.0;
+            let decimal = |index| -> duckdb::Result<Option<Decimal>> {
+                Ok(row.get::<_, Option<Dec>>(index)?.map(|amount| amount.0))
+            };
+            Ok(InsiderTrade {
+                owners: owners
+                    .get(&(symbol.clone(), accession.clone()))
+                    .cloned()
+                    .unwrap_or_default(),
+                symbol: Symbol::new(&symbol),
+                accession,
+                form: row.get(2)?,
+                filed: row.get(3)?,
+                accepted_at,
+                available_at: filing_visible_at(accepted_at, calendar).unwrap_or(last_open),
+                transaction: InsiderTransaction {
+                    security: row.get(5)?,
+                    date: row.get(6)?,
+                    code: row.get(7)?,
+                    acquired: row.get(8)?,
+                    shares: decimal(9)?,
+                    price: decimal(10)?,
+                    shares_after: decimal(11)?,
+                    direct: row.get(12)?,
+                },
+            })
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    Ok(trades)
+}
+
+pub(crate) fn news(
+    connection: &Connection,
+    symbols: &[Symbol],
+    since: NaiveDate,
+    as_of: Timestamp,
+) -> Result<Vec<NewsArticle>> {
+    let symbols = unique(symbols);
+    let Some(from) = Timestamp::at_exchange_time(since, NaiveTime::MIN) else {
+        return Ok(Vec::new());
+    };
+    if symbols.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut statement = connection.prepare(&format!(
+        "SELECT id, array_to_string(symbols, ','), headline, summary, source, created_at, \
+         updated_at, received_at, backfilled FROM news_article \
+         WHERE list_has_any(symbols, [{}]) AND created_at >= ? \
+         AND CASE WHEN backfilled THEN updated_at ELSE received_at END <= ? \
+         ORDER BY created_at, id, updated_at",
+        vec!["?::VARCHAR"; symbols.len()].join(", ")
+    ))?;
+    let mut params = symbol_params(&symbols);
+    params.push(Box::new(Ts(from)));
+    params.push(Box::new(Ts(as_of)));
+    let articles = statement
+        .query_map(params_from_iter(params.iter()), |row| {
+            let symbols: String = row.get(1)?;
+            Ok(NewsArticle {
+                id: row.get(0)?,
+                symbols: symbols
+                    .split(',')
+                    .filter(|symbol| !symbol.is_empty())
+                    .map(Symbol::new)
+                    .collect(),
+                headline: row.get(2)?,
+                summary: row.get(3)?,
+                source: row.get(4)?,
+                created_at: row.get::<_, Ts>(5)?.0,
+                updated_at: row.get::<_, Ts>(6)?.0,
+                received_at: row.get::<_, Ts>(7)?.0,
+                backfilled: row.get(8)?,
+            })
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    Ok(articles)
+}
+
 pub(crate) fn latest_sec_filings(
     connection: &Connection,
     forms: &[&str],
@@ -869,7 +1023,7 @@ pub(crate) fn macro_points(
          FROM macro_observation WHERE series = ? AND date BETWEEN ? AND ? AND published < ?) \
          WHERE vintage = 1 AND value IS NOT NULL ORDER BY date",
     )?;
-    for id in wanted.iter().filter(|id| id.fred_id().is_some()) {
+    for id in wanted.iter().filter(|id| **id != MacroSeries::Treasury3m) {
         let rows = statement
             .query_map(params![wire_name(id), from, to, cutoff], |row| {
                 Ok((*id, row.get(0)?, row.get(1)?, row.get::<_, Dec>(2)?.0))
@@ -886,6 +1040,44 @@ pub(crate) fn macro_points(
                 value,
                 published,
                 available_at: published_visible_at(published, calendar)?,
+            })
+        })
+        .collect())
+}
+
+pub(crate) fn fomc_meetings(connection: &Connection) -> Result<Vec<FomcMeeting>> {
+    let mut statement = connection.prepare_cached(
+        "SELECT date, scheduled, statement_at FROM fomc_meeting ORDER BY date, scheduled",
+    )?;
+    let meetings = statement
+        .query_map([], |row| {
+            Ok(FomcMeeting {
+                date: row.get(0)?,
+                scheduled: row.get(1)?,
+                statement_at: row.get::<_, Option<Ts>>(2)?.map(|at| at.0),
+            })
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    Ok(meetings)
+}
+
+pub(crate) fn fomc_announcements(
+    connection: &Connection,
+    calendar: &Calendar,
+    from: NaiveDate,
+    to: NaiveDate,
+    as_of: Timestamp,
+) -> Result<Vec<FomcAnnouncement>> {
+    Ok(fomc_meetings(connection)?
+        .into_iter()
+        .filter(|meeting| (from..=to).contains(&meeting.date))
+        .filter_map(|meeting| {
+            let available_at = fomc_visible_at(&meeting, calendar)?;
+            (available_at <= as_of).then_some(FomcAnnouncement {
+                date: meeting.date,
+                scheduled: meeting.scheduled,
+                statement_at: meeting.statement_at,
+                available_at,
             })
         })
         .collect())

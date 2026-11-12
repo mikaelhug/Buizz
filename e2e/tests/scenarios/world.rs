@@ -8,6 +8,7 @@ use buizz_core::market::{
 };
 use buizz_core::time::Timestamp;
 use buizz_market::MarketStore;
+use buizz_sources::cboe::parse_history_csv;
 use buizz_sources::fred::{WireObservation, normalize};
 use buizz_sources::treasury::parse_par_yield_csv;
 use buizz_sources::wikipedia::{SP500_CHANGES, SP500_CONSTITUENTS};
@@ -308,7 +309,16 @@ impl World {
                 let observations: Vec<WireObservation> =
                     serde_json::from_value(recorded["observations"].clone())
                         .expect("FRED observations");
-                normalize(MacroSeries::Cpiaucns, observations).expect("vintages normalize")
+                let mut vintages =
+                    normalize(MacroSeries::Cpiaucns, observations).expect("vintages normalize");
+                for (series, file) in [
+                    (MacroSeries::Vix, "cboe/VIX_History.csv"),
+                    (MacroSeries::Vix3m, "cboe/VIX3M_History.csv"),
+                ] {
+                    vintages
+                        .extend(parse_history_csv(series, &read(file)).expect("recorded closes"));
+                }
+                vintages
             },
             ..Self::default()
         }
@@ -344,7 +354,7 @@ impl World {
 
 async fn macro_vintages(store: &MarketStore) -> Vec<MacroObservation> {
     let mut vintages = Vec::new();
-    for series in MacroSeries::FRED {
+    for series in MacroSeries::FRED.into_iter().chain(MacroSeries::CBOE) {
         vintages.extend(
             store
                 .macro_observations(series)

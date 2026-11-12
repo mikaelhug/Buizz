@@ -11,8 +11,8 @@ use axum::routing::get;
 use axum::{Router, serve};
 use buizz_core::api::{JobView, SpineEvent};
 use buizz_core::market::{
-    AssetClass, BorrowAvailability, DataSource, Dataset, IndexHistory, IndexMember, StockIndex,
-    Symbol, Timeframe,
+    AssetClass, BorrowAvailability, DataSource, Dataset, IndexHistory, IndexMember, MacroSeries,
+    StockIndex, Symbol, Timeframe,
 };
 use buizz_core::ops::{FetchStatus, JobOutcome};
 use buizz_core::time::Timestamp;
@@ -20,6 +20,7 @@ use buizz_ingest::{Ingest, IngestConfig, TickReport};
 use buizz_market::MarketStore;
 use buizz_sources::Sources;
 use buizz_sources::alpaca::{AlpacaClient, AlpacaConfig};
+use buizz_sources::cboe::{CboeClient, CboeConfig};
 use buizz_sources::edgar::{EdgarClient, EdgarConfig};
 use buizz_sources::tiingo::{TiingoClient, TiingoConfig};
 use buizz_sources::treasury::{TreasuryClient, TreasuryConfig};
@@ -36,7 +37,15 @@ const TICKERS: &str = include_str!("../../sources/fixtures/edgar/company_tickers
 const FUND_TICKERS: &str = include_str!("../../sources/fixtures/edgar/company_tickers_mf.json");
 const SUBMISSIONS: &str = include_str!("../../sources/fixtures/edgar/submissions_sample.json");
 const COMPANY_FACTS: &str = include_str!("../../sources/fixtures/edgar/companyfacts_sample.json");
+const FORM_4: &str = include_str!("../../sources/fixtures/edgar/form4_sample.xml");
+const NO_NEWS: &str = r#"{"news":[],"next_page_token":null}"#;
 const YIELDS: &str = include_str!("../../sources/fixtures/treasury/par_yield_2025.csv");
+const VIX: &str = include_str!("../../sources/fixtures/cboe/VIX_History.csv");
+const VIX3M: &str = include_str!("../../sources/fixtures/cboe/VIX3M_History.csv");
+const VIX_REVISED_ROW: (&str, &str) = (
+    "09/22/2003,19.080000,23.900000,19.030000,19.650000",
+    "09/22/2003,19.080000,23.900000,19.030000,19.700000",
+);
 
 const HISTORY_START: &str = "2016-01-01";
 const ALPACA_FIRST_BAR: &str = "2016-03-01";
@@ -219,6 +228,17 @@ async fn yields() -> Response {
     YIELDS.to_owned().into_response()
 }
 
+async fn cboe(State(fake): State<Arc<Fake>>, Path(file): Path<String>) -> Response {
+    match file.as_str() {
+        "VIX_History.csv" if fake.revised.load(Ordering::SeqCst) => {
+            VIX.replace(VIX_REVISED_ROW.0, VIX_REVISED_ROW.1)
+        }
+        "VIX_History.csv" => VIX.to_owned(),
+        _ => VIX3M.to_owned(),
+    }
+    .into_response()
+}
+
 async fn serve_fakes(fake: Arc<Fake>) -> String {
     let router = Router::new()
         .route("/v2/calendar", get(calendar))
@@ -241,9 +261,24 @@ async fn serve_fakes(fake: Arc<Fake>) -> String {
             get(|| async { json(SUBMISSIONS.to_owned()) }),
         )
         .route(
+            "/Archives/edgar/data/320193/000114036126042149/form4.xml",
+            get(|State(fake): State<Arc<Fake>>| async move {
+                fake.hit("form4");
+                FORM_4.into_response()
+            }),
+        )
+        .route(
+            "/v1beta1/news",
+            get(|State(fake): State<Arc<Fake>>| async move {
+                fake.hit("news");
+                json(NO_NEWS.to_owned())
+            }),
+        )
+        .route(
             "/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv/{year}/all",
             get(yields),
         )
+        .route("/api/global/us_indices/daily_prices/{file}", get(cboe))
         .with_state(fake);
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}", listener.local_addr().unwrap());
@@ -272,6 +307,13 @@ fn sources(url: &str) -> Sources {
         wikipedia: None,
         ibkr: None,
         nasdaq: None,
+        cboe: Some(
+            CboeClient::new(CboeConfig {
+                base_url: url.to_owned(),
+            })
+            .unwrap(),
+        ),
+        fed: None,
     }
 }
 
@@ -293,7 +335,7 @@ async fn rows(market: &MarketStore) -> Rows {
         .await
         .unwrap()
         .into_iter()
-        .filter(|row| row.dataset != Dataset::SecFilings)
+        .filter(|row| !matches!(row.dataset, Dataset::SecFilings | Dataset::News))
         .map(|row| {
             format!(
                 "{:?} {:?} {:?} {} {}",
@@ -499,9 +541,13 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
             ("sec_index", JobOutcome::Noop),
             ("fundamentals", JobOutcome::Ok),
             ("filings", JobOutcome::Ok),
+            ("insider_trades", JobOutcome::Ok),
             ("rates", JobOutcome::Ok),
             ("borrow", JobOutcome::Noop),
             ("macro", JobOutcome::Noop),
+            ("news", JobOutcome::Noop),
+            ("vix", JobOutcome::Ok),
+            ("fomc", JobOutcome::Noop),
             ("state_snapshot", JobOutcome::Ok),
             ("market_snapshot", JobOutcome::Ok),
             ("tiingo_history", JobOutcome::Failed),
@@ -606,15 +652,41 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
             ("sec_index", JobOutcome::Noop),
             ("fundamentals", JobOutcome::Noop),
             ("filings", JobOutcome::Noop),
+            ("insider_trades", JobOutcome::Noop),
             ("rates", JobOutcome::Noop),
             ("borrow", JobOutcome::Noop),
             ("macro", JobOutcome::Noop),
+            ("news", JobOutcome::Noop),
+            ("vix", JobOutcome::Ok),
+            ("fomc", JobOutcome::Noop),
             ("state_snapshot", JobOutcome::Ok),
             ("market_snapshot", JobOutcome::Ok),
             ("tiingo_history", JobOutcome::Noop),
         ]
     );
     assert_eq!(rows(&market).await, backfilled);
+    let vintages: Vec<(NaiveDate, NaiveDate, String)> = market
+        .macro_observations(MacroSeries::Vix)
+        .await
+        .unwrap()
+        .into_iter()
+        .filter(|close| close.date == date("2003-09-22"))
+        .map(|close| {
+            let value = close.value.unwrap().normalize().to_string();
+            (close.date, close.published, value)
+        })
+        .collect();
+    assert_eq!(
+        vintages,
+        [
+            (date("2003-09-22"), date("2003-09-22"), "19.65".to_owned()),
+            (
+                date("2003-09-22"),
+                second_at.exchange_date(),
+                "19.7".to_owned()
+            ),
+        ]
+    );
     let calendar = ingest
         .job_views(second_at)
         .await

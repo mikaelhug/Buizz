@@ -7,7 +7,7 @@ use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use buizz_core::market::{AssetClass, Bar, CorporateActionKind, Symbol};
+use buizz_core::market::{AssetClass, Bar, CorporateActionKind, MacroSeries, Symbol};
 use buizz_core::time::Timestamp;
 use chrono::{Datelike, NaiveDate, NaiveTime, TimeDelta};
 use serde_json::{Number, Value, json};
@@ -18,6 +18,7 @@ use tokio::sync::{broadcast, watch};
 use crate::world::World;
 
 const PAGE_ROWS: usize = 1000;
+const FOMC_CALENDAR: &str = include_str!("../../../crates/sources/fixtures/fed/fomccalendars.htm");
 const RETRY_AFTER_SECONDS: &str = "3600";
 
 type Params = HashMap<String, String>;
@@ -93,6 +94,12 @@ impl FakeProviders {
             .route("/dynamic/SymDir/nasdaqtraded.txt", get(symbol_directory))
             .route("/api/xbrl/companyfacts/{file}", get(company_facts))
             .route("/submissions/{file}", get(submissions))
+            .route(
+                "/Archives/edgar/data/320193/000114036126042149/form4.xml",
+                get(|| async {
+                    include_str!("../../../crates/sources/fixtures/edgar/form4_sample.xml")
+                }),
+            )
             .route("/w/api.php", get(wikipedia))
             .route(
                 "/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv/{year}/all",
@@ -100,6 +107,8 @@ impl FakeProviders {
             )
             .route("/fred/series/observations", get(fred))
             .route("/fred/series/vintagedates", get(fred_vintage_dates))
+            .route("/api/global/us_indices/daily_prices/{file}", get(cboe))
+            .route("/monetarypolicy/{page}", get(federal_reserve))
             .route("/control/release", post(release))
             .with_state(fake.clone());
         let listener = TcpListener::bind("127.0.0.1:0")
@@ -590,6 +599,37 @@ async fn treasury(State(fake): State<Arc<Fake>>, Path(year): Path<i32>) -> Respo
         ));
     }
     csv.into_response()
+}
+
+async fn cboe(State(fake): State<Arc<Fake>>, Path(file): Path<String>) -> Response {
+    let series = match file.as_str() {
+        "VIX_History.csv" => MacroSeries::Vix,
+        "VIX3M_History.csv" => MacroSeries::Vix3m,
+        _ => return StatusCode::NOT_FOUND.into_response(),
+    };
+    let closes: BTreeMap<NaiveDate, String> = fake
+        .world()
+        .macro_vintages
+        .iter()
+        .filter(|close| close.series == series)
+        .filter_map(|close| Some((close.date, close.value?.to_string())))
+        .collect();
+    let mut csv = "DATE,OPEN,HIGH,LOW,CLOSE\n".to_owned();
+    for (date, close) in closes {
+        csv.push_str(&format!(
+            "{},{close},{close},{close},{close}\n",
+            date.format("%m/%d/%Y")
+        ));
+    }
+    csv.into_response()
+}
+
+async fn federal_reserve(Path(page): Path<String>) -> Response {
+    if page == "fomccalendars.htm" {
+        FOMC_CALENDAR.into_response()
+    } else {
+        StatusCode::NOT_FOUND.into_response()
+    }
 }
 
 async fn fred_vintage_dates() -> Response {

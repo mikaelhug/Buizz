@@ -53,9 +53,13 @@ async fn an_empty_spine_backfills_backs_off_rejects_a_bad_tiingo_tail_and_restar
             ("sec_index", Some(JobOutcome::Waiting)),
             ("fundamentals", ok),
             ("filings", ok),
+            ("insider_trades", ok),
             ("rates", ok),
             ("borrow", ok),
             ("macro", ok),
+            ("news", Some(JobOutcome::Backoff)),
+            ("vix", ok),
+            ("fomc", ok),
             ("state_snapshot", ok),
             ("market_snapshot", ok),
             ("tiingo_history", Some(JobOutcome::Failed)),
@@ -70,6 +74,12 @@ async fn an_empty_spine_backfills_backs_off_rejects_a_bad_tiingo_tail_and_restar
         message(&jobs, "index_membership")
     );
     assert_eq!(message(&jobs, "filings"), "filings: 5 rows");
+    assert_eq!(message(&jobs, "vix"), "vix: 8 rows");
+    assert!(
+        message(&jobs, "fomc").starts_with("fomc: 16 rows, 1 failed: 2000"),
+        "{}",
+        message(&jobs, "fomc")
+    );
     assert_eq!(
         message(&jobs, "borrow"),
         "borrow: 6 tickers as of 2026-11-11T20:10:41Z"

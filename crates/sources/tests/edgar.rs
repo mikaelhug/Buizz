@@ -2,11 +2,13 @@ use axum::Router;
 use axum::http::{HeaderMap, StatusCode, header::USER_AGENT};
 use axum::routing::get;
 use buizz_core::market::{
-    Calendar, FundamentalFact, FundamentalMetric, PeriodType, Session, Symbol,
+    Calendar, FundamentalFact, FundamentalMetric, InsiderOwner, InsiderTransaction, PeriodType,
+    Session, Symbol,
 };
 use buizz_core::time::Timestamp;
 use buizz_sources::edgar::{
     EdgarClient, EdgarConfig, RATE_LIMIT, normalize_company_facts, normalize_daily_index,
+    normalize_ownership,
 };
 use buizz_sources::http::SourceError;
 use chrono::{Datelike, NaiveDate, NaiveTime, TimeDelta, Weekday};
@@ -19,6 +21,7 @@ const FUND_TICKERS: &str = include_str!("../fixtures/edgar/company_tickers_mf.js
 const SUBMISSIONS: &str = include_str!("../fixtures/edgar/submissions_sample.json");
 const SUBMISSIONS_PAGE: &str = include_str!("../fixtures/edgar/submissions_page_sample.json");
 const DAILY_INDEX: &str = include_str!("../fixtures/edgar/master_sample.idx");
+const FORM_4: &str = include_str!("../fixtures/edgar/form4_sample.xml");
 
 fn date(year: i32, month: u32, day: u32) -> NaiveDate {
     NaiveDate::from_ymd_opt(year, month, day).unwrap()
@@ -74,6 +77,10 @@ async fn serve_sec() -> String {
         .route(
             "/Archives/edgar/daily-index/2026/QTR4/master.20261109.idx",
             get(guarded(DAILY_INDEX)),
+        )
+        .route(
+            "/Archives/edgar/data/320193/000114036126042149/form4.xml",
+            get(guarded(FORM_4)),
         );
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}", listener.local_addr().unwrap());
@@ -219,6 +226,7 @@ async fn submissions_give_the_sic_code_and_every_results_announcement() {
         Some("Electronic Computers")
     );
     let accepted: Vec<String> = submissions
+        .filings
         .releases
         .iter()
         .map(|release| release.accepted_at.to_string())
@@ -228,17 +236,101 @@ async fn submissions_give_the_sic_code_and_every_results_announcement() {
         ["2026-11-02T21:30:23Z", "2026-07-30T20:30:28Z"],
         "only 8-Ks with Item 2.02, not the 8.01 or 5.02 ones or the 10-Qs"
     );
-    assert_eq!(submissions.releases[0].report_date, Some(date(2026, 11, 2)));
+    assert_eq!(
+        submissions.filings.releases[0].report_date,
+        Some(date(2026, 11, 2))
+    );
 
     let page = &submissions.older_pages[0];
     assert_eq!(page.filing_to, date(2015, 10, 5));
     let older = client.filings_page(&apple, 320193, page).await.unwrap();
     assert_eq!(
         older
+            .releases
             .iter()
             .map(|release| release.filed)
             .collect::<Vec<_>>(),
         [date(2015, 7, 21), date(2015, 4, 27)]
+    );
+    let ownership: Vec<(&str, &str, String)> = submissions
+        .filings
+        .ownership
+        .iter()
+        .chain(&older.ownership)
+        .map(|filing| {
+            (
+                filing.form.as_str(),
+                filing.accession.as_str(),
+                filing.accepted_at.to_string(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        ownership,
+        [
+            (
+                "4",
+                "0001140361-26-042149",
+                "2026-11-05T23:30:13Z".to_owned()
+            ),
+            (
+                "4/A",
+                "0001181431-13-036353",
+                "2013-06-22T01:45:37Z".to_owned()
+            ),
+        ],
+        "every Form 4 and 4/A with its acceptance time, not its filing date"
+    );
+}
+
+#[tokio::test]
+async fn a_form_4_gives_each_trade_with_its_insider_and_only_for_its_issuer() {
+    let url = serve_sec().await;
+    let client = EdgarClient::new(EdgarConfig {
+        user_agent: USER_AGENT_VALUE.to_owned(),
+        data_url: url.clone(),
+        www_url: url,
+    })
+    .unwrap();
+    let apple = Symbol::new("AAPL");
+    let submissions = client.submissions(&apple, 320193).await.unwrap();
+    let listed = &submissions.filings.ownership[0];
+
+    let filing = client.ownership(&apple, 320193, listed).await.unwrap();
+    assert_eq!(filing.issuer_cik, 320193);
+    assert_eq!(filing.accepted_at, listed.accepted_at);
+    assert_eq!(
+        filing.owners,
+        [InsiderOwner {
+            cik: 1780525,
+            name: "Newstead Jennifer".to_owned(),
+            director: false,
+            officer: true,
+            ten_percent_owner: false,
+            other: false,
+            officer_title: Some("SVP, GC and Government Affairs".to_owned()),
+        }]
+    );
+    assert_eq!(
+        filing.transactions,
+        [InsiderTransaction {
+            security: "Common Stock".to_owned(),
+            date: date(2026, 11, 3),
+            code: "S".to_owned(),
+            acquired: false,
+            shares: Some(Decimal::from(2399)),
+            price: Some(Decimal::new(32575, 2)),
+            shares_after: Some(Decimal::from(29997)),
+            direct: true,
+        }]
+    );
+
+    let about_another_issuer =
+        normalize_ownership(&Symbol::new("BRK.B"), 1067983, listed, FORM_4.as_bytes()).unwrap();
+    assert_eq!(about_another_issuer.issuer_cik, 320193);
+    assert!(
+        about_another_issuer.transactions.is_empty(),
+        "a filing listed under a company that is the reporting owner is not its own insiders' trade"
     );
 }
 
@@ -255,7 +347,7 @@ async fn a_missing_daily_index_is_skipped_and_a_refusal_is_a_rate_limit() {
     };
     let polite = client(USER_AGENT_VALUE);
     let filed = polite.daily_index(date(2026, 11, 9)).await.unwrap();
-    assert_eq!(filed.map(|filings| filings.len()), Some(3));
+    assert_eq!(filed.map(|filings| filings.len()), Some(4));
     assert_eq!(polite.daily_index(date(2026, 11, 11)).await.unwrap(), None);
     let refused = client("anonymous").daily_index(date(2026, 11, 9)).await;
     assert!(
@@ -265,7 +357,7 @@ async fn a_missing_daily_index_is_skipped_and_a_refusal_is_a_rate_limit() {
 }
 
 #[test]
-fn the_daily_index_keeps_periodic_reports_and_8ks_only() {
+fn the_daily_index_keeps_periodic_reports_8ks_and_form_4s_only() {
     let filings = normalize_daily_index(include_bytes!("../fixtures/edgar/master_sample.idx"));
     let kept: Vec<(u32, &str, &str, NaiveDate)> = filings
         .iter()
@@ -284,6 +376,7 @@ fn the_daily_index_keeps_periodic_reports_and_8ks_only() {
             (320193, "8-K", "0000320193-26-000101", date(2026, 11, 9)),
             (320193, "10-K", "0000320193-26-000102", date(2026, 11, 9)),
             (789019, "10-Q/A", "0000950170-26-000500", date(2026, 11, 9)),
+            (789019, "4", "0000950170-26-000501", date(2026, 11, 9)),
         ]
     );
 }

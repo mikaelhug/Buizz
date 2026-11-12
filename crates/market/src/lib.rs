@@ -1,12 +1,14 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::ops::RangeInclusive;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, PoisonError, RwLock};
 
 use buizz_core::market::{
     Adjustment, AdjustmentFactor, Bar, BorrowAvailability, Calendar, Company, CorporateAction,
-    Coverage, DataSource, EarningsRelease, FundamentalFact, FundamentalMetric, FundamentalPoint,
-    IndexHistory, Instrument, InstrumentProfile, MacroObservation, MacroPoint, MacroSeries,
-    RiskFreeRate, SecFiling, Session, StockIndex, Symbol, Timeframe, Watermarks,
+    Coverage, DataSource, EarningsRelease, FomcAnnouncement, FomcMeeting, FundamentalFact,
+    FundamentalMetric, FundamentalPoint, IndexHistory, InsiderFiling, InsiderTrade, Instrument,
+    InstrumentProfile, MacroObservation, MacroPoint, MacroSeries, NewsArticle, RiskFreeRate,
+    SecFiling, Session, StockIndex, Symbol, Timeframe, Watermarks,
 };
 use buizz_core::ops::{CoverageGap, DataWarning};
 use buizz_core::protocol::BarRow;
@@ -33,15 +35,17 @@ pub use restore::Restored;
 
 pub(crate) const SCHEMA: &str = include_str!("../schema.sql");
 pub const FILE_NAME: &str = "market.duckdb";
-const APPENDED: [(&str, &str); 12] = [
+const APPENDED: [(&str, &str); 14] = [
     ("ingest_batch", "id"),
     ("borrow_availability", "batch_id"),
+    ("news_article", "batch_id"),
     ("instrument_revision", "superseded_by"),
     ("calendar_revision", "superseded_by"),
     ("bar_1d_revision", "superseded_by"),
     ("corporate_action_revision", "superseded_by"),
     ("rate_daily_revision", "superseded_by"),
     ("macro_observation_revision", "superseded_by"),
+    ("fomc_meeting_revision", "superseded_by"),
     ("company_revision", "superseded_by"),
     ("earnings_release_revision", "superseded_by"),
     ("index_member_revision", "superseded_by"),
@@ -428,6 +432,17 @@ impl MarketStore {
             .await
     }
 
+    pub async fn replace_fomc_meetings(
+        &self,
+        source: DataSource,
+        years: RangeInclusive<i32>,
+        meetings: Vec<FomcMeeting>,
+    ) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| write::fomc_meetings(connection, source, years, meetings))
+            .await
+    }
+
     pub async fn upsert_companies(
         &self,
         source: DataSource,
@@ -445,6 +460,27 @@ impl MarketStore {
     ) -> Result<WriteSummary> {
         self.writer
             .run(move |connection| write::earnings_releases(connection, source, releases))
+            .await
+    }
+
+    pub async fn append_insider_filings(
+        &self,
+        source: DataSource,
+        filings: Vec<InsiderFiling>,
+    ) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| write::insider_filings(connection, source, filings))
+            .await
+    }
+
+    pub async fn append_news(
+        &self,
+        source: DataSource,
+        articles: Vec<NewsArticle>,
+        window: Option<(NaiveDate, NaiveDate)>,
+    ) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| write::news_articles(connection, source, articles, window))
             .await
     }
 
@@ -687,6 +723,37 @@ impl MarketStore {
             .await
     }
 
+    pub async fn insider_accessions(&self, symbol: Symbol) -> Result<BTreeSet<String>> {
+        self.readers
+            .run(move |connection| read::insider_accessions(connection, &symbol))
+            .await
+    }
+
+    pub async fn insider_trades(
+        &self,
+        symbols: Vec<Symbol>,
+        since: NaiveDate,
+        as_of: Timestamp,
+    ) -> Result<Vec<InsiderTrade>> {
+        let calendar = self.shared.calendar();
+        self.readers
+            .run(move |connection| {
+                read::insider_trades(connection, &calendar, &symbols, since, as_of)
+            })
+            .await
+    }
+
+    pub async fn news(
+        &self,
+        symbols: Vec<Symbol>,
+        since: NaiveDate,
+        as_of: Timestamp,
+    ) -> Result<Vec<NewsArticle>> {
+        self.readers
+            .run(move |connection| read::news(connection, &symbols, since, as_of))
+            .await
+    }
+
     pub async fn latest_borrow(&self) -> Result<Option<Timestamp>> {
         self.readers
             .run(|connection| read::latest_borrow(connection))
@@ -721,6 +788,24 @@ impl MarketStore {
             .run(move |connection| {
                 read::macro_points(connection, &calendar, &series, from, to, as_of)
             })
+            .await
+    }
+
+    pub async fn fomc_meetings(&self) -> Result<Vec<FomcMeeting>> {
+        self.readers
+            .run(|connection| read::fomc_meetings(connection))
+            .await
+    }
+
+    pub async fn fomc_announcements(
+        &self,
+        from: NaiveDate,
+        to: NaiveDate,
+        as_of: Timestamp,
+    ) -> Result<Vec<FomcAnnouncement>> {
+        let calendar = self.shared.calendar();
+        self.readers
+            .run(move |connection| read::fomc_announcements(connection, &calendar, from, to, as_of))
             .await
     }
 
@@ -788,7 +873,7 @@ mod tests {
             .unwrap()
             .collect::<duckdb::Result<_>>()
             .unwrap();
-        assert_eq!(revisions.len(), 10);
+        assert_eq!(revisions.len(), 11);
         let missing: Vec<&String> = revisions
             .iter()
             .filter(|table| !APPENDED.iter().any(|(backed_up, _)| backed_up == table))

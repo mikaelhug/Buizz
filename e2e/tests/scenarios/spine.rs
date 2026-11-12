@@ -150,6 +150,7 @@ impl Spine {
             .env("ALPACA_DATA_URL", url)
             .env("ALPACA_TRADING_URL", url)
             .env("ALPACA_STREAM_URL", self.fake.stream_url())
+            .env("ALPACA_NEWS_URL", self.fake.stream_url())
             .env("SEC_USER_AGENT", "buizz-e2e e2e@example.test")
             .env("SEC_DATA_URL", url)
             .env("SEC_WWW_URL", url)
@@ -159,6 +160,8 @@ impl Spine {
             .env("IBKR_FTP_ADDRESS", &self.fake.ftp_address)
             .env("FRED_API_KEY", "e2e-fred")
             .env("FRED_URL", url)
+            .env("CBOE_URL", url)
+            .env("FED_URL", url)
             .stdout(log.try_clone().expect("the spine log"))
             .stderr(log)
             .kill_on_drop(true);

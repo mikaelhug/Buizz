@@ -10,7 +10,7 @@ use axum::routing::get;
 use buizz_core::market::{Feed, Symbol};
 use buizz_core::time::Timestamp;
 use buizz_sources::alpaca::AlpacaConfig;
-use buizz_sources::alpaca_stream::{SYMBOL_CAP, StreamConfig, StreamEvent, spawn};
+use buizz_sources::alpaca_stream::{SYMBOL_CAP, StreamConfig, StreamEvent, spawn, spawn_news};
 use chrono::TimeDelta;
 use rust_decimal::Decimal;
 use serde_json::Value;
@@ -19,12 +19,14 @@ use tokio::sync::mpsc::Receiver;
 use tokio::time::timeout;
 
 const MINUTE_NANOS: i64 = 60_000_000_000;
+const BAR_FRAMES: [&str; 2] = ["bars_first.json", "bars_second.json"];
 
 #[derive(Clone)]
 struct FakeServer {
     connections: Arc<Mutex<usize>>,
     received: Arc<Mutex<Vec<Value>>>,
     authenticated: &'static str,
+    frames: [&'static str; 2],
 }
 
 fn fixture(name: &str) -> String {
@@ -81,14 +83,14 @@ async fn converse(server: FakeServer, mut socket: WebSocket) {
         .unwrap();
     if connection == 1 {
         socket
-            .send(Message::text(fixture("bars_first.json")))
+            .send(Message::text(fixture(server.frames[0])))
             .await
             .unwrap();
         tokio::time::sleep(Duration::from_millis(100)).await;
         return;
     }
     socket
-        .send(Message::text(fixture("bars_second.json")))
+        .send(Message::text(fixture(server.frames[1])))
         .await
         .unwrap();
     std::future::pending::<()>().await;
@@ -120,6 +122,7 @@ async fn streams_bars_and_backfills_a_gap_after_reconnect() {
         connections: Arc::default(),
         received: Arc::default(),
         authenticated: "authenticated.json",
+        frames: BAR_FRAMES,
     };
     let address = serve(server.clone()).await;
     let (handle, mut events) = spawn(config(address));
@@ -188,6 +191,7 @@ async fn refuses_symbols_beyond_the_cap() {
         connections: Arc::default(),
         received: Arc::default(),
         authenticated: "authenticated.json",
+        frames: BAR_FRAMES,
     };
     let address = serve(server).await;
     let (handle, _events) = spawn(config(address));
@@ -203,6 +207,7 @@ async fn auth_failure_is_reported_and_not_retried() {
         connections: Arc::default(),
         received: Arc::default(),
         authenticated: "auth_failed.json",
+        frames: BAR_FRAMES,
     };
     let address = serve(server.clone()).await;
     let (_handle, mut events) = spawn(config(address));
@@ -213,6 +218,44 @@ async fn auth_failure_is_reported_and_not_retried() {
     assert!(reason.contains("authentication failed"), "{reason}");
     assert!(next_closed(&mut events).await);
     assert_eq!(*server.connections.lock().unwrap(), 1);
+}
+
+#[tokio::test]
+async fn records_every_edit_of_an_article_as_it_arrives_across_reconnects() {
+    let server = FakeServer {
+        connections: Arc::default(),
+        received: Arc::default(),
+        authenticated: "authenticated.json",
+        frames: ["news_first.json", "news_second.json"],
+    };
+    let address = serve(server.clone()).await;
+    let started = Timestamp::now();
+    let mut articles = spawn_news(config(address));
+    let mut arrivals = Vec::new();
+    for _ in 0..2 {
+        arrivals.push(
+            timeout(Duration::from_secs(5), articles.recv())
+                .await
+                .expect("article within deadline")
+                .expect("recorder still running"),
+        );
+    }
+    let [original, edited] = &arrivals[..] else {
+        panic!("two arrivals");
+    };
+    assert_eq!(original.id, edited.id);
+    assert_eq!(original.created_at, edited.created_at);
+    assert_eq!(original.updated_at, original.created_at);
+    assert_eq!(edited.updated_at, "2026-10-30T20:47:55Z".parse().unwrap());
+    assert_ne!(original.headline, edited.headline);
+    assert_eq!(edited.symbols, [Symbol::new("AAPL"), Symbol::new("QQQ")]);
+    assert!(!original.backfilled && !edited.backfilled);
+    assert!(started <= original.received_at && original.received_at <= edited.received_at);
+
+    let received = server.received.lock().unwrap().clone();
+    assert_eq!(received[1]["action"], "subscribe");
+    assert_eq!(received[1]["news"], serde_json::json!(["*"]));
+    assert_eq!(*server.connections.lock().unwrap(), 2);
 }
 
 async fn next_closed(events: &mut Receiver<StreamEvent>) -> bool {

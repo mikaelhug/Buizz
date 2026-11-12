@@ -110,8 +110,11 @@ Outside `on_step` only `params`, `universe`, `state`, `portfolio` and `position`
 | `ctx.fundamentals(symbols, metrics)` | Every fundamental fact visible at the clock for the given metrics (`Metric` names, below) |
 | `ctx.instruments(symbols)` | `dict[symbol, InstrumentProfile]` (`name`, `exchange`, `asset_class`, `sic`, `sic_description`) for the known symbols. Current values, see below |
 | `ctx.earnings(symbols)` | `list[EarningsRelease]` (`symbol`, `cik`, `accession`, `form`, `filed`, `report_date`, `accepted_at`): every earnings release accepted by EDGAR at or before the clock |
+| `ctx.insider_trades(symbols, since)` | `list[InsiderTrade]`: every insider transaction from a Form 4 or 4/A filed on or after `since` and visible at the clock, see below |
+| `ctx.news(symbols, since)` | Experimental. `list[NewsArticle]`: every recorded version of the news articles about any of `symbols` created on or after `since` and known at the clock, see below |
 | `ctx.universe_at(on, top_dollar_volume, *, asset_class=None, index=None)` | The symbols a `top_dollar_volume` universe of that size (optionally of one `asset_class`), or the `index` universe, held on the date `on`, see below |
 | `ctx.macro(series, start, end)` | The rate and macro observations dated `start` to `end` as known at the clock (`MacroPoint`: `series`, `date`, `value`, `published`, `available_at`), see below |
+| `ctx.fomc(start, end)` | The FOMC announcements dated `start` to `end` known at the clock (`FomcAnnouncement`: `date`, `scheduled`, `statement_at`, `available_at`), see below |
 | `ctx.calendar(start, end)` | The exchange sessions (`Session(date, open, close)`) dated `start` to `end`, as the calendar was published at the clock, see below |
 | `ctx.state` | A dict that survives restarts, see below |
 
@@ -124,6 +127,15 @@ Each metric is one reported XBRL concept or a list of concepts with the same mea
 `ctx.instruments` answers with today's values, not the values as of the clock. `exchange` is Alpaca's current listing exchange (`NYSE`, `NASDAQ`, `ARCA`, `AMEX`, `BATS`); `sic` is the four-digit Standard Industrial Classification code from the company's EDGAR submissions, `None` for funds and for tickers without a CIK. Neither source keeps a history: EDGAR shows only a company's current SIC code and Alpaca only the current exchange, so a company that moved from NASDAQ to NYSE, or changed industry, carries its current value back in time. Both change rarely; a bot sorting on them should say so in its results.
 
 An earnings release is an 8-K (or 8-K/A) whose items include 2.02, *Results of Operations and Financial Condition*, the filing companies make when they publish quarterly results. It is visible from its EDGAR acceptance time, to the second, which is when it became public on EDGAR; a release accepted after the close is therefore visible on the next step. `report_date` is the event date the filer gave, usually the day of the announcement. An 8-K/A that amends a release (same `report_date`, accepted later) is not returned, so each announcement is one release; an 8-K/A is returned only when it is the first filing carrying 2.02 for its event. Funds and tickers without a CIK have none.
+
+**Insider transactions.** `ctx.insider_trades(symbols, since)` returns the open-market purchases, sales, grants, option exercises and other non-derivative transactions insiders reported on SEC Form 4, as filed. An `InsiderTrade` carries the filing (`symbol`, `accession`, `form` of `"4"` or `"4/A"`, `filed`, `accepted_at`, `available_at`), its `owners` (`InsiderOwner`: `cik`, `name`, `director`, `officer`, `ten_percent_owner`, `other`, `officer_title`) and one transaction: `security`, `date`, `code` (`P` open-market purchase, `S` open-market sale, `A` grant, `M` option exercise, `F` tax withholding, `G` gift and the other SEC codes), `acquired` (`True` for A, `False` for D), `shares`, `price` and `shares_after` (`Decimal`, `None` where the filer left them out) and `direct`. A trade becomes visible at the open of the first session after the filing's EDGAR acceptance time, so a Form 4 accepted at 18:30 is seen at the next open and one accepted at 11:00 at the open after that session. An amendment is a separate, later filing: a 4/A never changes the trades of the 4 it amends, and a bot that wants the corrected figures matches them itself. A joint filing lists every reporting owner on each of its trades, so sum shares per filing, not per owner. History reaches back to mid-2003, when Forms 4 became XML.
+
+```python
+buys = [t for t in ctx.insider_trades(ctx.universe, ctx.session.date - timedelta(days=30))
+        if t.code == "P" and any(o.officer or o.director for o in t.owners)]
+```
+
+**News (experimental).** `ctx.news(symbols, since)` reads the Benzinga news archive recorded from Alpaca. A `NewsArticle` is one version of an article (`id`, `symbols`, `headline`, `summary`, `source`, `created_at`, `updated_at`, `received_at`, `backfilled`); an edited article appears once per version. A version the spine recorded live is visible from its `received_at`. One fetched later from Alpaca's history (`backfilled`) is only the latest edit as Alpaca kept it, so it cannot show what was known before; it is visible from its `updated_at`, and an honest test keeps only versions that were recorded live or whose `updated_at` is close to `created_at`. The archive only grows on a deployed spine, so a backtest over the past sees backfilled history only. The query may change.
 
 **Calendar.** The exchange publishes its holidays and early closes years ahead, so `ctx.calendar` answers future sessions too, up to 366 days after the clock's date; a later `end` raises `SpineError` with code `bad_query`. A closure decided at short notice (the national days of mourning on 2018-12-05 and 2025-01-09, the first Juneteenth closure on 2022-06-20) stays the regular session it was scheduled as until the open of the first session after its announcement, so a backtest never knows about it earlier than the market did. A daily bot finds the last session of the month or week from the next session:
 
@@ -145,7 +157,7 @@ months = [date(year, month, 1) for year in range(2017, 2024) for month in range(
 training = {month: ctx.universe_at(month, 1000) for month in months}
 ```
 
-**Rates and macro series.** `ctx.macro(series, start, end)` returns the observations of `MacroSeries` dated `start` to `end`, each as the latest vintage published before the current session, so revisions arrive when they were published and never earlier. `available_at` is the open of the first session after `published`. Values are `Decimal` percent, except the CPI index.
+**Rates and macro series.** `ctx.macro(series, start, end)` returns the observations of `MacroSeries` dated `start` to `end`, each as the latest vintage published before the current session, so revisions arrive when they were published and never earlier. `available_at` is the open of the first session after `published`. Values are `Decimal` percent, except the CPI index, the unemployment rate's percentage points and the VIX index points.
 
 | Series | Meaning | Frequency |
 |---|---|---|
@@ -154,8 +166,17 @@ training = {month: ctx.universe_at(month, 1000) for month in months}
 | `gs10` | 10-year Treasury, constant maturity (FRED `GS10`) | monthly average |
 | `aaa`, `baa` | Moody's seasoned Aaa and Baa corporate bond yields (FRED `AAA`, `BAA`), Graham's AAA rule and Welch–Goyal `dfy = baa − aaa` | monthly average |
 | `cpiaucns` | CPI-U, all items, not seasonally adjusted, 1982–84 = 100 (FRED `CPIAUCNS`) | monthly |
+| `unrate` | Civilian unemployment rate, seasonally adjusted (FRED `UNRATE`); revised, so the vintages matter | monthly |
+| `sahmrealtime` | Real-time Sahm rule recession indicator (FRED `SAHMREALTIME`), percentage points | monthly |
+| `dgs10` | 10-year Treasury, constant maturity, H.15 (FRED `DGS10`) | daily |
+| `t10y3m` | 10-year minus 3-month Treasury constant maturity (FRED `T10Y3M`), percentage points | daily |
+| `baa10y` | Moody's seasoned Baa corporate yield minus the 10-year Treasury (FRED `BAA10Y`), percentage points | daily |
+| `vix` | CBOE Volatility Index close, from 2003-09-22 | daily |
+| `vix3m` | CBOE 3-Month Volatility Index close, from 2009-09-18 | daily |
 
-The FRED series need `FRED_API_KEY` on the spine; without it they are empty. Graham's CPI-scaled size floor:
+The FRED series need `FRED_API_KEY` on the spine; without it they are empty. Each FRED value is the one ALFRED records as published on its real-time start date, so `published` is the day FRED first carried it, never the day it was computed for. The daily H.15 rates (`dgs10`, and the two spreads FRED derives from H.15 and Moody's) reach FRED the business day after their date at the earliest, so the rate of day D is visible from the open of the session after D + 1, or later when FRED posted it later. ALFRED only keeps vintages from when FRED started recording them: `dgs10` from 2005-06-28, `t10y3m` and `baa10y` from 2014-01-27 and `sahmrealtime` from 2019-09-06 (the series did not exist before). Observations dated earlier carry that first vintage date as `published`, so a backtest before it sees nothing for the series, as nobody could have seen this vintage then; `unrate` has vintages back to the 1960s. Monthly averages (`gs10`, `baa`) cover the earlier years.
+
+The VIX closes at 16:15 ET, a quarter of an hour after the session's last bar, so a close is published on its date and visible from the open of the next session: a daily bot never reads today's VIX at today's close. The VIX before 2003-09-22 in CBOE's file is a later recalculation with the new methodology, not what was published then (the index of those years, renamed VXO, is not offered as a free file), so `vix` starts on 2003-09-22. Values are CBOE's history file as first read by the spine; a close CBOE changes afterwards becomes a new vintage published on the day the spine saw it. Graham's CPI-scaled size floor:
 
 ```python
 from datetime import date
@@ -164,6 +185,16 @@ year = ctx.session.date.year - 1
 cpi = ctx.macro(["cpiaucns"], date(year, 1, 1), date(year, 12, 1))
 if len(cpi) == 12:
     floor = 100_000_000 * float(sum(point.value for point in cpi) / 12) / 41.8
+```
+
+**FOMC.** `ctx.fomc(start, end)` lists the Federal Open Market Committee's announcements from 2000 on, dated by the day the statement was released. A scheduled meeting (`scheduled=True`) is published long in advance, so it is visible from the start of its year, future meetings included; its `statement_at` is the release time the Fed scheduled: 14:00 ET since 2013, 12:30 ET on the 2011–2012 meetings with a press conference, 14:15 ET before. Each scheduled meeting is the one the Fed held: a meeting moved later in its year shows at its final date all year, and the meeting of 2020-03-18, cancelled when the Committee cut rates on Sunday 2020-03-15, stays listed. An unscheduled action (an intermeeting move, a conference call or a notation vote that released a statement) has `scheduled=False` and `statement_at=None`, and is visible only from the open of the first session after its release day, so a bot never knows of an emergency move before it happened. Conference calls without a statement are left out. A pre-announcement drift bot buys the close before a scheduled statement:
+
+```python
+from datetime import timedelta
+
+today = ctx.session.date
+tomorrow = ctx.calendar(today, today + timedelta(days=10))[1].date
+statement_tomorrow = any(meeting.scheduled for meeting in ctx.fomc(tomorrow, tomorrow))
 ```
 
 `to_ns(moment)` turns a timezone-aware `datetime` into the nanoseconds of `History.start`, for example `history.start >= to_ns(ctx.session.open)`.

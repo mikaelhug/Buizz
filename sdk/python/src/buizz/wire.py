@@ -17,7 +17,21 @@ type LogLevel = Literal["debug", "info", "warn", "error"]
 type EndReason = Literal["completed", "paused", "stopped", "risk_limit", "failed", "disconnected"]
 type TimeInForce = Literal["day", "gtc"]
 type Auction = Literal["open", "close"]
-type MacroSeries = Literal["treasury_3m", "tb3ms", "gs10", "aaa", "baa", "cpiaucns"]
+type MacroSeries = Literal[
+    "treasury_3m",
+    "tb3ms",
+    "gs10",
+    "aaa",
+    "baa",
+    "cpiaucns",
+    "unrate",
+    "sahmrealtime",
+    "dgs10",
+    "t10y3m",
+    "baa10y",
+    "vix",
+    "vix3m",
+]
 type Metric = Literal[
     "revenue",
     "cost_of_revenue",
@@ -270,14 +284,80 @@ class MacroResult(msgspec.Struct, frozen=True, tag_field="kind", tag="macro"):
     points: list[MacroFact]
 
 
+class InsiderOwner(msgspec.Struct, frozen=True):
+    cik: int
+    name: str
+    director: bool
+    officer: bool
+    ten_percent_owner: bool
+    other: bool
+    officer_title: str | None
+
+
+class InsiderTransactionFrame(msgspec.Struct, frozen=True):
+    security: str
+    date: date
+    code: str
+    acquired: bool
+    shares: Decimal | None
+    price: Decimal | None
+    shares_after: Decimal | None
+    direct: bool
+
+
+class InsiderTradeFrame(msgspec.Struct, frozen=True):
+    symbol: str
+    accession: str
+    form: str
+    filed: date
+    accepted_at: int
+    available_at: int
+    owners: list[InsiderOwner]
+    transaction: InsiderTransactionFrame
+
+
+class InsiderTradesResult(msgspec.Struct, frozen=True, tag_field="kind", tag="insider_trades"):
+    trades: list[InsiderTradeFrame]
+
+
+class NewsArticleFrame(msgspec.Struct, frozen=True):
+    id: int
+    symbols: list[str]
+    headline: str
+    summary: str
+    source: str
+    created_at: int
+    updated_at: int
+    received_at: int
+    backfilled: bool
+
+
+class NewsResult(msgspec.Struct, frozen=True, tag_field="kind", tag="news"):
+    articles: list[NewsArticleFrame]
+
+
+class FomcFrame(msgspec.Struct, frozen=True):
+    date: date
+    scheduled: bool
+    statement_at: int | None
+    available_at: int
+
+
+class FomcResult(msgspec.Struct, frozen=True, tag_field="kind", tag="fomc"):
+    announcements: list[FomcFrame]
+
+
 type Result = (
     HistoryResult
     | FundamentalsResult
     | CalendarResult
     | UniverseResult
     | MacroResult
+    | FomcResult
     | InstrumentsResult
     | EarningsResult
+    | InsiderTradesResult
+    | NewsResult
 )
 
 
@@ -322,6 +402,16 @@ class EarningsRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="earnin
     symbols: list[str]
 
 
+class InsiderTradesRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="insider_trades"):
+    symbols: list[str]
+    since: date
+
+
+class NewsRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="news"):
+    symbols: list[str]
+    since: date
+
+
 class CalendarRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="calendar"):
     start: date = msgspec.field(name="from")
     end: date = msgspec.field(name="to")
@@ -338,14 +428,22 @@ class MacroRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="macro"):
     end: date = msgspec.field(name="to")
 
 
+class FomcRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="fomc"):
+    start: date = msgspec.field(name="from")
+    end: date = msgspec.field(name="to")
+
+
 type Request = (
     HistoryRequest
     | FundamentalsRequest
     | CalendarRequest
     | UniverseRequest
     | MacroRequest
+    | FomcRequest
     | InstrumentsRequest
     | EarningsRequest
+    | InsiderTradesRequest
+    | NewsRequest
 )
 
 
