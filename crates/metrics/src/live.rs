@@ -235,6 +235,26 @@ fn paused_at(paused: &[(Timestamp, Option<Timestamp>)], at: Timestamp) -> bool {
         .any(|(from, to)| *from <= at && to.is_none_or(|to| at < to))
 }
 
+pub fn backtest_curve(equity: &[EquityPoint], benchmark: &[SparkPoint]) -> Vec<LivePoint> {
+    let mut held = benchmark.iter().peekable();
+    let mut last = None;
+    let curve = equity
+        .iter()
+        .filter_map(|point| {
+            while let Some(next) = held.next_if(|next| next.at <= point.at) {
+                last = Some(next.equity);
+            }
+            Some(LivePoint {
+                at: point.at,
+                equity: point.equity,
+                benchmark: last?,
+                floor: None,
+            })
+        })
+        .collect();
+    thin(curve)
+}
+
 fn thin<T>(curve: Vec<T>) -> Vec<T> {
     let stride = curve.len().div_ceil(CURVE_POINTS).max(1);
     let last = curve.len().saturating_sub(1);

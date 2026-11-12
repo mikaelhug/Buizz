@@ -11,7 +11,7 @@ use buizz_core::time::Timestamp;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
 
-pub use crate::live::{LiveInput, Source, live, live_summary};
+pub use crate::live::{LiveInput, Source, backtest_curve, live, live_summary};
 pub use crate::research::{gate, luck_sharpe, neighbourhood_sharpes};
 
 mod envelope;

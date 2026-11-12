@@ -1211,6 +1211,44 @@
           }
         }
       },
+      "BacktestGlance": {
+        "type": "object",
+        "required": [
+          "run_id",
+          "preset",
+          "plateau",
+          "params",
+          "metrics",
+          "benchmark",
+          "curve"
+        ],
+        "properties": {
+          "run_id": {
+            "$ref": "#/components/schemas/RunId"
+          },
+          "preset": {
+            "$ref": "#/components/schemas/PeriodPreset"
+          },
+          "plateau": {
+            "type": "boolean"
+          },
+          "params": {
+            "type": "object"
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/Metrics"
+          },
+          "benchmark": {
+            "$ref": "#/components/schemas/Metrics"
+          },
+          "curve": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LivePoint"
+            }
+          }
+        }
+      },
       "BotDetail": {
         "type": "object",
         "required": [
@@ -1381,6 +1419,16 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/Screening"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "backtest": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/BacktestGlance"
               },
               {
                 "type": "null"

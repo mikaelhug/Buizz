@@ -485,6 +485,15 @@ export interface components {
             /** Format: int32 */
             total: number;
         };
+        BacktestGlance: {
+            run_id: components["schemas"]["RunId"];
+            preset: components["schemas"]["PeriodPreset"];
+            plateau: boolean;
+            params: Record<string, never>;
+            metrics: components["schemas"]["Metrics"];
+            benchmark: components["schemas"]["Metrics"];
+            curve: components["schemas"]["LivePoint"][];
+        };
         BotDetail: {
             summary: components["schemas"]["BotSummary"];
             status: components["schemas"]["BotStatus"];
@@ -528,6 +537,7 @@ export interface components {
             params: Record<string, never>;
             stage: components["schemas"]["BotStage"];
             screening?: components["schemas"]["Screening"] | null;
+            backtest?: components["schemas"]["BacktestGlance"] | null;
             live: components["schemas"]["LiveSummary"][];
             last_run_at?: components["schemas"]["Timestamp"] | null;
         };
