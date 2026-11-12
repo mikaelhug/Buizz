@@ -51,6 +51,21 @@ impl EdgarConfig {
     }
 }
 
+#[derive(Deserialize)]
+struct DirectoryListing {
+    directory: Directory,
+}
+
+#[derive(Deserialize)]
+struct Directory {
+    item: Vec<DirectoryItem>,
+}
+
+#[derive(Deserialize)]
+struct DirectoryItem {
+    name: String,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum UnitKind {
     Currency,
@@ -126,7 +141,7 @@ impl EdgarClient {
     ) -> Result<Vec<FundamentalFact>, SourceError> {
         let url = format!("{}/api/xbrl/companyfacts/CIK{cik:010}.json", self.data_url);
         let body = self.fetch(url).await?;
-        normalize_company_facts(symbol, &body, calendar)
+        normalize_company_facts(symbol, cik, &body, calendar)
     }
 
     pub async fn submissions(&self, symbol: &Symbol, cik: u32) -> Result<Submissions, SourceError> {
@@ -160,18 +175,28 @@ impl EdgarClient {
     }
 
     pub async fn daily_index(&self, day: NaiveDate) -> Result<Option<Vec<SecFiling>>, SourceError> {
-        let url = format!(
-            "{}/Archives/edgar/daily-index/{}/QTR{}/master.{}.idx",
+        let quarter = format!(
+            "{}/Archives/edgar/daily-index/{}/QTR{}",
             self.www_url,
             day.year(),
-            day.month0() / 3 + 1,
-            day.format("%Y%m%d")
+            day.month0() / 3 + 1
         );
-        match self.fetch(url).await {
+        let file = format!("master.{}.idx", day.format("%Y%m%d"));
+        match self.fetch(format!("{quarter}/{file}")).await {
             Ok(body) => Ok(Some(normalize_daily_index(&body))),
             Err(SourceError::Status {
                 status: NOT_FOUND, ..
             }) => Ok(None),
+            Err(refused @ SourceError::RateLimited { .. }) => {
+                let listing: DirectoryListing =
+                    serde_json::from_slice(&self.fetch(format!("{quarter}/index.json")).await?)
+                        .map_err(|error| SourceError::Decode(error.to_string()))?;
+                if listing.directory.item.iter().any(|item| item.name == file) {
+                    Err(refused)
+                } else {
+                    Ok(None)
+                }
+            }
             Err(error) => Err(error),
         }
     }
