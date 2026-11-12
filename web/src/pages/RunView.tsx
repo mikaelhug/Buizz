@@ -15,6 +15,7 @@ import { monthlyCalendar, MonthlyReturns } from "../ui/MonthlyReturns";
 import { Info, Popover } from "../ui/Popover";
 import { RunBadges, StatusPill } from "../ui/Status";
 import { SymbolChart, SymbolLink } from "../ui/SymbolChart";
+import { matches, moveBetweenRows, openRow, SortHeader, type SortColumns, TableFilter, useFlash, useSort } from "../ui/Table";
 import { Trades } from "./Trades";
 
 type Run = Schemas["RunSummary"];
@@ -488,6 +489,24 @@ function Setup({ run }: { run: Run }) {
 
 type SymbolHref = (symbol: string) => string;
 
+type Position = Schemas["PositionView"];
+type PositionColumn = "symbol" | "qty" | "cost" | "last" | "value" | "unrealized" | "realized" | "weight";
+
+const POSITION_COLUMNS: SortColumns<Position, PositionColumn> = {
+  symbol: { value: (position) => position.symbol },
+  qty: { value: (position) => position.qty, descending: true },
+  cost: { value: (position) => Number(position.avg_cost), descending: true },
+  last: { value: (position) => Number(position.last_price), descending: true },
+  value: { value: (position) => Number(position.market_value), descending: true },
+  unrealized: { value: (position) => Number(position.unrealized_pnl), descending: true },
+  realized: { value: (position) => Number(position.realized_pnl), descending: true },
+  weight: { value: (position) => Number(position.weight), descending: true },
+};
+
+function total(positions: Position[], field: "market_value" | "unrealized_pnl" | "realized_pnl" | "weight"): number {
+  return positions.reduce((sum, position) => sum + Number(position[field]), 0);
+}
+
 function Positions({ runId, clock, symbolHref }: { runId: number; clock: string | null | undefined; symbolHref: SymbolHref }) {
   const positions = useResource(() => must(api.GET("/api/runs/{id}/positions", { params: { path: { id: runId } } })), [runId]);
   useSpineEvents((event) => {
@@ -495,32 +514,56 @@ function Positions({ runId, clock, symbolHref }: { runId: number; clock: string 
       positions.reload();
     }
   });
+  const sorting = useSort("positions", POSITION_COLUMNS, { key: "value", descending: true });
+  const flash = useFlash(positions.data, (position) => position.symbol);
+  const held = positions.data ?? [];
+  const unrealized = total(held, "unrealized_pnl");
+  const realized = total(held, "realized_pnl");
   return (
     <section className="panel">
-      <h2>Positions</h2>
+      <header className="panel-head">
+        <h2>Positions</h2>
+        {held.length > 0 && <span className="muted">{fmt.integer(held.length)} open</span>}
+      </header>
       <StaleFailure resource={positions} />
       {!positions.data ? (
         positions.error ? <Failure message={positions.error} onRetry={positions.reload} /> : <Loading shape="table" />
-      ) : positions.data.length === 0 ? (
+      ) : held.length === 0 ? (
         <p className="empty">No open positions{clock ? ` as of ${fmt.market(clock)}` : ""}: the bot holds only cash.</p>
       ) : (
         <div className="table-wrap table-scroll">
           <table className="table fin">
             <thead>
               <tr>
-                <th>Symbol</th>
-                <th className="r">Qty</th>
-                <th className="r">Avg cost</th>
-                <th className="r">Last</th>
-                <th className="r">Value</th>
-                <th className="r">Unrealized</th>
-                <th className="r">Realized</th>
-                <th className="r">Weight</th>
+                <SortHeader sorting={sorting} column="symbol">
+                  Symbol
+                </SortHeader>
+                <SortHeader sorting={sorting} column="qty" numeric>
+                  Qty
+                </SortHeader>
+                <SortHeader sorting={sorting} column="cost" numeric>
+                  Avg cost
+                </SortHeader>
+                <SortHeader sorting={sorting} column="last" numeric>
+                  Last
+                </SortHeader>
+                <SortHeader sorting={sorting} column="value" numeric>
+                  Value
+                </SortHeader>
+                <SortHeader sorting={sorting} column="unrealized" numeric>
+                  Unrealized
+                </SortHeader>
+                <SortHeader sorting={sorting} column="realized" numeric>
+                  Realized
+                </SortHeader>
+                <SortHeader sorting={sorting} column="weight" numeric info={<Info label="Weight">Market value as a share of equity. The total is net exposure: longs minus shorts.</Info>}>
+                  Weight
+                </SortHeader>
               </tr>
             </thead>
-            <tbody>
-              {positions.data.map((position) => (
-                <tr key={position.symbol}>
+            <tbody onKeyDown={moveBetweenRows}>
+              {sorting.order(held).map((position) => (
+                <tr key={position.symbol} className="clickable" onClick={openRow(symbolHref(position.symbol))} {...flash.row(position.symbol)}>
                   <td className="sym">
                     <SymbolLink symbol={position.symbol} href={symbolHref} />
                   </td>
@@ -534,6 +577,17 @@ function Positions({ runId, clock, symbolHref }: { runId: number; clock: string 
                 </tr>
               ))}
             </tbody>
+            <tfoot>
+              <tr>
+                <th scope="row" colSpan={4}>
+                  Total
+                </th>
+                <td className="r num">{fmt.money(total(held, "market_value"))}</td>
+                <td className={`r num ${tone(unrealized) ?? ""}`}>{fmt.money(unrealized)}</td>
+                <td className={`r num ${tone(realized) ?? ""}`}>{fmt.money(realized)}</td>
+                <td className="r num">{fmt.percent(total(held, "weight"))}</td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       )}
@@ -572,11 +626,28 @@ function withFill(order: Order, qty: number, price: number): Pick<Order, "filled
   return { filled_qty: filled, avg_fill_price: String(average) };
 }
 
+type OrderColumn = "symbol" | "side" | "status" | "filled" | "size" | "type" | "fill" | "decided" | "reason";
+
+const ORDER_COLUMNS: SortColumns<Order, OrderColumn> = {
+  symbol: { value: (order) => order.symbol },
+  side: { value: (order) => (order.qty === 0 ? null : order.side) },
+  status: { value: (order) => order.status },
+  filled: { value: (order) => order.filled_qty, descending: true },
+  size: { value: (order) => (order.requested.by === "qty" ? order.requested.qty : Number(order.requested.weight)), descending: true },
+  type: { value: (order) => orderType(order.order_type) },
+  fill: { value: (order) => (order.avg_fill_price === null || order.avg_fill_price === undefined ? null : Number(order.avg_fill_price)), descending: true },
+  decided: { value: (order) => order.id, descending: true },
+  reason: { value: (order) => order.reason },
+};
+
 function Orders({ runId, active, symbolHref }: { runId: number; active: boolean; symbolHref: SymbolHref }) {
   const orders = usePaged(
     (after) => must(api.GET("/api/runs/{id}/orders", { params: { path: { id: runId }, query: { limit: PAGE_SIZE, ...(after === undefined ? {} : { after }) } } })),
     [runId],
   );
+  const sorting = useSort("orders", ORDER_COLUMNS, { key: "decided", descending: true });
+  const flash = useFlash(orders.data?.items, (order) => order.id);
+  const [query, setQuery] = useState("");
   const patch = (id: number, update: (order: Order) => Order) => {
     if (!orders.data?.items.some((order) => order.id === id)) {
       orders.reload();
@@ -594,42 +665,69 @@ function Orders({ runId, active, symbolHref }: { runId: number; active: boolean;
       patch(order_id, (order) => (Date.parse(at) > Date.parse(order.updated_at) ? { ...order, ...withFill(order, Math.abs(qty), Number(price)), updated_at: at } : order));
     }
   });
-  const count = orders.data?.items.length ?? 0;
+  const loaded = orders.data?.items ?? [];
+  const shown = sorting.order(
+    loaded.filter((order) => matches(query, order.symbol, order.side, label(order.status), order.reject_reason && label(order.reject_reason), orderType(order.order_type), order.reason)),
+  );
   return (
     <section className="panel">
       <header className="panel-head">
         <h2>Orders</h2>
-        {count > 0 && (
-          <span className="muted">
-            {fmt.integer(count)}
-            {orders.loadMore ? "+" : ""} orders
-          </span>
+        {loaded.length > 0 && (
+          <>
+            <span className="muted">
+              {query.trim() ? `${fmt.integer(shown.length)} of ` : ""}
+              {fmt.integer(loaded.length)}
+              {orders.loadMore ? "+" : ""} orders
+            </span>
+            <TableFilter label="Filter orders" value={query} onChange={setQuery} />
+          </>
         )}
       </header>
       <StaleFailure resource={orders} />
       {!orders.data ? (
         orders.error ? <Failure message={orders.error} onRetry={orders.reload} /> : <Loading shape="table" />
-      ) : count === 0 ? (
+      ) : loaded.length === 0 ? (
         <p className="empty">{active ? "No orders yet. They appear here the moment the bot places them." : "This run placed no orders."}</p>
+      ) : shown.length === 0 ? (
+        <p className="empty">No loaded orders match “{query.trim()}”.</p>
       ) : (
         <div className="table-wrap table-scroll">
           <table className="table fin">
             <thead>
               <tr>
-                <th>Symbol</th>
-                <th>Side</th>
-                <th>Status</th>
-                <th className="r">Filled</th>
-                <th>Size</th>
-                <th>Type</th>
-                <th className="r">Avg fill</th>
-                <th>Decided</th>
-                <th>Reason</th>
+                <SortHeader sorting={sorting} column="symbol">
+                  Symbol
+                </SortHeader>
+                <SortHeader sorting={sorting} column="side">
+                  Side
+                </SortHeader>
+                <SortHeader sorting={sorting} column="status">
+                  Status
+                </SortHeader>
+                <SortHeader sorting={sorting} column="filled" numeric>
+                  Filled
+                </SortHeader>
+                <SortHeader sorting={sorting} column="size">
+                  Size
+                </SortHeader>
+                <SortHeader sorting={sorting} column="type">
+                  Type
+                </SortHeader>
+                <SortHeader sorting={sorting} column="fill" numeric>
+                  Avg fill
+                </SortHeader>
+                <SortHeader sorting={sorting} column="decided">
+                  Decided
+                </SortHeader>
+                <SortHeader sorting={sorting} column="reason">
+                  Reason
+                </SortHeader>
               </tr>
             </thead>
-            <tbody>
-              {orders.data.items.map((order) => (
-                <tr key={order.id} className={order.qty === 0 ? "quiet" : undefined}>
+            <tbody onKeyDown={moveBetweenRows}>
+              {shown.map((order) => (
+                <tr key={order.id} className={order.qty === 0 ? "clickable quiet" : "clickable"} onClick={openRow(symbolHref(order.symbol))} {...flash.row(order.id)}>
                   <td className="sym">
                     <SymbolLink symbol={order.symbol} href={symbolHref} />
                   </td>
@@ -652,12 +750,22 @@ function Orders({ runId, active, symbolHref }: { runId: number; active: boolean;
           </table>
         </div>
       )}
-      <LoadMore onClick={orders.loadMore} />
+      <LoadMore
+        onClick={flash.quietly(orders.loadMore)}
+        loaded={loaded.length}
+        noun="orders"
+      />
     </section>
   );
 }
 
 type EventFilter = "all" | "logs" | "system";
+type RunEvent = Schemas["RunEvent"];
+type EventKind = RunEvent["kind"]["type"];
+type EventColumn = "time" | "kind" | "message";
+
+const SYSTEM_KINDS: readonly EventKind[] = ["status", "order_rejected", "risk_breach", "bot_exited", "data_warning"];
+const EVENT_KINDS: Record<EventFilter, readonly EventKind[] | undefined> = { all: undefined, logs: ["log"], system: SYSTEM_KINDS };
 
 function describe(kind: Schemas["RunEventKind"]): string {
   switch (kind.type) {
@@ -676,15 +784,34 @@ function describe(kind: Schemas["RunEventKind"]): string {
   }
 }
 
+function eventKind(event: RunEvent): string {
+  return event.kind.type === "log" ? event.kind.level : label(event.kind.type);
+}
+
+const EVENT_COLUMNS: SortColumns<RunEvent, EventColumn> = {
+  time: { value: (event) => event.seq, descending: true },
+  kind: { value: eventKind },
+  message: { value: (event) => describe(event.kind) },
+};
+
 function Events({ runId }: { runId: number }) {
-  const events = usePaged(
-    (after) => must(api.GET("/api/runs/{id}/events", { params: { path: { id: runId }, query: { limit: PAGE_SIZE, ...(after === undefined ? {} : { after }) } } })),
-    [runId],
-  );
   const [filter, setFilter] = useState<EventFilter>("all");
+  const kinds = EVENT_KINDS[filter];
+  const events = usePaged(
+    (after) =>
+      must(
+        api.GET("/api/runs/{id}/events", {
+          params: { path: { id: runId }, query: { limit: PAGE_SIZE, ...(kinds ? { kind: [...kinds] } : {}), ...(after === undefined ? {} : { after }) } },
+        }),
+      ),
+    [runId, filter],
+  );
+  const sorting = useSort("events", EVENT_COLUMNS, { key: "time", descending: true });
+  const flash = useFlash(events.data?.items, (event) => event.seq);
+  const [query, setQuery] = useState("");
 
   useSpineEvents((event) => {
-    if (event.type === "log" && event.run_id === runId) {
+    if (event.type === "log" && event.run_id === runId && (!kinds || kinds.includes(event.event.kind.type))) {
       events.mutate((current) => {
         const last = current.items.at(-1);
         return current.next === null && (!last || last.seq < event.event.seq) ? { ...current, items: [...current.items, event.event] } : current;
@@ -692,7 +819,8 @@ function Events({ runId }: { runId: number }) {
     }
   });
 
-  const items = (events.data?.items ?? []).filter((event) => filter === "all" || (filter === "logs") === (event.kind.type === "log"));
+  const loaded = events.data?.items ?? [];
+  const shown = sorting.order(loaded.filter((event) => matches(query, eventKind(event), describe(event.kind))));
   return (
     <section className="panel">
       <header className="panel-head">
@@ -708,27 +836,51 @@ function Events({ runId }: { runId: number }) {
             </button>
           ))}
         </div>
+        {loaded.length > 0 && <TableFilter label="Filter events" value={query} onChange={setQuery} />}
       </header>
       <StaleFailure resource={events} />
       {!events.data ? (
         events.error ? <Failure message={events.error} onRetry={events.reload} /> : <Loading shape="table" />
-      ) : items.length === 0 ? (
+      ) : loaded.length === 0 ? (
         <p className="empty">{filter === "all" ? "No events yet. Bot logs, status changes, rejections and risk breaches show here." : `No ${filter} events.`}</p>
+      ) : shown.length === 0 ? (
+        <p className="empty">No loaded events match “{query.trim()}”.</p>
       ) : (
-        <ol className="event-log">
-          {items.map((event) => (
-            <li key={event.seq} className={`event event-${event.kind.type === "log" ? event.kind.level : event.kind.type}`}>
-              <time className="muted" dateTime={event.clock ?? event.at}>
-                {fmt.market(event.clock ?? event.at)}
-                {!event.clock && <span className="event-wall">wall</span>}
-              </time>
-              <span className="event-kind">{event.kind.type === "log" ? event.kind.level : label(event.kind.type)}</span>
-              <span className="event-text">{describe(event.kind)}</span>
-            </li>
-          ))}
-        </ol>
+        <div className="table-wrap table-scroll">
+          <table className="table fin">
+            <thead>
+              <tr>
+                <SortHeader sorting={sorting} column="time">
+                  Time
+                </SortHeader>
+                <SortHeader sorting={sorting} column="kind">
+                  Kind
+                </SortHeader>
+                <SortHeader sorting={sorting} column="message">
+                  Message
+                </SortHeader>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((event) => (
+                <tr key={event.seq} className={`event-${event.kind.type === "log" ? event.kind.level : event.kind.type}`} {...flash.row(event.seq)}>
+                  <td className="muted">
+                    <time dateTime={event.clock ?? event.at}>{fmt.market(event.clock ?? event.at)}</time>
+                    {!event.clock && <span className="event-wall">wall</span>}
+                  </td>
+                  <td className="event-kind">{eventKind(event)}</td>
+                  <td className="event-text">{describe(event.kind)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
-      <LoadMore onClick={events.loadMore} />
+      <LoadMore
+        onClick={flash.quietly(events.loadMore)}
+        loaded={loaded.length}
+        noun="events"
+      />
     </section>
   );
 }

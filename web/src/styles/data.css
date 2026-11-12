@@ -80,22 +80,18 @@
   background: var(--up);
 }
 
-.holders,
-.warnings,
-.jobs {
+.holders {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.holders li,
-.warnings li {
+.holders li {
   padding: var(--sp-2) 0;
   border-bottom: 1px solid var(--grid);
 }
 
-.holders li:last-child,
-.warnings li:last-child {
+.holders li:last-child {
   border-bottom: 0;
 }
 
@@ -122,19 +118,6 @@
 
 .warnings {
   max-height: 360px;
-  overflow-y: auto;
-}
-
-.warnings li {
-  display: grid;
-  grid-template-columns: minmax(48px, auto) 1fr;
-  gap: 2px var(--sp-3);
-  align-items: baseline;
-}
-
-.warnings .sym {
-  grid-row: span 2;
-  font-weight: var(--fw-semibold);
 }
 
 .warning-kind {
@@ -145,12 +128,6 @@
 
 .warning-coverage_gap .warning-kind {
   color: var(--down);
-}
-
-.warning-text {
-  color: var(--text-2);
-  font-size: var(--fs-base);
-  font-variant-numeric: tabular-nums;
 }
 
 .backfill {
@@ -195,74 +172,19 @@
   font-size: var(--fs-sm);
 }
 
-.jobs {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: var(--sp-3);
-}
-
-.jobs li {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-2);
-  padding: var(--sp-3);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  background: var(--surface);
-}
-
-.jobs li.stale {
-  border-color: color-mix(in srgb, var(--warn) 45%, var(--border));
-  box-shadow: inset 3px 0 0 var(--warn);
-}
-
-.jobs-off li {
-  background: var(--surface-2);
+.jobs-off tbody {
+  color: var(--muted);
 }
 
 .job-name {
   display: flex;
-  flex: 1;
   align-items: center;
   gap: var(--sp-1);
-  min-width: 0;
   font-weight: var(--fw-medium);
 }
 
 .job-name .badge {
   margin: 0;
-}
-
-.job-when {
-  display: flex;
-  flex-basis: 100%;
-  flex-wrap: wrap;
-  gap: 2px var(--sp-4);
-  margin: 0;
-  font-size: var(--fs-sm);
-}
-
-.job-when > div {
-  display: flex;
-  gap: var(--sp-1);
-}
-
-.job-when dt {
-  color: var(--muted);
-}
-
-.job-when dd {
-  margin: 0;
-  font-variant-numeric: tabular-nums;
-}
-
-.job-message {
-  flex-basis: 100%;
-  margin: 0;
-  color: var(--text-2);
-  font-size: var(--fs-sm);
-  overflow-wrap: anywhere;
 }
 
 @media (max-width: 640px) {

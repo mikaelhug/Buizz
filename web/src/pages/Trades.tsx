@@ -7,20 +7,34 @@ import { Failure, Loading, StaleFailure } from "../ui/Feedback";
 import { type Stat, StatGrid } from "../ui/Metrics";
 import { Info } from "../ui/Popover";
 import { SymbolLink } from "../ui/SymbolChart";
+import { matches, moveBetweenRows, openRow, SortHeader, type SortColumns, TableFilter, useFlash, useSort } from "../ui/Table";
 
 type Trade = Schemas["TradeView"];
-type SortKey = "closed" | "pnl" | "held";
-type Sort = { key: SortKey; descending: boolean };
+type Column = "symbol" | "side" | "size" | "opened" | "closed" | "held" | "pnl" | "entry" | "exit";
 
 const SHOWN = 25;
 const MINUTE_MS = 60_000;
 const DAY_MS = 86_400_000;
 
-const SORT_KEYS: Record<SortKey, { text: string; value: (trade: Trade) => number }> = {
-  closed: { text: "Closed", value: (trade) => Date.parse(trade.closed_at) },
-  held: { text: "Held", value: held },
-  pnl: { text: "P&L", value: (trade) => Number(trade.pnl) },
+const COLUMNS: SortColumns<Trade, Column> = {
+  symbol: { value: (trade) => trade.symbol },
+  side: { value: side },
+  size: { value: (trade) => Math.abs(trade.qty), descending: true },
+  opened: { value: (trade) => Date.parse(trade.opened_at), descending: true },
+  closed: { value: (trade) => Date.parse(trade.closed_at), descending: true },
+  held: { value: held, descending: true },
+  pnl: { value: (trade) => Number(trade.pnl), descending: true },
+  entry: { value: (trade) => trade.opening_reason },
+  exit: { value: (trade) => trade.closing_reason },
 };
+
+function side(trade: Trade): string {
+  return trade.qty > 0 ? "long" : "short";
+}
+
+function tradeKey(trade: Trade): string {
+  return `${trade.symbol}-${trade.opened_at}-${trade.closed_at}`;
+}
 
 function held(trade: Trade): number {
   return Date.parse(trade.closed_at) - Date.parse(trade.opened_at);
@@ -78,19 +92,25 @@ export function Trades({ runId, positionsHref, symbolHref }: Props) {
       trades.reload();
     }
   });
-  const [sort, setSort] = useState<Sort>({ key: "closed", descending: true });
+  const sorting = useSort("trades", COLUMNS, { key: "closed", descending: true });
+  const flash = useFlash(trades.data, tradeKey);
+  const [query, setQuery] = useState("");
   const [all, setAll] = useState(false);
 
-  const toggle = (key: SortKey) => setSort((current) => ({ key, descending: current.key === key ? !current.descending : true }));
-  const value = SORT_KEYS[sort.key].value;
-  const ordered = (trades.data ?? []).toSorted((a, b) => (sort.descending ? value(b) - value(a) : value(a) - value(b)));
-  const shown = all ? ordered : ordered.slice(0, SHOWN);
+  const matching = sorting.order((trades.data ?? []).filter((trade) => matches(query, trade.symbol, side(trade), trade.opening_reason, trade.closing_reason)));
+  const shown = all ? matching : matching.slice(0, SHOWN);
+  const net = matching.reduce((sum, trade) => sum + Number(trade.pnl), 0);
 
   return (
     <section className="panel">
       <header className="panel-head">
         <h2>Trades</h2>
-        {trades.data && trades.data.length > 0 && <span className="muted">{fmt.integer(trades.data.length)} closed</span>}
+        {trades.data && trades.data.length > 0 && (
+          <>
+            <span className="muted">{fmt.integer(trades.data.length)} closed</span>
+            <TableFilter label="Filter trades" value={query} onChange={setQuery} />
+          </>
+        )}
       </header>
       <StaleFailure resource={trades} />
       {!trades.data ? (
@@ -102,55 +122,77 @@ export function Trades({ runId, positionsHref, symbolHref }: Props) {
       ) : (
         <>
           <Summary trades={trades.data} />
-          <div className="table-wrap table-scroll">
-            <table className="table fin">
-              <thead>
-                <tr>
-                  <th>Symbol</th>
-                  <th>Side</th>
-                  <th className="r">
-                    Size
-                    <Info label="Size">Largest position held during the trade, in shares.</Info>
-                  </th>
-                  <th>Opened</th>
-                  {(["closed", "held", "pnl"] as const).map((key) => (
-                    <th
-                      key={key}
-                      className={`sortable ${key === "closed" ? "" : "r"} ${sort.key === key ? (sort.descending ? "desc" : "asc") : ""}`}
-                      aria-sort={sort.key === key ? (sort.descending ? "descending" : "ascending") : "none"}
-                    >
-                      <button type="button" onClick={() => toggle(key)}>
-                        {SORT_KEYS[key].text}
-                      </button>
-                    </th>
-                  ))}
-                  <th>Entry reason</th>
-                  <th>Exit reason</th>
-                </tr>
-              </thead>
-              <tbody>
-                {shown.map((trade) => (
-                  <tr key={`${trade.symbol}-${trade.opened_at}-${trade.closed_at}`}>
-                    <td className="sym">
-                      <SymbolLink symbol={trade.symbol} href={symbolHref} />
-                    </td>
-                    <td className={trade.qty > 0 ? "up" : "down"}>{trade.qty > 0 ? "long" : "short"}</td>
-                    <td className="r num">{fmt.integer(Math.abs(trade.qty))}</td>
-                    <td className="nowrap muted">{fmt.market(trade.opened_at)}</td>
-                    <td className="nowrap muted">{fmt.market(trade.closed_at)}</td>
-                    <td className="r num">{duration(held(trade))}</td>
-                    <td className={`r num ${tone(Number(trade.pnl)) ?? ""}`}>{fmt.money(trade.pnl)}</td>
-                    <td className="reason">{trade.opening_reason ?? ABSENT}</td>
-                    <td className="reason">{trade.closing_reason ?? ABSENT}</td>
+          {matching.length === 0 ? (
+            <p className="empty">No trades match “{query.trim()}”.</p>
+          ) : (
+            <div className="table-wrap table-scroll">
+              <table className="table fin">
+                <thead>
+                  <tr>
+                    <SortHeader sorting={sorting} column="symbol">
+                      Symbol
+                    </SortHeader>
+                    <SortHeader sorting={sorting} column="side">
+                      Side
+                    </SortHeader>
+                    <SortHeader sorting={sorting} column="size" numeric info={<Info label="Size">Largest position held during the trade, in shares.</Info>}>
+                      Size
+                    </SortHeader>
+                    <SortHeader sorting={sorting} column="opened">
+                      Opened
+                    </SortHeader>
+                    <SortHeader sorting={sorting} column="closed">
+                      Closed
+                    </SortHeader>
+                    <SortHeader sorting={sorting} column="held" numeric>
+                      Held
+                    </SortHeader>
+                    <SortHeader sorting={sorting} column="pnl" numeric>
+                      P&amp;L
+                    </SortHeader>
+                    <SortHeader sorting={sorting} column="entry">
+                      Entry reason
+                    </SortHeader>
+                    <SortHeader sorting={sorting} column="exit">
+                      Exit reason
+                    </SortHeader>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {!all && ordered.length > SHOWN && (
-            <button type="button" className="btn btn-sm load-more" onClick={() => setAll(true)}>
-              Show all {fmt.integer(ordered.length)}
-            </button>
+                </thead>
+                <tbody onKeyDown={moveBetweenRows}>
+                  {shown.map((trade) => (
+                    <tr key={tradeKey(trade)} className="clickable" onClick={openRow(symbolHref(trade.symbol))} {...flash.row(tradeKey(trade))}>
+                      <td className="sym">
+                        <SymbolLink symbol={trade.symbol} href={symbolHref} />
+                      </td>
+                      <td className={trade.qty > 0 ? "up" : "down"}>{side(trade)}</td>
+                      <td className="r num">{fmt.integer(Math.abs(trade.qty))}</td>
+                      <td className="nowrap muted">{fmt.market(trade.opened_at)}</td>
+                      <td className="nowrap muted">{fmt.market(trade.closed_at)}</td>
+                      <td className="r num">{duration(held(trade))}</td>
+                      <td className={`r num ${tone(Number(trade.pnl)) ?? ""}`}>{fmt.money(trade.pnl)}</td>
+                      <td className="reason">{trade.opening_reason ?? ABSENT}</td>
+                      <td className="reason">{trade.closing_reason ?? ABSENT}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <th scope="row" colSpan={6}>
+                      {query.trim() ? `${fmt.integer(matching.length)} matching trades` : `All ${fmt.integer(matching.length)} trades`}
+                    </th>
+                    <td className={`r num ${tone(net) ?? ""}`}>{fmt.money(net)}</td>
+                    <td colSpan={2} />
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+          {!all && matching.length > SHOWN && (
+            <div className="load-more">
+              <button type="button" className="btn btn-sm" onClick={() => setAll(true)}>
+                Show all {fmt.integer(matching.length)}
+              </button>
+            </div>
           )}
         </>
       )}
