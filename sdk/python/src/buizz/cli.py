@@ -30,11 +30,11 @@ class CliError(Exception):
 
 
 class Api:
-    def __init__(self, base: str, password: str | None) -> None:
+    def __init__(self, base: str, username: str, password: str | None) -> None:
         self._base = base.rstrip("/")
         self._opener = build_opener(HTTPCookieProcessor(CookieJar()))
         if password is not None:
-            self.call("POST", "/api/auth/login", {"password": password})
+            self.call("POST", "/api/auth/login", {"username": username, "password": password})
 
     def call(self, method: str, path: str, body: dict[str, Any] | None = None) -> Any:
         data = None if body is None else json.dumps(body).encode()
@@ -255,7 +255,11 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        api = Api(os.environ.get("BUIZZ_URL", DEFAULT_URL), os.environ.get("BUIZZ_ADMIN_PASSWORD"))
+        api = Api(
+            os.environ.get("BUIZZ_URL", DEFAULT_URL),
+            os.environ.get("BUIZZ_ADMIN_USERNAME", "admin"),
+            os.environ.get("BUIZZ_ADMIN_PASSWORD"),
+        )
         if args.command == "bots":
             list_bots(api)
             return 0

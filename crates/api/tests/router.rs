@@ -99,6 +99,7 @@ async fn spine() -> Spine {
     );
     let router = buizz_api::router(AppState {
         config: Arc::new(ApiConfig {
+            admin_username: "owner".to_owned(),
             admin_password: "correct horse battery".to_owned(),
             web_dir: Some(web),
             secure_cookies: false,
@@ -174,7 +175,9 @@ async fn unknown_api_paths_are_json_not_found_while_app_paths_serve_the_ui() {
 async fn session_cookie(spine: &Spine) -> String {
     let login = Request::post("/api/auth/login")
         .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(r#"{"password":"correct horse battery"}"#))
+        .body(Body::from(
+            r#"{"username":"owner","password":"correct horse battery"}"#,
+        ))
         .expect("request");
     let response = spine
         .router

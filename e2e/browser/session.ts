@@ -29,6 +29,7 @@ export async function signedIn(run: (page: Page) => Promise<unknown>): Promise<v
     context.setDefaultTimeout(TIMEOUT_MS);
     const page = await context.newPage();
     await page.goto("/");
+    await page.getByLabel("Username").fill(env("BUIZZ_USERNAME"));
     await page.getByLabel("Password").fill(env("BUIZZ_PASSWORD"));
     await page.getByRole("button", { name: "Sign in" }).click();
     await page.getByRole("link", { name: "Bots", exact: true }).waitFor();

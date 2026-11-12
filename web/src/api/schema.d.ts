@@ -788,6 +788,7 @@ export interface components {
         /** @enum {string} */
         LogLevel: "debug" | "info" | "warn" | "error";
         LoginRequest: {
+            username: string;
             password: string;
         };
         Metrics: {

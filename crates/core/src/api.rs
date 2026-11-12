@@ -388,6 +388,7 @@ pub struct FeedSlots {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct LoginRequest {
+    pub username: String,
     pub password: String,
 }
 

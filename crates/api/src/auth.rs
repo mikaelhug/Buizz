@@ -47,11 +47,12 @@ impl ActiveSession {
 }
 
 enum Refused {
-    WrongPassword,
+    WrongCredentials,
     Locked { retry_after: Duration },
 }
 
 pub(crate) struct Auth {
+    username: String,
     password: String,
     secure_cookies: bool,
     sessions: Mutex<HashMap<String, Session>>,
@@ -136,6 +137,7 @@ fn new_token() -> String {
 impl Auth {
     pub(crate) fn new(config: &ApiConfig) -> Self {
         Self {
+            username: config.admin_username.clone(),
             password: config.admin_password.clone(),
             secure_cookies: config.secure_cookies,
             sessions: Mutex::default(),
@@ -143,15 +145,17 @@ impl Auth {
         }
     }
 
-    fn login(&self, client: IpAddr, password: &str) -> Result<String, Refused> {
+    fn login(&self, client: IpAddr, username: &str, password: &str) -> Result<String, Refused> {
         let now = Instant::now();
         {
             let mut failures = locked(&self.failures);
             failures.forget_before(now);
             failures.admit(client_key(client), now)?;
-            if !bool::from(password.as_bytes().ct_eq(self.password.as_bytes())) {
+            let username_matches = username.as_bytes().ct_eq(self.username.as_bytes());
+            let password_matches = password.as_bytes().ct_eq(self.password.as_bytes());
+            if !bool::from(username_matches & password_matches) {
                 failures.record(client_key(client), now);
-                return Err(Refused::WrongPassword);
+                return Err(Refused::WrongCredentials);
             }
         }
         let token = new_token();
@@ -228,10 +232,14 @@ pub(crate) async fn login(
     JsonBody(request): JsonBody<LoginRequest>,
 ) -> Response {
     let peer = peer.map(|Extension(ConnectInfo(address))| address.ip());
-    match auth.login(client_address(peer, &headers), &request.password) {
+    match auth.login(
+        client_address(peer, &headers),
+        &request.username,
+        &request.password,
+    ) {
         Ok(token) => (jar.add(auth.cookie(token)), StatusCode::NO_CONTENT).into_response(),
-        Err(Refused::WrongPassword) => {
-            Failure::new(StatusCode::UNAUTHORIZED, "wrong password").into_response()
+        Err(Refused::WrongCredentials) => {
+            Failure::new(StatusCode::UNAUTHORIZED, "wrong username or password").into_response()
         }
         Err(Refused::Locked { retry_after }) => {
             let seconds = retry_after.as_secs() + 1;
@@ -292,6 +300,7 @@ mod tests {
 
     fn auth() -> Auth {
         Auth::new(&ApiConfig {
+            admin_username: "admin".to_owned(),
             admin_password: "secret".to_owned(),
             web_dir: None,
             secure_cookies: true,
@@ -306,15 +315,31 @@ mod tests {
         let owner = IpAddr::V4(Ipv4Addr::new(198, 51, 100, 2));
         for _ in 0..MAX_FAILURES {
             assert!(matches!(
-                auth.login(attacker, "guess"),
-                Err(Refused::WrongPassword)
+                auth.login(attacker, "admin", "guess"),
+                Err(Refused::WrongCredentials)
             ));
         }
         assert!(matches!(
-            auth.login(attacker, "secret"),
+            auth.login(attacker, "admin", "secret"),
             Err(Refused::Locked { .. })
         ));
-        assert!(auth.login(owner, "secret").is_ok());
+        assert!(auth.login(owner, "admin", "secret").is_ok());
+    }
+
+    #[test]
+    fn a_wrong_username_is_refused_like_a_wrong_password_and_counts_toward_lockout() {
+        let auth = auth();
+        let client = IpAddr::V4(Ipv4Addr::new(203, 0, 113, 7));
+        for _ in 0..MAX_FAILURES {
+            assert!(matches!(
+                auth.login(client, "root", "secret"),
+                Err(Refused::WrongCredentials)
+            ));
+        }
+        assert!(matches!(
+            auth.login(client, "admin", "secret"),
+            Err(Refused::Locked { .. })
+        ));
     }
 
     #[test]
@@ -324,13 +349,13 @@ mod tests {
         for host in 0..MAX_FAILURES {
             let address = IpAddr::V6(Ipv6Addr::from_bits(network | (host as u128 + 1)));
             assert!(matches!(
-                auth.login(address, "guess"),
-                Err(Refused::WrongPassword)
+                auth.login(address, "admin", "guess"),
+                Err(Refused::WrongCredentials)
             ));
         }
         let fresh_host = IpAddr::V6(Ipv6Addr::from_bits(network | 0xffff));
         assert!(matches!(
-            auth.login(fresh_host, "secret"),
+            auth.login(fresh_host, "admin", "secret"),
             Err(Refused::Locked { .. })
         ));
     }
@@ -341,18 +366,18 @@ mod tests {
         for attacker in 0..GLOBAL_BUDGET {
             let address = IpAddr::V4(Ipv4Addr::from_bits(0x0a00_0000 + attacker as u32));
             assert!(matches!(
-                auth.login(address, "guess"),
-                Err(Refused::WrongPassword)
+                auth.login(address, "admin", "guess"),
+                Err(Refused::WrongCredentials)
             ));
         }
         let owner = IpAddr::V4(Ipv4Addr::new(198, 51, 100, 2));
         let another = IpAddr::V4(Ipv4Addr::new(198, 51, 100, 3));
         assert!(matches!(
-            auth.login(another, "guess"),
-            Err(Refused::WrongPassword)
+            auth.login(another, "admin", "guess"),
+            Err(Refused::WrongCredentials)
         ));
         assert!(matches!(
-            auth.login(owner, "secret"),
+            auth.login(owner, "admin", "secret"),
             Err(Refused::Locked { retry_after }) if retry_after <= GLOBAL_PACE
         ));
     }
@@ -377,7 +402,7 @@ mod tests {
     fn a_revoked_session_no_longer_authenticates() {
         let auth = auth();
         let token = auth
-            .login(IpAddr::V4(Ipv4Addr::LOCALHOST), "secret")
+            .login(IpAddr::V4(Ipv4Addr::LOCALHOST), "admin", "secret")
             .ok()
             .expect("the right password logs in");
         assert!(auth.authenticate(&token).is_some());

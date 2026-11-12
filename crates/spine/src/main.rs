@@ -178,6 +178,7 @@ async fn serve() -> Result<()> {
     let (shutting_down, shutdown) = watch::channel(false);
     let app = buizz_api::router(AppState {
         config: Arc::new(ApiConfig {
+            admin_username: config.admin_username.clone(),
             admin_password: config.admin_password.clone(),
             web_dir: config.web_dir.clone(),
             secure_cookies: config.secure_cookies,
