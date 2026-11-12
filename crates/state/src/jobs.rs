@@ -123,14 +123,20 @@ pub fn rate_limited_until(
     Ok(until.map(Timestamp::from_nanos))
 }
 
-pub fn failure_streaks(connection: &Connection) -> Result<BTreeMap<String, u32>> {
+pub fn failure_streaks(
+    connection: &Connection,
+    unfinished_before: Timestamp,
+) -> Result<BTreeMap<String, u32>> {
     let mut statement = connection.prepare_cached(
-        "SELECT job, COUNT(*) FROM job_run failed WHERE outcome = 'failed' AND id > \
+        "SELECT job, COUNT(*) FROM job_run failed \
+         WHERE (outcome = 'failed' OR (outcome IS NULL AND started_at < ?)) AND id > \
          COALESCE((SELECT MAX(id) FROM job_run other WHERE other.job = failed.job \
          AND other.outcome <> 'failed'), 0) GROUP BY job",
     )?;
     let streaks = statement
-        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+        .query_map([unfinished_before.nanos()], |row| {
+            Ok((row.get(0)?, row.get(1)?))
+        })?
         .collect::<rusqlite::Result<_>>()?;
     Ok(streaks)
 }

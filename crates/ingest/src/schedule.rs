@@ -122,11 +122,11 @@ pub(crate) fn due_at(
             SHORT_RETRY
         }
         Some(JobOutcome::Waiting) => SHORT_RETRY,
-        Some(JobOutcome::Failed) => {
+        Some(JobOutcome::Failed) | None => {
             FIRST_FAILURE_RETRY.saturating_mul(1 << failures.saturating_sub(1).min(16))
         }
         Some(JobOutcome::Ok | JobOutcome::Noop) => spec.every,
-        Some(JobOutcome::Partial) | None => Duration::ZERO,
+        Some(JobOutcome::Partial) => Duration::ZERO,
     };
     Some(run.started_at + delta(wait.min(spec.every)))
 }
@@ -171,7 +171,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_run_killed_before_it_finished_is_due_at_once() {
+    fn a_run_killed_before_it_finished_backs_off_like_a_failure() {
         let started_at = Timestamp::from_nanos(1_000_000_000);
         let killed = JobRun {
             id: 1,
@@ -183,6 +183,8 @@ mod tests {
             message: None,
         };
         let bars = JOBS.iter().find(|spec| spec.name == BARS_1D).unwrap();
-        assert_eq!(due_at(bars, Some(&killed), 0, None), Some(started_at));
+        let retry = |failures| due_at(bars, Some(&killed), failures, None).unwrap() - started_at;
+        assert_eq!(retry(1), TimeDelta::minutes(5));
+        assert_eq!(retry(3), TimeDelta::minutes(20));
     }
 }

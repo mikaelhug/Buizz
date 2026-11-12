@@ -97,6 +97,7 @@ pub struct Ingest {
     events: broadcast::Sender<SpineEvent>,
     gate: Arc<Mutex<()>>,
     stopping: Arc<AtomicBool>,
+    booted_at: Timestamp,
 }
 
 impl Ingest {
@@ -114,6 +115,7 @@ impl Ingest {
             events: broadcast::Sender::new(EVENT_CAPACITY),
             gate: Arc::new(Mutex::new(())),
             stopping: Arc::default(),
+            booted_at: Timestamp::now(),
         }
     }
 
@@ -122,7 +124,7 @@ impl Ingest {
         let started = tokio::time::Instant::now();
         let finished_at = || now + TimeDelta::from_std(started.elapsed()).unwrap_or_default();
         let latest = self.state.latest_jobs().await?;
-        let failures = self.state.failure_streaks().await?;
+        let failures = self.state.failure_streaks(self.booted_at).await?;
         let limits = self.rate_limits().await?;
         let mut report = TickReport::default();
         for spec in JOBS {
@@ -164,7 +166,7 @@ impl Ingest {
 
     pub async fn job_views(&self, now: Timestamp) -> Result<Vec<JobView>, IngestError> {
         let latest = self.state.latest_jobs().await?;
-        let failures = self.state.failure_streaks().await?;
+        let failures = self.state.failure_streaks(self.booted_at).await?;
         let limits = self.rate_limits().await?;
         let mut views = Vec::with_capacity(JOBS.len());
         for spec in JOBS {

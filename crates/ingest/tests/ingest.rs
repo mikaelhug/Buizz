@@ -13,7 +13,7 @@ use buizz_core::api::{JobView, SpineEvent};
 use buizz_core::market::{AssetClass, DataSource, Dataset, Symbol, Timeframe};
 use buizz_core::ops::{FetchStatus, JobOutcome};
 use buizz_core::time::Timestamp;
-use buizz_ingest::{Ingest, IngestConfig};
+use buizz_ingest::{Ingest, IngestConfig, TickReport};
 use buizz_market::MarketStore;
 use buizz_sources::Sources;
 use buizz_sources::alpaca::{AlpacaClient, AlpacaConfig};
@@ -562,4 +562,19 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
             ("MSFT".to_owned(), "2015-12-02".to_owned()),
         ]
     );
+
+    let killed_at = inside_sip_delay + TimeDelta::hours(2);
+    state.start_job("tiingo_history", killed_at).await.unwrap();
+    let ran_tiingo =
+        |report: TickReport| report.ran.iter().any(|(job, _)| *job == "tiingo_history");
+    let crashed = ingest
+        .tick(killed_at + TimeDelta::minutes(1))
+        .await
+        .unwrap();
+    assert!(!ran_tiingo(crashed));
+    let backed_off = ingest
+        .tick(killed_at + TimeDelta::minutes(6))
+        .await
+        .unwrap();
+    assert!(ran_tiingo(backed_off));
 }
