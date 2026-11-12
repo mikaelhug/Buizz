@@ -28,9 +28,6 @@ impl Ingest {
         let mut batch = Batch::default();
         while day <= today && !self.stopping() {
             if matches!(day.weekday(), Weekday::Sat | Weekday::Sun) {
-                self.market
-                    .append_sec_filings(DataSource::Edgar, Vec::new(), day)
-                    .await?;
                 day += TimeDelta::days(1);
                 continue;
             }
@@ -57,7 +54,7 @@ impl Ingest {
                     self.record_fetched(now, &key, 0).await?;
                     batch.success(0);
                 }
-                Ok(None) => break,
+                Ok(None) => {}
                 Err(error) => {
                     self.record_failure(now, &key, &error).await?;
                     batch.source_error(&day.to_string(), &error);

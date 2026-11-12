@@ -40,6 +40,7 @@ const ALPACA_FIRST_BAR: &str = "2016-03-01";
 const CALENDAR_END: &str = "2025-06-30";
 const ALPACA_LAST_BAR: &str = "2016-04-29";
 const SPY_REVISED: &str = "2024-07-05";
+const HOLIDAY: &str = "2024-07-04";
 
 #[derive(Default)]
 struct Fake {
@@ -199,6 +200,14 @@ async fn company_facts(Path(file): Path<String>) -> Response {
     }
 }
 
+async fn daily_index(Path((_, _, file)): Path<(String, String, String)>) -> Response {
+    if file == format!("master.{}.idx", HOLIDAY.replace('-', "")) {
+        StatusCode::NOT_FOUND.into_response()
+    } else {
+        String::new().into_response()
+    }
+}
+
 async fn yields() -> Response {
     YIELDS.to_owned().into_response()
 }
@@ -216,6 +225,10 @@ async fn serve_fakes(fake: Arc<Fake>) -> String {
             get(|| async { json(FUND_TICKERS.to_owned()) }),
         )
         .route("/api/xbrl/companyfacts/{file}", get(company_facts))
+        .route(
+            "/Archives/edgar/daily-index/{year}/{quarter}/{file}",
+            get(daily_index),
+        )
         .route(
             "/submissions/CIK0000320193.json",
             get(|| async { json(SUBMISSIONS.to_owned()) }),
@@ -391,6 +404,14 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
     assert_eq!(backfilled.actions, 2);
     assert_eq!(backfilled.rates, 4);
     assert!(market.watermarks().borrow().day.is_some());
+    let filings_read_through = market
+        .coverage()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|row| row.dataset == Dataset::SecFilings)
+        .map(|row| row.last);
+    assert_eq!(filings_read_through, Some(date(SPY_REVISED)));
     let facts = state.latest_jobs().await.unwrap();
     assert!(
         facts
