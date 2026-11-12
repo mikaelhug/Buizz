@@ -196,16 +196,14 @@
 .badge {
   display: inline-block;
   margin-left: var(--sp-1);
-  padding: 0 6px;
-  border-radius: var(--r-sm);
-  background: color-mix(in srgb, currentColor 12%, transparent);
+  padding: 0 8px;
+  border-radius: var(--r-pill);
+  background: var(--neutral-bg);
   color: var(--muted);
-  font-size: var(--fs-2xs);
-  font-weight: var(--fw-semibold);
-  line-height: 18px;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  line-height: 20px;
   white-space: nowrap;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
 .badge-button {
@@ -216,18 +214,12 @@
 
 .badge-button:hover,
 .badge-button[aria-expanded="true"] {
-  background: color-mix(in srgb, currentColor 20%, transparent);
+  color: var(--text-2);
 }
 
-.badge-survivorship_biased,
 .badge-data_warnings,
-.badge-thin_index_history,
 .badge-stale {
   color: var(--warn);
-}
-
-.badge-holdout {
-  color: var(--info);
 }
 
 .badge-drawdown_stop {
@@ -1271,6 +1263,34 @@ tr:hover .select-box,
   .palette-item .palette-hint + .palette-hint {
     display: none;
   }
+}
+
+.page-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-6);
+  max-width: 1680px;
+  margin-inline: auto;
+}
+
+.page-stack > .page-head {
+  align-items: flex-end;
+  margin-bottom: 0;
+}
+
+.page-question {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  margin: var(--sp-1) 0 0;
+  color: var(--muted);
+  font-size: var(--fs-md);
+}
+
+.summary-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: var(--sp-4);
 }
 
 .card {

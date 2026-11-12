@@ -85,18 +85,7 @@
   font-size: var(--fs-xs);
 }
 
-.board-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--sp-2);
-  padding: var(--sp-6);
-}
 
-.board-empty p {
-  max-width: 56ch;
-  margin: 0 0 var(--sp-2);
-}
 
 @media (max-width: 640px) {
   .board .board-name {
@@ -176,33 +165,57 @@
   font-size: var(--fs-2xs);
 }
 
-.bots-section {
-  margin-bottom: var(--sp-5);
-}
 
-.section-head {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  margin-bottom: var(--sp-2);
-}
 
-.section-head h2 {
+
+
+.league-luck {
+  max-width: 90ch;
   margin: 0;
+  color: var(--text-2);
   font-size: var(--fs-md);
 }
 
-.section-head .count {
-  margin-left: 4px;
+.league-early > summary {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+}
+
+.league-early > summary {
+  list-style: none;
+}
+
+.league-early > summary::-webkit-details-marker {
+  display: none;
+}
+
+.league-early > summary::before {
+  content: "›";
+  display: inline-block;
+  width: 1em;
   color: var(--muted);
+  transition: transform var(--dur-fast) var(--ease);
+}
+
+.league-early[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.league-early > summary .count {
+  color: var(--muted);
+  font-weight: var(--fw-regular);
+}
+
+.league-early > summary .muted {
   font-size: var(--fs-sm);
   font-weight: var(--fw-regular);
 }
 
-.league-luck {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px;
-  margin: calc(var(--sp-3) * -1) 0 var(--sp-4);
+.league-board td.league-headline {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
 }

@@ -4,6 +4,7 @@ import { fmt } from "../lib/format";
 import { href, useQueryParam } from "../lib/route";
 import { useResource } from "../lib/useResource";
 import { Failure, Loading, StaleFailure } from "../ui/Feedback";
+import { Card, EmptyState } from "../ui/Kit";
 import { LIVE_COLUMNS, type Live, type LiveKey, LiveHeader, liveSortColumns, retired } from "../ui/LiveTable";
 import { Info } from "../ui/Popover";
 import { matches, PageSearch, type Sorting, useSort } from "../ui/Table";
@@ -16,16 +17,12 @@ const TRACKING_SESSIONS = 20;
 const LUCK = 0.05;
 
 const SHOWN = [
-  "confidence",
   "excess_cagr",
-  "excess_return",
+  "confidence",
+  "sessions",
   "total_return",
   "benchmark_return",
-  "cagr",
-  "sessions",
   "max_drawdown",
-  "volatility",
-  "beta",
   "verdict",
   "sessions_needed",
 ] as const satisfies readonly LiveKey[];
@@ -51,45 +48,37 @@ function patchStatus(league: League, id: number, status: Schemas["RunStatus"]): 
   return { ...league, ranked: patch(league.ranked), too_early: patch(league.too_early) };
 }
 
-function Group({ title, about, rows, sorting, ranked }: { title: string; about: string; rows: Live[]; sorting: Sorting<Live, Key>; ranked: boolean }) {
+function Board({ label, rows, sorting, ranked }: { label: string; rows: Live[]; sorting: Sorting<Live, Key>; ranked: boolean }) {
   return (
-    <section className="bots-section" aria-label={title}>
-      <header className="section-head">
-        <h2>
-          {title} <span className="count">{rows.length}</span>
-        </h2>
-        <Info label={title}>{about}</Info>
-      </header>
-      <div className="panel table-wrap board-wrap">
-        <table className="table board">
-          <thead>
-            <tr>
-              <LiveHeader sorting={sorting} column="bot" className="board-name" />
-              <LiveHeader sorting={sorting} column="status" />
+    <div className="card table-wrap board-wrap">
+      <table className="table board league-board" aria-label={label}>
+        <thead>
+          <tr>
+            <LiveHeader sorting={sorting} column="bot" className="board-name" />
+            <LiveHeader sorting={sorting} column="status" />
+            {SHOWN.map((key) => (
+              <LiveHeader key={key} sorting={sorting} column={key} className={key === "excess_cagr" ? "league-headline" : undefined} />
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {sorting.order(rows).map((live, index) => (
+            <tr key={live.run.id} className={retired(live) ? "quiet-row" : undefined}>
+              <th scope="row" className="board-name">
+                {ranked && <span className="rank num">{index + 1}</span>}
+                {LIVE_COLUMNS.bot.cell(live)}
+              </th>
+              <td>{LIVE_COLUMNS.status.cell(live)}</td>
               {SHOWN.map((key) => (
-                <LiveHeader key={key} sorting={sorting} column={key} />
+                <td key={key} className={[LIVE_COLUMNS[key].numeric ? "r" : "", key === "excess_cagr" ? "league-headline" : ""].join(" ").trim() || undefined}>
+                  {LIVE_COLUMNS[key].cell(live)}
+                </td>
               ))}
             </tr>
-          </thead>
-          <tbody>
-            {sorting.order(rows).map((live, index) => (
-              <tr key={live.run.id} className={retired(live) ? "quiet-row" : undefined}>
-                <th scope="row" className="board-name">
-                  {ranked && <span className="rank num">{index + 1}</span>}
-                  {LIVE_COLUMNS.bot.cell(live)}
-                </th>
-                <td>{LIVE_COLUMNS.status.cell(live)}</td>
-                {SHOWN.map((key) => (
-                  <td key={key} className={LIVE_COLUMNS[key].numeric ? "r" : undefined}>
-                    {LIVE_COLUMNS[key].cell(live)}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -121,38 +110,62 @@ export function League() {
   const { started, ranked, too_early: early } = league.data;
   const shown = (rows: Live[]) => rows.filter((row) => matches(filter, row.run.bot));
   return (
-    <div className="league">
+    <div className="page-stack league">
       <header className="page-head">
-        <h1>League</h1>
+        <div>
+          <h1>League</h1>
+          <p className="page-question">
+            Which live runs beat total-return SPY with confidence?
+            <Info label="How the league ranks">
+              Live runs with at least {TRACKING_SESSIONS} sessions, running, paused or retired, ranked by the probabilistic Sharpe of daily excess return over total-return SPY.
+              Every live run started is one more try: at a 5% significance level about one in twenty would beat SPY convincingly by chance alone, so a run counts as proven
+              only once its confidence reaches 1 − 0.05 ÷ live runs started.
+            </Info>
+          </p>
+        </div>
         <PageSearch label="Search live runs" value={filter} onChange={setFilter} />
       </header>
       <StaleFailure resource={league} />
-      <p className="league-luck">
-        <span className="num">{fmt.integer(started)}</span> live runs started; about 5% of <span className="num">{fmt.integer(started)}</span> would look significant by luck
-        <span className="muted"> (≈ {fmt.ratio(started * LUCK)})</span>
-        <Info label="Luck">
-          Every live run started is one more try. At a 5% significance level about one in twenty would beat the benchmark convincingly by chance alone, so a run counts as proven only once its confidence reaches 1 − 0.05 ÷ {fmt.integer(started)}.
-        </Info>
-      </p>
       {started === 0 ? (
-        <div className="panel board-empty">
-          <h2>No live runs yet</h2>
-          <p className="muted">Only live paper results rank bots. Backtests screen; go live with a screened bot and it joins the league after {TRACKING_SESSIONS} sessions.</p>
-          <a className="btn btn-primary btn-sm" href={href({ page: "bots" })}>
-            Go to bots
-          </a>
-        </div>
+        <Card>
+          <EmptyState
+            title="No live runs yet"
+            action={
+              <a className="btn btn-primary btn-sm" href={`${href({ page: "bots" })}?stage=screened`}>
+                See screened bots
+              </a>
+            }
+          >
+            Only live paper results rank bots. Go live with a bot that passed screening and it joins the league after {TRACKING_SESSIONS} sessions.
+          </EmptyState>
+        </Card>
       ) : (
         <>
-          <Group
-            title="Ranked"
-            about={`Live runs with at least ${TRACKING_SESSIONS} sessions, running, paused or retired, ranked by the probabilistic Sharpe of daily excess return over the benchmark`}
-            rows={shown(ranked)}
-            sorting={sorting}
-            ranked
-          />
+          <p className="league-luck">
+            {fmt.integer(started)} live {started === 1 ? "run has" : "runs have"} been started, so about {fmt.ratio(started * LUCK)} would look significant by luck alone;
+            a run is proven only at confidence 1 − 0.05 ÷ {fmt.integer(started)}.
+          </p>
+          <section className="league-group" aria-label="Ranked">
+            {shown(ranked).length > 0 ? (
+              <Board label="Ranked" rows={shown(ranked)} sorting={sorting} ranked />
+            ) : (
+              <Card>
+                <EmptyState title={`No live run has ${TRACKING_SESSIONS} sessions yet`}>
+                  {early.length > 0
+                    ? `${early.length} ${early.length === 1 ? "run is" : "runs are"} incubating; each joins the ranking at session ${TRACKING_SESSIONS}.`
+                    : "Nothing matches the search."}
+                </EmptyState>
+              </Card>
+            )}
+          </section>
           {early.length > 0 && (
-            <Group title="Too early" about={`Live runs with fewer than ${TRACKING_SESSIONS} sessions; their numbers say little yet`} rows={shown(early)} sorting={sorting} ranked={false} />
+            <details className="league-group league-early" aria-label="Too early">
+              <summary>
+                Too early <span className="count">{shown(early).length}</span>
+                <span className="muted">fewer than {TRACKING_SESSIONS} sessions; their numbers say little yet</span>
+              </summary>
+              <Board label="Too early" rows={shown(early)} sorting={sorting} ranked={false} />
+            </details>
           )}
         </>
       )}

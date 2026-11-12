@@ -5,6 +5,7 @@ import { ABSENT, fmt, label } from "../lib/format";
 import { href, useQueryParam } from "../lib/route";
 import { type Resource, useResource } from "../lib/useResource";
 import { Failure, Loading, StaleFailure } from "../ui/Feedback";
+import { Card, Stat } from "../ui/Kit";
 import { Info } from "../ui/Popover";
 import { StatusPill } from "../ui/Status";
 import { Ago, matches, SortHeader, type SortColumns, TableFilter, useFlash, useSort } from "../ui/Table";
@@ -48,34 +49,19 @@ export function DataHealth() {
   const stale = jobs.data?.filter((job) => job.stale).length ?? health.data?.stale_jobs;
 
   return (
-    <div className="data-health">
+    <div className="page-stack data-health">
       <header className="page-head">
-        <h1>Data</h1>
-        {health.data && (
-          <dl className="facts">
-            <div>
-              <dt>
-                Daily
-                <Info label="Daily watermark">The latest daily bar runs can see</Info>
-              </dt>
-              <dd>{fmt.market(health.data.watermarks.day)}</dd>
-            </div>
-            <div>
-              <dt>
-                Minute
-                <Info label="Minute watermark">The latest minute bar runs can see</Info>
-              </dt>
-              <dd>{fmt.market(health.data.watermarks.minute)}</dd>
-            </div>
-            {health.data.ingest_enabled && (
-              <div>
-                <dt>Stale jobs</dt>
-                <dd className={stale ? "down" : undefined}>{fmt.integer(stale)}</dd>
-              </div>
-            )}
-          </dl>
-        )}
+        <div>
+          <h1>Data</h1>
+          <p className="page-question">
+            {health.data
+              ? `Runs see daily bars through ${fmt.market(health.data.watermarks.day)} and minute bars through ${fmt.market(health.data.watermarks.minute)}.`
+              : "Is the data runs see complete and current?"}
+            <Info label="Watermarks">The latest daily and minute bars a run can see; a live run waits at the watermark for the next bar.</Info>
+          </p>
+        </div>
       </header>
+      <DataSummary health={health.data} jobs={jobs.data} feed={feed.data} stale={stale} />
       <StaleFailure resource={health} />
       {health.data?.ingest_enabled === false && (
         <div className="callout" role="note">
@@ -90,6 +76,45 @@ export function DataHealth() {
         <JobsPanel jobs={jobs} ingest={health.data?.ingest_enabled} />
         <CoveragePanel health={health} />
       </div>
+    </div>
+  );
+}
+
+function DataSummary({ health, jobs, feed, stale }: { health: Schemas["DataHealth"] | undefined; jobs: Job[] | undefined; feed: Schemas["FeedSlots"] | undefined; stale: number | undefined }) {
+  const done = health?.backfill.reduce((sum, item) => sum + item.done, 0) ?? 0;
+  const total = health?.backfill.reduce((sum, item) => sum + item.total, 0) ?? 0;
+  const complete = health?.backfill.filter((item) => item.done >= item.total).length ?? 0;
+  const failing = jobs?.filter((job) => job.last_outcome === "failed").length ?? 0;
+  const healthy = jobs?.filter((job) => !job.stale && job.last_outcome !== "failed").length;
+  const warnings = health?.warnings.length;
+  return (
+    <div className="summary-cards">
+      <Card label="Backfill">
+        <Stat
+          label="Backfill"
+          value={total > 0 ? fmt.percent(done / total).replace(/\.00%$/, "%") : ABSENT}
+          sub={health ? `${fmt.integer(complete)} of ${fmt.integer(health.backfill.length)} datasets complete` : undefined}
+        />
+      </Card>
+      <Card label="Jobs">
+        <Stat
+          label="Jobs"
+          value={jobs && healthy !== undefined ? `${fmt.integer(healthy)} of ${fmt.integer(jobs.length)} healthy` : ABSENT}
+          tone={failing > 0 ? "down" : undefined}
+          sub={health?.ingest_enabled === false ? "ingest is off" : `${fmt.integer(stale)} stale · ${fmt.integer(failing)} failing`}
+        />
+      </Card>
+      <Card label="Stream">
+        <Stat
+          label="Stream slots"
+          value={feed ? `${fmt.integer(feed.used)} / ${fmt.integer(feed.cap)}` : ABSENT}
+          tone={feed?.error ? "down" : undefined}
+          sub={feed ? (feed.error ?? `${fmt.integer(feed.connections.length)} ${feed.connections.length === 1 ? "connection" : "connections"}`) : undefined}
+        />
+      </Card>
+      <Card label="Warnings">
+        <Stat label="Warnings" value={fmt.integer(warnings)} tone={warnings ? "down" : undefined} sub={warnings ? "gaps, rejected overlaps or unexplained moves" : "no gaps or unexplained moves"} />
+      </Card>
     </div>
   );
 }

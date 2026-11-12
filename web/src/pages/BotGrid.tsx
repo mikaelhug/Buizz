@@ -168,7 +168,7 @@ export function BotGrid() {
   }
 
   return (
-    <div className="bots">
+    <div className="page-stack bots">
       <header className="page-head bots-head">
         <div>
           <h1>Bots</h1>

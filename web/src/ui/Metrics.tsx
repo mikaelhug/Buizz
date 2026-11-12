@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { Schemas } from "../api/client";
 import { fmt, tone } from "../lib/format";
 import { Info } from "./Popover";
@@ -229,6 +230,7 @@ function StatRow({ stat, headline = false }: { stat: Stat; headline?: boolean })
 type GroupsProps = { metrics: Metrics | null | undefined; benchmark: Benchmark | undefined; months: MonthRange };
 
 export function MetricGroups({ metrics, benchmark, months }: GroupsProps) {
+  const [open, setOpen] = useState(false);
   const stat = (key: MetricKey) => metricStat(key, metrics, benchmark);
   const groups: { title: string; headline: Stat; rows: Stat[] }[] = [
     { title: "Returns", headline: stat("total_return"), rows: [stat("cagr"), monthStat("Best month", months?.best), monthStat("Worst month", months?.worst), stat("sessions")] },
@@ -237,7 +239,8 @@ export function MetricGroups({ metrics, benchmark, months }: GroupsProps) {
     { title: `vs ${benchmark?.symbol ?? "benchmark"}`, headline: excessCagrStat(metrics, benchmark), rows: [excessStat(metrics, benchmark), stat("alpha"), stat("beta")] },
   ];
   return (
-    <div className="metric-groups">
+    <>
+    <div className={open ? "metric-groups open" : "metric-groups"}>
       {groups.map((group) => (
         <section key={group.title} className="metric-group" aria-label={group.title}>
           <h3>{group.title}</h3>
@@ -250,6 +253,10 @@ export function MetricGroups({ metrics, benchmark, months }: GroupsProps) {
         </section>
       ))}
     </div>
+    <button type="button" className="btn btn-sm btn-ghost metric-more" aria-expanded={open} onClick={() => setOpen(!open)}>
+      {open ? "Show headlines only" : "Show every metric"}
+    </button>
+    </>
   );
 }
 
