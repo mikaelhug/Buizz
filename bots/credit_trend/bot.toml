@@ -1,0 +1,9 @@
+description = "Credit-spread trend (credit spreads lead equity drawdowns: Gilchrist & Zakrajsek 2012; the trend-filter form follows Faber 2007): at each week's last close hold IEF only when BOTH the latest visible monthly Baa-minus-10-year spread (FRED baa - gs10, the vintages published before that session) is above the average of the last 6 visible monthly spreads AND SPY's total-return close is below its 200-day SMA; otherwise hold SPY; trades at the next open. The spread is the monthly baa - gs10 throughout, the monthly average of the daily BAA10Y: BAA10Y's vintages only start 2014-01-27, and splicing it onto the monthly series would mix two definitions inside one 6-month average. Valid from 2002-07-31 (IEF listed 2002-07-30). Design period 2002-2015, holdout 2016 to now."
+command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
+timeframe = "1d"
+wake = "bar"
+universe = { symbols = ["SPY", "IEF"] }
+params = { asset = "SPY", bonds = "IEF", sma_days = 200, spread_months = 6 }
+
+[risk]
+max_gross_exposure = 1.0
