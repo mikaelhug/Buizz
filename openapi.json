@@ -1217,6 +1217,7 @@
           "run_id",
           "preset",
           "plateau",
+          "failed_checks",
           "params",
           "metrics",
           "benchmark",
@@ -1231,6 +1232,12 @@
           },
           "plateau": {
             "type": "boolean"
+          },
+          "failed_checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GateCheck"
+            }
           },
           "params": {
             "type": "object"

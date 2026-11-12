@@ -489,6 +489,7 @@ export interface components {
             run_id: components["schemas"]["RunId"];
             preset: components["schemas"]["PeriodPreset"];
             plateau: boolean;
+            failed_checks: components["schemas"]["GateCheck"][];
             params: Record<string, never>;
             metrics: components["schemas"]["Metrics"];
             benchmark: components["schemas"]["Metrics"];

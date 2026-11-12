@@ -55,6 +55,7 @@ pub struct BacktestGlance {
     pub run_id: RunId,
     pub preset: PeriodPreset,
     pub plateau: bool,
+    pub failed_checks: Vec<GateCheck>,
     #[schema(value_type = Object)]
     pub params: Map<String, Value>,
     pub metrics: Metrics,

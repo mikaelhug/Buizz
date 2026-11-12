@@ -148,17 +148,18 @@ async fn gated(runs: &[RunSummary], benchmarks: &Benchmarks) -> Result<Gated, Ru
 
 fn featured<'a>(
     runs: &'a [RunSummary],
-    plateau: Option<RunId>,
+    gated: &'a Gated,
     defaults: &Map<String, Value>,
-) -> Option<(&'a RunSummary, Metrics)> {
+) -> Option<(&'a RunSummary, Metrics, &'a [GateCheck])> {
     let completed = || {
         runs.iter()
-            .filter(|run| run.status == RunStatus::Completed)
-            .filter_map(|run| Some((run, run.metrics.clone()?)))
+            .zip(&gated.failed_checks)
+            .filter(|(run, _)| run.status == RunStatus::Completed)
+            .filter_map(|(run, failed)| Some((run, run.metrics.clone()?, failed.as_slice())))
     };
     completed()
-        .find(|(run, _)| Some(run.id) == plateau)
-        .or_else(|| completed().find(|(run, _)| &run.config.params == defaults))
+        .find(|(run, ..)| Some(run.id) == gated.plateau)
+        .or_else(|| completed().find(|(run, ..)| &run.config.params == defaults))
         .or_else(|| completed().next())
 }
 
@@ -256,9 +257,9 @@ impl Runner {
             passing: u32::try_from(finished().filter(|(_, failed)| failed.is_empty()).count())
                 .unwrap_or(u32::MAX),
         };
-        let backtest = match featured(runs, gated.plateau, &spec.manifest.params) {
-            Some((run, metrics)) => Some(
-                self.glance(run, metrics, preset, gated.plateau, benchmarks)
+        let backtest = match featured(runs, &gated, &spec.manifest.params) {
+            Some((run, metrics, failed)) => Some(
+                self.glance(run, metrics, failed, preset, gated.plateau, benchmarks)
                     .await?,
             ),
             None => None,
@@ -273,6 +274,7 @@ impl Runner {
         &self,
         run: &RunSummary,
         metrics: Metrics,
+        failed_checks: &[GateCheck],
         preset: PeriodPreset,
         plateau: Option<RunId>,
         benchmarks: &Benchmarks,
@@ -283,6 +285,7 @@ impl Runner {
             run_id: run.id,
             preset,
             plateau: plateau == Some(run.id),
+            failed_checks: failed_checks.to_vec(),
             params: run.config.params.clone(),
             metrics,
             benchmark: benchmarks.metrics(run).await?,
