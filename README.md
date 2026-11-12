@@ -4,7 +4,7 @@ Buizz tests trading strategies against historic and live US stock and ETF data, 
 
 ## Quick start (macOS)
 
-Requires Rust (version pinned in `rust-toolchain.toml`), `just`, `uv` and Node. Bots using LightGBM also need OpenMP on macOS (`brew install libomp`).
+Requires Rust (version pinned in `rust-toolchain.toml`), `just`, `uv` and Node. Bots using LightGBM also need OpenMP on macOS (`brew install libomp`). The spine reads FactSet's PDF reports with poppler's `pdftotext` and `pdfinfo` (`brew install poppler`; the image installs `poppler-utils`).
 
 ```sh
 just setup
@@ -65,7 +65,7 @@ The spine (`cargo run -p buizz-spine`) reads these environment variables. Empty 
 | `ALPACA_NEWS_URL` | `wss://stream.data.alpaca.markets/v1beta1/news` | Alpaca real-time news stream, recorded while ingest is on |
 | `TIINGO_API_KEY` | unset | Enables Tiingo daily history from 2000 to Alpaca's 2016 start |
 | `TIINGO_URL` | `https://api.tiingo.com` | Tiingo endpoint |
-| `SEC_USER_AGENT` | unset | Enables SEC EDGAR fundamentals, SIC codes and earnings releases, and Wikipedia's S&P 500 membership; the SEC requires a contact in the User-Agent, for example `name email@example.com`, and the same contact goes into the Wikipedia User-Agent |
+| `SEC_USER_AGENT` | unset | Enables SEC EDGAR fundamentals, SIC codes and earnings releases, and Wikipedia's S&P 500 membership; the SEC requires a contact in the User-Agent, for example `name email@example.com`, and the same contact goes into the Wikipedia and FactSet User-Agents, which it also enables |
 | `SEC_DATA_URL`, `SEC_WWW_URL` | `https://data.sec.gov`, `https://www.sec.gov` | EDGAR endpoints |
 | `TREASURY_URL` | `https://home.treasury.gov` | US Treasury rates endpoint |
 | `WIKIPEDIA_URL` | `https://en.wikipedia.org` | MediaWiki endpoint for S&P 500 membership |

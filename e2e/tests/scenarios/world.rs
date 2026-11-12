@@ -93,8 +93,18 @@ pub struct World {
     pub tiingo: Vec<Bar>,
     pub wikipedia: BTreeMap<String, String>,
     pub borrow: Option<Vec<u8>>,
+    pub earnings_insight: Option<(String, Vec<u8>)>,
     pub released: Option<Timestamp>,
     pub streamed_from: Option<Timestamp>,
+}
+
+pub fn recorded_earnings_insight() -> (String, Vec<u8>) {
+    let name = "EarningsInsight_112224.pdf";
+    let path = repository()
+        .join("crates/sources/fixtures/factset")
+        .join(name);
+    let pdf = std::fs::read(&path).unwrap_or_else(|error| panic!("{name}: {error}"));
+    (name.to_owned(), pdf)
 }
 
 impl World {
@@ -301,6 +311,7 @@ impl World {
             })
             .collect(),
             borrow: Some(read("ibkr/usa.txt").into_bytes()),
+            earnings_insight: Some(recorded_earnings_insight()),
             rates: parse_par_yield_csv(&read("treasury/par_yield_2025.csv"))
                 .expect("recorded yields"),
             macro_vintages: {

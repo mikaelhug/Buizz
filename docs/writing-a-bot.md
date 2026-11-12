@@ -113,7 +113,7 @@ Outside `on_step` only `params`, `universe`, `state`, `portfolio` and `position`
 | `ctx.insider_trades(symbols, since)` | `list[InsiderTrade]`: every insider transaction from a Form 4 or 4/A filed on or after `since` and visible at the clock, see below |
 | `ctx.news(symbols, since)` | Experimental. `list[NewsArticle]`: every recorded version of the news articles about any of `symbols` created on or after `since` and known at the clock, see below |
 | `ctx.universe_at(on, top_dollar_volume, *, asset_class=None, index=None)` | The symbols a `top_dollar_volume` universe of that size (optionally of one `asset_class`), or the `index` universe, held on the date `on`, see below |
-| `ctx.macro(series, start, end)` | The rate and macro observations dated `start` to `end` as known at the clock (`MacroPoint`: `series`, `date`, `value`, `published`, `available_at`), see below |
+| `ctx.macro(series, start, end)` | The rate, macro and S&P 500 valuation observations dated `start` to `end` as known at the clock (`MacroPoint`: `series`, `date`, `value`, `published`, `available_at`), see below |
 | `ctx.fomc(start, end)` | The FOMC announcements dated `start` to `end` known at the clock (`FomcAnnouncement`: `date`, `scheduled`, `statement_at`, `available_at`), see below |
 | `ctx.calendar(start, end)` | The exchange sessions (`Session(date, open, close)`) dated `start` to `end`, as the calendar was published at the clock, see below |
 | `ctx.state` | A dict that survives restarts, see below |
@@ -157,7 +157,7 @@ months = [date(year, month, 1) for year in range(2017, 2024) for month in range(
 training = {month: ctx.universe_at(month, 1000) for month in months}
 ```
 
-**Rates and macro series.** `ctx.macro(series, start, end)` returns the observations of `MacroSeries` dated `start` to `end`, each as the latest vintage published before the current session, so revisions arrive when they were published and never earlier. `available_at` is the open of the first session after `published`. Values are `Decimal` percent, except the CPI index, the unemployment rate's percentage points and the VIX index points.
+**Rates, macro and valuation series.** `ctx.macro(series, start, end)` returns the observations of `MacroSeries` dated `start` to `end`, each as the latest vintage published before the current session, so revisions arrive when they were published and never earlier. `available_at` is the open of the first session after `published`. Values are `Decimal` percent, except the CPI index, the unemployment rate's percentage points, the VIX index points and the valuation series below.
 
 | Series | Meaning | Frequency |
 |---|---|---|
@@ -173,8 +173,15 @@ training = {month: ctx.universe_at(month, 1000) for month in months}
 | `baa10y` | Moody's seasoned Baa corporate yield minus the 10-year Treasury (FRED `BAA10Y`), percentage points | daily |
 | `vix` | CBOE Volatility Index close, from 2003-09-22 | daily |
 | `vix3m` | CBOE 3-Month Volatility Index close, from 2009-09-18 | daily |
+| `sp500_forward_pe` | S&P 500 forward 12-month P/E (FactSet Earnings Insight) | weekly, dated the report's issue date |
+| `sp500_forward_pe_5y_avg`, `sp500_forward_pe_10y_avg` | Its 5- and 10-year averages as the report quotes them | weekly |
+| `sp500_forward_eps` | The forward 12-month EPS estimate in dollars the P/E was based on, only in issues that state it | weekly, sparse |
+| `sp500_trailing_pe` | S&P 500 trailing 12-month P/E | weekly, since 2016 |
+| `sp500_<sector>_forward_pe` | A sector's forward 12-month P/E, for `energy`, `materials`, `industrials`, `consumer_discretionary`, `consumer_staples`, `health_care`, `financials`, `information_technology`, `communication_services`, `telecom_services` (its name before the 2018 GICS change, a different sector), `utilities` and `real_estate` | weekly, sparse: every sector only in 2011–2012, otherwise the highest and lowest the text names |
 
 The FRED series need `FRED_API_KEY` on the spine; without it they are empty. Each FRED value is the one ALFRED records as published on its real-time start date, so `published` is the day FRED first carried it, never the day it was computed for. The daily H.15 rates (`dgs10`, and the two spreads FRED derives from H.15 and Moody's) reach FRED the business day after their date at the earliest, so the rate of day D is visible from the open of the session after D + 1, or later when FRED posted it later. ALFRED only keeps vintages from when FRED started recording them: `dgs10` from 2005-06-28, `t10y3m` and `baa10y` from 2014-01-27 and `sahmrealtime` from 2019-09-06 (the series did not exist before). Observations dated earlier carry that first vintage date as `published`, so a backtest before it sees nothing for the series, as nobody could have seen this vintage then; `unrate` has vintages back to the 1960s. Monthly averages (`gs10`, `baa`) cover the earlier years.
+
+The `sp500_*` series are the figures FactSet's weekly Earnings Insight states in its text: `date` is the issue date, `published` the day the report became public (a correction uploaded later under the same date with a letter, such as `B`, is a later vintage of that date, published when it was made), so a Friday report is first seen at Monday's open. A figure the report does not state, or states differently in two places, is missing for that week; nothing is computed, so `sp500_forward_eps` is not price over P/E. Ratios are plain numbers (17.7 means 17.7×), EPS is in dollars. They need `SEC_USER_AGENT` on the spine.
 
 The VIX closes at 16:15 ET, a quarter of an hour after the session's last bar, so a close is published on its date and visible from the open of the next session: a daily bot never reads today's VIX at today's close. The VIX before 2003-09-22 in CBOE's file is a later recalculation with the new methodology, not what was published then (the index of those years, renamed VXO, is not offered as a free file), so `vix` starts on 2003-09-22. Values are CBOE's history file as first read by the spine; a close CBOE changes afterwards becomes a new vintage published on the day the spine saw it. Graham's CPI-scaled size floor:
 

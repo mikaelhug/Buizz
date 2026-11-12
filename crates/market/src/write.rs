@@ -3,8 +3,9 @@ use std::ops::RangeInclusive;
 
 use buizz_core::market::{
     Bar, BorrowAvailability, Company, CorporateAction, CorporateActionKind, DataSource, Dataset,
-    EarningsRelease, FomcMeeting, FundamentalFact, IndexHistory, InsiderFiling, Instrument,
-    MacroObservation, NewsArticle, RiskFreeRate, SecFiling, Session, Symbol,
+    EarningsInsight, EarningsRelease, EstimateFact, FomcMeeting, FundamentalFact, IndexHistory,
+    InsiderFiling, Instrument, MacroObservation, NewsArticle, RiskFreeRate, SecFiling, Session,
+    Symbol,
 };
 use buizz_core::time::Timestamp;
 use chrono::NaiveDate;
@@ -14,7 +15,7 @@ use rust_decimal::Decimal;
 use crate::codec::{Dec, Ts, action_columns, feed_name, wire_name};
 use crate::{ActionWindow, Result, WriteSummary};
 
-const STAGED: [&str; 10] = [
+const STAGED: [&str; 11] = [
     "instrument",
     "calendar",
     "bar_1d",
@@ -25,6 +26,7 @@ const STAGED: [&str; 10] = [
     "fomc_meeting",
     "company",
     "earnings_release",
+    "earnings_insight_fact",
 ];
 
 pub(crate) fn prepare(connection: &Connection) -> Result<()> {
@@ -36,6 +38,7 @@ pub(crate) fn prepare(connection: &Connection) -> Result<()> {
     connection.execute_batch(
         "CREATE TEMP TABLE bar_span (symbol VARCHAR, lo TIMESTAMP, hi TIMESTAMP); \
          CREATE TEMP TABLE action_scope (symbol VARCHAR); \
+         CREATE TEMP TABLE report_scope (report VARCHAR); \
          CREATE TEMP TABLE coverage_stage AS SELECT * FROM main.coverage LIMIT 0",
     )?;
     Ok(())
@@ -107,7 +110,7 @@ fn stage<T>(
     Ok(count)
 }
 
-const KEYS: [(&str, &[&str]); 9] = [
+const KEYS: [(&str, &[&str]); 10] = [
     ("instrument", &["symbol"]),
     ("calendar", &["date"]),
     ("bar_1d", &["symbol", "date"]),
@@ -117,6 +120,10 @@ const KEYS: [(&str, &[&str]); 9] = [
     ("fomc_meeting", &["date", "scheduled"]),
     ("company", &["symbol"]),
     ("earnings_release", &["symbol", "accession"]),
+    (
+        "earnings_insight_fact",
+        &["report", "metric", "scope", "period"],
+    ),
 ];
 
 fn replace_staged(transaction: &Transaction<'_>, table: &str, batch_id: i64) -> Result<u64> {
@@ -638,6 +645,99 @@ pub(crate) fn fomc_meetings(
             let removed =
                 transaction.execute(&format!("DELETE {withdrawn}"), params![first, last])?;
             Ok(removed as u64 + replace_staged(transaction, "fomc_meeting", batch_id)?)
+        },
+    )
+}
+
+pub(crate) fn earnings_insight(
+    connection: &mut Connection,
+    source: DataSource,
+    report: EarningsInsight,
+) -> Result<WriteSummary> {
+    let mut coverage = Coverage::new();
+    cover(&mut coverage, None, report.issue_date);
+    write_batch(
+        connection,
+        source,
+        Dataset::Estimates,
+        coverage,
+        |transaction, batch_id| {
+            let written = transaction.execute(
+                "INSERT INTO earnings_insight VALUES (?, ?, ?, ?, ?, ?, ?, ?) \
+                 ON CONFLICT (report) DO NOTHING",
+                params![
+                    report.report,
+                    report.issue_date,
+                    report.published,
+                    report.url,
+                    report.retrieved_from,
+                    report.digest,
+                    report.text,
+                    batch_id,
+                ],
+            )?;
+            Ok(written as u64)
+        },
+    )
+}
+
+pub(crate) fn earnings_insight_facts(
+    connection: &mut Connection,
+    source: DataSource,
+    facts: BTreeMap<String, Vec<EstimateFact>>,
+) -> Result<WriteSummary> {
+    write_batch(
+        connection,
+        source,
+        Dataset::Estimates,
+        Coverage::new(),
+        |transaction, batch_id| {
+            transaction.execute("DELETE FROM stage_earnings_insight_fact", [])?;
+            let mut appender = transaction.appender_to_catalog_and_db(
+                "stage_earnings_insight_fact",
+                "temp",
+                "main",
+            )?;
+            for (report, fact) in facts
+                .iter()
+                .flat_map(|(report, facts)| facts.iter().map(move |fact| (report, fact)))
+            {
+                appender.append_row(params![
+                    report,
+                    wire_name(&fact.metric),
+                    wire_name(&fact.scope),
+                    fact.period
+                        .map(|period| period.to_string())
+                        .unwrap_or_default(),
+                    fact.as_of,
+                    Dec(fact.value),
+                    fact.metric.unit(),
+                    batch_id,
+                ])?;
+            }
+            appender.flush()?;
+            drop(appender);
+            transaction.execute("DELETE FROM report_scope", [])?;
+            let mut appender =
+                transaction.appender_to_catalog_and_db("report_scope", "temp", "main")?;
+            for report in facts.keys() {
+                appender.append_row(params![report])?;
+            }
+            appender.flush()?;
+            drop(appender);
+            let withdrawn = "FROM main.earnings_insight_fact f \
+                 WHERE f.report IN (SELECT report FROM report_scope) \
+                 AND NOT EXISTS (SELECT 1 FROM stage_earnings_insight_fact s \
+                 WHERE s.report = f.report AND s.metric = f.metric AND s.scope = f.scope \
+                 AND s.period = f.period)";
+            transaction.execute(
+                &format!(
+                    "INSERT INTO main.earnings_insight_fact_revision SELECT f.*, ? {withdrawn}"
+                ),
+                params![batch_id],
+            )?;
+            let removed = transaction.execute(&format!("DELETE {withdrawn}"), [])?;
+            Ok(removed as u64 + replace_staged(transaction, "earnings_insight_fact", batch_id)?)
         },
     )
 }

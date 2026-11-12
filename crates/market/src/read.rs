@@ -2,11 +2,11 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use buizz_core::market::{
     Adjustment, AdjustmentFactor, AssetClass, Bar, Calendar, Company, CorporateAction,
-    CorporateActionKind, Coverage, DataSource, Dataset, EarningsRelease, Feed, FomcAnnouncement,
-    FomcMeeting, FundamentalMetric, FundamentalPoint, HISTORY_FLOORS, IndexHistory, IndexMember,
-    InsiderOwner, InsiderTrade, InsiderTransaction, Instrument, InstrumentProfile,
-    MacroObservation, MacroPoint, MacroSeries, NewsArticle, RiskFreeRate, SIP_DELAY, Session,
-    StockIndex, Symbol, Timeframe,
+    CorporateActionKind, Coverage, DataSource, Dataset, EarningsInsight, EarningsRelease,
+    EstimateFact, EstimateMetric, EstimateScope, Feed, FomcAnnouncement, FomcMeeting,
+    FundamentalMetric, FundamentalPoint, HISTORY_FLOORS, IndexHistory, IndexMember, InsiderOwner,
+    InsiderTrade, InsiderTransaction, Instrument, InstrumentProfile, MacroObservation, MacroPoint,
+    MacroSeries, NewsArticle, RiskFreeRate, SIP_DELAY, Session, StockIndex, Symbol, Timeframe,
 };
 use buizz_core::ops::{CoverageGap, DataWarning, UNEXPLAINED_MOVE_THRESHOLD};
 use buizz_core::protocol::BarRow;
@@ -16,6 +16,7 @@ use buizz_core::visibility::{
     published_before, published_visible_at,
 };
 use chrono::{NaiveDate, NaiveTime};
+use duckdb::types::Type;
 use duckdb::{Connection, ToSql, params, params_from_iter};
 use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
@@ -996,6 +997,70 @@ pub(crate) fn macro_observations(
     Ok(observations)
 }
 
+pub(crate) fn earnings_insight_reports(connection: &Connection) -> Result<BTreeSet<String>> {
+    let mut statement = connection.prepare_cached("SELECT report FROM earnings_insight")?;
+    let reports = statement
+        .query_map([], |row| row.get(0))?
+        .collect::<duckdb::Result<_>>()?;
+    Ok(reports)
+}
+
+pub(crate) fn earnings_insights(connection: &Connection) -> Result<Vec<EarningsInsight>> {
+    let mut statement = connection.prepare_cached(
+        "SELECT report, issue_date, published, url, retrieved_from, digest, text \
+         FROM earnings_insight ORDER BY issue_date, report",
+    )?;
+    let reports = statement
+        .query_map([], |row| {
+            Ok(EarningsInsight {
+                report: row.get(0)?,
+                issue_date: row.get(1)?,
+                published: row.get(2)?,
+                url: row.get(3)?,
+                retrieved_from: row.get(4)?,
+                digest: row.get(5)?,
+                text: row.get(6)?,
+            })
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    Ok(reports)
+}
+
+pub(crate) fn earnings_insight_facts(
+    connection: &Connection,
+) -> Result<BTreeMap<String, Vec<EstimateFact>>> {
+    let mut statement = connection.prepare_cached(
+        "SELECT report, metric, scope, period, as_of, value FROM earnings_insight_fact \
+         ORDER BY report, metric, scope, period",
+    )?;
+    let rows = statement
+        .query_map([], |row| {
+            let period: String = row.get(3)?;
+            let period = match period.as_str() {
+                "" => None,
+                text => Some(text.parse().map_err(|error: String| {
+                    duckdb::Error::FromSqlConversionFailure(3, Type::Text, error.into())
+                })?),
+            };
+            Ok((
+                row.get::<_, String>(0)?,
+                EstimateFact {
+                    metric: row.get::<_, Wire<EstimateMetric>>(1)?.0,
+                    scope: row.get::<_, Wire<EstimateScope>>(2)?.0,
+                    period,
+                    as_of: row.get(4)?,
+                    value: row.get::<_, Dec>(5)?.0.normalize(),
+                },
+            ))
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    let mut facts: BTreeMap<String, Vec<EstimateFact>> = BTreeMap::new();
+    for (report, fact) in rows {
+        facts.entry(report).or_default().push(fact);
+    }
+    Ok(facts)
+}
+
 pub(crate) fn macro_points(
     connection: &Connection,
     calendar: &Calendar,
@@ -1028,6 +1093,29 @@ pub(crate) fn macro_points(
             .query_map(params![wire_name(id), from, to, cutoff], |row| {
                 Ok((*id, row.get(0)?, row.get(1)?, row.get::<_, Dec>(2)?.0))
             })?
+            .collect::<duckdb::Result<Vec<_>>>()?;
+        known.extend(rows);
+    }
+    let mut statement = connection.prepare_cached(
+        "SELECT date, published, value FROM (SELECT r.issue_date AS date, r.published, f.value, \
+         row_number() OVER (PARTITION BY r.issue_date ORDER BY r.published DESC, r.report DESC) \
+         AS vintage FROM earnings_insight_fact f JOIN earnings_insight r USING (report) \
+         WHERE f.metric = ? AND f.scope = ? AND f.period = '' \
+         AND r.issue_date BETWEEN ? AND ? AND r.published < ?) WHERE vintage = 1 ORDER BY date",
+    )?;
+    for (id, (metric, scope)) in wanted.iter().filter_map(|id| Some((id, id.estimate()?))) {
+        let rows = statement
+            .query_map(
+                params![wire_name(&metric), wire_name(&scope), from, to, cutoff],
+                |row| {
+                    Ok((
+                        *id,
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get::<_, Dec>(2)?.0.normalize(),
+                    ))
+                },
+            )?
             .collect::<duckdb::Result<Vec<_>>>()?;
         known.extend(rows);
     }

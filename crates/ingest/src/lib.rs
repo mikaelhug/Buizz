@@ -1,6 +1,7 @@
 mod actions;
 mod bars;
 mod borrow;
+mod estimates;
 mod facts;
 mod fetch;
 mod filings;
@@ -252,6 +253,8 @@ impl Ingest {
             schedule::MACRO => self.macro_series(now).await,
             schedule::VIX => self.vix(now).await,
             schedule::FOMC => self.fomc(now).await,
+            schedule::EARNINGS_INSIGHT => self.earnings_insight(now).await,
+            schedule::EARNINGS_INSIGHT_ARCHIVE => self.earnings_insight_archive(now).await,
             schedule::STATE_SNAPSHOT => self.state_snapshot(now).await,
             schedule::MARKET_SNAPSHOT => self.market_snapshot(now).await,
             schedule::TIINGO_HISTORY => self.tiingo_history(now).await,

@@ -17,6 +17,7 @@ use buizz_sources::alpaca::AlpacaClient;
 use buizz_sources::alpaca_stream::SYMBOL_CAP;
 use buizz_sources::cboe::CboeClient;
 use buizz_sources::edgar::EdgarClient;
+use buizz_sources::factset::FactsetClient;
 use buizz_sources::fed::FedClient;
 use buizz_sources::fred::FredClient;
 use buizz_sources::ibkr::IbkrClient;
@@ -123,6 +124,7 @@ async fn serve() -> Result<()> {
         nasdaq: Some(NasdaqClient::new(config.nasdaq.clone())?),
         cboe: Some(CboeClient::new(config.cboe.clone())?),
         fed: Some(FedClient::new(config.fed.clone())?),
+        factset: config.factset.clone().map(FactsetClient::new).transpose()?,
     };
     let feed = FeedManager::new(
         FeedConfig {

@@ -2,6 +2,7 @@ pub mod alpaca;
 pub mod alpaca_stream;
 pub mod cboe;
 pub mod edgar;
+pub mod factset;
 pub mod fed;
 pub mod fred;
 pub mod http;
@@ -14,6 +15,7 @@ pub mod wikipedia;
 use alpaca::AlpacaClient;
 use cboe::CboeClient;
 use edgar::EdgarClient;
+use factset::FactsetClient;
 use fed::FedClient;
 use fred::FredClient;
 use ibkr::IbkrClient;
@@ -34,4 +36,5 @@ pub struct Sources {
     pub nasdaq: Option<NasdaqClient>,
     pub cboe: Option<CboeClient>,
     pub fed: Option<FedClient>,
+    pub factset: Option<FactsetClient>,
 }

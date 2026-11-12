@@ -550,6 +550,40 @@ pub enum MacroSeries {
     Vix,
     #[serde(rename = "vix3m")]
     Vix3m,
+    #[serde(rename = "sp500_forward_pe")]
+    Sp500ForwardPe,
+    #[serde(rename = "sp500_forward_pe_5y_avg")]
+    Sp500ForwardPe5yAvg,
+    #[serde(rename = "sp500_forward_pe_10y_avg")]
+    Sp500ForwardPe10yAvg,
+    #[serde(rename = "sp500_forward_eps")]
+    Sp500ForwardEps,
+    #[serde(rename = "sp500_trailing_pe")]
+    Sp500TrailingPe,
+    #[serde(rename = "sp500_energy_forward_pe")]
+    Sp500EnergyForwardPe,
+    #[serde(rename = "sp500_materials_forward_pe")]
+    Sp500MaterialsForwardPe,
+    #[serde(rename = "sp500_industrials_forward_pe")]
+    Sp500IndustrialsForwardPe,
+    #[serde(rename = "sp500_consumer_discretionary_forward_pe")]
+    Sp500ConsumerDiscretionaryForwardPe,
+    #[serde(rename = "sp500_consumer_staples_forward_pe")]
+    Sp500ConsumerStaplesForwardPe,
+    #[serde(rename = "sp500_health_care_forward_pe")]
+    Sp500HealthCareForwardPe,
+    #[serde(rename = "sp500_financials_forward_pe")]
+    Sp500FinancialsForwardPe,
+    #[serde(rename = "sp500_information_technology_forward_pe")]
+    Sp500InformationTechnologyForwardPe,
+    #[serde(rename = "sp500_communication_services_forward_pe")]
+    Sp500CommunicationServicesForwardPe,
+    #[serde(rename = "sp500_telecom_services_forward_pe")]
+    Sp500TelecomServicesForwardPe,
+    #[serde(rename = "sp500_utilities_forward_pe")]
+    Sp500UtilitiesForwardPe,
+    #[serde(rename = "sp500_real_estate_forward_pe")]
+    Sp500RealEstateForwardPe,
 }
 
 impl MacroSeries {
@@ -580,8 +614,191 @@ impl MacroSeries {
             Self::Dgs10 => Some("DGS10"),
             Self::T10y3m => Some("T10Y3M"),
             Self::Baa10y => Some("BAA10Y"),
+            Self::Sp500ForwardPe
+            | Self::Sp500ForwardPe5yAvg
+            | Self::Sp500ForwardPe10yAvg
+            | Self::Sp500ForwardEps
+            | Self::Sp500TrailingPe
+            | Self::Sp500EnergyForwardPe
+            | Self::Sp500MaterialsForwardPe
+            | Self::Sp500IndustrialsForwardPe
+            | Self::Sp500ConsumerDiscretionaryForwardPe
+            | Self::Sp500ConsumerStaplesForwardPe
+            | Self::Sp500HealthCareForwardPe
+            | Self::Sp500FinancialsForwardPe
+            | Self::Sp500InformationTechnologyForwardPe
+            | Self::Sp500CommunicationServicesForwardPe
+            | Self::Sp500TelecomServicesForwardPe
+            | Self::Sp500UtilitiesForwardPe
+            | Self::Sp500RealEstateForwardPe => None,
         }
     }
+
+    pub fn estimate(self) -> Option<(EstimateMetric, EstimateScope)> {
+        let sector = |scope| Some((EstimateMetric::ForwardPe, scope));
+        match self {
+            Self::Treasury3m
+            | Self::Tb3ms
+            | Self::Gs10
+            | Self::Aaa
+            | Self::Baa
+            | Self::Cpiaucns
+            | Self::Unrate
+            | Self::Sahmrealtime
+            | Self::Dgs10
+            | Self::T10y3m
+            | Self::Baa10y
+            | Self::Vix
+            | Self::Vix3m => None,
+            Self::Sp500ForwardPe => sector(EstimateScope::Sp500),
+            Self::Sp500ForwardPe5yAvg => {
+                Some((EstimateMetric::ForwardPe5yAvg, EstimateScope::Sp500))
+            }
+            Self::Sp500ForwardPe10yAvg => {
+                Some((EstimateMetric::ForwardPe10yAvg, EstimateScope::Sp500))
+            }
+            Self::Sp500ForwardEps => Some((EstimateMetric::ForwardEps, EstimateScope::Sp500)),
+            Self::Sp500TrailingPe => Some((EstimateMetric::TrailingPe, EstimateScope::Sp500)),
+            Self::Sp500EnergyForwardPe => sector(EstimateScope::Energy),
+            Self::Sp500MaterialsForwardPe => sector(EstimateScope::Materials),
+            Self::Sp500IndustrialsForwardPe => sector(EstimateScope::Industrials),
+            Self::Sp500ConsumerDiscretionaryForwardPe => {
+                sector(EstimateScope::ConsumerDiscretionary)
+            }
+            Self::Sp500ConsumerStaplesForwardPe => sector(EstimateScope::ConsumerStaples),
+            Self::Sp500HealthCareForwardPe => sector(EstimateScope::HealthCare),
+            Self::Sp500FinancialsForwardPe => sector(EstimateScope::Financials),
+            Self::Sp500InformationTechnologyForwardPe => {
+                sector(EstimateScope::InformationTechnology)
+            }
+            Self::Sp500CommunicationServicesForwardPe => {
+                sector(EstimateScope::CommunicationServices)
+            }
+            Self::Sp500TelecomServicesForwardPe => sector(EstimateScope::TelecomServices),
+            Self::Sp500UtilitiesForwardPe => sector(EstimateScope::Utilities),
+            Self::Sp500RealEstateForwardPe => sector(EstimateScope::RealEstate),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EstimateMetric {
+    ForwardPe,
+    ForwardPe5yAvg,
+    ForwardPe10yAvg,
+    ForwardEps,
+    IndexPrice,
+    TrailingPe,
+    TrailingPe5yAvg,
+    TrailingPe10yAvg,
+    EpsGrowth,
+    RevenueGrowth,
+    EpsBeatPct,
+    RevenueBeatPct,
+    NegativeGuidance,
+    PositiveGuidance,
+    TargetPrice,
+    TargetUpsidePct,
+    BuyPct,
+    HoldPct,
+    SellPct,
+    Ratings,
+}
+
+impl EstimateMetric {
+    pub fn unit(self) -> &'static str {
+        match self {
+            Self::ForwardPe
+            | Self::ForwardPe5yAvg
+            | Self::ForwardPe10yAvg
+            | Self::TrailingPe
+            | Self::TrailingPe5yAvg
+            | Self::TrailingPe10yAvg => "ratio",
+            Self::ForwardEps => "usd",
+            Self::IndexPrice | Self::TargetPrice => "points",
+            Self::EpsGrowth
+            | Self::RevenueGrowth
+            | Self::EpsBeatPct
+            | Self::RevenueBeatPct
+            | Self::TargetUpsidePct
+            | Self::BuyPct
+            | Self::HoldPct
+            | Self::SellPct => "percent",
+            Self::NegativeGuidance | Self::PositiveGuidance | Self::Ratings => "count",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EstimateScope {
+    Sp500,
+    Energy,
+    Materials,
+    Industrials,
+    ConsumerDiscretionary,
+    ConsumerStaples,
+    HealthCare,
+    Financials,
+    InformationTechnology,
+    CommunicationServices,
+    TelecomServices,
+    Utilities,
+    RealEstate,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum EstimatePeriod {
+    Year(i32),
+    Quarter(i32, u32),
+}
+
+impl fmt::Display for EstimatePeriod {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Year(year) => write!(f, "{year}"),
+            Self::Quarter(year, quarter) => write!(f, "{year}Q{quarter}"),
+        }
+    }
+}
+
+impl FromStr for EstimatePeriod {
+    type Err = String;
+
+    fn from_str(text: &str) -> Result<Self, Self::Err> {
+        let invalid = || format!("{text:?} is not a year or a quarter like 2026Q3");
+        match text.split_once('Q') {
+            Some((year, quarter)) => {
+                let quarter: u32 = quarter.parse().map_err(|_| invalid())?;
+                (1..=4)
+                    .contains(&quarter)
+                    .then_some(Self::Quarter(year.parse().map_err(|_| invalid())?, quarter))
+                    .ok_or_else(invalid)
+            }
+            None => text.parse().map(Self::Year).map_err(|_| invalid()),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EstimateFact {
+    pub metric: EstimateMetric,
+    pub scope: EstimateScope,
+    pub period: Option<EstimatePeriod>,
+    pub as_of: Option<NaiveDate>,
+    pub value: Decimal,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EarningsInsight {
+    pub report: String,
+    pub issue_date: NaiveDate,
+    pub published: NaiveDate,
+    pub url: String,
+    pub retrieved_from: String,
+    pub digest: String,
+    pub text: String,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -633,6 +850,7 @@ pub enum DataSource {
     Nasdaq,
     Cboe,
     FederalReserve,
+    Factset,
 }
 
 #[derive(
@@ -656,6 +874,7 @@ pub enum Dataset {
     InsiderTrades,
     News,
     Fomc,
+    Estimates,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]

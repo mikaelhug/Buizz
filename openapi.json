@@ -1400,7 +1400,8 @@
           "interactive_brokers",
           "nasdaq",
           "cboe",
-          "federal_reserve"
+          "federal_reserve",
+          "factset"
         ]
       },
       "DataWarning": {
@@ -1500,7 +1501,8 @@
           "macro",
           "insider_trades",
           "news",
-          "fomc"
+          "fomc",
+          "estimates"
         ]
       },
       "DesiredState": {

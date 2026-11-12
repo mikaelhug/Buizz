@@ -109,6 +109,9 @@ impl FakeProviders {
             .route("/fred/series/vintagedates", get(fred_vintage_dates))
             .route("/api/global/us_indices/daily_prices/{file}", get(cboe))
             .route("/monetarypolicy/{page}", get(federal_reserve))
+            .route("/earningsinsight", get(latest_earnings_insight))
+            .route("/hubfs/{*file}", get(earnings_insight))
+            .route("/cdx/search/cdx", get(|| async { "" }))
             .route("/control/release", post(release))
             .with_state(fake.clone());
         let listener = TcpListener::bind("127.0.0.1:0")
@@ -662,6 +665,32 @@ async fn fred(State(fake): State<Arc<Fake>>, Query(params): Query<Params>) -> Re
         "observations": vintages.iter().skip(offset).take(PAGE_ROWS).collect::<Vec<_>>(),
     }))
     .into_response()
+}
+
+async fn latest_earnings_insight(State(fake): State<Arc<Fake>>) -> Response {
+    if let Some(limited) = fake.answer("factset") {
+        return limited;
+    }
+    match &fake.world().earnings_insight {
+        Some((name, _)) => (
+            StatusCode::FOUND,
+            [(
+                header::LOCATION,
+                format!("/hubfs/Earnings%20Insight/{name}"),
+            )],
+        )
+            .into_response(),
+        None => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+async fn earnings_insight(State(fake): State<Arc<Fake>>, Path(file): Path<String>) -> Response {
+    match &fake.world().earnings_insight {
+        Some((name, pdf)) if file.ends_with(name.as_str()) => {
+            ([(header::CONTENT_TYPE, "application/pdf")], pdf.clone()).into_response()
+        }
+        _ => StatusCode::NOT_FOUND.into_response(),
+    }
 }
 
 async fn release(State(fake): State<Arc<Fake>>, Json(request): Json<Value>) -> Response {

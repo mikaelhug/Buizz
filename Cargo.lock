@@ -633,10 +633,12 @@ name = "buizz-sources"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "blake3",
  "buizz-core",
  "chrono",
  "csv",
  "futures",
+ "regex",
  "reqwest",
  "roxmltree",
  "rust_decimal",

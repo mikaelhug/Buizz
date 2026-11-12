@@ -8,6 +8,7 @@ use buizz_sources::alpaca::{self, AlpacaConfig};
 use buizz_sources::alpaca_stream::{self, StreamConfig};
 use buizz_sources::cboe::{self, CboeConfig};
 use buizz_sources::edgar::{self, EdgarConfig};
+use buizz_sources::factset::{self, FactsetConfig};
 use buizz_sources::fed::{self, FedConfig};
 use buizz_sources::fred::{self, FredConfig};
 use buizz_sources::ibkr::{self, IbkrConfig};
@@ -38,6 +39,7 @@ pub struct Config {
     pub nasdaq: NasdaqConfig,
     pub cboe: CboeConfig,
     pub fed: FedConfig,
+    pub factset: Option<FactsetConfig>,
     pub ingest_symbols: Option<BTreeSet<Symbol>>,
     pub duckdb_memory: String,
     pub duckdb_threads: usize,
@@ -129,6 +131,11 @@ impl Config {
             wikipedia: var("SEC_USER_AGENT").map(|contact| WikipediaConfig {
                 user_agent: format!("buizz/{} ({contact})", env!("CARGO_PKG_VERSION")),
                 base_url: var_or("WIKIPEDIA_URL", wikipedia::BASE_URL),
+            }),
+            factset: var("SEC_USER_AGENT").map(|contact| FactsetConfig {
+                user_agent: format!("buizz/{} ({contact})", env!("CARGO_PKG_VERSION")),
+                base_url: var_or(factset::URL_ENV, factset::BASE_URL),
+                archive_url: var_or(factset::ARCHIVE_URL_ENV, factset::ARCHIVE_URL),
             }),
             edgar: var("SEC_USER_AGENT").map(|user_agent| EdgarConfig {
                 data_url: var_or("SEC_DATA_URL", edgar::DATA_URL),

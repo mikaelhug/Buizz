@@ -314,6 +314,7 @@ fn sources(url: &str) -> Sources {
             .unwrap(),
         ),
         fed: None,
+        factset: None,
     }
 }
 
@@ -548,6 +549,8 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
             ("news", JobOutcome::Noop),
             ("vix", JobOutcome::Ok),
             ("fomc", JobOutcome::Noop),
+            ("earnings_insight", JobOutcome::Noop),
+            ("earnings_insight_archive", JobOutcome::Noop),
             ("state_snapshot", JobOutcome::Ok),
             ("market_snapshot", JobOutcome::Ok),
             ("tiingo_history", JobOutcome::Failed),
@@ -659,6 +662,7 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
             ("news", JobOutcome::Noop),
             ("vix", JobOutcome::Ok),
             ("fomc", JobOutcome::Noop),
+            ("earnings_insight", JobOutcome::Noop),
             ("state_snapshot", JobOutcome::Ok),
             ("market_snapshot", JobOutcome::Ok),
             ("tiingo_history", JobOutcome::Noop),

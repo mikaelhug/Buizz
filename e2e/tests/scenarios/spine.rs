@@ -162,6 +162,8 @@ impl Spine {
             .env("FRED_URL", url)
             .env("CBOE_URL", url)
             .env("FED_URL", url)
+            .env("FACTSET_URL", url)
+            .env("WAYBACK_URL", url)
             .stdout(log.try_clone().expect("the spine log"))
             .stderr(log)
             .kill_on_drop(true);

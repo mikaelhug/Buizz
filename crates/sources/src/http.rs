@@ -74,6 +74,13 @@ impl HttpClient {
     }
 
     pub async fn fetch(&self, request: RequestBuilder) -> Result<Vec<u8>, SourceError> {
+        Ok(self.fetch_located(request).await?.1)
+    }
+
+    pub async fn fetch_located(
+        &self,
+        request: RequestBuilder,
+    ) -> Result<(String, Vec<u8>), SourceError> {
         let mut retry_delay = FIRST_RETRY_DELAY;
         for attempt in 0..=RETRIES {
             let last = attempt == RETRIES;
@@ -96,7 +103,7 @@ impl HttpClient {
         unreachable!("the last attempt returns")
     }
 
-    async fn fetch_once(&self, request: RequestBuilder) -> Result<Vec<u8>, SourceError> {
+    async fn fetch_once(&self, request: RequestBuilder) -> Result<(String, Vec<u8>), SourceError> {
         self.wait_for_slot().await;
         let response = request.send().await?;
         let status = response.status();
@@ -113,7 +120,8 @@ impl HttpClient {
                 body,
             });
         }
-        Ok(response.bytes().await?.to_vec())
+        let url = response.url().to_string();
+        Ok((url, response.bytes().await?.to_vec()))
     }
 
     async fn hold(&self, wait: Duration) {
