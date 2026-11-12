@@ -8,10 +8,14 @@ from buizz_bots.fundamentals import (
     Annual,
     adjusted_shares,
     amount,
+    amount_or_zero,
     consecutive_fiscal_ends,
     domestic_annual,
+    gross_margin,
     histories_since,
+    total_debt,
     traded_today,
+    year_end_shares,
 )
 
 from buizz import Bot, Context, Metric, run
@@ -74,17 +78,6 @@ class Board(NamedTuple):
     yields: Floats
 
 
-def gross_margin(annual: Annual, symbol: str, end: date) -> float | None:
-    revenue = amount(annual, symbol, "revenue", end)
-    gross = amount(annual, symbol, "gross_profit", end)
-    cost = amount(annual, symbol, "cost_of_revenue", end)
-    if revenue is None or revenue <= 0:
-        return None
-    if gross is None and cost is not None:
-        gross = revenue - cost
-    return None if gross is None else gross / revenue
-
-
 def year_of(annual: Annual, symbol: str, end: date) -> Year | None:
     found = [amount(annual, symbol, metric, end) for metric in RECORD_METRICS]
     margin = gross_margin(annual, symbol, end)
@@ -117,28 +110,11 @@ def franchise_of(record: list[Year]) -> Franchise | None:
     return Franchise(roa, roc, cfoa, float(growth), stability)
 
 
-def total_debt(annual: Annual, symbol: str, end: date) -> float:
-    def part(metric: Metric) -> float:
-        return amount(annual, symbol, metric, end) or 0.0
-
-    current = amount(annual, symbol, "short_term_debt", end)
-    if current is None:
-        current = part("short_term_borrowings") + part("current_long_term_debt")
-    noncurrent = amount(annual, symbol, "long_term_debt_noncurrent", end)
-    if noncurrent is not None:
-        return noncurrent + current
-    reported_total = amount(annual, symbol, "long_term_debt", end)
-    if reported_total is None:
-        return current
-    return reported_total + part("short_term_borrowings")
-
-
 def enterprise_extras(annual: Annual, symbol: str, end: date) -> float:
-    def part(metric: Metric) -> float:
-        return amount(annual, symbol, metric, end) or 0.0
-
-    cash = part("cash_and_equivalents") + part("short_term_investments")
-    return total_debt(annual, symbol, end) + part("preferred_stock") - cash
+    cash = amount_or_zero(annual, symbol, "cash_and_equivalents", end) + amount_or_zero(
+        annual, symbol, "short_term_investments", end
+    )
+    return total_debt(annual, symbol, end) + amount_or_zero(annual, symbol, "preferred_stock", end) - cash
 
 
 def percentile(reference: Floats, value: float) -> float:
@@ -177,8 +153,7 @@ def assess(ctx: Context, symbols: list[str]) -> dict[str, Assessment]:
     shares = {
         symbol: point
         for symbol, seen in found.items()
-        if (point := annual.get((symbol, "shares_outstanding"), {}).get(seen.fiscal_end)) is not None
-        and point.value > 0
+        if (point := year_end_shares(annual, symbol, seen.fiscal_end)) is not None and point.value > 0
     }
     if not shares:
         return found
@@ -253,9 +228,10 @@ def sell_reason(ctx: Context, board: Board, symbol: str) -> str | None:
     return None
 
 
-def buy(ctx: Context, board: Board, held: list[str], kept: int) -> None:
+def buy(ctx: Context, board: Board, held: list[str], sold: list[str]) -> None:
     holdings = int(ctx.params["holdings"])
-    if kept >= holdings or not len(board.yields):
+    open_slots = holdings - len(held) + len(sold)
+    if open_slots <= 0 or not len(board.yields):
         return
     floor = float(np.quantile(board.yields, float(ctx.params["value_floor"])))
     quality_floor = 1 - float(ctx.params["quality_top"])
@@ -273,39 +249,45 @@ def buy(ctx: Context, board: Board, held: list[str], kept: int) -> None:
         ),
         reverse=True,
     )
+    chosen = candidates[:open_slots]
+    proceeds = sum(ctx.position(symbol).qty * ctx.bars[symbol].close for symbol in sold if symbol in ctx.bars)
+    free = (float(ctx.portfolio.cash) + proceeds) / float(ctx.portfolio.equity)
+    if not chosen or free <= 0:
+        return
+    weight = min(1 / holdings, free / len(chosen))
     years = int(ctx.params["record_years"])
-    for ebit_tev, symbol, power, roc in candidates[: holdings - kept]:
+    for ebit_tev, symbol, power, roc in chosen:
         ctx.order_target_weight(
             symbol,
-            1 / holdings,
+            weight,
             reason=(
                 f"franchise power pct {power:.0%} (top {1 - quality_floor:.0%}), {years}y ROC {roc:.1%}, "
-                f"EBIT/TEV {ebit_tev:.1%} at or above the universe median {floor:.1%}"
+                f"EBIT/TEV {ebit_tev:.1%} at or above the universe median {floor:.1%}, {weight:.1%} of equity"
             ),
         )
 
 
 class Munger(Bot):
     def on_step(self, ctx: Context) -> None:
-        today = ctx.session.date
+        month = f"{ctx.session.date:%Y-%m}"
         held = sorted(symbol for symbol, position in ctx.portfolio.positions.items() if position.qty > 0)
         known: dict[str, str] = ctx.state.get("reports", {})
         reports = latest_reports(ctx, held) if held else {}
         fresh = [symbol for symbol in held if symbol in known and reports.get(symbol, known[symbol]) != known[symbol]]
         ctx.state["reports"] = {symbol: reports.get(symbol, known.get(symbol, "")) for symbol in held}
-        rerank = today.month == int(ctx.params["rerank_month"]) and ctx.state.get("ranked") != today.year
-        if not fresh and not rerank:
+        short = len(held) < int(ctx.params["holdings"]) and ctx.state.get("filled") != month
+        if not fresh and not short:
             return
         board = board_of(ctx, held)
-        kept = list(held)
+        sold: list[str] = []
         for symbol in fresh:
             reason = sell_reason(ctx, board, symbol)
             if reason is not None:
                 ctx.order_target_weight(symbol, 0, reason=reason)
-                kept.remove(symbol)
-        if rerank:
-            ctx.state["ranked"] = today.year
-            buy(ctx, board, held, len(kept))
+                sold.append(symbol)
+        if short or sold:
+            ctx.state["filled"] = month
+            buy(ctx, board, held, sold)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,9 @@
-description = "Munger: five Gray-Carlisle franchise-power compounders at median-or-better EBIT/TEV, held for years"
+description = "Munger: five Gray-Carlisle franchise-power compounders at median-or-better EBIT/TEV, held for years. Unlike Quantitative Value it ranks quality first (top 10% franchise power) and asks only a median EBIT/TEV instead of the cheapest decile, skips the accrual, manipulation, distress and financial-strength screens, holds five names, and instead of a yearly rebalance sells only when a new 10-K breaks quality or makes the price absurd, filling empty slots within the month"
 command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
 timeframe = "1d"
 wake = "bar"
 universe = { top_dollar_volume = 1000, asset_class = "stock" }
-params = { holdings = 5, record_years = 8, quality_top = 0.10, value_floor = 0.50, sell_quality_floor = 0.30, sell_value_floor = 0.10, rerank_month = 4 }
+params = { holdings = 5, record_years = 8, quality_top = 0.10, value_floor = 0.50, sell_quality_floor = 0.30, sell_value_floor = 0.10 }
+
+[risk]
+max_gross_exposure = 1.0
