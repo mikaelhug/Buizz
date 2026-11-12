@@ -956,8 +956,11 @@ impl Driver {
             .iter()
             .map(|order| &order.symbol)
             .filter(|symbol| {
-                self.timeline.instrument(symbol).is_some()
-                    && !unleased.contains(*symbol)
+                self.timeline.instrument(symbol).is_some_and(|instrument| {
+                    instrument
+                        .last_session
+                        .is_none_or(|last| last >= session.date)
+                }) && !unleased.contains(*symbol)
                     && !self.timeline.tracked().contains(*symbol)
             })
             .cloned()
