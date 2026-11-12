@@ -126,13 +126,6 @@ export const METRICS: Record<MetricKey, MetricSpec> = {
   sessions: { key: "sessions", label: "Sessions", name: "Sessions", title: "Trading sessions with a close mark so far.", render: fmt.integer },
 };
 
-export const FEW_TRADES = 30;
-
-export function sharpeError(metrics: Metrics): number | undefined {
-  const { sharpe, sessions } = metrics;
-  return sharpe === null || sharpe === undefined || sessions < 2 ? undefined : Math.sqrt((TRADING_DAYS + (sharpe * sharpe) / 2) / sessions);
-}
-
 export function MetricValue({ metrics, metric }: { metrics: Metrics | null | undefined; metric: MetricKey }) {
   const spec = METRICS[metric];
   const value = metrics?.[metric];

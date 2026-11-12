@@ -1,52 +1,37 @@
-import { useId } from "react";
 import type { Schemas } from "../api/client";
 import { fmt } from "../lib/format";
 
 const WIDTH = 100;
-const HEIGHT = 40;
-const PAD = 3;
+const HEIGHT = 28;
+const PAD = 2;
 
-const day = (at: string) => at.slice(0, 10);
+export type Mark = { at: string; equity: string };
 
-export function Sparkline({ points }: { points: Schemas["SparkPoint"][] }) {
-  const gradient = useId();
-  const values = points.map((point) => Number(point.equity));
-  const first = points[0];
-  const last = points.at(-1);
-  if (values.length < 2 || !first || !last) {
+type Props = { curve: Schemas["LivePoint"][]; mark: Mark | undefined; benchmark: string };
+
+export function Sparkline({ curve, mark, benchmark }: Props) {
+  const first = curve[0];
+  const strategy = [...curve.map((point) => Number(point.equity)), ...(mark ? [Number(mark.equity)] : [])];
+  const index = curve.map((point) => Number(point.benchmark));
+  if (!first || strategy.length < 2) {
     return <div className="sparkline sparkline-empty" aria-hidden="true" />;
   }
+  const values = [...strategy, ...index];
   const low = Math.min(...values);
-  const high = Math.max(...values);
-  const span = high - low || 1;
+  const span = Math.max(...values) - low || 1;
+  const step = WIDTH / (strategy.length - 1);
   const y = (value: number) => HEIGHT - PAD - ((value - low) / span) * (HEIGHT - 2 * PAD);
-  const step = WIDTH / (values.length - 1);
-  const line = values.map((value, index) => `${(index * step).toFixed(2)},${y(value).toFixed(2)}`).join(" ");
-  const start = values[0] ?? low;
-  const end = values.at(-1) ?? low;
-  const baseline = y(start);
-  const split = `${((baseline / HEIGHT) * 100).toFixed(2)}%`;
-  const label = `Equity from ${fmt.money(first.equity)} on ${day(first.at)} to ${fmt.money(last.equity)} on ${day(last.at)}, low ${fmt.money(low)}, high ${fmt.money(high)}`;
+  const line = (series: number[]) => series.map((value, at) => `${(at * step).toFixed(2)},${y(value).toFixed(2)}`).join(" ");
+  const start = Number(first.equity);
+  const change = (value: number | undefined) => fmt.change(value === undefined ? undefined : value / start - 1);
+  const label = `Since ${fmt.date(first.at)} the run is ${change(strategy.at(-1))} and ${benchmark} ${change(index.at(-1))}`;
   return (
     <figure className="sparkline" role="img" aria-label={label}>
-      <div className="sparkline-plot">
-        <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} preserveAspectRatio="none" aria-hidden="true">
-          <defs>
-            <linearGradient id={gradient} x1="0" x2="0" y1="0" y2={HEIGHT} gradientUnits="userSpaceOnUse">
-              <stop offset={split} className="sparkline-above" />
-              <stop offset={split} className="sparkline-below" />
-            </linearGradient>
-          </defs>
-          <line x1="0" x2={WIDTH} y1={baseline} y2={baseline} className="sparkline-base" />
-          <polygon points={`0,${baseline} ${line} ${WIDTH},${baseline}`} fill={`url(#${gradient})`} className="sparkline-area" />
-          <polyline points={line} stroke={`url(#${gradient})`} />
-        </svg>
-        <span className={`sparkline-dot ${end >= start ? "up" : "down"}`} style={{ top: `${(y(end) / HEIGHT) * 100}%` }} />
-      </div>
-      <figcaption className="sparkline-axis" aria-hidden="true">
-        <span>{day(first.at)}</span>
-        <span>{day(last.at)}</span>
-      </figcaption>
+      <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} preserveAspectRatio="none" aria-hidden="true">
+        <line x1="0" x2={WIDTH} y1={y(start)} y2={y(start)} className="sparkline-base" />
+        <polyline points={line(index)} className="sparkline-benchmark" />
+        <polyline points={line(strategy)} className="sparkline-run" />
+      </svg>
     </figure>
   );
 }

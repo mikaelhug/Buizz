@@ -18,6 +18,7 @@ const integer = new Intl.NumberFormat("en-US");
 const EXCHANGE_ZONE = "America/New_York";
 const minutes = { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" } as const;
 const localTime = new Intl.DateTimeFormat("sv-SE", minutes);
+const localDate = new Intl.DateTimeFormat("sv-SE", { year: "numeric", month: "2-digit", day: "2-digit" });
 const exchangeTime = new Intl.DateTimeFormat("sv-SE", { ...minutes, timeZone: EXCHANGE_ZONE });
 const exchangeParts = new Intl.DateTimeFormat("en-US", {
   timeZone: EXCHANGE_ZONE,
@@ -65,6 +66,7 @@ export const fmt = {
   change: (value: Maybe<number>) => present(value, (v) => signedPercent.format(v)),
   integer: (value: Maybe<number>) => present(value, (v) => integer.format(v)),
   local: (value: Maybe<string>) => present(value, (v) => localTime.format(new Date(v))),
+  date: (value: Maybe<string>) => present(value, (v) => localDate.format(new Date(v))),
   market: (value: Maybe<string>) => present(value, (v) => `${exchangeTime.format(new Date(v))} ET`),
 };
 
