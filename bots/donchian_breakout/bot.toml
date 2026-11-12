@@ -1,0 +1,26 @@
+description = "Turtle System 2 on a cross-asset ETF basket: 55-day breakouts, 20-day exits, N-sized units pyramided at ½N with 2N stops, Turtle unit limits and the 10%/20% notional-account cut"
+command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
+timeframe = "1d"
+wake = "bar"
+universe = { symbols = ["SPY", "QQQ", "IWM", "EFA", "EEM", "TLT", "IEF", "GLD", "SLV", "USO", "DBA", "UUP"] }
+
+[params]
+entry = 55
+exit = 20
+n_period = 20
+risk_per_unit = 0.01
+max_units = 4
+add_step = 0.5
+stop_n = 2.0
+closely_correlated_units = 6
+loosely_correlated_units = 10
+direction_units = 12
+closely_correlated = { equities = ["SPY", "QQQ", "IWM", "EFA", "EEM"], treasuries = ["TLT", "IEF"], precious_metals = ["GLD", "SLV"] }
+loosely_correlated = { commodities = ["GLD", "SLV", "USO", "DBA"] }
+drawdown_step = 0.10
+drawdown_cut = 0.20
+max_unit_weight = 1.0
+max_gross = 4.0
+
+[risk]
+max_gross_exposure = 4.0
