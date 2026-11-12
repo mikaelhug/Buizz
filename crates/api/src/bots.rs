@@ -55,7 +55,7 @@ async fn summarize(
     started: u32,
     benchmarks: &Benchmarks,
 ) -> Result<BotSummary, Failure> {
-    let (last_run_at, screening) = try_join(
+    let (last_run_at, screened) = try_join(
         async { Ok::<_, Failure>(app.state.last_run_at(&bot.name).await?) },
         async { Ok(app.runner.screening(bot, benchmarks).await?) },
     )
@@ -65,7 +65,9 @@ async fn summarize(
         .filter(|run| run.bot == bot.name)
         .map(|run| live_summary(run.clone(), started))
         .collect();
-    let passing = screening.is_some_and(|screening| screening.passing > 0);
+    let passing = screened
+        .screening
+        .is_some_and(|screening| screening.passing > 0);
     let stage = match (live.is_empty(), passing) {
         (false, _) => BotStage::Live,
         (true, true) => BotStage::Screened,
@@ -77,7 +79,8 @@ async fn summarize(
         timeframe: bot.manifest.timeframe,
         params: bot.manifest.params.clone(),
         stage,
-        screening,
+        screening: screened.screening,
+        backtest: screened.backtest,
         live,
         last_run_at,
     })

@@ -286,7 +286,9 @@ export function liveSortColumns<K extends LiveKey>(keys: readonly K[]): SortColu
   >;
 }
 
-export function LiveHeader<S extends string>({ sorting, column, className }: { sorting: Sorting<Live, S>; column: LiveKey & S; className?: string | undefined }) {
+type LiveHeaderProps<S extends string> = { sorting: Sorting<Live, S>; column: LiveKey & S; className?: string | undefined };
+
+export function LiveHeader<S extends string>({ sorting, column, className }: LiveHeaderProps<S>) {
   const spec = LIVE_COLUMNS[column];
   return (
     <SortHeader sorting={sorting} column={column} numeric={spec.numeric ?? false} className={className} info={spec.about && <Info label={spec.label}>{spec.about}</Info>}>

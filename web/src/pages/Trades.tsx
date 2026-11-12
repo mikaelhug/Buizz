@@ -1,3 +1,4 @@
+import { useQueryParam } from "../lib/route";
 import { useState } from "react";
 import { api, must, type Schemas } from "../api/client";
 import { useSpineEvents } from "../api/stream";
@@ -94,7 +95,7 @@ export function Trades({ runId, positionsHref, symbolHref }: Props) {
   });
   const sorting = useSort("trades", COLUMNS, { key: "closed", descending: true });
   const flash = useFlash(trades.data, tradeKey);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useQueryParam("trades");
   const [all, setAll] = useState(false);
 
   const matching = sorting.order((trades.data ?? []).filter((trade) => matches(query, trade.symbol, side(trade), trade.opening_reason, trade.closing_reason)));

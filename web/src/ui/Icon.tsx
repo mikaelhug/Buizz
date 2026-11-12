@@ -6,6 +6,8 @@ const PATHS = {
   play: "M7 5v14l11-7z",
   pause: "M8 5v14m8-14v14",
   chevron: "m6 9 6 6 6-6",
+  more: "M5 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm7 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm7 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z",
+  search: "M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14Zm9 2-4.35-4.35",
 } as const;
 
 export type IconName = keyof typeof PATHS;

@@ -39,17 +39,19 @@ type SortHeaderProps<K extends string> = {
   numeric?: boolean;
   className?: string | undefined;
   info?: ReactNode;
+  select?: ReactNode;
   rowSpan?: number | undefined;
   children: ReactNode;
 };
 
-export function SortHeader<K extends string>({ sorting, column, numeric = false, className, info, rowSpan, children }: SortHeaderProps<K>) {
+export function SortHeader<K extends string>({ sorting, column, numeric = false, className, info, select, rowSpan, children }: SortHeaderProps<K>) {
   const active = sorting.sort.key === column;
   const direction = sorting.sort.descending ? "descending" : "ascending";
   const classes = ["sortable", numeric ? "r" : "", active ? (sorting.sort.descending ? "desc" : "asc") : "", className ?? ""].filter(Boolean).join(" ");
   return (
     <th scope="col" className={classes} rowSpan={rowSpan} aria-sort={active ? direction : undefined}>
       <span className="th-inner">
+        {select}
         {numeric && info}
         <button type="button" onClick={() => sorting.toggle(column)}>
           {children}
@@ -62,6 +64,25 @@ export function SortHeader<K extends string>({ sorting, column, numeric = false,
 
 export function TableFilter({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   return <input className="input input-sm table-filter" type="search" placeholder="Filter" aria-label={label} value={value} onChange={(event) => onChange(event.target.value)} />;
+}
+
+export function PageSearch({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <span className="page-search">
+      <input
+        className="input input-sm"
+        type="search"
+        placeholder={label}
+        aria-label={label}
+        aria-keyshortcuts="/"
+        data-page-search=""
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onKeyDown={(event) => event.key === "Escape" && event.currentTarget.blur()}
+      />
+      <kbd aria-hidden="true">/</kbd>
+    </span>
+  );
 }
 
 export function matches(query: string, ...fields: (string | number | null | undefined)[]): boolean {

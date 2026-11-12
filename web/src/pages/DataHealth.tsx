@@ -1,8 +1,8 @@
-import { useDeferredValue, useState } from "react";
+import { useDeferredValue } from "react";
 import { api, must, type Schemas } from "../api/client";
 import { useSpineEvents } from "../api/stream";
 import { ABSENT, fmt, label } from "../lib/format";
-import { href } from "../lib/route";
+import { href, useQueryParam } from "../lib/route";
 import { type Resource, useResource } from "../lib/useResource";
 import { Failure, Loading, StaleFailure } from "../ui/Feedback";
 import { Info } from "../ui/Popover";
@@ -218,7 +218,7 @@ const WARNING_COLUMNS: SortColumns<Warning, WarningColumn> = {
 function WarningsPanel({ health }: { health: Resource<Schemas["DataHealth"]> }) {
   const warnings = health.data?.warnings;
   const sorting = useSort("warnings", WARNING_COLUMNS, { key: "symbol", descending: false });
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useQueryParam("warnings");
   const shown = sorting.order((warnings ?? []).filter((warning) => matches(query, warning.symbol, WARNING_KINDS[warning.type], warningText(warning))));
   return (
     <section className="panel">
@@ -500,7 +500,7 @@ function coverageKey(row: CoverageRow): string {
 }
 
 function CoveragePanel({ health }: { health: Resource<Schemas["DataHealth"]> }) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useQueryParam("coverage");
   const needle = useDeferredValue(query);
   const sorting = useSort("coverage", COVERAGE_COLUMNS, { key: "dataset", descending: false });
   const flash = useFlash(health.data?.coverage, coverageKey);

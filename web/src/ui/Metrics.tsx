@@ -218,7 +218,7 @@ function StatRow({ stat, headline = false }: { stat: Stat; headline?: boolean })
         <Info label={stat.label}>{stat.title}</Info>
       </dt>
       <dd>
-        <span className={`num ${headline ? "display " : ""}${stat.tone ?? ""}`}>{stat.text}</span>
+        <span className={headline ? `num display ${stat.tone ?? ""}` : "num"}>{stat.text}</span>
         {stat.bench && <span className="metric-bench">{stat.bench}</span>}
         {stat.note && <span className="metric-note">{stat.note}</span>}
       </dd>

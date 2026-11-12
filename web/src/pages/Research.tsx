@@ -3,6 +3,7 @@ import { api, errorMessage, must, type Schemas } from "../api/client";
 import { useSpineEvents } from "../api/stream";
 import { fmt, label, paramsText } from "../lib/format";
 import { href, navigate } from "../lib/route";
+import { BulkBar, CompareButton, SelectAll, SelectBox, useSelection } from "../ui/Selection";
 import { useFrameBatch } from "../lib/useFrameBatch";
 import { useResource } from "../lib/useResource";
 import { Failure, Loading, StaleFailure } from "../ui/Feedback";
@@ -12,7 +13,8 @@ import { StatusPill } from "../ui/Status";
 import { moveBetweenRows, openRow, SortHeader, type SortColumns, useFlash, useSort } from "../ui/Table";
 import { notify } from "../ui/Toaster";
 import { goLive } from "./BotActions";
-import { isPreset, SweepDialog } from "./SweepDialog";
+import { launchSweep } from "./Launch";
+import { isPreset } from "./SweepDialog";
 import "../styles/research.css";
 
 type Run = Schemas["RunSummary"];
@@ -20,7 +22,7 @@ type PresetResearch = Schemas["PresetResearch"];
 type Variant = Schemas["VariantResult"];
 type Params = Record<string, unknown>;
 
-const CHECKS: Record<Schemas["GateCheck"], string> = {
+export const CHECKS: Record<Schemas["GateCheck"], string> = {
   not_completed: "not completed",
   data_warnings: "data warnings",
   drawdown_stop: "drawdown stop",
@@ -89,7 +91,6 @@ type Props = { name: string; preset: string | undefined; defaults: Params; live:
 
 export function Research({ name, preset: requested, defaults, live }: Props) {
   const research = useResource(() => must(api.GET("/api/bots/{name}/research", { params: { path: { name } } })), [name]);
-  const [sweeping, setSweeping] = useState(false);
   const reloadOnce = useFrameBatch<unknown>(() => research.reload());
 
   useSpineEvents((event) => {
@@ -136,7 +137,7 @@ export function Research({ name, preset: requested, defaults, live }: Props) {
               Cancel {queued} queued
             </button>
           )}
-          <button type="button" className="btn btn-sm btn-primary" onClick={() => setSweeping(true)}>
+          <button type="button" className="btn btn-sm btn-primary" onClick={() => launchSweep(name, sweepPreset)}>
             Sweep
           </button>
         </div>
@@ -161,19 +162,6 @@ export function Research({ name, preset: requested, defaults, live }: Props) {
           </nav>
           <PresetView key={shown.preset} name={name} research={shown} defaults={defaults} liveVariants={liveVariants} trials={trials.variants} gate={shown.preset === gatePreset} />
         </>
-      )}
-      {sweeping && (
-        <SweepDialog
-          name={name}
-          defaults={defaults}
-          preset={sweepPreset}
-          onClose={() => setSweeping(false)}
-          onStarted={(_, preset) => {
-            setSweeping(false);
-            research.reload();
-            navigate({ page: "research", name, preset });
-          }}
-        />
       )}
     </div>
   );
@@ -202,23 +190,6 @@ function PresetView({ name, research, defaults, liveVariants, trials, gate }: Pr
 
   return (
     <>
-      <section className="panel" aria-label="Spread">
-        <header className="panel-head">
-          <h2>Spread of {variants.length} {variants.length === 1 ? "variant" : "variants"}</h2>
-          <span className="muted">
-            {gate ? "The screening gate is judged on this period" : "A shorter period than the one the gate is judged on"}
-            <Info label="Screening gate">{GATE_ABOUT}</Info>
-          </span>
-        </header>
-        <Spread research={research} trials={trials} />
-        {best && (
-          <p className="research-best">
-            Best Sharpe <strong className="num">{fmt.ratio(sharpe(best))}</strong> at <span className="mono">{variantText(best.params, defaults)}</span>, and its
-            neighbourhood median is <strong className="num">{fmt.ratio(best.neighbourhood_sharpe)}</strong>
-            <Info label="Neighbourhood median">{NEIGHBOURHOOD_ABOUT}</Info>
-          </p>
-        )}
-      </section>
       <section className="panel research-suggest" aria-label="Suggested variant">
         {plateau ? (
           <>
@@ -242,6 +213,23 @@ function PresetView({ name, research, defaults, liveVariants, trials, gate }: Pr
         )}
       </section>
       {axes.length >= 1 && axes.length <= 2 && variants.length > 1 && <Heatmap name={name} variants={variants} axes={axes} plateau={research.plateau} />}
+      <section className="panel" aria-label="Spread">
+        <header className="panel-head">
+          <h2>Spread of {variants.length} {variants.length === 1 ? "variant" : "variants"}</h2>
+          <span className="muted">
+            {gate ? "The screening gate is judged on this period" : "A shorter period than the one the gate is judged on"}
+            <Info label="Screening gate">{GATE_ABOUT}</Info>
+          </span>
+        </header>
+        <Spread research={research} trials={trials} />
+        {best && (
+          <p className="research-best">
+            Best Sharpe <strong className="num">{fmt.ratio(sharpe(best))}</strong> at <span className="mono">{variantText(best.params, defaults)}</span>, and its
+            neighbourhood median is <strong className="num">{fmt.ratio(best.neighbourhood_sharpe)}</strong>
+            <Info label="Neighbourhood median">{NEIGHBOURHOOD_ABOUT}</Info>
+          </p>
+        )}
+      </section>
       <VariantTable name={name} variants={variants} axes={axes} defaults={defaults} plateau={research.plateau} liveVariants={liveVariants} busy={busy} onLive={(variant) => void live(variant)} />
     </>
   );
@@ -433,6 +421,8 @@ function VariantTable({ name, variants, axes, defaults, plateau, liveVariants, b
   };
   const sorting = useSort(`research-${name}`, columns, { key: "neighbourhood", descending: true });
   const flash = useFlash(variants, (variant) => variant.run_id);
+  const ordered = sorting.order(variants);
+  const chosen = useSelection(ordered.map((variant) => variant.run_id));
 
   return (
     <section className="panel" aria-label="Variants">
@@ -444,7 +434,7 @@ function VariantTable({ name, variants, axes, defaults, plateau, liveVariants, b
         <table className="table fin research-table">
           <thead>
             <tr>
-              <SortHeader sorting={sorting} column="run">
+              <SortHeader sorting={sorting} column="run" select={<SelectAll selection={chosen} label="Select every variant" />}>
                 Run
               </SortHeader>
               {axes.length === 0 ? (
@@ -483,13 +473,14 @@ function VariantTable({ name, variants, axes, defaults, plateau, liveVariants, b
             </tr>
           </thead>
           <tbody onKeyDown={moveBetweenRows}>
-            {sorting.order(variants).map((variant) => {
+            {ordered.map((variant) => {
               const target = href({ page: "bot", name, run: variant.run_id });
               const passes = variant.failed_checks.length === 0;
               const isLive = liveVariants.has(key(variant.params));
               return (
                 <tr key={variant.run_id} className={variant.run_id === plateau ? "clickable selected" : "clickable"} onClick={openRow(target)} {...flash.row(variant.run_id)}>
                   <td>
+                    <SelectBox selection={chosen} value={variant.run_id} label={`Select run #${variant.run_id}`} />
                     <a href={target}>#{variant.run_id}</a>
                   </td>
                   {axes.length === 0 ? (
@@ -519,7 +510,20 @@ function VariantTable({ name, variants, axes, defaults, plateau, liveVariants, b
                     ) : passes ? (
                       <span className="pill pill-ok">pass</span>
                     ) : (
-                      <span className="gate-fails">{variant.failed_checks.map((check) => CHECKS[check]).join(", ")}</span>
+                      variant.failed_checks.length === 1 ? (
+                      <span className="gate-fails">{CHECKS[variant.failed_checks[0] ?? "not_completed"]}</span>
+                    ) : (
+                      <span className="gate-fails">
+                        fails {variant.failed_checks.length} checks
+                        <Info label={`Run #${variant.run_id} fails`}>
+                          <ul className="gate-list">
+                            {variant.failed_checks.map((check) => (
+                              <li key={check}>{CHECKS[check]}</li>
+                            ))}
+                          </ul>
+                        </Info>
+                      </span>
+                    )
                     )}
                     {variant.run_id === plateau && <span className="pill pill-plateau">plateau</span>}
                   </td>
@@ -539,6 +543,11 @@ function VariantTable({ name, variants, axes, defaults, plateau, liveVariants, b
             })}
           </tbody>
         </table>
+      </div>
+      <div className="bulk-dock">
+        <BulkBar selection={chosen} noun={chosen.keys.length === 1 ? "variant" : "variants"}>
+          <CompareButton runs={chosen.keys} />
+        </BulkBar>
       </div>
     </section>
   );

@@ -1,13 +1,12 @@
-import { useState } from "react";
 import { api, errorMessage, must, type Schemas } from "../api/client";
 import { useSpineEvents } from "../api/stream";
 import { fmt } from "../lib/format";
-import { href } from "../lib/route";
+import { href, useQueryParam } from "../lib/route";
 import { useResource } from "../lib/useResource";
 import { Failure, Loading, StaleFailure } from "../ui/Feedback";
 import { LIVE_COLUMNS, type Live, type LiveKey, LiveHeader, liveSortColumns, retired } from "../ui/LiveTable";
 import { Info } from "../ui/Popover";
-import { matches, type Sorting, TableFilter, useSort } from "../ui/Table";
+import { matches, PageSearch, type Sorting, useSort } from "../ui/Table";
 import { notify } from "../ui/Toaster";
 import "../styles/board.css";
 
@@ -97,7 +96,7 @@ function Group({ title, about, rows, sorting, ranked }: { title: string; about: 
 export function League() {
   const league = useResource(() => must(api.GET("/api/league")), []);
   const sorting = useSort("league", SORT, { key: "confidence", descending: true });
-  const [filter, setFilter] = useState("");
+  const [filter, setFilter] = useQueryParam("q");
 
   const known = (id: number) => league.data && [...league.data.ranked, ...league.data.too_early].some((row) => row.run.id === id);
 
@@ -125,7 +124,7 @@ export function League() {
     <div className="league">
       <header className="page-head">
         <h1>League</h1>
-        <TableFilter label="Filter live runs" value={filter} onChange={setFilter} />
+        <PageSearch label="Search live runs" value={filter} onChange={setFilter} />
       </header>
       <StaleFailure resource={league} />
       <p className="league-luck">

@@ -21,7 +21,26 @@ export function goLive(name: string, fromRun?: number): Promise<Run> {
   return must(api.POST("/api/bots/{name}/live", { params: { path: { name } }, body: fromRun === undefined ? {} : { from_run: fromRun } }));
 }
 
-export function BotActions({ name, live: liveRun, onChanged }: Props) {
+export function pauseRun(id: number): Promise<Run> {
+  return must(api.POST("/api/runs/{id}/pause", { params: { path: { id } } }));
+}
+
+export function resumeRun(id: number): Promise<Run> {
+  return must(api.POST("/api/runs/{id}/resume", { params: { path: { id } } }));
+}
+
+export function undoPause(runs: Run[]): { text: string; run: () => void } {
+  return {
+    text: "Undo",
+    run: () =>
+      void Promise.all(runs.map((run) => resumeRun(run.id))).then(
+        () => notify(runs.length === 1 ? `${runs[0]?.bot} live again` : `${runs.length} runs live again`, "success"),
+        (error: unknown) => notify(errorMessage(error)),
+      ),
+  };
+}
+
+export function useLiveControls(name: string, liveRun: Run | undefined, onChanged: (run: Run) => void) {
   const [busy, setBusy] = useState(false);
   const [stopping, setStopping] = useState<Run>();
   const live = isRunning(liveRun);
@@ -30,7 +49,7 @@ export function BotActions({ name, live: liveRun, onChanged }: Props) {
     setBusy(true);
     try {
       const run = await pending();
-      notify(`${name} ${done} · run #${run.id}`, "success");
+      notify(`${name} ${done} · run #${run.id}`, "success", done === "paused" ? undoPause([run]) : undefined);
       onChanged(run);
       return true;
     } catch (error) {
@@ -45,38 +64,51 @@ export function BotActions({ name, live: liveRun, onChanged }: Props) {
     if (!liveRun) {
       return act(() => goLive(name), "live");
     }
-    const params = { params: { path: { id: liveRun.id } } };
-    return act(() => must(live ? api.POST("/api/runs/{id}/pause", params) : api.POST("/api/runs/{id}/resume", params)), live ? "paused" : "live");
+    return act(() => (live ? pauseRun(liveRun.id) : resumeRun(liveRun.id)), live ? "paused" : "live");
   };
 
+  const dialog = stopping && (
+    <StopDialog
+      name={name}
+      run={stopping}
+      busy={busy}
+      onCancel={() => setStopping(undefined)}
+      onStop={(reason) =>
+        void act(() => must(api.POST("/api/runs/{id}/cancel", { params: { path: { id: stopping.id } }, body: reason ? { reason } : {} })), reason ? "retired" : "stopped").then(
+          (stopped) => stopped && setStopping(undefined),
+        )
+      }
+    />
+  );
+
+  return {
+    busy,
+    live,
+    toggleText: live ? "Pause" : liveRun ? "Live" : "Go live",
+    toggle: () => void toggle(),
+    stop: liveRun ? () => setStopping(liveRun) : undefined,
+    dialog,
+  };
+}
+
+export function BotActions({ name, live: liveRun, onChanged }: Props) {
+  const controls = useLiveControls(name, liveRun, onChanged);
   return (
     <span className="bot-actions">
-      {liveRun && (
-        <button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={() => setStopping(liveRun)}>
+      {controls.stop && (
+        <button type="button" className="btn btn-sm btn-ghost" disabled={controls.busy} onClick={controls.stop}>
           Stop
         </button>
       )}
-      <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void toggle()}>
-        <Icon name={live ? "pause" : "play"} />
-        {live ? "Pause" : liveRun ? "Live" : "Go live"}
+      <button type="button" className="btn btn-sm" disabled={controls.busy} onClick={controls.toggle}>
+        <Icon name={controls.live ? "pause" : "play"} />
+        {controls.toggleText}
       </button>
       <Info label="Live, Pause and Stop">
         Go live starts a live paper run with the bot's default params; a variant goes live from its backtest under Research. Live resumes a paused run.
         Pause cancels working orders and stops the bot while its equity keeps marking. Stop ends the live run for good; with a reason it is retired.
       </Info>
-      {stopping && (
-        <StopDialog
-          name={name}
-          run={stopping}
-          busy={busy}
-          onCancel={() => setStopping(undefined)}
-          onStop={(reason) =>
-            void act(() => must(api.POST("/api/runs/{id}/cancel", { params: { path: { id: stopping.id } }, body: reason ? { reason } : {} })), reason ? "retired" : "stopped").then(
-              (stopped) => stopped && setStopping(undefined),
-            )
-          }
-        />
-      )}
+      {controls.dialog}
     </span>
   );
 }

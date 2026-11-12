@@ -12,7 +12,7 @@ use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
 
 pub use crate::benchmark::buy_and_hold;
-pub use crate::live::{LiveInput, Source, live, live_summary};
+pub use crate::live::{LiveInput, Source, backtest_curve, live, live_summary};
 pub use crate::research::{Screened, gate, luck_sharpe, neighbourhood_sharpes};
 
 mod benchmark;
