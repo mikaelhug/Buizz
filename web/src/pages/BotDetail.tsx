@@ -42,7 +42,7 @@ export function BotDetail({ name, view }: Props) {
   const { summary, runs, status, holdout_runs: holdoutRuns } = detail.data;
   const runView = "preset" in view ? undefined : view;
   const live = summary.live.map((entry) => entry.run);
-  const selected = runView && (runView.runId ?? live[0]?.id ?? runs.find((run) => run.metrics)?.id ?? runs[0]?.id);
+  const selected = runView && (runView.runId ?? live[0]?.id ?? summary.backtest?.run_id ?? runs.find((run) => run.status === "completed" && run.metrics)?.id ?? runs[0]?.id);
   const shownLive = live.find((run) => run.id === selected) ?? (live.length === 1 ? live[0] : undefined);
   const showRun = (run: Run) => {
     detail.reload();
@@ -111,6 +111,7 @@ export function BotDetail({ name, view }: Props) {
           symbol={runView.symbol}
           botHash={detail.data.bot_hash}
           recent={runs}
+          liveParams={new Set(live.map((run) => JSON.stringify(run.config.params)))}
           runs={<RunHistory selected={selected} name={name} />}
         />
       )}

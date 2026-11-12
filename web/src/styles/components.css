@@ -587,18 +587,31 @@
   color: var(--text);
 }
 
+.sortable button::after {
+  content: "↕";
+  display: inline-block;
+  width: 1em;
+  margin-left: 2px;
+  color: var(--muted);
+  text-align: center;
+  visibility: hidden;
+}
+
 .sortable.desc button::after {
-  content: " ↓";
+  content: "↓";
+  color: inherit;
+  visibility: visible;
 }
 
 .sortable.asc button::after {
-  content: " ↑";
+  content: "↑";
+  color: inherit;
+  visibility: visible;
 }
 
-.sortable:not(.asc, .desc) button:hover::after,
-.sortable:not(.asc, .desc) button:focus-visible::after {
-  content: " ↕";
-  color: var(--muted);
+.sortable button:hover::after,
+.sortable button:focus-visible::after {
+  visibility: visible;
 }
 
 .sortable button.info::after {

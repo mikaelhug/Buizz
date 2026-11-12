@@ -39,9 +39,8 @@
 
 .nav {
   display: flex;
-  flex: 1;
+  flex: none;
   gap: 2px;
-  min-width: 0;
 }
 
 .nav a {
@@ -170,6 +169,13 @@
 @media (max-width: 640px) {
   .topbar {
     gap: var(--sp-2);
+  }
+
+  .nav {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
   }
 
   .nav a {

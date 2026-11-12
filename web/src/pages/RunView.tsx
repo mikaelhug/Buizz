@@ -1,5 +1,5 @@
 import { type KeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { api, must, mustSucceed, type Schemas } from "../api/client";
+import { api, errorMessage, must, mustSucceed, type Schemas } from "../api/client";
 import { useSpineEvents } from "../api/stream";
 import { ABSENT, fmt, label, tone } from "../lib/format";
 import { BOT_TABS, type BotTab, href, navigate, type Route, useQueryParam } from "../lib/route";
@@ -16,6 +16,9 @@ import { Info, Popover } from "../ui/Popover";
 import { RunBadges, StatusPill } from "../ui/Status";
 import { SymbolChart, SymbolLink } from "../ui/SymbolChart";
 import { matches, moveBetweenRows, openRow, SortHeader, type SortColumns, TableFilter, useFlash, useSort } from "../ui/Table";
+import { Icon } from "../ui/Icon";
+import { notify } from "../ui/Toaster";
+import { goLive } from "./BotActions";
 import { Trades } from "./Trades";
 
 type Run = Schemas["RunSummary"];
@@ -44,10 +47,11 @@ type Props = {
   symbol: string | undefined;
   botHash: string;
   recent: Run[];
+  liveParams: ReadonlySet<string>;
   runs: ReactNode;
 };
 
-export function RunView({ name, runId, pinned, tab, symbol, botHash, recent, runs }: Props) {
+export function RunView({ name, runId, pinned, tab, symbol, botHash, recent, liveParams, runs }: Props) {
   const run = useResource(() => must(api.GET("/api/runs/{id}", { params: { path: { id: runId } } })), [runId]);
   const tabRoute = (target: BotTab): Route => ({ page: "bot", name, ...(pinned ? { run: runId } : {}), tab: target });
   const tabHref = (target: BotTab) => href(tabRoute(target));
@@ -81,7 +85,7 @@ export function RunView({ name, runId, pinned, tab, symbol, botHash, recent, run
   return (
     <>
       <StaleFailure resource={run} />
-      <RunBar run={run.data} name={name} tab={tab} botHash={botHash} recent={recent} logsHref={tabHref("logs")} runsHref={tabHref("runs")} />
+      <RunBar run={run.data} name={name} tab={tab} botHash={botHash} recent={recent} liveParams={liveParams} logsHref={tabHref("logs")} runsHref={tabHref("runs")} />
       <Tabs tab={tab} routeFor={tabRoute} />
       <div className="tab-panel" role="tabpanel" id="run-tabpanel" aria-labelledby={`tab-${tab}`}>
         {tab === "overview" && <Overview run={run.data} symbol={symbol} closeHref={tabHref("overview")} />}
@@ -229,15 +233,30 @@ function KeyValues({ rows, mono = false }: { rows: Row[]; mono?: boolean }) {
   );
 }
 
-type RunBarProps = { run: Run; name: string; tab: BotTab; botHash: string; recent: Run[]; logsHref: string; runsHref: string };
+type RunBarProps = { run: Run; name: string; tab: BotTab; botHash: string; recent: Run[]; liveParams: ReadonlySet<string>; logsHref: string; runsHref: string };
 
-function RunBar({ run, name, tab, botHash, recent, logsHref, runsHref }: RunBarProps) {
+function RunBar({ run, name, tab, botHash, recent, liveParams, logsHref, runsHref }: RunBarProps) {
   const repro = reproRows(run, botHash);
+  const [starting, setStarting] = useState(false);
+  const promotable = run.mode === "backtest" && run.status === "completed" && !liveParams.has(JSON.stringify(run.config.params));
+  const promote = () => {
+    setStarting(true);
+    goLive(name, run.id).then(
+      (live) => {
+        notify(`${name} live with run #${run.id}'s params · run #${live.id}`, "success");
+        navigate({ page: "bot", name, run: live.id });
+      },
+      (error: unknown) => {
+        notify(`${name}: ${errorMessage(error)}`);
+        setStarting(false);
+      },
+    );
+  };
   return (
     <section className="run-bar" aria-label="Run">
       <div className="run-bar-head">
         <RunPicker run={run} name={name} tab={tab} recent={recent} runsHref={runsHref} />
-        <span className="run-mode">{run.mode}</span>
+        <span className={`mode-badge mode-${run.mode}`}>{run.mode === "live" ? "Live paper" : "Backtest"}</span>
         <StatusPill status={run.status} />
         <RunBadges badges={run.badges} />
         <Info label="Reproducibility">
@@ -250,6 +269,12 @@ function RunBar({ run, name, tab, botHash, recent, logsHref, runsHref }: RunBarP
             "Recorded once the run starts: bot code hash, engine version, seed and the data it saw."
           )}
         </Info>
+        {promotable && (
+          <button type="button" className="btn btn-sm run-promote" disabled={starting} onClick={promote}>
+            <Icon name="play" />
+            Go live with these params
+          </button>
+        )}
       </div>
       {run.message && (
         <p className="run-message" role="status">

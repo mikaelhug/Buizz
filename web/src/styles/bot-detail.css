@@ -124,9 +124,27 @@
   background: var(--surface-2);
 }
 
-.run-mode {
-  color: var(--muted);
-  font-size: var(--fs-sm);
+.mode-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.mode-live {
+  border-color: color-mix(in srgb, var(--up) 45%, transparent);
+  color: var(--up);
+}
+
+.run-promote {
+  margin-left: auto;
 }
 
 .run-options {

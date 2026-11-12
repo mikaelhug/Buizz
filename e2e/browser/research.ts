@@ -2,6 +2,9 @@ import type { Page } from "playwright-core";
 import { pill, signedIn } from "./session.ts";
 
 async function twoVariantsLive(page: Page): Promise<{ params: string[] }> {
+  const screened = page.getByRole("region", { name: "Not live" }).locator("tbody tr").filter({ has: page.getByRole("link", { name: "sma_cross", exact: true }) });
+  await screened.getByRole("link", { name: "1y", exact: true }).waitFor();
+  await screened.getByRole("img", { name: /^Since / }).waitFor();
   await page.keyboard.press("ControlOrMeta+k");
   await page.getByRole("combobox", { name: /^Search pages/ }).fill("Research sma_cross");
   await page.getByRole("option", { name: /^Research sma_cross/ }).waitFor();

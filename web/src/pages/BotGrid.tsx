@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api, errorMessage, must, type Schemas } from "../api/client";
 import { type SpineEvent, useSpineEvents } from "../api/stream";
-import { fmt, label, paramsText } from "../lib/format";
+import { fmt, label, paramsText, tone } from "../lib/format";
 import { href, useQueryParam } from "../lib/route";
 import { useFrameBatch } from "../lib/useFrameBatch";
 import { useResource } from "../lib/useResource";
@@ -9,7 +9,8 @@ import { Failure, Loading, StaleFailure } from "../ui/Feedback";
 import { Icon } from "../ui/Icon";
 import { LIVE_COLUMNS, type Live, type LiveKey, LiveHeader, liveSortColumns } from "../ui/LiveTable";
 import { Info } from "../ui/Popover";
-import { matches, PageSearch, SortHeader, type SortColumns, useSort } from "../ui/Table";
+import { Ago, matches, PageSearch, SortHeader, type SortColumns, useSort } from "../ui/Table";
+import { METRICS, MetricValue } from "../ui/Metrics";
 import { BulkBar, CompareButton, SelectAll, SelectBox, useSelection } from "../ui/Selection";
 import { type Mark, Sparkline } from "../ui/Sparkline";
 import { notify } from "../ui/Toaster";
@@ -22,7 +23,8 @@ import "../styles/bots.css";
 type Bot = Schemas["BotSummary"];
 type Run = Schemas["RunSummary"];
 type EquityEvent = Extract<SpineEvent, { type: "equity" }>;
-type IdleKey = "name" | "timeframe" | "stage" | "last_run_at";
+type IdleKey = "name" | "stage" | "excess" | "return" | "drawdown" | "last_run_at";
+type Glance = Schemas["BacktestGlance"];
 
 const LIVE_SHOWN = ["since", "sessions", "excess_cagr", "cagr", "total_return", "benchmark_return", "excess_return", "max_drawdown", "verdict"] as const satisfies readonly LiveKey[];
 type LiveOrder = "bot" | (typeof LIVE_SHOWN)[number] | "attention";
@@ -47,14 +49,23 @@ const LIVE_SORT: SortColumns<Live, LiveOrder> = {
   attention: { value: (live) => attention(live) * 3 + 1 - (live.run.live_stats?.probabilistic_sharpe ?? -0.5) },
 };
 
+function excessCagr(glance: Glance | null | undefined): number | undefined {
+  const own = glance?.metrics.cagr;
+  const spy = glance?.benchmark.cagr;
+  return own === null || own === undefined || spy === null || spy === undefined ? undefined : own - spy;
+}
+
 const IDLE_SORT: SortColumns<Bot, IdleKey> = {
   name: { value: (bot) => bot.name },
-  timeframe: { value: (bot) => bot.timeframe },
   stage: { value: (bot) => STAGE_ORDER[bot.stage] },
+  excess: { value: (bot) => excessCagr(bot.backtest), descending: true },
+  return: { value: (bot) => bot.backtest?.metrics.total_return, descending: true },
+  drawdown: { value: (bot) => bot.backtest?.metrics.max_drawdown },
   last_run_at: { value: (bot) => (bot.last_run_at ? Date.parse(bot.last_run_at) : undefined), descending: true },
 };
 
-const IDLE_LABELS: Record<IdleKey, string> = { name: "Bot", timeframe: "Timeframe", stage: "Stage", last_run_at: "Last activity" };
+const BACKTEST_ABOUT =
+  "The screening backtest on the longest preset period the bot's current code has run, with default costs: the plateau variant if one passes the gate, else the bot's default params, else its latest completed variant. CAGR vs SPY is the bot's CAGR minus SPY's total-return CAGR over the same sessions. A backtest screens a bot; only live paper results rank it.";
 
 const finished = (status: Run["status"]) => status === "completed" || status === "failed" || status === "cancelled";
 
@@ -212,24 +223,40 @@ export function BotGrid() {
         </header>
         {idle.length > 0 && (
           <div className="panel table-wrap">
-            <table className="table board">
+            <table className="table board idle-board">
               <thead>
                 <tr>
-                  {(Object.keys(IDLE_LABELS) as IdleKey[]).map((key) => (
-                    <SortHeader
-                      key={key}
-                      sorting={idleSorting}
-                      column={key}
-                      className={key === "name" ? "board-name" : undefined}
-                      select={key === "name" && <SelectAll selection={idleChosen} label="Select every bot not live" />}
-                      info={key === "stage" && <Info label="Stage">{STAGE_ABOUT}</Info>}
-                    >
-                      {IDLE_LABELS[key]}
-                    </SortHeader>
-                  ))}
-                  <th scope="col">
+                  <SortHeader sorting={idleSorting} column="name" className="board-name" rowSpan={2} select={<SelectAll selection={idleChosen} label="Select every bot not live" />}>
+                    Bot
+                  </SortHeader>
+                  <SortHeader sorting={idleSorting} column="stage" rowSpan={2} info={<Info label="Stage">{STAGE_ABOUT}</Info>}>
+                    Stage
+                  </SortHeader>
+                  <th scope="colgroup" colSpan={5} className="group-head">
+                    <span className="th-inner">
+                      Screening backtest
+                      <Info label="Screening backtest">{BACKTEST_ABOUT}</Info>
+                    </span>
+                  </th>
+                  <SortHeader sorting={idleSorting} column="last_run_at" rowSpan={2}>
+                    Last activity
+                  </SortHeader>
+                  <th scope="col" rowSpan={2}>
                     <span className="visually-hidden">Actions</span>
                   </th>
+                </tr>
+                <tr>
+                  <th scope="col">Period</th>
+                  <SortHeader sorting={idleSorting} column="excess" numeric>
+                    CAGR vs SPY
+                  </SortHeader>
+                  <SortHeader sorting={idleSorting} column="return" numeric>
+                    Return
+                  </SortHeader>
+                  <SortHeader sorting={idleSorting} column="drawdown" numeric>
+                    Max DD
+                  </SortHeader>
+                  <th scope="col">vs SPY</th>
                 </tr>
               </thead>
               <tbody>
@@ -238,19 +265,18 @@ export function BotGrid() {
                     <th scope="row" className="board-name">
                       <SelectBox selection={idleChosen} value={bot.name} label={`Select ${bot.name}`} />
                       <a href={href({ page: "bot", name: bot.name })}>{bot.name}</a>
-                    </th>
-                    <td>
                       <span className="tf">{bot.timeframe}</span>
-                    </td>
+                    </th>
                     <td>
                       <span className={`stage stage-${bot.stage}`}>{label(bot.stage)}</span>
                       {bot.screening && (
                         <a className="screening muted" href={href({ page: "research", name: bot.name, preset: bot.screening.preset })}>
-                          {bot.screening.passing} of {bot.screening.variants} pass {bot.screening.preset}
+                          {bot.screening.passing} of {bot.screening.variants} pass
                         </a>
                       )}
                     </td>
-                    <td className="num muted">{fmt.local(bot.last_run_at)}</td>
+                    <BacktestCells bot={bot} />
+                    <td className="num muted nowrap">{bot.last_run_at ? <Ago at={bot.last_run_at} /> : "—"}</td>
                     <td className="actions-cell">
                       <span className="bot-actions">
                         <button type="button" className="btn btn-sm" onClick={() => launchBacktest(bot.name)}>
@@ -279,6 +305,48 @@ export function BotGrid() {
         </BulkBar>
       </div>
     </div>
+  );
+}
+
+function BacktestCells({ bot }: { bot: Bot }) {
+  const glance = bot.backtest;
+  if (!glance) {
+    return (
+      <td colSpan={5} className="muted not-backtested">
+        Not backtested on its current code
+      </td>
+    );
+  }
+  const excess = excessCagr(glance);
+  const variant = paramsText(Object.fromEntries(Object.entries(glance.params).filter(([key, value]) => JSON.stringify(value) !== JSON.stringify((bot.params as Record<string, unknown>)[key]))));
+  const target = href({ page: "bot", name: bot.name, run: glance.run_id });
+  return (
+    <>
+      <td className="nowrap">
+        <a className="glance-period" href={target}>
+          {glance.preset}
+        </a>
+        {glance.plateau && <span className="pill pill-plateau">plateau</span>}
+        {variant && <span className="variant-params mono">{variant}</span>}
+      </td>
+      <td className="r">
+        <span className={`num ${tone(excess) ?? ""}`}>{fmt.change(excess)}</span>
+        <span className="cell-sub num">CAGR {fmt.change(glance.metrics.cagr)}</span>
+      </td>
+      <td className="r">
+        <span className={`num ${tone(glance.metrics.total_return) ?? ""}`}>{fmt.change(glance.metrics.total_return)}</span>
+        <span className="cell-sub num">SPY {fmt.change(glance.benchmark.total_return)}</span>
+      </td>
+      <td className="r">
+        <MetricValue metrics={glance.metrics} metric="max_drawdown" />
+        <span className="cell-sub num">SPY {METRICS.max_drawdown.render(glance.benchmark.max_drawdown)}</span>
+      </td>
+      <td className="spark-cell">
+        <a href={target} className="spark-link" aria-label={`Backtest run #${glance.run_id} of ${bot.name}`}>
+          <Sparkline curve={glance.curve} mark={undefined} benchmark="SPY" />
+        </a>
+      </td>
+    </>
   );
 }
 

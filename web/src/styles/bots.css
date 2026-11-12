@@ -78,3 +78,34 @@
   display: block;
   font-size: var(--fs-xs);
 }
+
+.idle-board .group-head {
+  border-bottom: 1px solid var(--grid);
+  color: var(--text-2);
+  text-align: left;
+}
+
+.board .board-name .tf {
+  margin-left: var(--sp-2);
+}
+
+.cell-sub {
+  display: block;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  line-height: 1.3;
+}
+
+.not-backtested {
+  font-size: var(--fs-sm);
+}
+
+.glance-period {
+  margin-right: var(--sp-2);
+  color: var(--text);
+  font-weight: var(--fw-medium);
+}
+
+.spark-link {
+  display: block;
+}
