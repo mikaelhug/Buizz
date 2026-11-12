@@ -111,7 +111,7 @@ Outside `on_step` only `params`, `universe`, `state`, `portfolio` and `position`
 | `ctx.instruments(symbols)` | `dict[symbol, InstrumentProfile]` (`name`, `exchange`, `asset_class`, `sic`, `sic_description`) for the known symbols. Current values, see below |
 | `ctx.earnings(symbols)` | `list[EarningsRelease]` (`symbol`, `cik`, `accession`, `form`, `filed`, `report_date`, `accepted_at`): every earnings release accepted by EDGAR at or before the clock |
 | `ctx.universe_at(on, top_dollar_volume, *, asset_class=None, index=None)` | The symbols a `top_dollar_volume` universe of that size (optionally of one `asset_class`), or the `index` universe, held on the date `on`, see below |
-| `ctx.macro(series, start, end)` | The rate and macro observations dated `start` to `end` as known at the clock (`MacroPoint`: `series`, `date`, `value`, `published`, `available_at`), see below |
+| `ctx.macro(series, start, end)` | The rate, macro and S&P 500 valuation observations dated `start` to `end` as known at the clock (`MacroPoint`: `series`, `date`, `value`, `published`, `available_at`), see below |
 | `ctx.calendar(start, end)` | The exchange sessions (`Session(date, open, close)`) dated `start` to `end`, as the calendar was published at the clock, see below |
 | `ctx.state` | A dict that survives restarts, see below |
 
@@ -145,7 +145,7 @@ months = [date(year, month, 1) for year in range(2017, 2024) for month in range(
 training = {month: ctx.universe_at(month, 1000) for month in months}
 ```
 
-**Rates and macro series.** `ctx.macro(series, start, end)` returns the observations of `MacroSeries` dated `start` to `end`, each as the latest vintage published before the current session, so revisions arrive when they were published and never earlier. `available_at` is the open of the first session after `published`. Values are `Decimal` percent, except the CPI index.
+**Rates, macro and valuation series.** `ctx.macro(series, start, end)` returns the observations of `MacroSeries` dated `start` to `end`, each as the latest vintage published before the current session, so revisions arrive when they were published and never earlier. `available_at` is the open of the first session after `published`. Values are `Decimal` percent, except the CPI index and the valuation series below.
 
 | Series | Meaning | Frequency |
 |---|---|---|
@@ -154,8 +154,13 @@ training = {month: ctx.universe_at(month, 1000) for month in months}
 | `gs10` | 10-year Treasury, constant maturity (FRED `GS10`) | monthly average |
 | `aaa`, `baa` | Moody's seasoned Aaa and Baa corporate bond yields (FRED `AAA`, `BAA`), Graham's AAA rule and Welch–Goyal `dfy = baa − aaa` | monthly average |
 | `cpiaucns` | CPI-U, all items, not seasonally adjusted, 1982–84 = 100 (FRED `CPIAUCNS`) | monthly |
+| `sp500_forward_pe` | S&P 500 forward 12-month P/E (FactSet Earnings Insight) | weekly, dated the report's issue date |
+| `sp500_forward_pe_5y_avg`, `sp500_forward_pe_10y_avg` | Its 5- and 10-year averages as the report quotes them | weekly |
+| `sp500_forward_eps` | The forward 12-month EPS estimate in dollars the P/E was based on, only in issues that state it | weekly, sparse |
+| `sp500_trailing_pe` | S&P 500 trailing 12-month P/E | weekly, since 2016 |
+| `sp500_<sector>_forward_pe` | A sector's forward 12-month P/E, for `energy`, `materials`, `industrials`, `consumer_discretionary`, `consumer_staples`, `health_care`, `financials`, `information_technology`, `communication_services`, `telecom_services` (its name before the 2018 GICS change, a different sector), `utilities` and `real_estate` | weekly, sparse: every sector only in 2011–2012, otherwise the highest and lowest the text names |
 
-The FRED series need `FRED_API_KEY` on the spine; without it they are empty. Graham's CPI-scaled size floor:
+The FRED series need `FRED_API_KEY` on the spine; without it they are empty. The `sp500_*` series are the figures FactSet's weekly Earnings Insight states in its text: `date` is the issue date, `published` the day the report became public (a correction uploaded later under the same date with a letter, such as `B`, is a later vintage of that date, published when it was made), so a Friday report is first seen at Monday's open. A figure the report does not state, or states differently in two places, is missing for that week; nothing is computed, so `sp500_forward_eps` is not price over P/E. Ratios are plain numbers (17.7 means 17.7×), EPS is in dollars. They need `SEC_USER_AGENT` on the spine. Graham's CPI-scaled size floor:
 
 ```python
 from datetime import date

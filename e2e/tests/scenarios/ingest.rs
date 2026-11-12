@@ -56,6 +56,8 @@ async fn an_empty_spine_backfills_backs_off_rejects_a_bad_tiingo_tail_and_restar
             ("rates", ok),
             ("borrow", ok),
             ("macro", ok),
+            ("earnings_insight", ok),
+            ("earnings_insight_archive", Some(JobOutcome::Noop)),
             ("state_snapshot", ok),
             ("market_snapshot", ok),
             ("tiingo_history", Some(JobOutcome::Failed)),
@@ -70,6 +72,10 @@ async fn an_empty_spine_backfills_backs_off_rejects_a_bad_tiingo_tail_and_restar
         message(&jobs, "index_membership")
     );
     assert_eq!(message(&jobs, "filings"), "filings: 5 rows");
+    assert_eq!(
+        message(&jobs, "earnings_insight"),
+        "Earnings Insight 2024-11-22: 31 rows"
+    );
     assert_eq!(
         message(&jobs, "borrow"),
         "borrow: 6 tickers as of 2026-11-11T20:10:41Z"

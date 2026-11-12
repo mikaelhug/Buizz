@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 
 use crate::fake::FakeProviders;
 use crate::spine::{Options, Spine};
-use crate::world::{Company, Filing, World, stamp, submissions};
+use crate::world::{Company, Filing, World, recorded_earnings_insight, stamp, submissions};
 
 const RESULTS: &str = "0009999001-24-000050";
 
@@ -84,6 +84,7 @@ fn world(mut world: World) -> World {
         submissions: submissions(9_999_002, "6022", &[]),
         older_filings: Vec::new(),
     });
+    world.earnings_insight = Some(recorded_earnings_insight());
     world.wikipedia = BTreeMap::from([
         (SP500_CONSTITUENTS.to_owned(), constituents()),
         (SP500_CHANGES.to_owned(), CHANGES.to_owned()),
@@ -137,6 +138,16 @@ async fn bots_see_index_membership_profiles_and_earnings_as_of_their_clock() {
             "BBB": ["NASDAQ", "stock", 3571],
             "SPY": ["ARCA", "etf", null],
         })
+    );
+    assert_eq!(
+        at("2024-11-22T21:00:00Z")["forward_pe"],
+        json!([]),
+        "the Earnings Insight published on Friday is not known at its close"
+    );
+    assert_eq!(
+        at("2024-11-25T21:00:00Z")["forward_pe"],
+        json!([["2024-11-22", "22.0", "2024-11-22", "2024-11-25T14:30:00Z"]]),
+        "its forward P/E is known from Monday's open"
     );
     assert_eq!(at("2024-11-26T21:00:00Z")["earnings"], json!([]));
     assert_eq!(

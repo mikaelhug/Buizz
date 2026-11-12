@@ -1253,7 +1253,8 @@
           "fixture",
           "wikipedia",
           "interactive_brokers",
-          "nasdaq"
+          "nasdaq",
+          "factset"
         ]
       },
       "DataWarning": {
@@ -1350,7 +1351,8 @@
           "sec_filings",
           "index_membership",
           "borrow",
-          "macro"
+          "macro",
+          "estimates"
         ]
       },
       "DesiredState": {

@@ -272,6 +272,7 @@ fn sources(url: &str) -> Sources {
         wikipedia: None,
         ibkr: None,
         nasdaq: None,
+        factset: None,
     }
 }
 
@@ -502,6 +503,8 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
             ("rates", JobOutcome::Ok),
             ("borrow", JobOutcome::Noop),
             ("macro", JobOutcome::Noop),
+            ("earnings_insight", JobOutcome::Noop),
+            ("earnings_insight_archive", JobOutcome::Noop),
             ("state_snapshot", JobOutcome::Ok),
             ("market_snapshot", JobOutcome::Ok),
             ("tiingo_history", JobOutcome::Failed),
@@ -609,6 +612,7 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
             ("rates", JobOutcome::Noop),
             ("borrow", JobOutcome::Noop),
             ("macro", JobOutcome::Noop),
+            ("earnings_insight", JobOutcome::Noop),
             ("state_snapshot", JobOutcome::Ok),
             ("market_snapshot", JobOutcome::Ok),
             ("tiingo_history", JobOutcome::Noop),

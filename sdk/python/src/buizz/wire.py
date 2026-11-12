@@ -17,7 +17,31 @@ type LogLevel = Literal["debug", "info", "warn", "error"]
 type EndReason = Literal["completed", "paused", "stopped", "risk_limit", "failed", "disconnected"]
 type TimeInForce = Literal["day", "gtc"]
 type Auction = Literal["open", "close"]
-type MacroSeries = Literal["treasury_3m", "tb3ms", "gs10", "aaa", "baa", "cpiaucns"]
+type MacroSeries = Literal[
+    "treasury_3m",
+    "tb3ms",
+    "gs10",
+    "aaa",
+    "baa",
+    "cpiaucns",
+    "sp500_forward_pe",
+    "sp500_forward_pe_5y_avg",
+    "sp500_forward_pe_10y_avg",
+    "sp500_forward_eps",
+    "sp500_trailing_pe",
+    "sp500_energy_forward_pe",
+    "sp500_materials_forward_pe",
+    "sp500_industrials_forward_pe",
+    "sp500_consumer_discretionary_forward_pe",
+    "sp500_consumer_staples_forward_pe",
+    "sp500_health_care_forward_pe",
+    "sp500_financials_forward_pe",
+    "sp500_information_technology_forward_pe",
+    "sp500_communication_services_forward_pe",
+    "sp500_telecom_services_forward_pe",
+    "sp500_utilities_forward_pe",
+    "sp500_real_estate_forward_pe",
+]
 type Metric = Literal[
     "revenue",
     "cost_of_revenue",

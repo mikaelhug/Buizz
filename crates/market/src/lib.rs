@@ -4,9 +4,9 @@ use std::sync::{Arc, PoisonError, RwLock};
 
 use buizz_core::market::{
     Adjustment, Bar, BorrowAvailability, Calendar, Company, CorporateAction, Coverage, DataSource,
-    EarningsRelease, FundamentalFact, FundamentalMetric, FundamentalPoint, IndexHistory,
-    Instrument, InstrumentProfile, MacroObservation, MacroPoint, MacroSeries, RiskFreeRate,
-    SecFiling, Session, StockIndex, Symbol, Timeframe, Watermarks,
+    EarningsInsight, EarningsRelease, EstimateFact, FundamentalFact, FundamentalMetric,
+    FundamentalPoint, IndexHistory, Instrument, InstrumentProfile, MacroObservation, MacroPoint,
+    MacroSeries, RiskFreeRate, SecFiling, Session, StockIndex, Symbol, Timeframe, Watermarks,
 };
 use buizz_core::ops::{CoverageGap, DataWarning};
 use buizz_core::protocol::BarRow;
@@ -33,7 +33,7 @@ pub use restore::Restored;
 
 pub(crate) const SCHEMA: &str = include_str!("../schema.sql");
 pub const FILE_NAME: &str = "market.duckdb";
-const APPENDED: [(&str, &str); 12] = [
+const APPENDED: [(&str, &str); 14] = [
     ("ingest_batch", "id"),
     ("borrow_availability", "batch_id"),
     ("instrument_revision", "superseded_by"),
@@ -46,6 +46,8 @@ const APPENDED: [(&str, &str); 12] = [
     ("earnings_release_revision", "superseded_by"),
     ("index_member_revision", "superseded_by"),
     ("index_history_revision", "superseded_by"),
+    ("earnings_insight", "batch_id"),
+    ("earnings_insight_fact_revision", "superseded_by"),
 ];
 const REPLACED: [&str; 2] = ["index_member", "index_history"];
 pub const TIMESTAMP_RESOLUTION: TimeDelta = TimeDelta::microseconds(1);
@@ -407,6 +409,44 @@ impl MarketStore {
     ) -> Result<WriteSummary> {
         self.writer
             .run(move |connection| write::macro_observations(connection, source, observations))
+            .await
+    }
+
+    pub async fn append_earnings_insight(
+        &self,
+        source: DataSource,
+        report: EarningsInsight,
+    ) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| write::earnings_insight(connection, source, report))
+            .await
+    }
+
+    pub async fn replace_earnings_insight_facts(
+        &self,
+        source: DataSource,
+        facts: BTreeMap<String, Vec<EstimateFact>>,
+    ) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| write::earnings_insight_facts(connection, source, facts))
+            .await
+    }
+
+    pub async fn earnings_insight_reports(&self) -> Result<BTreeSet<String>> {
+        self.readers
+            .run(|connection| read::earnings_insight_reports(connection))
+            .await
+    }
+
+    pub async fn earnings_insights(&self) -> Result<Vec<EarningsInsight>> {
+        self.readers
+            .run(|connection| read::earnings_insights(connection))
+            .await
+    }
+
+    pub async fn earnings_insight_facts(&self) -> Result<BTreeMap<String, Vec<EstimateFact>>> {
+        self.readers
+            .run(|connection| read::earnings_insight_facts(connection))
             .await
     }
 

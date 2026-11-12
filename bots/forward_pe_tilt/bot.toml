@@ -1,0 +1,10 @@
+description = "Valuation and trend tilt, a 'sin a little' timing rule after Asness, Ilmanen and Maloney (AQR, 2017): hold 100% SPY; at each month end, when the S&P 500 forward earnings yield (100 / FactSet's forward 12-month P/E from its weekly Earnings Insight, known from the open after the report's publication) minus the 10-year Treasury yield (FRED GS10, as published) is in the bottom 20% of its expanding history since 2011, with at least 3 years of it, and SPY closes below its 10-month SMA, hold 60% SPY / 40% IEF instead, back to SPY when either clears; trades at the next open"
+command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
+timeframe = "1d"
+wake = "bar"
+universe = { symbols = ["SPY", "IEF"] }
+params = { equity = "SPY", bonds = "IEF", bond_weight = 0.4, sma_months = 10, expensive_quantile = 0.2, min_history_years = 3 }
+benchmark = "SPY"
+
+[risk]
+max_gross_exposure = 1.0

@@ -22,15 +22,18 @@ pub(crate) const MACRO: &str = "macro";
 pub(crate) const STATE_SNAPSHOT: &str = "state_snapshot";
 pub(crate) const MARKET_SNAPSHOT: &str = "market_snapshot";
 pub(crate) const TIINGO_HISTORY: &str = "tiingo_history";
+pub(crate) const EARNINGS_INSIGHT: &str = "earnings_insight";
+pub(crate) const EARNINGS_INSIGHT_ARCHIVE: &str = "earnings_insight_archive";
 
 const HOUR: Duration = Duration::from_secs(60 * 60);
 const DAY: Duration = Duration::from_secs(24 * 60 * 60);
 const SIX_HOURS: Duration = Duration::from_secs(6 * 60 * 60);
+const WEEK: Duration = Duration::from_secs(7 * 24 * 60 * 60);
 const SHORT_RETRY: Duration = HOUR;
 const FIRST_FAILURE_RETRY: Duration = Duration::from_secs(5 * 60);
 const STALE_AFTER_INTERVALS: i32 = 3;
 
-pub(crate) const JOBS: [JobSpec; 14] = [
+pub(crate) const JOBS: [JobSpec; 16] = [
     JobSpec {
         name: CALENDAR,
         source: Some(DataSource::Alpaca),
@@ -85,6 +88,16 @@ pub(crate) const JOBS: [JobSpec; 14] = [
         name: MACRO,
         source: Some(DataSource::Fred),
         every: DAY,
+    },
+    JobSpec {
+        name: EARNINGS_INSIGHT,
+        source: Some(DataSource::Factset),
+        every: DAY,
+    },
+    JobSpec {
+        name: EARNINGS_INSIGHT_ARCHIVE,
+        source: Some(DataSource::Factset),
+        every: WEEK,
     },
     JobSpec {
         name: STATE_SNAPSHOT,

@@ -16,6 +16,7 @@ use buizz_sources::Sources;
 use buizz_sources::alpaca::AlpacaClient;
 use buizz_sources::alpaca_stream::SYMBOL_CAP;
 use buizz_sources::edgar::EdgarClient;
+use buizz_sources::factset::FactsetClient;
 use buizz_sources::fred::FredClient;
 use buizz_sources::ibkr::IbkrClient;
 use buizz_sources::nasdaq::NasdaqClient;
@@ -118,6 +119,7 @@ async fn serve() -> Result<()> {
             .transpose()?,
         ibkr: Some(IbkrClient::new(config.ibkr.clone())),
         nasdaq: Some(NasdaqClient::new(config.nasdaq.clone())?),
+        factset: config.factset.clone().map(FactsetClient::new).transpose()?,
     };
     let feed = FeedManager::new(
         FeedConfig {
