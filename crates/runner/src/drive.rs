@@ -871,16 +871,48 @@ impl Driver {
         }
     }
 
+    async fn quote_untracked(
+        &mut self,
+        orders: &[OrderRequest],
+        unleased: &BTreeSet<Symbol>,
+        session: &Session,
+    ) -> Flow<()> {
+        let untracked: BTreeSet<Symbol> = orders
+            .iter()
+            .map(|order| &order.symbol)
+            .filter(|symbol| {
+                self.timeline.instrument(symbol).is_some()
+                    && !unleased.contains(*symbol)
+                    && !self.timeline.tracked().contains(*symbol)
+            })
+            .cloned()
+            .collect();
+        if untracked.is_empty() {
+            return Ok(());
+        }
+        self.backfill_unfetched(&untracked, session.date).await?;
+        let closes = self
+            .timeline
+            .last_closes(session, self.after, untracked.into_iter().collect())
+            .await?;
+        self.engine.quote(closes);
+        Ok(())
+    }
+
     async fn backfill_newcomers(&mut self, from: NaiveDate) -> Flow<()> {
+        let tracked = self.timeline.tracked().clone();
+        self.backfill_unfetched(&tracked, from).await
+    }
+
+    async fn backfill_unfetched(
+        &mut self,
+        symbols: &BTreeSet<Symbol>,
+        from: NaiveDate,
+    ) -> Flow<()> {
         if self.live() || !self.run.config.needs_minute_bars() {
             return Ok(());
         }
-        let newcomers: Vec<Symbol> = self
-            .timeline
-            .tracked()
-            .difference(&self.minutes)
-            .cloned()
-            .collect();
+        let newcomers: Vec<Symbol> = symbols.difference(&self.minutes).cloned().collect();
         if newcomers.is_empty() {
             return Ok(());
         }
@@ -1209,6 +1241,7 @@ impl Driver {
         let session = next(order_session(self.run.config.timeframe, clock, calendar));
         let on_open = next(open_auction_session(clock, calendar));
         let on_close = next(close_auction_session(clock, calendar));
+        self.quote_untracked(&orders, &unleased, &current).await?;
         let decision = Decision {
             at: clock,
             session: &session,
