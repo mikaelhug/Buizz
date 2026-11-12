@@ -11,23 +11,14 @@ class Rules(NamedTuple):
     long_ibs: float
     short_ibs: float
 
-    def side(self, ibs: float | None) -> str:
+    def decide(self, ibs: float | None) -> tuple[str, str]:
         if ibs is None:
-            return "flat"
+            return "flat", "high equals low, IBS undefined"
         if ibs <= self.long_ibs:
-            return "long"
+            return "long", f"IBS {ibs:.3f} at or below {self.long_ibs}, close near the day's low"
         if ibs >= self.short_ibs:
-            return "short"
-        return "flat"
-
-    def reason(self, ibs: float | None) -> str:
-        if ibs is None:
-            return "high equals low, IBS undefined"
-        if ibs <= self.long_ibs:
-            return f"IBS {ibs:.3f} at or below {self.long_ibs}, close near the day's low"
-        if ibs >= self.short_ibs:
-            return f"IBS {ibs:.3f} at or above {self.short_ibs}, close near the day's high"
-        return f"IBS {ibs:.3f} between {self.long_ibs} and {self.short_ibs}"
+            return "short", f"IBS {ibs:.3f} at or above {self.short_ibs}, close near the day's high"
+        return "flat", f"IBS {ibs:.3f} between {self.long_ibs} and {self.short_ibs}"
 
 
 def internal_bar_strength(high: float, low: float, close: float) -> float | None:
@@ -53,12 +44,12 @@ class IbsReversion(Bot):
                 settled = internal_bar_strength(
                     float(official.high[-1]), float(official.low[-1]), float(official.close[-1])
                 )
-                proxy.check(symbol, official, {"target": rules.side(settled)})
+                proxy.check(symbol, official, {"target": rules.decide(settled)[0]})
             ibs = internal_bar_strength(bar.high, bar.low, bar.close)
-            side = rules.side(ibs)
+            side, reason = rules.decide(ibs)
             proxy.record(symbol, "target", side)
             if side != held_side(ctx.position(symbol).qty):
-                ctx.order_target_weight(symbol, SIDES[side] * weight, at="close", reason=rules.reason(ibs))
+                ctx.order_target_weight(symbol, SIDES[side] * weight, at="close", reason=reason)
         proxy.save()
 
 
