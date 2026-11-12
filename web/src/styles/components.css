@@ -228,6 +228,19 @@
   color: var(--down);
 }
 
+.explained {
+  border: 0;
+  font-family: inherit;
+  text-decoration: underline dotted color-mix(in srgb, currentColor 55%, transparent);
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.explained:hover,
+.explained[aria-expanded="true"] {
+  background: color-mix(in srgb, currentColor 20%, transparent);
+}
+
 .tf {
   color: var(--muted);
   font-family: var(--mono);

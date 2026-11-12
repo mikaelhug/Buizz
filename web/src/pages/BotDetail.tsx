@@ -1,14 +1,14 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { api, errorMessage, must, type Schemas } from "../api/client";
 import { useSpineEvents } from "../api/stream";
 import { fmt, paramsText } from "../lib/format";
-import { href, navigate } from "../lib/route";
-import { PAGE_SIZE, type Paged, usePaged } from "../lib/usePaged";
+import { type BotTab, href, navigate } from "../lib/route";
+import { PAGE_SIZE, usePaged } from "../lib/usePaged";
 import { useResource } from "../lib/useResource";
 import { confirmDialog } from "../ui/Dialog";
 import { Failure, LoadMore, Loading, StaleFailure } from "../ui/Feedback";
 import { MetricValue } from "../ui/Metrics";
-import { RunBadges, StatusPill } from "../ui/Status";
+import { HoldoutBadge, RunBadges, StatusPill } from "../ui/Status";
 import { notify } from "../ui/Toaster";
 import { BacktestDialog } from "./BacktestDialog";
 import { BotActions } from "./BotActions";
@@ -17,21 +17,13 @@ import "../styles/bot-detail.css";
 
 type Run = Schemas["RunSummary"];
 
-export function BotDetail({ name, runId }: { name: string; runId: number | undefined }) {
+export function BotDetail({ name, runId, tab }: { name: string; runId: number | undefined; tab: BotTab }) {
   const detail = useResource(() => must(api.GET("/api/bots/{name}", { params: { path: { name } } })), [name]);
-  const history = usePaged(async (before) => {
-    const items = await must(api.GET("/api/runs", { params: { query: { bot: name, limit: PAGE_SIZE, ...(before === undefined ? {} : { before }) } } }));
-    return { items, next_after: items.length === PAGE_SIZE ? (items.at(-1)?.id ?? null) : null };
-  }, [name]);
   const [backtesting, setBacktesting] = useState(false);
-  const reload = () => {
-    detail.reload();
-    history.reload();
-  };
 
   useSpineEvents((event) => {
     if (event.type === "run_status" && event.bot === name) {
-      reload();
+      detail.reload();
     }
   });
 
@@ -40,36 +32,49 @@ export function BotDetail({ name, runId }: { name: string; runId: number | undef
   }
   const { summary, runs } = detail.data;
   const selected = runId ?? summary.live_run ?? summary.stats_run ?? runs[0]?.id;
-  const showRun = (run: Run) => navigate({ page: "bot", name, run: run.id });
+  const showRun = (run: Run) => {
+    detail.reload();
+    navigate({ page: "bot", name, run: run.id });
+  };
 
   return (
     <div className="detail">
       <StaleFailure resource={detail} />
       <header className="detail-head">
-        <h1 title={`Bot hash ${detail.data.bot_hash}`}>{summary.name}</h1>
-        <span className="tf">{summary.timeframe}</span>
-        <StatusPill status={summary.status} />
-        {summary.holdout_runs > 0 && (
-          <span className="badge badge-holdout help" title="Runs on the locked holdout period">
-            Holdout ×{summary.holdout_runs}
-          </span>
-        )}
-        <span className="detail-desc muted">{summary.description}</span>
-        <span className="detail-actions">
-          <BotActions
-            bot={summary}
-            onChanged={(run) => {
-              reload();
-              showRun(run);
-            }}
-          />
-          <button type="button" className="btn btn-sm" onClick={() => setBacktesting(true)}>
+        <div className="detail-title">
+          <h1>{summary.name}</h1>
+          <span className="tf">{summary.timeframe}</span>
+          <StatusPill status={summary.status} />
+          {summary.holdout_runs > 0 && <HoldoutBadge runs={summary.holdout_runs} />}
+        </div>
+        <div className="detail-actions">
+          <BotActions bot={summary} onChanged={showRun} />
+          <button type="button" className="btn btn-sm btn-primary" onClick={() => setBacktesting(true)}>
             Backtest
           </button>
-        </span>
+        </div>
+        {summary.description && <Description text={summary.description} />}
       </header>
-      {selected !== undefined && <RunView key={selected} runId={selected} />}
-      <RunHistory history={history} selected={selected} name={name} onCancelled={reload} />
+      {selected === undefined ? (
+        <section className="panel detail-empty">
+          <h2>No runs yet</h2>
+          <p className="muted">Backtest {summary.name} on history to see its equity, metrics and trades, or start a live paper run.</p>
+          <button type="button" className="btn btn-primary" onClick={() => setBacktesting(true)}>
+            Run a backtest
+          </button>
+        </section>
+      ) : (
+        <RunView
+          key={selected}
+          name={name}
+          runId={selected}
+          pinned={runId !== undefined}
+          tab={tab}
+          botHash={detail.data.bot_hash}
+          recent={runs}
+          runs={<RunHistory selected={selected} name={name} />}
+        />
+      )}
       {backtesting && (
         <BacktestDialog
           bot={summary}
@@ -77,10 +82,40 @@ export function BotDetail({ name, runId }: { name: string; runId: number | undef
           onClose={() => setBacktesting(false)}
           onStarted={(run) => {
             setBacktesting(false);
-            reload();
             showRun(run);
           }}
         />
+      )}
+    </div>
+  );
+}
+
+function Description({ text }: { text: string }) {
+  const ref = useRef<HTMLParagraphElement>(null);
+  const [open, setOpen] = useState(false);
+  const [clamped, setClamped] = useState(false);
+
+  useLayoutEffect(() => {
+    const paragraph = ref.current;
+    if (!paragraph || open) {
+      return;
+    }
+    const measure = () => setClamped(paragraph.scrollHeight > paragraph.clientHeight + 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(paragraph);
+    return () => observer.disconnect();
+  }, [open, text]);
+
+  return (
+    <div className="detail-desc">
+      <p ref={ref} id="bot-description" className={open ? undefined : "clamped"}>
+        {text}
+      </p>
+      {(clamped || open) && (
+        <button type="button" className="btn btn-xs btn-ghost" aria-expanded={open} aria-controls="bot-description" onClick={() => setOpen(!open)}>
+          {open ? "Less" : "More"}
+        </button>
       )}
     </div>
   );
@@ -90,9 +125,18 @@ function period(run: Run): string {
   return `${run.config.start} → ${run.config.end ?? "now"}`;
 }
 
-type HistoryProps = { history: Paged<Run>; selected: number | undefined; name: string; onCancelled: () => void };
+function RunHistory({ selected, name }: { selected: number; name: string }) {
+  const history = usePaged(async (before) => {
+    const items = await must(api.GET("/api/runs", { params: { query: { bot: name, limit: PAGE_SIZE, ...(before === undefined ? {} : { before }) } } }));
+    return { items, next_after: items.length === PAGE_SIZE ? (items.at(-1)?.id ?? null) : null };
+  }, [name]);
 
-function RunHistory({ history, selected, name, onCancelled }: HistoryProps) {
+  useSpineEvents((event) => {
+    if (event.type === "run_status" && event.bot === name) {
+      history.reload();
+    }
+  });
+
   const cancel = async (run: Run) => {
     const confirmed = await confirmDialog({
       title: `Cancel backtest #${run.id}?`,
@@ -105,7 +149,7 @@ function RunHistory({ history, selected, name, onCancelled }: HistoryProps) {
     }
     try {
       await must(api.POST("/api/runs/{id}/cancel", { params: { path: { id: run.id } } }));
-      onCancelled();
+      history.reload();
     } catch (error) {
       notify(errorMessage(error));
     }
@@ -115,15 +159,18 @@ function RunHistory({ history, selected, name, onCancelled }: HistoryProps) {
 
   return (
     <section className="panel">
-      <h2>Runs</h2>
+      <header className="panel-head">
+        <h2>Runs</h2>
+        <span className="muted">Every run of {name}, newest first</span>
+      </header>
       <StaleFailure resource={history} />
       {!history.data ? (
         history.error ? <Failure message={history.error} onRetry={history.reload} /> : <Loading shape="table" />
       ) : history.data.items.length === 0 ? (
         <p className="empty">No runs yet</p>
       ) : (
-        <div className="table-wrap">
-          <table className="table">
+        <div className="table-wrap table-scroll">
+          <table className="table fin">
             <thead>
               <tr>
                 <th>Run</th>
@@ -134,7 +181,7 @@ function RunHistory({ history, selected, name, onCancelled }: HistoryProps) {
                 <th className="r">Return</th>
                 <th className="r">Sharpe</th>
                 <th className="r">Max DD</th>
-                <th>Created</th>
+                <th>Created (local)</th>
                 <th />
               </tr>
             </thead>
@@ -142,7 +189,7 @@ function RunHistory({ history, selected, name, onCancelled }: HistoryProps) {
               {history.data.items.map((run) => (
                 <tr key={run.id} className={run.id === selected ? "selected" : undefined}>
                   <td>
-                    <a href={href({ page: "bot", name, run: run.id })} title={run.result_hash ? `Result hash ${run.result_hash}` : undefined}>
+                    <a href={href({ page: "bot", name, run: run.id })} aria-current={run.id === selected ? "true" : undefined}>
                       #{run.id}
                     </a>
                   </td>

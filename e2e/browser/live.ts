@@ -1,5 +1,5 @@
 import type { Page } from "playwright-core";
-import { env, panel, pill, signedIn } from "./session.ts";
+import { env, openTab, panel, pill, signedIn } from "./session.ts";
 
 type Released = { from: string; through: string };
 
@@ -47,10 +47,11 @@ async function pauseAndResumeThenStop(page: Page): Promise<{ paused: Released; r
   await card("tape").getByRole("link", { name: "tape", exact: true }).click();
 
   const head = page.locator(".detail-head");
-  const run = page.locator(".run-head");
+  const run = page.locator(".run-bar");
   const orders = panel(page, "Orders");
   const events = panel(page, "Events");
   const resting = orders.locator("tr", { hasText: "resting bid" });
+  await openTab(page, "Orders");
   await pill(orders, "filled").first().waitFor();
   await pill(resting, "working").waitFor();
 
@@ -67,6 +68,7 @@ async function pauseAndResumeThenStop(page: Page): Promise<{ paused: Released; r
   await pill(head, "live").waitFor();
   await pill(run, "running").waitFor();
   const resumed = await release(60);
+  await openTab(page, "Positions & events");
   await events.locator(".event-text", { hasText: `@${resumed.from}` }).first().waitFor();
 
   const logged = (await events.locator(".event-text").allTextContents()).join("\n");

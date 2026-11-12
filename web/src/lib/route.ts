@@ -5,9 +5,13 @@ export type Preset = Schemas["PeriodPreset"];
 
 export const PRESETS: readonly Preset[] = ["1y", "3y", "5y", "10y", "holdout"];
 
+export const BOT_TABS = ["overview", "trades", "orders", "events", "logs", "runs"] as const;
+
+export type BotTab = (typeof BOT_TABS)[number];
+
 export type Route =
   | { page: "bots" }
-  | { page: "bot"; name: string; run?: number }
+  | { page: "bot"; name: string; run?: number; tab?: BotTab }
   | { page: "leaderboard"; preset: Preset }
   | { page: "data" };
 
@@ -15,11 +19,26 @@ function isPreset(value: string | undefined): value is Preset {
   return PRESETS.some((preset) => preset === value);
 }
 
+function isBotTab(value: string | undefined): value is BotTab {
+  return BOT_TABS.some((tab) => tab === value && tab !== "overview");
+}
+
+function botRoute(name: string, rest: string[]): Route {
+  const [sub, id, last] = rest;
+  const run = sub === "runs" ? Number(id) : Number.NaN;
+  const tab = Number.isInteger(run) ? last : sub;
+  return {
+    page: "bot",
+    name,
+    ...(Number.isInteger(run) ? { run } : {}),
+    ...(isBotTab(tab) ? { tab } : {}),
+  };
+}
+
 function parse(hash: string): Route {
-  const [page, name, sub, id] = hash.replace(/^#\/?/, "").split("/").map(decodeURIComponent);
+  const [page, name, ...rest] = hash.replace(/^#\/?/, "").split("/").map(decodeURIComponent);
   if (page === "bots" && name) {
-    const run = sub === "runs" ? Number(id) : Number.NaN;
-    return Number.isInteger(run) ? { page: "bot", name, run } : { page: "bot", name };
+    return botRoute(name, rest);
   }
   if (page === "leaderboard") {
     return { page: "leaderboard", preset: isPreset(name) ? name : "1y" };
@@ -36,7 +55,8 @@ export function href(route: Route): string {
       return "#/";
     case "bot": {
       const base = `#/bots/${encodeURIComponent(route.name)}`;
-      return route.run === undefined ? base : `${base}/runs/${route.run}`;
+      const run = route.run === undefined ? base : `${base}/runs/${route.run}`;
+      return route.tab === undefined || route.tab === "overview" ? run : `${run}/${route.tab}`;
     }
     case "leaderboard":
       return `#/leaderboard/${route.preset}`;
