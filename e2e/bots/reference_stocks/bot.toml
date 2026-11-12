@@ -1,5 +1,5 @@
-description = "Reports a stock-only dollar-volume universe on each daily step"
+description = "Reports a stock-only dollar-volume universe on each daily step, and holds SPY outside it for a week"
 command = ["uv", "run", "--frozen", "--quiet", "--project", "../../../sdk/python", "python", "../reference/bot.py"]
 timeframe = "1d"
 universe = { top_dollar_volume = 3, asset_class = "stock" }
-params = { symbols = ["SPY"] }
+params = { symbols = ["SPY"], hedge = "SPY", unhedge = "2024-11-26" }

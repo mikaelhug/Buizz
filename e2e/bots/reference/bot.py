@@ -11,6 +11,7 @@ class Reference(Bot):
         report = {
             "clock": f"{ctx.clock:%Y-%m-%dT%H:%M:%SZ}",
             "universe": ctx.universe,
+            "bars": sorted(ctx.bars),
             "instruments": {
                 symbol: [profile.exchange, profile.asset_class, profile.sic] for symbol, profile in profiles.items()
             },
@@ -25,6 +26,9 @@ class Reference(Bot):
         if hedge is not None and "hedged" not in ctx.state:
             ctx.state["hedged"] = True
             ctx.order_target_weight(hedge, 0.5, reason=f"{hedge} hedge outside the universe")
+        unhedge: str | None = ctx.params.get("unhedge")
+        if hedge is not None and unhedge is not None and str(ctx.session.date) == unhedge:
+            ctx.order_target_weight(hedge, 0, reason=f"close the {hedge} hedge")
 
 
 if __name__ == "__main__":
