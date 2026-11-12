@@ -16,6 +16,7 @@ saa = { URTH = 0.25, EEM = 0.05, RWO = 0.10, HYG = 0.05, EMHY = 0.05, USO = 0.05
 risky = ["URTH", "EEM", "RWO", "HYG", "EMHY", "USO", "GLD"]
 median_days = 21
 delay = 0
+drift_band = 0.05
 seed = 7
 
 [risk]
