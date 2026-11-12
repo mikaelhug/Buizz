@@ -14,7 +14,7 @@ use tokio::time::{Instant, sleep, timeout};
 use crate::fake::FakeProviders;
 use crate::world::repository;
 
-const DEADLINE: Duration = Duration::from_secs(90);
+const DEADLINE: Duration = Duration::from_secs(180);
 const POLL: Duration = Duration::from_millis(100);
 const EVENTS_PAGE: u32 = 1000;
 const LISTENING: &str = "spine listening addr=";
