@@ -68,6 +68,7 @@
   --control-sm: 28px;
   --control: 32px;
   --topbar: 52px;
+  --gutter: clamp(var(--sp-3), 2vw, var(--sp-8));
 }
 
 :root[data-theme="light"] {

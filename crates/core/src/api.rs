@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -39,9 +41,98 @@ pub struct BotSummary {
     pub name: String,
     pub description: String,
     pub timeframe: Timeframe,
+    #[schema(value_type = Object)]
+    pub params: Map<String, Value>,
     pub stage: BotStage,
+    pub screening: Option<Screening>,
     pub live: Vec<LiveSummary>,
     pub last_run_at: Option<Timestamp>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct Screening {
+    pub preset: PeriodPreset,
+    pub variants: u32,
+    pub passing: u32,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct Trials {
+    pub variants: u32,
+    pub runs: u32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum GateCheck {
+    NotCompleted,
+    DataWarnings,
+    DrawdownStop,
+    FewTrades,
+    NoEdge,
+    DominatedByBenchmark,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct VariantResult {
+    pub run_id: RunId,
+    pub status: RunStatus,
+    pub period: Period,
+    #[schema(value_type = Object)]
+    pub params: Map<String, Value>,
+    pub metrics: Option<Metrics>,
+    pub badges: Vec<RunBadge>,
+    pub failed_checks: Vec<GateCheck>,
+    pub neighbourhood_sharpe: Option<f64>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct PresetResearch {
+    pub preset: PeriodPreset,
+    pub benchmark_sharpe: Option<f64>,
+    pub benchmark_max_drawdown: Option<f64>,
+    pub luck_sharpe: Option<f64>,
+    pub plateau: Option<RunId>,
+    pub variants: Vec<VariantResult>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct Research {
+    pub trials: Trials,
+    pub gate_preset: Option<PeriodPreset>,
+    pub presets: Vec<PresetResearch>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct StartSweep {
+    pub preset: PeriodPreset,
+    pub grid: BTreeMap<String, Vec<Value>>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct SweepStarted {
+    pub period: Period,
+    pub queued: Vec<RunId>,
+    pub skipped: u32,
+    pub trials: Trials,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct CancelledBacktests {
+    pub cancelled: u32,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct GoLive {
+    pub from_run: Option<RunId>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct CancelRun {
+    pub reason: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]
@@ -95,6 +186,35 @@ pub struct RunSummary {
     pub badges: Vec<RunBadge>,
     pub reproducibility: Option<Reproducibility>,
     pub message: Option<String>,
+    pub usage: BotUsage,
+    pub source_run: Option<RunId>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct BotUsage {
+    pub processes: u32,
+    pub seconds: f64,
+    pub peak_memory: u64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct ProcessSlots {
+    pub backtest: u32,
+    pub live: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct BotFootprint {
+    pub bot: String,
+    pub mode: Mode,
+    pub runs: u32,
+    pub usage: BotUsage,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct BotProcesses {
+    pub slots: ProcessSlots,
+    pub footprints: Vec<BotFootprint>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -197,7 +317,7 @@ pub struct EventsPage {
     pub next_after: Option<u64>,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct StartBacktest {
     pub preset: Option<PeriodPreset>,
@@ -320,6 +440,10 @@ pub enum SpineEvent {
     Feed {
         slots: FeedSlots,
     },
+    Usage {
+        run_id: RunId,
+        usage: BotUsage,
+    },
 }
 
 impl SpineEvent {
@@ -333,6 +457,7 @@ impl SpineEvent {
             Self::Log { .. } => "log",
             Self::Job { .. } => "job",
             Self::Feed { .. } => "feed",
+            Self::Usage { .. } => "usage",
         }
     }
 }

@@ -115,9 +115,10 @@ impl From<RunnerError> for Failure {
                 Self::new(StatusCode::NOT_FOUND, error.to_string())
             }
             RunnerError::InvalidRequest(_) => Self::new(StatusCode::BAD_REQUEST, error.to_string()),
-            RunnerError::HoldoutLocked | RunnerError::AlreadyLive(_) | RunnerError::NotLive(_) => {
-                Self::new(StatusCode::CONFLICT, error.to_string())
-            }
+            RunnerError::HoldoutLocked
+            | RunnerError::AlreadyLive(_)
+            | RunnerError::LiveVariantLimit { .. }
+            | RunnerError::NotLive(_) => Self::new(StatusCode::CONFLICT, error.to_string()),
             RunnerError::CoverageGaps(gaps) => Self::new(
                 StatusCode::CONFLICT,
                 format!("market data has gaps: {}", describe_gaps(&gaps)),

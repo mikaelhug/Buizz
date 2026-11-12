@@ -68,6 +68,10 @@ export function RunView({ name, runId, pinned, tab, symbol, botHash, recent, run
       run.reload();
     } else if (event.type === "equity") {
       mark({ at: event.at, equity: event.equity });
+    } else if (event.type === "usage") {
+      run.mutate((current) => ({ ...current, usage: event.usage }));
+    } else if (event.type === "live_session") {
+      run.mutate((current) => ({ ...current, live_stats: event.summary.run.live_stats ?? null }));
     }
   });
 
@@ -84,7 +88,7 @@ export function RunView({ name, runId, pinned, tab, symbol, botHash, recent, run
         {tab === "trades" && <Trades runId={runId} positionsHref={tabHref("events")} symbolHref={symbolHref} />}
         {tab === "orders" && <Orders runId={runId} active={!run.data.finished_at} symbolHref={symbolHref} />}
         {tab === "events" && (
-          <div className="split split-wide">
+          <div className="split">
             <Positions runId={runId} clock={run.data.clock} symbolHref={symbolHref} />
             <Events runId={runId} />
           </div>
@@ -290,7 +294,25 @@ function RunBar({ run, name, tab, botHash, recent, logsHref, runsHref }: RunBarP
             </Info>
           </dd>
         </div>
+        {run.usage.processes > 0 && (
+          <div>
+            <dt>
+              Bot peak
+              <Info label="Bot processes">
+                The most memory any of this run's bot processes held, Python included, and how long they ran in all. A live run starts one process per session.
+              </Info>
+            </dt>
+            <dd className="num">
+              {fmt.memory(run.usage.peak_memory)}
+              <span className="facts-sub">
+                {" · "}
+                {fmt.integer(run.usage.processes)} {run.usage.processes === 1 ? "process" : "processes"}, {fmt.duration(run.usage.seconds)}
+              </span>
+            </dd>
+          </div>
+        )}
       </dl>
+
     </section>
   );
 }
@@ -401,7 +423,7 @@ function Overview({ run, symbol, closeHref }: { run: Run; symbol: string | undef
   const benchmark = curve.data && (run.finished_at || run.mode === "live") ? { symbol: run.config.benchmark, metrics: curve.data.benchmark_metrics } : undefined;
 
   return (
-    <>
+    <div className="overview">
       <section className="panel chart-panel" aria-label="Equity">
         <StaleFailure resource={curve} />
         {curve.data ? (
@@ -414,6 +436,7 @@ function Overview({ run, symbol, closeHref }: { run: Run; symbol: string | undef
               benchmarkSymbol={run.config.benchmark}
               events={marks.data}
               sync={sync}
+              envelope={run.live_stats?.curve}
             />
           ) : (
             <p className="empty chart-empty">
@@ -442,13 +465,13 @@ function Overview({ run, symbol, closeHref }: { run: Run; symbol: string | undef
           <SymbolChart key={symbol} runId={run.id} symbol={symbol} sync={sync} />
         </section>
       )}
-      <section className="panel">
+      <section className="panel metrics-panel">
         <h2 className="visually-hidden">Metrics</h2>
         <MetricGroups metrics={run.metrics ?? curve.data?.interim_metrics} benchmark={benchmark} months={calendar?.range} />
       </section>
       {calendar && <MonthlyReturns calendar={calendar} benchmarkSymbol={run.config.benchmark} />}
       <Setup run={run} />
-    </>
+    </div>
   );
 }
 

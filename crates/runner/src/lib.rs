@@ -2,6 +2,7 @@ mod commit;
 mod drive;
 mod link;
 mod report;
+mod research;
 mod timeline;
 
 use std::collections::{BTreeMap, HashMap};
@@ -9,14 +10,16 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex, PoisonError};
 
 use axum::extract::ws::WebSocket;
-use buizz_core::api::{RunSummary, SparkPoint, SpineEvent, StartBacktest};
+use buizz_core::api::{
+    ProcessSlots, RunSummary, SparkPoint, SpineEvent, StartBacktest, StartSweep, SweepStarted,
+};
 use buizz_core::market::{Dataset, Instrument, StockIndex, Symbol, Timeframe};
 use buizz_core::money::CASH_DECIMALS;
 use buizz_core::ops::{CoverageGap, DataWarning};
 use buizz_core::performance::Metrics;
 use buizz_core::run::{
-    DesiredState, Mode, PeriodPreset, RunBadge, RunConfig, RunEvent, RunEventKind, RunId,
-    RunStatus, UNIVERSE_SESSIONS, UniverseSpec,
+    CostModel, DesiredState, MAX_SWEEP_VARIANTS, Mode, PeriodPreset, RunBadge, RunConfig, RunEvent,
+    RunEventKind, RunId, RunStatus, UNIVERSE_SESSIONS, UniverseSpec, coerce_param,
 };
 use buizz_core::time::Timestamp;
 use buizz_engine::ENGINE_VERSION;
@@ -27,10 +30,12 @@ use buizz_state::{NewRun, RunFilter, StateError, StateStore};
 use buizz_supervisor::{BotScan, BotSpec, Supervisor, SupervisorError, load_bot, scan_bots};
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
+use serde_json::{Map, Value};
 use tokio::sync::{broadcast, mpsc, watch};
 use tokio::task::JoinHandle;
 
 use crate::drive::Control;
+pub use crate::research::Benchmarks;
 
 const EVENT_BUFFER: usize = 4096;
 const SEED_LIMIT: u64 = 1 << 53;
@@ -48,10 +53,12 @@ pub enum RunnerError {
     HoldoutLocked,
     #[error("market data has gaps")]
     CoverageGaps(Vec<CoverageGap>),
-    #[error("bot {0} already has a live run")]
+    #[error("bot {0} is already live with these params")]
     AlreadyLive(String),
-    #[error("bot {0} has no live run")]
-    NotLive(String),
+    #[error("bot {bot} already has {limit} live variants; stop one first")]
+    LiveVariantLimit { bot: String, limit: u32 },
+    #[error("run {0} is not an active live run")]
+    NotLive(RunId),
     #[error(transparent)]
     Feed(#[from] FeedError),
     #[error(transparent)]
@@ -240,32 +247,191 @@ impl Runner {
             holdout,
             request,
         )?;
-        let symbols = gate_symbols(&self.inner.market, &config).await?;
-        let market = &self.inner.market;
-        let gaps = market
-            .coverage_gaps(symbols.clone(), Timeframe::Day, period.from, period.to)
+        let warnings = self.covered(&config).await?;
+        let mut runs = self
+            .create(vec![config], &spec, RunStatus::Queued, warnings, None)
             .await?;
-        if !gaps.is_empty() {
-            return Err(RunnerError::CoverageGaps(gaps));
-        }
-        let warnings = market
-            .unexplained_moves(symbols, period.from, period.to)
-            .await?;
-        let run = self
-            .create(config, &spec, RunStatus::Queued, warnings)
-            .await?;
+        let run = runs.remove(0);
         self.spawn(run.clone(), spec, None);
         Ok(run)
     }
 
-    pub async fn go_live(&self, bot: &str) -> Result<RunSummary, RunnerError> {
+    pub async fn sweep(
+        &self,
+        bot: &str,
+        request: StartSweep,
+        today: NaiveDate,
+    ) -> Result<SweepStarted, RunnerError> {
+        let spec = self.bot(bot).await?;
+        if request.preset == PeriodPreset::Holdout {
+            return Err(RunnerError::InvalidRequest(
+                "sweeps never run on the locked holdout".to_owned(),
+            ));
+        }
+        let period = request.preset.resolve(today);
+        let seed = rand::random_range(0..SEED_LIMIT);
+        let mut configs: Vec<RunConfig> = Vec::new();
+        for params in grid_variants(request.grid)? {
+            let config = self.run_config(
+                &spec,
+                Mode::Backtest,
+                period.from,
+                Some(period.to),
+                false,
+                StartBacktest {
+                    preset: Some(request.preset),
+                    params: Some(params),
+                    seed: Some(seed),
+                    ..StartBacktest::default()
+                },
+            )?;
+            if !configs.iter().any(|seen| seen.params == config.params) {
+                configs.push(config);
+            }
+        }
+        let already: Vec<Map<String, Value>> = self
+            .inner
+            .state
+            .runs(RunFilter {
+                bot: Some(spec.name.clone()),
+                bot_hash: Some(spec.content_hash.clone()),
+                mode: Some(Mode::Backtest),
+                statuses: vec![
+                    RunStatus::Queued,
+                    RunStatus::Starting,
+                    RunStatus::Running,
+                    RunStatus::Completed,
+                ],
+                ..RunFilter::default()
+            })
+            .await?
+            .into_iter()
+            .filter(|run| {
+                run.config.start == period.from
+                    && run.config.end == Some(period.to)
+                    && run.config.cost == CostModel::default()
+            })
+            .map(|run| run.config.params)
+            .collect();
+        let total = configs.len();
+        configs.retain(|config| !already.contains(&config.params));
+        let skipped = u32::try_from(total - configs.len()).unwrap_or(u32::MAX);
+        let mut queued = Vec::new();
+        if let Some(first) = configs.first() {
+            let warnings = self.covered(first).await?;
+            for run in self
+                .create(configs, &spec, RunStatus::Queued, warnings, None)
+                .await?
+            {
+                queued.push(run.id);
+                self.spawn(run, spec.clone(), None);
+            }
+        }
+        Ok(SweepStarted {
+            period,
+            queued,
+            skipped,
+            trials: self.inner.state.trials(&spec.name).await?,
+        })
+    }
+
+    pub async fn cancel_queued(&self, bot: &str) -> Result<u32, RunnerError> {
+        let queued = self
+            .inner
+            .state
+            .runs(RunFilter {
+                bot: Some(self.bot(bot).await?.name),
+                mode: Some(Mode::Backtest),
+                statuses: vec![RunStatus::Queued],
+                ..RunFilter::default()
+            })
+            .await?;
+        for run in &queued {
+            self.cancel(run.id, None).await?;
+        }
+        Ok(u32::try_from(queued.len()).unwrap_or(u32::MAX))
+    }
+
+    pub async fn go_live(
+        &self,
+        bot: &str,
+        from_run: Option<RunId>,
+    ) -> Result<RunSummary, RunnerError> {
         let spec = self.bot(bot).await?;
         let today = Timestamp::now().exchange_date();
-        if let Some(run) = self.live_run(bot).await? {
-            if run.desired != DesiredState::Paused {
-                return Err(RunnerError::AlreadyLive(bot.to_owned()));
+        let mut request = StartBacktest::default();
+        if let Some(source) = from_run {
+            let run = self.summary(source).await?;
+            if run.bot != spec.name || run.mode != Mode::Backtest {
+                return Err(RunnerError::InvalidRequest(format!(
+                    "run {source} is not a backtest of {}",
+                    spec.name
+                )));
             }
+            if run
+                .reproducibility
+                .is_none_or(|record| record.bot_hash != spec.content_hash)
+            {
+                return Err(RunnerError::InvalidRequest(format!(
+                    "run {source} backtested older code of {}; backtest the current code first",
+                    spec.name
+                )));
+            }
+            request.params = Some(run.config.params);
+            request.risk = Some(run.config.risk);
+        }
+        let config = self.run_config(&spec, Mode::Live, today, None, false, request)?;
+        let streamed = if config.timeframe == Timeframe::Minute {
+            let universe = universe_at(&self.inner.market, &config, today).await?;
+            self.inner.feed.admits(universe.clone())?;
+            Some(universe)
+        } else {
+            if config.needs_minute_bars() {
+                self.inner.feed.fetches_minutes()?;
+            }
+            None
+        };
+        let run = match self
+            .create(
+                vec![config],
+                &spec,
+                RunStatus::Starting,
+                Vec::new(),
+                from_run,
+            )
+            .await
+        {
+            Err(RunnerError::State(StateError::LiveRunExists(bot))) => {
+                return Err(RunnerError::AlreadyLive(bot));
+            }
+            Err(RunnerError::State(StateError::LiveVariantLimit { bot, limit })) => {
+                return Err(RunnerError::LiveVariantLimit { bot, limit });
+            }
+            created => created?.remove(0),
+        };
+        let lease =
+            streamed.and_then(|universe| self.inner.feed.acquire(run.id, &run.bot, universe).ok());
+        self.spawn(run.clone(), spec, lease);
+        Ok(run)
+    }
+
+    pub async fn pause(&self, run_id: RunId) -> Result<RunSummary, RunnerError> {
+        let run = self.active_live(run_id).await?;
+        if run.desired == DesiredState::Running {
+            self.inner
+                .state
+                .set_desired(run.id, DesiredState::Paused)
+                .await?;
+            self.inner.steer(run.id, DesiredState::Paused);
+        }
+        self.summary(run.id).await
+    }
+
+    pub async fn resume(&self, run_id: RunId) -> Result<RunSummary, RunnerError> {
+        let run = self.active_live(run_id).await?;
+        if run.desired == DesiredState::Paused {
             if run.config.timeframe == Timeframe::Minute {
+                let today = Timestamp::now().exchange_date();
                 let portfolio = self.inner.state.portfolio(run.id).await?;
                 let held = portfolio.open_positions().map(|(symbol, _)| symbol.clone());
                 let universe = universe_at(&self.inner.market, &run.config, today).await?;
@@ -278,74 +444,20 @@ impl Runner {
                 .set_desired(run.id, DesiredState::Running)
                 .await?;
             self.inner.steer(run.id, DesiredState::Running);
-            return self.summary(run.id).await;
-        }
-        let config = self.run_config(
-            &spec,
-            Mode::Live,
-            today,
-            None,
-            false,
-            StartBacktest {
-                preset: None,
-                period: None,
-                params: None,
-                start_cash: None,
-                cost: None,
-                risk: None,
-                seed: None,
-                allow_holdout: false,
-            },
-        )?;
-        let streamed = if config.timeframe == Timeframe::Minute {
-            let universe = universe_at(&self.inner.market, &config, today).await?;
-            self.inner.feed.admits(universe.clone())?;
-            Some(universe)
-        } else {
-            if config.needs_minute_bars() {
-                self.inner.feed.fetches_minutes()?;
-            }
-            None
-        };
-        let run = match self
-            .create(config, &spec, RunStatus::Starting, Vec::new())
-            .await
-        {
-            Err(RunnerError::State(StateError::LiveRunExists(bot))) => {
-                return Err(RunnerError::AlreadyLive(bot));
-            }
-            created => created?,
-        };
-        let lease =
-            streamed.and_then(|universe| self.inner.feed.acquire(run.id, &run.bot, universe).ok());
-        self.spawn(run.clone(), spec, lease);
-        Ok(run)
-    }
-
-    pub async fn pause(&self, bot: &str) -> Result<RunSummary, RunnerError> {
-        let run = self
-            .live_run(bot)
-            .await?
-            .ok_or_else(|| RunnerError::NotLive(bot.to_owned()))?;
-        if run.desired == DesiredState::Running {
-            self.inner
-                .state
-                .set_desired(run.id, DesiredState::Paused)
-                .await?;
-            self.inner.steer(run.id, DesiredState::Paused);
         }
         self.summary(run.id).await
     }
 
-    pub async fn cancel(&self, run_id: RunId) -> Result<RunSummary, RunnerError> {
+    pub async fn cancel(
+        &self,
+        run_id: RunId,
+        reason: Option<String>,
+    ) -> Result<RunSummary, RunnerError> {
         let run = self.summary(run_id).await?;
         if run.status.is_finished() {
             return Ok(run);
         }
-        self.inner
-            .state
-            .set_desired(run_id, DesiredState::Stopped)
-            .await?;
+        self.inner.state.stop(run_id, reason).await?;
         let signalled = self.inner.steer(run_id, DesiredState::Stopped);
         if !signalled {
             self.conclude(run_id, RunStatus::Cancelled, None).await?;
@@ -381,6 +493,10 @@ impl Runner {
 
     pub fn log_path(&self, run_id: RunId) -> PathBuf {
         self.inner.supervisor.log_path(run_id)
+    }
+
+    pub fn process_slots(&self) -> ProcessSlots {
+        self.inner.supervisor.slots()
     }
 
     pub async fn benchmark(&self, run: &RunSummary) -> Result<Vec<SparkPoint>, RunnerError> {
@@ -460,7 +576,12 @@ impl Runner {
                 }
             )));
         }
-        params.extend(requested);
+        for (name, value) in requested {
+            let coerced = coerce_param(&params[&name], value).map_err(|problem| {
+                RunnerError::InvalidRequest(format!("param {name} {problem}"))
+            })?;
+            params.insert(name, coerced);
+        }
         let start_cash = request.start_cash.unwrap_or(defaults.start_cash);
         if start_cash <= Decimal::ZERO || start_cash.normalize().scale() > CASH_DECIMALS {
             return Err(RunnerError::InvalidRequest(
@@ -504,19 +625,36 @@ impl Runner {
         })
     }
 
+    async fn covered(&self, config: &RunConfig) -> Result<Vec<DataWarning>, RunnerError> {
+        let market = &self.inner.market;
+        let symbols = gate_symbols(market, config).await?;
+        let end = config.end.unwrap_or(config.start);
+        let gaps = market
+            .coverage_gaps(symbols.clone(), Timeframe::Day, config.start, end)
+            .await?;
+        if !gaps.is_empty() {
+            return Err(RunnerError::CoverageGaps(gaps));
+        }
+        Ok(market.unexplained_moves(symbols, config.start, end).await?)
+    }
+
     async fn create(
         &self,
-        config: RunConfig,
+        configs: Vec<RunConfig>,
         spec: &BotSpec,
         status: RunStatus,
         mut warnings: Vec<DataWarning>,
-    ) -> Result<RunSummary, RunnerError> {
+        source_run: Option<RunId>,
+    ) -> Result<Vec<RunSummary>, RunnerError> {
         let inner = &self.inner;
+        let Some(config) = configs.first() else {
+            return Ok(Vec::new());
+        };
         let instruments = inner.market.instruments().await?;
         let mut badges = Vec::new();
         let mut survivorship = survivorship_biased(&config.universe, &instruments);
         if let UniverseSpec::Index { index } = config.universe {
-            let check = index_check(&inner.market, index, &config).await?;
+            let check = index_check(&inner.market, index, config).await?;
             survivorship |= !check.unpriced.is_empty();
             if check.thin {
                 badges.push(RunBadge::ThinIndexHistory);
@@ -534,19 +672,6 @@ impl Runner {
         }
         let created_at = Timestamp::now();
         let data_watermark = inner.market.watermarks().borrow().get(config.timeframe);
-        let run_id = inner
-            .state
-            .create_run(NewRun {
-                data_watermark,
-                config,
-                status,
-                desired: DesiredState::Running,
-                bot_hash: spec.content_hash.clone(),
-                engine_version: ENGINE_VERSION.to_string(),
-                badges,
-                created_at,
-            })
-            .await?;
         let events: Vec<RunEvent> = warnings
             .iter()
             .zip(1..)
@@ -559,10 +684,33 @@ impl Runner {
                 },
             })
             .collect();
-        if !events.is_empty() {
-            inner.state.append_events(run_id, events).await?;
+        let runs = configs
+            .into_iter()
+            .map(|config| NewRun {
+                data_watermark,
+                config,
+                status,
+                desired: DesiredState::Running,
+                bot_hash: spec.content_hash.clone(),
+                engine_version: ENGINE_VERSION.to_string(),
+                badges: badges.clone(),
+                created_at,
+                source_run,
+                events: events.clone(),
+            })
+            .collect();
+        let mut created = Vec::new();
+        for run_id in inner.state.create_runs(runs).await? {
+            let run = self.summary(run_id).await?;
+            inner.broadcast(SpineEvent::RunStatus {
+                run_id,
+                bot: run.bot.clone(),
+                mode: run.mode,
+                status: run.status,
+            });
+            created.push(run);
         }
-        self.summary(run_id).await
+        Ok(created)
     }
 
     async fn summary(&self, run_id: RunId) -> Result<RunSummary, RunnerError> {
@@ -573,19 +721,15 @@ impl Runner {
             .ok_or(RunnerError::UnknownRun(run_id))
     }
 
-    async fn live_run(&self, bot: &str) -> Result<Option<RunSummary>, RunnerError> {
-        Ok(self
-            .inner
-            .state
-            .runs(RunFilter {
-                bot: Some(bot.to_owned()),
-                mode: Some(Mode::Live),
-                statuses: RunStatus::ACTIVE.to_vec(),
-                limit: Some(1),
-                ..RunFilter::default()
-            })
-            .await?
-            .pop())
+    async fn active_live(&self, run_id: RunId) -> Result<RunSummary, RunnerError> {
+        let run = self.summary(run_id).await?;
+        if run.mode != Mode::Live
+            || run.status.is_finished()
+            || run.desired == DesiredState::Stopped
+        {
+            return Err(RunnerError::NotLive(run_id));
+        }
+        Ok(run)
     }
 
     async fn conclude(
@@ -649,6 +793,39 @@ pub(crate) async fn gate_symbols(
     symbols.sort();
     symbols.dedup();
     Ok(symbols)
+}
+
+fn grid_variants(
+    grid: BTreeMap<String, Vec<Value>>,
+) -> Result<Vec<Map<String, Value>>, RunnerError> {
+    let mut count: usize = 1;
+    for (name, values) in &grid {
+        if values.is_empty() {
+            return Err(RunnerError::InvalidRequest(format!(
+                "param {name} has no values to sweep"
+            )));
+        }
+        count = count.saturating_mul(values.len());
+    }
+    if count > MAX_SWEEP_VARIANTS {
+        return Err(RunnerError::InvalidRequest(format!(
+            "the grid makes {count} variants; a sweep runs at most {MAX_SWEEP_VARIANTS}"
+        )));
+    }
+    Ok(grid
+        .into_iter()
+        .fold(vec![Map::new()], |variants, (name, values)| {
+            variants
+                .iter()
+                .flat_map(|variant| {
+                    values.iter().map(|value| {
+                        let mut next = variant.clone();
+                        next.insert(name.clone(), value.clone());
+                        next
+                    })
+                })
+                .collect()
+        }))
 }
 
 fn survivorship_biased(universe: &UniverseSpec, instruments: &[Instrument]) -> bool {

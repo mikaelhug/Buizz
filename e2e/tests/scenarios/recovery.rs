@@ -114,3 +114,45 @@ async fn a_live_run_survives_kill_9_of_its_bot_and_of_the_spine() {
     );
     assert_matches_backtest(&spine, &finished).await;
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_crashed_live_bot_whose_code_changed_is_not_started_again() {
+    let fake = FakeProviders::serve(World::live(now())).await;
+    let spine = Spine::start(
+        fake.clone(),
+        Options {
+            bots: &[],
+            tiingo: false,
+        },
+    )
+    .await;
+    let bot = spine.copy_bot("tape");
+    spine.ingested().await;
+    let run: RunSummary = spine.post("/api/bots/tape/live", json!({})).await;
+    let first = bot_started(&spine, run.id, 1).await[0];
+
+    let script = bot.join("bot.py");
+    let edited = std::fs::read_to_string(&script).expect("the bot script") + "\n";
+    std::fs::write(&script, edited).expect("the edited bot script");
+    killpg(Pid::from_raw(first), Signal::SIGKILL).expect("the bot's process group is killed");
+    fake.release(RELEASE_MINUTES);
+
+    let paused = eventually("the run to pause", || async {
+        let run = spine.run(run.id).await;
+        (run.status == RunStatus::Paused).then_some(run)
+    })
+    .await;
+    assert!(
+        paused
+            .message
+            .as_deref()
+            .is_some_and(|message| message.contains("changed since this run started")),
+        "{:?}",
+        paused.message
+    );
+    assert_eq!(
+        bot_pids(&spine.events(run.id).await),
+        [first],
+        "no bot process starts under the edited code"
+    );
+}

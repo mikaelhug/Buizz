@@ -17,6 +17,7 @@ use buizz_core::time::Timestamp;
 use buizz_core::visibility::{bar_visible_at, published_sessions, universe_visible_at};
 use chrono::{NaiveDate, TimeDelta};
 use duckdb::Connection;
+use rust_decimal::Decimal;
 use tokio::sync::watch;
 
 use crate::fixture::{ActionRow, DailyRow};
@@ -642,6 +643,19 @@ impl MarketStore {
         let calendar = self.shared.calendar();
         self.readers
             .run(move |connection| read::history(connection, &calendar, &request))
+            .await
+    }
+
+    pub async fn split_adjusted_closes(
+        &self,
+        symbols: Vec<Symbol>,
+        as_of: Timestamp,
+    ) -> Result<BTreeMap<Symbol, Decimal>> {
+        let calendar = self.shared.calendar();
+        self.readers
+            .run(move |connection| {
+                read::split_adjusted_closes(connection, &calendar, &symbols, as_of)
+            })
             .await
     }
 

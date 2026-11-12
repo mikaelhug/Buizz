@@ -65,7 +65,7 @@ export function App() {
 }
 
 const NAV: { route: Route; text: string; page: Route["page"][] }[] = [
-  { route: { page: "bots" }, text: "Bots", page: ["bots", "bot"] },
+  { route: { page: "bots" }, text: "Bots", page: ["bots", "bot", "research"] },
   { route: { page: "league" }, text: "League", page: ["league"] },
   { route: { page: "data" }, text: "Data", page: ["data"] },
 ];
@@ -120,7 +120,13 @@ function Shell({ onLoggedOut }: { onLoggedOut: () => void }) {
       <main className="page">
         <ErrorBoundary resetOn={href(route)}>
           {route.page === "bots" && <BotGrid />}
-          {route.page === "bot" && <BotDetail key={route.name} name={route.name} runId={route.run} tab={route.tab ?? "overview"} symbol={route.symbol} />}
+          {(route.page === "bot" || route.page === "research") && (
+            <BotDetail
+              key={route.name}
+              name={route.name}
+              view={route.page === "bot" ? { runId: route.run, tab: route.tab ?? "overview", symbol: route.symbol } : { preset: route.preset }}
+            />
+          )}
           {route.page === "league" && <League />}
           {route.page === "data" && <DataHealth />}
         </ErrorBoundary>

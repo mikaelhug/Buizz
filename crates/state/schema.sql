@@ -23,13 +23,19 @@ CREATE TABLE IF NOT EXISTS run (
     metrics TEXT,
     live_stats TEXT,
     badges TEXT NOT NULL DEFAULT '[]',
-    message TEXT
+    message TEXT,
+    bot_processes INTEGER NOT NULL DEFAULT 0,
+    bot_seconds REAL NOT NULL DEFAULT 0,
+    bot_peak_memory INTEGER NOT NULL DEFAULT 0,
+    variant TEXT GENERATED ALWAYS AS (json_extract(config, '$.params')) VIRTUAL,
+    source_run INTEGER REFERENCES run (id)
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS run_by_bot ON run (bot, created_at);
 CREATE INDEX IF NOT EXISTS run_by_desired ON run (desired, status);
-CREATE UNIQUE INDEX IF NOT EXISTS run_one_live_per_bot ON run (bot)
+CREATE UNIQUE INDEX IF NOT EXISTS run_one_live_per_variant ON run (bot, variant)
     WHERE mode = 'live' AND status IN ('queued', 'starting', 'running', 'paused');
+CREATE INDEX IF NOT EXISTS run_by_variant ON run (bot, variant, mode, status);
 
 CREATE TABLE IF NOT EXISTS run_order (
     run_id INTEGER NOT NULL REFERENCES run (id) ON DELETE CASCADE,

@@ -703,6 +703,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
+ "wait4",
 ]
 
 [[package]]
@@ -3456,6 +3457,16 @@ name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
+
+[[package]]
+name = "wait4"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ce2d6eb47d02e051093f3c8106983ed385e5c07700370f14dde91d14864cf12f"
+dependencies = [
+ "libc",
+ "windows-sys 0.61.2",
+]
 
 [[package]]
 name = "walkdir"

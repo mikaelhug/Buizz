@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
-use buizz_core::api::RunSummary;
+use buizz_core::api::{PositionView, RunSummary};
+use buizz_core::order::OrderStatus;
 use buizz_core::run::{RunBadge, RunEventKind};
 use buizz_core::time::Timestamp;
 use buizz_sources::wikipedia::{SP500_CHANGES, SP500_CONSTITUENTS, SP500_MEMBERS};
@@ -8,7 +9,9 @@ use serde_json::{Value, json};
 
 use crate::fake::FakeProviders;
 use crate::spine::{Options, Spine};
-use crate::world::{Company, Filing, World, recorded_earnings_insight, stamp, submissions};
+use crate::world::{
+    Company, Filing, World, decimal, recorded_earnings_insight, stamp, submissions,
+};
 
 const RESULTS: &str = "0009999001-24-000050";
 
@@ -167,6 +170,22 @@ async fn bots_see_index_membership_profiles_and_earnings_as_of_their_clock() {
     ] {
         assert!(run.badges.contains(&badge), "{badge:?} in {:?}", run.badges);
     }
+    let hedge = spine.orders(run.id).await;
+    let [spy] = hedge.as_slice() else {
+        panic!("one SPY order: {hedge:#?}")
+    };
+    assert_eq!(spy.order.symbol.as_str(), "SPY");
+    assert_eq!(spy.order.status, OrderStatus::Filled, "{spy:#?}");
+    assert_eq!(spy.order.updated_at, stamp("2024-11-21T14:30:00Z"));
+    let positions: Vec<PositionView> = spine.get(&format!("/api/runs/{}/positions", run.id)).await;
+    assert_eq!(
+        positions
+            .iter()
+            .map(|position| (position.symbol.as_str(), position.last_price))
+            .collect::<Vec<_>>(),
+        [("SPY", decimal("607.70"))],
+        "an instrument outside the universe is marked once it is held"
+    );
     let warnings: Vec<String> = spine
         .events(run.id)
         .await

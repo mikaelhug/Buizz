@@ -49,7 +49,7 @@
   border-bottom: 1px dashed var(--border-strong);
 }
 
-.actions-cell {
+.table .actions-cell {
   text-align: right;
 }
 
@@ -64,4 +64,17 @@
 
 .stage-draft {
   color: var(--muted);
+}
+
+.variant-params {
+  display: block;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-regular);
+  white-space: normal;
+}
+
+.screening {
+  display: block;
+  font-size: var(--fs-xs);
 }

@@ -2,11 +2,11 @@ use buizz_core::api::{RunSummary, SparkPoint, SpineEvent};
 use buizz_core::market::Timeframe;
 use buizz_core::money::round_cash;
 use buizz_core::performance::{LiveStats, Metrics};
-use buizz_core::run::{EquityPoint, RunEventKind, RunEventType, RunId, RunStatus};
+use buizz_core::run::{EquityPoint, Mode, RunEventKind, RunEventType, RunId, RunStatus};
 use buizz_core::time::Timestamp;
 use buizz_market::MarketStore;
-use buizz_metrics::{LiveInput, MetricsInput};
-use buizz_state::StateStore;
+use buizz_metrics::{LiveInput, MetricsInput, Source};
+use buizz_state::{RunFilter, StateStore};
 use chrono::{Days, NaiveDate};
 use rust_decimal::Decimal;
 
@@ -137,14 +137,57 @@ async fn paused_spans(
     Ok(spans)
 }
 
+async fn source_backtest(
+    state: &StateStore,
+    run: &RunSummary,
+) -> Result<Option<RunSummary>, RunnerError> {
+    if let Some(source) = run.source_run {
+        return Ok(state.run(source).await?);
+    }
+    let hash = |run: &RunSummary| {
+        run.reproducibility
+            .as_ref()
+            .map(|record| record.bot_hash.clone())
+    };
+    let backtests = state
+        .runs(RunFilter {
+            bot: Some(run.bot.clone()),
+            mode: Some(Mode::Backtest),
+            statuses: vec![RunStatus::Completed],
+            ..RunFilter::default()
+        })
+        .await?;
+    Ok(backtests
+        .into_iter()
+        .filter(|backtest| {
+            !backtest.config.holdout
+                && backtest.config.params == run.config.params
+                && hash(backtest) == hash(run)
+        })
+        .max_by_key(|backtest| {
+            let end = backtest.config.end.unwrap_or(backtest.config.start);
+            (end - backtest.config.start, backtest.id)
+        }))
+}
+
 async fn live_stats(
     market: &MarketStore,
     state: &StateStore,
     run: &RunSummary,
+    started: u32,
 ) -> Result<Option<LiveStats>, RunnerError> {
     let equity = state.equity(run.id).await?;
     let Some(last) = equity.last() else {
         return Ok(None);
+    };
+    let source = source_backtest(state, run).await?;
+    let source_equity = match &source {
+        Some(source) => state.equity(source.id).await?,
+        None => Vec::new(),
+    };
+    let source_benchmark = match (&source, source_equity.last()) {
+        (Some(source), Some(close)) => benchmark(market, source, close.at.exchange_date()).await?,
+        _ => Vec::new(),
     };
     let benchmark = benchmark(market, run, last.at.exchange_date()).await?;
     let paused = paused_spans(state, run.id).await?;
@@ -153,6 +196,13 @@ async fn live_stats(
         equity: &equity,
         benchmark: &benchmark,
         paused: &paused,
+        source: source.as_ref().map(|source| Source {
+            run: source.id,
+            start_cash: source.config.start_cash,
+            equity: &source_equity,
+            benchmark: &source_benchmark,
+        }),
+        started,
     }))
 }
 
@@ -167,14 +217,14 @@ async fn record_live_session(inner: &Inner, run_id: RunId) -> Result<(), RunnerE
     let Some(run) = state.run(run_id).await? else {
         return Err(RunnerError::UnknownRun(run_id));
     };
-    let Some(stats) = live_stats(&inner.market, state, &run).await? else {
+    let started = state.live_runs_started().await?;
+    let Some(stats) = live_stats(&inner.market, state, &run, started).await? else {
         return Ok(());
     };
     if run.live_stats.as_ref() == Some(&stats) {
         return Ok(());
     }
     state.set_live_stats(run_id, stats.clone()).await?;
-    let started = state.live_runs_started().await?;
     inner.broadcast(SpineEvent::LiveSession {
         run_id,
         bot: run.bot.clone(),

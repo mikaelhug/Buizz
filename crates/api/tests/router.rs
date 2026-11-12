@@ -79,7 +79,8 @@ async fn spine() -> Spine {
     let supervisor = Supervisor::new(SupervisorConfig {
         spine_url: "ws://127.0.0.1:1".to_owned(),
         log_dir: data.path().join("logs"),
-        max_parallel_backtests: 1,
+        backtest_slots: 1,
+        live_slots: 1,
         restart_delay: Duration::from_secs(1),
         kill_grace: Duration::from_secs(1),
     });

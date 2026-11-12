@@ -4,7 +4,7 @@ use buizz_core::ops::JobOutcome;
 use buizz_core::order::{Order, OrderId, OrderSize, OrderStatus, OrderType, Side, TimeInForce};
 use buizz_core::run::{
     CostModel, DesiredState, EquityPoint, Mode, RiskLimits, RunConfig, RunEvent, RunEventKind,
-    RunStatus, UniverseSpec, Wake,
+    RunId, RunStatus, UniverseSpec, Wake,
 };
 use buizz_core::time::Timestamp;
 use buizz_state::{FILE_NAME, NewRun, StateError, StateStore, StepCommit};
@@ -46,7 +46,19 @@ fn new_run(mode: Mode) -> NewRun {
         data_watermark: None,
         badges: vec![],
         created_at: at(1),
+        source_run: None,
+        events: vec![],
     }
+}
+
+fn variant(mode: Mode, weight: f64) -> NewRun {
+    let mut run = new_run(mode);
+    run.config.params.insert("weight".into(), weight.into());
+    run
+}
+
+async fn create(store: &StateStore, run: NewRun) -> Result<RunId, StateError> {
+    store.create_runs(vec![run]).await.map(|created| created[0])
 }
 
 fn order(id: u64, client_id: &str, status: OrderStatus, filled_qty: u64) -> Order {
@@ -121,7 +133,7 @@ async fn steps_survive_reopen_and_failed_commit_leaves_nothing() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join(FILE_NAME);
     let store = StateStore::open(&path).await.unwrap();
-    let run_id = store.create_run(new_run(Mode::Backtest)).await.unwrap();
+    let run_id = create(&store, new_run(Mode::Backtest)).await.unwrap();
 
     store
         .commit_step(step(
@@ -188,22 +200,31 @@ async fn steps_survive_reopen_and_failed_commit_leaves_nothing() {
 }
 
 #[tokio::test]
-async fn a_bot_has_one_live_run() {
+async fn a_bot_has_one_live_run_per_variant_and_at_most_three_variants() {
     let directory = tempfile::tempdir().unwrap();
     let store = StateStore::open(&directory.path().join(FILE_NAME))
         .await
         .unwrap();
-    let first = store.create_run(new_run(Mode::Live)).await.unwrap();
+    let first = create(&store, variant(Mode::Live, 0.5)).await.unwrap();
     assert!(matches!(
-        store.create_run(new_run(Mode::Live)).await,
+        create(&store, variant(Mode::Live, 0.5)).await,
         Err(StateError::LiveRunExists(_))
     ));
-    store.create_run(new_run(Mode::Backtest)).await.unwrap();
+    create(&store, variant(Mode::Backtest, 0.5)).await.unwrap();
+    create(&store, variant(Mode::Live, 0.25)).await.unwrap();
+    create(&store, variant(Mode::Live, 0.75)).await.unwrap();
+    assert!(matches!(
+        create(&store, variant(Mode::Live, 1.0)).await,
+        Err(StateError::LiveVariantLimit { limit: 3, .. })
+    ));
     store
         .set_status(first, RunStatus::Cancelled, None, at(5))
         .await
         .unwrap();
-    store.create_run(new_run(Mode::Live)).await.unwrap();
+    create(&store, variant(Mode::Live, 1.0)).await.unwrap();
+    create(&store, variant(Mode::Live, 0.5)).await.unwrap_err();
+    let trials = store.trials("momentum").await.unwrap();
+    assert_eq!((trials.variants, trials.runs), (4, 5));
 }
 
 #[tokio::test]
@@ -247,11 +268,23 @@ async fn a_state_store_from_before_financing_and_undelivered_steps_takes_both() 
                 cash_delta TEXT NOT NULL,
                 body TEXT NOT NULL,
                 PRIMARY KEY (run_id, seq)
+            ) STRICT;
+            CREATE UNIQUE INDEX run_one_live_per_bot ON run (bot)
+                WHERE mode = 'live' AND status IN ('queued', 'starting', 'running', 'paused');
+            CREATE TABLE job_run (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                job TEXT NOT NULL,
+                started_at INTEGER NOT NULL,
+                finished_at INTEGER,
+                outcome TEXT CHECK (outcome IN ('ok', 'noop', 'backoff', 'failed')),
+                rows INTEGER NOT NULL DEFAULT 0,
+                message TEXT
             ) STRICT;",
         )
         .unwrap();
     let store = StateStore::open(&path).await.unwrap();
-    let run_id = store.create_run(new_run(Mode::Live)).await.unwrap();
+    let run_id = create(&store, variant(Mode::Live, 0.5)).await.unwrap();
+    create(&store, variant(Mode::Live, 0.25)).await.unwrap();
     store.commit_step(step(run_id, 1, vec![])).await.unwrap();
     let mut financed = step(run_id, 2, vec![]);
     financed.ledger[0].kind = LedgerKind::Financing {

@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use axum::Json;
 use axum::extract::State;
-use buizz_core::api::{DataHealth, FeedSlots, JobView};
+use buizz_core::api::{BotProcesses, DataHealth, FeedSlots, JobView};
 use buizz_core::market::{Coverage, DataSource, Dataset, Symbol, Timeframe, Watermarks};
 use buizz_core::ops::{CoverageGap, DataWarning};
 use buizz_core::time::Timestamp;
@@ -109,4 +109,15 @@ pub(crate) async fn data_jobs(State(app): State<AppState>) -> Result<Json<Vec<Jo
     responses((status = 200, body = FeedSlots)))]
 pub(crate) async fn data_feed(State(app): State<AppState>) -> Json<FeedSlots> {
     Json(app.feed.slots().borrow().clone())
+}
+
+#[utoipa::path(get, path = "/api/data/processes", tag = "data",
+    responses((status = 200, body = BotProcesses)))]
+pub(crate) async fn data_processes(
+    State(app): State<AppState>,
+) -> Result<Json<BotProcesses>, Failure> {
+    Ok(Json(BotProcesses {
+        slots: app.runner.process_slots(),
+        footprints: app.state.footprints().await?,
+    }))
 }

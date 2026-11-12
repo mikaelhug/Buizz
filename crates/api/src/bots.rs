@@ -2,13 +2,14 @@ use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
 use buizz_core::api::{
-    ApiError, BotDetail, BotStage, BotStatus, BotSummary, League, LiveSummary, RunSummary,
-    StartBacktest,
+    ApiError, BotDetail, BotStage, BotStatus, BotSummary, CancelledBacktests, GoLive, League,
+    LiveSummary, Research, RunSummary, StartBacktest, StartSweep, SweepStarted,
 };
 use buizz_core::performance::LiveVerdict;
 use buizz_core::run::{BotManifest, DesiredState, Mode, RunBadge, RunStatus};
 use buizz_core::time::Timestamp;
 use buizz_metrics::live_summary;
+use buizz_runner::Benchmarks;
 use buizz_state::RunFilter;
 use futures::future::{try_join, try_join_all};
 
@@ -24,13 +25,14 @@ struct Bot<'a> {
     hash: &'a str,
 }
 
-fn bot_status(runs: &[RunSummary], live: Option<&RunSummary>) -> BotStatus {
-    if let Some(live) = live {
-        return if live.status == RunStatus::Paused || live.desired == DesiredState::Paused {
-            BotStatus::Paused
-        } else {
-            BotStatus::Live
-        };
+fn bot_status(runs: &[RunSummary], live: &[RunSummary]) -> BotStatus {
+    let paused =
+        |run: &RunSummary| run.status == RunStatus::Paused || run.desired == DesiredState::Paused;
+    if live.iter().any(|run| !paused(run)) {
+        return BotStatus::Live;
+    }
+    if !live.is_empty() {
+        return BotStatus::Paused;
     }
     if runs.iter().any(|run| !run.status.is_finished()) {
         return BotStatus::Backtesting;
@@ -56,14 +58,20 @@ async fn summarize(
     bot: Bot<'_>,
     live: &[RunSummary],
     started: u32,
+    benchmarks: &Benchmarks,
 ) -> Result<BotSummary, Failure> {
-    let activity = app.state.bot_activity(bot.name, bot.hash).await?;
+    let (last_run_at, screening) = try_join(
+        async { Ok::<_, Failure>(app.state.last_run_at(bot.name).await?) },
+        async { Ok(app.runner.screening(bot.name, bot.hash, benchmarks).await?) },
+    )
+    .await?;
     let live: Vec<LiveSummary> = live
         .iter()
         .filter(|run| run.bot == bot.name)
         .map(|run| live_summary(run.clone(), started))
         .collect();
-    let stage = match (live.is_empty(), activity.screened) {
+    let passing = screening.is_some_and(|screening| screening.passing > 0);
+    let stage = match (live.is_empty(), passing) {
         (false, _) => BotStage::Live,
         (true, true) => BotStage::Screened,
         (true, false) => BotStage::Draft,
@@ -72,9 +80,11 @@ async fn summarize(
         name: bot.name.to_owned(),
         description: bot.manifest.description.clone(),
         timeframe: bot.manifest.timeframe,
+        params: bot.manifest.params.clone(),
         stage,
+        screening,
         live,
-        last_run_at: activity.last_run_at,
+        last_run_at,
     })
 }
 
@@ -89,13 +99,14 @@ pub(crate) async fn list_bots(
         app.state.live_runs_started(),
     )
     .await?;
+    let benchmarks = app.runner.benchmarks();
     let summaries = try_join_all(scan.bots.iter().map(|spec| {
         let bot = Bot {
             name: &spec.name,
             manifest: &spec.manifest,
             hash: &spec.content_hash,
         };
-        summarize(&app, bot, &live, started)
+        summarize(&app, bot, &live, started, &benchmarks)
     }))
     .await?;
     Ok(Json(summaries))
@@ -133,8 +144,8 @@ pub(crate) async fn bot_detail(
         hash: &spec.content_hash,
     };
     Ok(Json(BotDetail {
-        status: bot_status(&runs, live.first()),
-        summary: summarize(&app, bot, &live, started).await?,
+        status: bot_status(&runs, &live),
+        summary: summarize(&app, bot, &live, started, &app.runner.benchmarks()).await?,
         holdout_runs,
         manifest: spec.manifest.clone(),
         bot_hash: spec.content_hash.clone(),
@@ -164,7 +175,7 @@ pub(crate) async fn league(State(app): State<AppState>) -> Result<Json<League>, 
                 .run
                 .live_stats
                 .as_ref()
-                .is_some_and(|stats| stats.verdict != LiveVerdict::Incubating)
+                .is_some_and(|stats| stats.sessions >= LiveVerdict::TRACKING_SESSIONS)
         });
     ranked.sort_by(|left, right| confidence(right).total_cmp(&confidence(left)));
     Ok(Json(League {
@@ -194,25 +205,60 @@ pub(crate) async fn start_backtest(
     Ok((StatusCode::CREATED, Json(run)))
 }
 
+#[utoipa::path(post, path = "/api/bots/{name}/sweeps", tag = "bots",
+    params(("name" = String, Path)),
+    request_body = StartSweep,
+    responses(
+        (status = 201, body = SweepStarted),
+        (status = 400, body = ApiError),
+        (status = 404, body = ApiError),
+        (status = 409, description = "data gaps", body = ApiError)))]
+pub(crate) async fn start_sweep(
+    State(app): State<AppState>,
+    Path(name): Path<String>,
+    JsonBody(request): JsonBody<StartSweep>,
+) -> Result<(StatusCode, Json<SweepStarted>), Failure> {
+    let sweep = app
+        .runner
+        .sweep(&name, request, Timestamp::now().exchange_date())
+        .await?;
+    Ok((StatusCode::CREATED, Json(sweep)))
+}
+
+#[utoipa::path(post, path = "/api/bots/{name}/backtests/cancel", tag = "bots",
+    params(("name" = String, Path)),
+    responses((status = 200, body = CancelledBacktests), (status = 404, body = ApiError)))]
+pub(crate) async fn cancel_backtests(
+    State(app): State<AppState>,
+    Path(name): Path<String>,
+) -> Result<Json<CancelledBacktests>, Failure> {
+    Ok(Json(CancelledBacktests {
+        cancelled: app.runner.cancel_queued(&name).await?,
+    }))
+}
+
+#[utoipa::path(get, path = "/api/bots/{name}/research", tag = "bots",
+    params(("name" = String, Path)),
+    responses((status = 200, body = Research), (status = 404, body = ApiError)))]
+pub(crate) async fn research(
+    State(app): State<AppState>,
+    Path(name): Path<String>,
+) -> Result<Json<Research>, Failure> {
+    Ok(Json(app.runner.research(&name).await?))
+}
+
 #[utoipa::path(post, path = "/api/bots/{name}/live", tag = "bots",
     params(("name" = String, Path)),
+    request_body = GoLive,
     responses(
         (status = 200, body = RunSummary),
+        (status = 400, body = ApiError),
         (status = 404, body = ApiError),
-        (status = 409, description = "stream symbol cap reached", body = ApiError)))]
+        (status = 409, description = "already live with these params, three live variants, or the stream symbol cap", body = ApiError)))]
 pub(crate) async fn go_live(
     State(app): State<AppState>,
     Path(name): Path<String>,
+    JsonBody(request): JsonBody<GoLive>,
 ) -> Result<Json<RunSummary>, Failure> {
-    Ok(Json(app.runner.go_live(&name).await?))
-}
-
-#[utoipa::path(post, path = "/api/bots/{name}/pause", tag = "bots",
-    params(("name" = String, Path)),
-    responses((status = 200, body = RunSummary), (status = 404, body = ApiError), (status = 409, body = ApiError)))]
-pub(crate) async fn pause(
-    State(app): State<AppState>,
-    Path(name): Path<String>,
-) -> Result<Json<RunSummary>, Failure> {
-    Ok(Json(app.runner.pause(&name).await?))
+    Ok(Json(app.runner.go_live(&name, request.from_run).await?))
 }

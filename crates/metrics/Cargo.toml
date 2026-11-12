@@ -11,8 +11,6 @@ buizz-core.workspace = true
 chrono.workspace = true
 libm.workspace = true
 rust_decimal.workspace = true
-
-[dev-dependencies]
 serde_json.workspace = true
 
 [lints]

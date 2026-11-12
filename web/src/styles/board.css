@@ -128,6 +128,45 @@
   color: var(--info);
 }
 
+.pill-proven {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.pill-falsified {
+  background: var(--down-bg);
+  color: var(--down);
+}
+
+.pill-no_backtest {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+.envelope-tests {
+  width: 100%;
+  margin: var(--sp-2) 0;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+
+.envelope-tests th,
+.envelope-tests td {
+  padding: 2px var(--sp-2) 2px 0;
+  text-align: left;
+  vertical-align: top;
+}
+
+.envelope-tests th {
+  color: var(--text);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+}
+
+.envelope-tests tr.down > * {
+  color: var(--down);
+}
+
 .annualized-short .num {
   color: var(--muted);
 }

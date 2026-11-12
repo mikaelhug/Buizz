@@ -380,18 +380,8 @@
 
 .split {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0 var(--sp-4);
-}
-
-@media (min-width: 960px) {
-  .split {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
-}
-
-.split.split-wide {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 540px), 1fr));
+  gap: 0 var(--sp-4);
 }
 
 .skeleton {
@@ -968,4 +958,13 @@
   height: 1px;
   margin: var(--sp-1) 0;
   background: var(--border);
+}
+
+.stop-reason {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  gap: var(--sp-1);
+  color: var(--muted);
+  font-size: var(--fs-sm);
 }

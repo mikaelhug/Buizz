@@ -68,7 +68,19 @@ export const fmt = {
   local: (value: Maybe<string>) => present(value, (v) => localTime.format(new Date(v))),
   date: (value: Maybe<string>) => present(value, (v) => localDate.format(new Date(v))),
   market: (value: Maybe<string>) => present(value, (v) => `${exchangeTime.format(new Date(v))} ET`),
+  memory: (bytes: Maybe<number>) => present(bytes, (v) => `${integer.format(Math.round(v / MIB))} MiB`),
+  duration: (seconds: Maybe<number>) => present(seconds, duration),
 };
+
+const MIB = 1024 * 1024;
+
+function duration(seconds: number): string {
+  if (seconds < 60) {
+    return `${ratio.format(seconds)} s`;
+  }
+  const minutes = Math.round(seconds / 60);
+  return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
+}
 
 export function tone(value: Maybe<number>): "up" | "down" | undefined {
   if (value === null || value === undefined || value === 0) {

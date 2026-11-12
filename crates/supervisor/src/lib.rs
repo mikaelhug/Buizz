@@ -1,10 +1,12 @@
 use std::collections::VecDeque;
 use std::fs;
+use std::os::unix::process::CommandExt;
 use std::path::{Component, Path, PathBuf};
-use std::process::Stdio;
+use std::process::{Command, Stdio};
 use std::sync::Arc;
 use std::time::Duration;
 
+use buizz_core::api::ProcessSlots;
 use buizz_core::protocol::{ENV_RUN_ID, ENV_RUN_TOKEN, ENV_SPINE_URL};
 use buizz_core::run::{BotManifest, RunId};
 use nix::errno::Errno;
@@ -12,14 +14,15 @@ use nix::sys::signal::{Signal, killpg};
 use nix::unistd::Pid;
 use tokio::fs::{File, OpenOptions};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::process::{ChildStderr, ChildStdout, Command};
-use tokio::sync::{OwnedSemaphorePermit, Semaphore, mpsc, oneshot, watch};
-use tokio::task::JoinHandle;
+use tokio::process::{ChildStderr, ChildStdout};
+use tokio::signal::unix::{SignalKind, signal};
+use tokio::sync::{OwnedSemaphorePermit, Semaphore, mpsc, watch};
 use tokio::time::Instant;
 
 const EVENT_BUFFER: usize = 1024;
 const RESTART_WINDOW: Duration = Duration::from_secs(600);
 const MAX_RESTARTS_IN_WINDOW: usize = 5;
+const REAP_FALLBACK: Duration = Duration::from_millis(100);
 const INHERITED_VARS: [&str; 5] = ["PATH", "HOME", "LANG", "TZ", "TMPDIR"];
 const INHERITED_PREFIXES: [&str; 2] = ["UV_", "PYTHON"];
 const IGNORED_NAMES: [&str; 6] = [
@@ -184,7 +187,8 @@ fn hash_tree(
 pub struct SupervisorConfig {
     pub spine_url: String,
     pub log_dir: PathBuf,
-    pub max_parallel_backtests: usize,
+    pub backtest_slots: usize,
+    pub live_slots: usize,
     pub restart_delay: Duration,
     pub kill_grace: Duration,
 }
@@ -202,20 +206,25 @@ pub enum OutputStream {
     Stderr,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Reaped {
+    pub code: Option<i32>,
+    pub wall: Duration,
+    pub peak_memory: u64,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ProcessEvent {
     Started { pid: u32 },
     Line { stream: OutputStream, line: String },
-    Exited { code: Option<i32> },
-    Restarting { attempt: u32, delay: Duration },
-    Outdated,
+    Exited(Reaped),
 }
 
 pub struct BotProcess {
     pid: u32,
     kill_grace: Duration,
     events: mpsc::Receiver<ProcessEvent>,
-    exit: watch::Receiver<Option<Option<i32>>>,
+    exit: watch::Receiver<Option<Reaped>>,
 }
 
 fn inherited(name: &std::ffi::OsStr) -> bool {
@@ -243,21 +252,27 @@ impl BotProcess {
         &mut self.events
     }
 
-    pub async fn wait(&mut self) -> Option<i32> {
+    pub async fn wait(&mut self) -> Option<Reaped> {
         match self.exit.wait_for(Option::is_some).await {
-            Ok(code) => (*code).flatten(),
+            Ok(reaped) => *reaped,
             Err(_) => None,
         }
     }
 
-    pub async fn kill(&mut self) -> Result<(), SupervisorError> {
+    pub async fn kill(&mut self) -> Result<Option<Reaped>, SupervisorError> {
         signal_group(self.pid, Signal::SIGTERM)?;
-        let exited = tokio::time::timeout(self.kill_grace, self.wait()).await;
-        if exited.is_err() {
-            signal_group(self.pid, Signal::SIGKILL)?;
-            self.wait().await;
+        if let Ok(reaped) = tokio::time::timeout(self.kill_grace, self.wait()).await {
+            return Ok(reaped);
         }
-        Ok(())
+        signal_group(self.pid, Signal::SIGKILL)?;
+        Ok(self.wait().await)
+    }
+
+    pub async fn finish(mut self, grace: Duration) -> Result<Option<Reaped>, SupervisorError> {
+        match tokio::time::timeout(grace, self.wait()).await {
+            Ok(reaped) => Ok(reaped),
+            Err(_) => self.kill().await,
+        }
     }
 }
 
@@ -297,34 +312,53 @@ async fn pump_output(
     let _ = log.flush().await;
 }
 
-pub struct LiveProcess {
-    events: mpsc::Receiver<ProcessEvent>,
-    stop: Option<oneshot::Sender<()>>,
-    task: Option<JoinHandle<()>>,
+async fn reap(pid: u32, started: Instant) -> Reaped {
+    let mut exits = signal(SignalKind::child()).ok();
+    let reaped = loop {
+        match wait4::try_wait4_pid(pid) {
+            Ok(Some(reaped)) => break Some(reaped),
+            Ok(None) => {}
+            Err(error) => {
+                tracing::warn!(pid, %error, "cannot reap a bot process");
+                break None;
+            }
+        }
+        match exits.as_mut() {
+            Some(exits) => {
+                exits.recv().await;
+            }
+            None => tokio::time::sleep(REAP_FALLBACK).await,
+        }
+    };
+    Reaped {
+        code: reaped.and_then(|reaped| reaped.status.code()),
+        wall: started.elapsed(),
+        peak_memory: reaped.map_or(0, |reaped| reaped.rusage.maxrss),
+    }
 }
 
-impl LiveProcess {
-    pub fn events(&mut self) -> &mut mpsc::Receiver<ProcessEvent> {
-        &mut self.events
-    }
-
-    pub async fn stop(mut self) -> Result<(), SupervisorError> {
-        self.events.close();
-        if let Some(stop) = self.stop.take() {
-            let _ = stop.send(());
-        }
-        if let Some(task) = self.task.take() {
-            let _ = task.await;
-        }
-        Ok(())
-    }
+pub struct Restarts {
+    delay: Duration,
+    recent: VecDeque<Instant>,
 }
 
-impl Drop for LiveProcess {
-    fn drop(&mut self) {
-        if let Some(task) = &self.task {
-            task.abort();
+impl Restarts {
+    pub fn after_crash(&mut self) -> Option<(u32, Duration)> {
+        let now = Instant::now();
+        while self
+            .recent
+            .front()
+            .is_some_and(|at| now.duration_since(*at) > RESTART_WINDOW)
+        {
+            self.recent.pop_front();
         }
+        if self.recent.len() >= MAX_RESTARTS_IN_WINDOW {
+            return None;
+        }
+        self.recent.push_back(now);
+        let attempt = self.recent.len() as u32;
+        let delay = self.delay.saturating_mul(2u32.saturating_pow(attempt - 1));
+        Some((attempt, delay))
     }
 }
 
@@ -332,14 +366,28 @@ impl Drop for LiveProcess {
 pub struct Supervisor {
     config: Arc<SupervisorConfig>,
     backtest_slots: Arc<Semaphore>,
+    live_slots: Arc<Semaphore>,
 }
 
 impl Supervisor {
     pub fn new(config: SupervisorConfig) -> Self {
-        let backtest_slots = Arc::new(Semaphore::new(config.max_parallel_backtests.max(1)));
+        let config = SupervisorConfig {
+            backtest_slots: config.backtest_slots.max(1),
+            live_slots: config.live_slots.max(1),
+            ..config
+        };
         Self {
+            backtest_slots: Arc::new(Semaphore::new(config.backtest_slots)),
+            live_slots: Arc::new(Semaphore::new(config.live_slots)),
             config: Arc::new(config),
-            backtest_slots,
+        }
+    }
+
+    pub fn slots(&self) -> ProcessSlots {
+        let count = |slots: usize| u32::try_from(slots).unwrap_or(u32::MAX);
+        ProcessSlots {
+            backtest: count(self.config.backtest_slots),
+            live: count(self.config.live_slots),
         }
     }
 
@@ -349,6 +397,21 @@ impl Supervisor {
             .acquire_owned()
             .await
             .expect("backtest semaphore is never closed")
+    }
+
+    pub async fn live_slot(&self) -> OwnedSemaphorePermit {
+        self.live_slots
+            .clone()
+            .acquire_owned()
+            .await
+            .expect("live semaphore is never closed")
+    }
+
+    pub fn restarts(&self) -> Restarts {
+        Restarts {
+            delay: self.config.restart_delay,
+            recent: VecDeque::new(),
+        }
     }
 
     pub fn log_path(&self, run_id: RunId) -> PathBuf {
@@ -373,6 +436,11 @@ impl Supervisor {
             .command
             .split_first()
             .expect("validated manifest has a command");
+        let spawn_failed = |source| SupervisorError::Spawn {
+            bot: bot.name.clone(),
+            source,
+        };
+        let started = Instant::now();
         let mut child = Command::new(program)
             .args(args)
             .current_dir(&bot.dir)
@@ -386,25 +454,29 @@ impl Supervisor {
             .stderr(Stdio::piped())
             .process_group(0)
             .spawn()
-            .map_err(|source| SupervisorError::Spawn {
-                bot: bot.name.clone(),
-                source,
-            })?;
-        let pid = child.id().expect("a running child has a pid");
-        let (stdout, stderr) = (
-            child.stdout.take().expect("stdout is piped"),
-            child.stderr.take().expect("stderr is piped"),
+            .map_err(spawn_failed)?;
+        let pid = child.id();
+        let piped = (
+            child.stdout.take().map(ChildStdout::from_std),
+            child.stderr.take().map(ChildStderr::from_std),
         );
+        let (Some(Ok(stdout)), Some(Ok(stderr))) = piped else {
+            let _ = signal_group(pid, Signal::SIGKILL);
+            reap(pid, started).await;
+            return Err(spawn_failed(std::io::Error::other(
+                "the bot's output pipes cannot be read",
+            )));
+        };
         let (events_tx, events) = mpsc::channel(EVENT_BUFFER);
         let (exit_tx, exit) = watch::channel(None);
         let _ = events_tx.try_send(ProcessEvent::Started { pid });
         tokio::spawn(async move {
             let pump = tokio::spawn(pump_output(stdout, stderr, log, events_tx.clone()));
-            let code = child.wait().await.ok().and_then(|status| status.code());
+            let reaped = reap(pid, started).await;
             let _ = signal_group(pid, Signal::SIGKILL);
             let _ = pump.await;
-            let _ = exit_tx.send(Some(code));
-            let _ = events_tx.send(ProcessEvent::Exited { code }).await;
+            let _ = exit_tx.send(Some(reaped));
+            let _ = events_tx.send(ProcessEvent::Exited(reaped)).await;
         });
         Ok(BotProcess {
             pid,
@@ -412,83 +484,5 @@ impl Supervisor {
             events,
             exit,
         })
-    }
-
-    pub fn keep_alive(&self, launch: Launch) -> LiveProcess {
-        let (events_tx, events) = mpsc::channel(EVENT_BUFFER);
-        let (stop, stopped) = oneshot::channel();
-        let supervisor = self.clone();
-        let task = tokio::spawn(async move {
-            supervisor.run_live(launch, events_tx, stopped).await;
-        });
-        LiveProcess {
-            events,
-            stop: Some(stop),
-            task: Some(task),
-        }
-    }
-
-    async fn run_live(
-        &self,
-        launch: Launch,
-        events: mpsc::Sender<ProcessEvent>,
-        mut stopped: oneshot::Receiver<()>,
-    ) {
-        let mut restarts: VecDeque<Instant> = VecDeque::new();
-        loop {
-            let dir = launch.bot.dir.clone();
-            let hashed = tokio::task::spawn_blocking(move || bot_hash(&dir))
-                .await
-                .expect("hashing a bot does not panic");
-            if hashed.is_ok_and(|hash| hash != launch.bot.content_hash) {
-                let _ = events.send(ProcessEvent::Outdated).await;
-                return;
-            }
-            match self.spawn(&launch).await {
-                Ok(mut process) => loop {
-                    tokio::select! {
-                        _ = &mut stopped => {
-                            if let Err(error) = process.kill().await {
-                                tracing::warn!(bot = %launch.bot.name, %error, "stopping live bot failed");
-                            }
-                            return;
-                        }
-                        event = process.events().recv() => match event {
-                            Some(event) => {
-                                let _ = events.send(event).await;
-                            }
-                            None => break,
-                        },
-                    }
-                },
-                Err(error) => {
-                    tracing::warn!(bot = %launch.bot.name, %error, "live bot failed to start");
-                }
-            }
-            let now = Instant::now();
-            while restarts
-                .front()
-                .is_some_and(|at| now.duration_since(*at) > RESTART_WINDOW)
-            {
-                restarts.pop_front();
-            }
-            if restarts.len() >= MAX_RESTARTS_IN_WINDOW {
-                tracing::error!(bot = %launch.bot.name, "live bot crashed too often, giving up");
-                return;
-            }
-            restarts.push_back(now);
-            let attempt = restarts.len() as u32;
-            let delay = self
-                .config
-                .restart_delay
-                .saturating_mul(2u32.saturating_pow(attempt - 1));
-            let _ = events
-                .send(ProcessEvent::Restarting { attempt, delay })
-                .await;
-            tokio::select! {
-                _ = &mut stopped => return,
-                _ = tokio::time::sleep(delay) => {}
-            }
-        }
     }
 }

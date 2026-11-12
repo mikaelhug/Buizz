@@ -37,8 +37,9 @@ The other bots in `bots/` need real data: set the provider keys below and start 
 | `just fmt` | Format Rust and Python |
 | `just gen` | Regenerate the golden protocol frames, `openapi.json` and the web API types |
 | `just drift` | Fail if the generated files differ from the code |
-| `buizz bots` | List bots with status, timeframe and equity |
+| `buizz bots` | List bots with stage, timeframe and live variants |
 | `buizz backtest bots/<name> --from YYYY-MM-DD --to YYYY-MM-DD [--param key=value]...` | Backtest a bot, wait, print metrics and an order summary |
+| `buizz sweep bots/<name> [--preset 10y] --grid key=v1,v2,...` | Queue a backtest for every combination of param values; variants already run are skipped |
 
 `buizz` is the SDK's console script; run it with `uv run --frozen buizz` inside `sdk/python`. It talks to a running spine: `BUIZZ_URL` (default `http://127.0.0.1:8080`) and `BUIZZ_ADMIN_PASSWORD` (the spine's admin password, used to log in). `--param` values are parsed as JSON and fall back to strings. A `--param` key that is not in the bot's `bot.toml` params, or a `--cost` field that is not in the cost model, is refused before the run is queued. The spine runs the bot from its own `bots/` directory, so the argument only selects the folder name.
 
@@ -78,6 +79,7 @@ The spine (`cargo run -p buizz-spine`) reads these environment variables. Empty 
 | `FED_URL` | `https://www.federalreserve.gov` | Federal Reserve Board site, read for the FOMC meeting calendar |
 | `BUIZZ_DUCKDB_MEMORY` | `1GB` | Memory the market store may use for queries and writes before it spills to `market.duckdb.tmp/` in the data directory |
 | `BUIZZ_DUCKDB_THREADS` | `2` | Threads the market store uses |
+| `BUIZZ_LIVE_SLOTS` | `2` | Live bot processes that may start and take their first step of a session at once; backtests run on one fewer than the CPUs |
 | `RUST_LOG` | `info` | Log filter |
 
 `just dev` sets `BUIZZ_ADMIN_PASSWORD=buizz-dev-admin`, `BUIZZ_SECURE_COOKIES=false`, `BUIZZ_INGEST=false`, `BUIZZ_BIND=127.0.0.1:8080` and `BUIZZ_FIXTURE_DIR=fixtures/market`.

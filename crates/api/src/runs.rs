@@ -6,9 +6,9 @@ use axum::extract::State;
 use axum::http::header;
 use axum::response::IntoResponse;
 use buizz_core::api::{
-    ApiError, ChartFill, ChartPosition, ChartQuery, ChartSplit, EquitySeries, EventsPage,
-    EventsQuery, OrderView, OrdersPage, PageQuery, PositionView, PriceBar, PriceChart, RunSummary,
-    RunsQuery, TradeView,
+    ApiError, CancelRun, ChartFill, ChartPosition, ChartQuery, ChartSplit, EquitySeries,
+    EventsPage, EventsQuery, OrderView, OrdersPage, PageQuery, PositionView, PriceBar, PriceChart,
+    RunSummary, RunsQuery, TradeView,
 };
 use buizz_core::market::{Adjustment, AdjustmentFactor, Symbol};
 use buizz_core::money::round_price;
@@ -23,7 +23,7 @@ use tokio::io::{AsyncReadExt, AsyncSeekExt};
 
 use crate::AppState;
 use crate::error::Failure;
-use crate::extract::{Path, Query};
+use crate::extract::{JsonBody, Path, Query};
 
 const DEFAULT_RUNS: u32 = 100;
 const MAX_RUNS: u32 = 500;
@@ -78,12 +78,38 @@ pub(crate) async fn run_detail(
 
 #[utoipa::path(post, path = "/api/runs/{id}/cancel", tag = "runs",
     params(("id" = RunId, Path)),
-    responses((status = 200, body = RunSummary), (status = 404, body = ApiError), (status = 409, body = ApiError)))]
+    request_body = CancelRun,
+    responses((status = 200, body = RunSummary), (status = 404, body = ApiError)))]
 pub(crate) async fn cancel_run(
     State(app): State<AppState>,
     Path(id): Path<RunId>,
+    JsonBody(request): JsonBody<CancelRun>,
 ) -> Result<Json<RunSummary>, Failure> {
-    Ok(Json(app.runner.cancel(id).await?))
+    let reason = request
+        .reason
+        .map(|reason| reason.trim().to_owned())
+        .filter(|reason| !reason.is_empty());
+    Ok(Json(app.runner.cancel(id, reason).await?))
+}
+
+#[utoipa::path(post, path = "/api/runs/{id}/pause", tag = "runs",
+    params(("id" = RunId, Path)),
+    responses((status = 200, body = RunSummary), (status = 404, body = ApiError), (status = 409, body = ApiError)))]
+pub(crate) async fn pause_run(
+    State(app): State<AppState>,
+    Path(id): Path<RunId>,
+) -> Result<Json<RunSummary>, Failure> {
+    Ok(Json(app.runner.pause(id).await?))
+}
+
+#[utoipa::path(post, path = "/api/runs/{id}/resume", tag = "runs",
+    params(("id" = RunId, Path)),
+    responses((status = 200, body = RunSummary), (status = 404, body = ApiError), (status = 409, description = "not live, or the stream symbol cap", body = ApiError)))]
+pub(crate) async fn resume_run(
+    State(app): State<AppState>,
+    Path(id): Path<RunId>,
+) -> Result<Json<RunSummary>, Failure> {
+    Ok(Json(app.runner.resume(id).await?))
 }
 
 #[utoipa::path(get, path = "/api/runs/{id}/equity", tag = "runs",
