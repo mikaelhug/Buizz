@@ -13,6 +13,7 @@ import { type MenuAction, OverflowMenu } from "../ui/Menu";
 import { Info } from "../ui/Popover";
 import { BulkBar, CompareButton, SelectAll, SelectBox, useSelection } from "../ui/Selection";
 import { type Mark, Sparkline } from "../ui/Sparkline";
+import { SUB_PERIODS_ABOUT, SubPeriods } from "../ui/SubPeriods";
 import { Ago, matches, PageSearch, SortHeader, type SortColumns, useSort } from "../ui/Table";
 import { notify } from "../ui/Toaster";
 import { goLive, isRunning, pauseRun, resumeRun, undoPause, useLiveControls } from "./BotActions";
@@ -67,8 +68,38 @@ function excessCagr(glance: Glance | null | undefined): number | undefined {
   return own === null || own === undefined || spy === null || spy === undefined ? undefined : own - spy;
 }
 
+function glanceWhat(glance: Glance): string {
+  return glance.preset ? `backtest ${glance.preset}` : `backtest ${glance.period.from.slice(0, 4)}–${glance.period.to.slice(0, 4)}`;
+}
+
 function headline(entry: Entry): number | undefined {
   return entry.live ? (entry.live.run.live_stats?.excess_cagr ?? undefined) : excessCagr(entry.bot.backtest);
+}
+
+type Maybe = number | null | undefined;
+type Figures = { cagr?: Maybe; spyCagr?: Maybe; ret?: Maybe; spyRet?: Maybe; drawdown?: Maybe; spyDrawdown?: Maybe; thirds: number[] };
+
+const negate = (value: number | null | undefined) => (value === null || value === undefined ? undefined : -value);
+
+function figures(entry: Entry): Figures {
+  const stats = entry.live?.run.live_stats;
+  if (entry.live) {
+    return stats && stats.sessions > 0
+      ? { cagr: stats.cagr, spyCagr: stats.benchmark_cagr, ret: stats.total_return, spyRet: stats.benchmark_return, drawdown: negate(stats.max_drawdown), thirds: [] }
+      : { thirds: [] };
+  }
+  const glance = entry.bot.backtest;
+  return glance
+    ? {
+        cagr: glance.metrics.cagr,
+        spyCagr: glance.benchmark.cagr,
+        ret: glance.metrics.total_return,
+        spyRet: glance.benchmark.total_return,
+        drawdown: negate(glance.metrics.max_drawdown),
+        spyDrawdown: negate(glance.benchmark.max_drawdown),
+        thirds: glance.preset ? glance.sub_periods : [],
+      }
+    : { thirds: [] };
 }
 
 function variantOf(params: Record<string, unknown>, defaults: Record<string, unknown>): string {
@@ -79,12 +110,16 @@ function needsAttention(entry: Entry): boolean {
   return entry.stage === "falsified" || (entry.live?.run.status === "paused" && Boolean(entry.live.run.message));
 }
 
-type SortKey = "bot" | "stage" | "headline" | "activity";
+type SortKey = "bot" | "stage" | "headline" | "cagr" | "return" | "drawdown" | "thirds" | "activity";
 
 const SORT: SortColumns<Entry, SortKey> = {
   bot: { value: (entry) => entry.bot.name },
   stage: { value: (entry) => (needsAttention(entry) ? -1 : STAGE_RANK[entry.stage]) },
   headline: { value: headline, descending: true },
+  cagr: { value: (entry) => figures(entry).cagr, descending: true },
+  return: { value: (entry) => figures(entry).ret, descending: true },
+  drawdown: { value: (entry) => figures(entry).drawdown, descending: true },
+  thirds: { value: (entry) => (figures(entry).thirds.length === 0 ? undefined : figures(entry).thirds.filter((edge) => edge > 0).length), descending: true },
   activity: { value: (entry) => (entry.bot.last_run_at ? Date.parse(entry.bot.last_run_at) : undefined), descending: true },
 };
 
@@ -198,8 +233,20 @@ export function BotGrid() {
                   <SortHeader sorting={sorting} column="stage" className="stage-col">
                     Stage
                   </SortHeader>
-                  <SortHeader sorting={sorting} column="headline" numeric info={<Info label="CAGR vs SPY">{QUESTION_ABOUT}</Info>}>
+                  <SortHeader sorting={sorting} column="headline" numeric className="headline-cell" info={<Info label="CAGR vs SPY">{QUESTION_ABOUT}</Info>}>
                     CAGR vs SPY
+                  </SortHeader>
+                  <SortHeader sorting={sorting} column="cagr" numeric className="wide-col">
+                    CAGR
+                  </SortHeader>
+                  <SortHeader sorting={sorting} column="return" numeric className="wide-col">
+                    Return
+                  </SortHeader>
+                  <SortHeader sorting={sorting} column="drawdown" numeric className="wide-col">
+                    Max DD
+                  </SortHeader>
+                  <SortHeader sorting={sorting} column="thirds" className="wider-col" info={<Info label="Thirds">{SUB_PERIODS_ABOUT}</Info>}>
+                    Thirds
                   </SortHeader>
                   <th scope="col" className="chart-col">
                     vs total-return SPY
@@ -258,7 +305,7 @@ function Highlights({ entries }: { entries: Entry[] }) {
   const judged = live.filter((entry) => entry.stage !== "incubating");
   const topLive = best(judged.length > 0 ? judged : live, headline);
   const screened = entries.filter((entry) => !entry.live && entry.stage === "screened");
-  const backtested = entries.filter((entry) => !entry.live && entry.bot.backtest);
+  const backtested = entries.filter((entry) => !entry.live && entry.bot.backtest?.preset);
   const topScreened = best(screened.length > 0 ? screened : backtested, headline);
   const liveCount = entries.filter((entry) => entry.live).length;
 
@@ -358,7 +405,7 @@ function BacktestHighlight({ bot, glance }: { bot: Bot; glance: Glance }) {
         </a>
         <span className={`pill pill-${bot.stage}`}>{bot.stage}</span>
         <span className="muted">
-          backtest {glance.preset}
+          {glanceWhat(glance)}
           {variant && ` · ${variant}`}
         </span>
       </div>
@@ -370,6 +417,18 @@ function BacktestHighlight({ bot, glance }: { bot: Bot; glance: Glance }) {
           value={fmt.change(glance.metrics.max_drawdown === null || glance.metrics.max_drawdown === undefined ? undefined : -glance.metrics.max_drawdown)}
           sub={`SPY ${fmt.change(glance.benchmark.max_drawdown === null || glance.benchmark.max_drawdown === undefined ? undefined : -glance.benchmark.max_drawdown)}`}
         />
+        {glance.sub_periods.length > 0 && (
+          <Stat
+            label={
+              <>
+                Thirds ahead
+                <Info label="Thirds">{SUB_PERIODS_ABOUT}</Info>
+              </>
+            }
+            value={`${glance.sub_periods.filter((edge) => edge > 0).length} of ${glance.sub_periods.length}`}
+            sub={<SubPeriods edges={glance.sub_periods} count={false} />}
+          />
+        )}
       </div>
       <Sparkline curve={glance.curve} mark={undefined} benchmark="total-return SPY" />
     </div>
@@ -425,15 +484,16 @@ function BotRow({ entry, mark, chosen, onChanged }: { entry: Entry; mark: Mark |
         ) : glance ? (
           <>
             <span className={`headline num ${tone(excess) ?? ""}`}>{fmt.change(excess)}</span>
-            <span className="cell-sub">
-              backtest {glance.preset}
-              {glance.failed_checks.length === 0 ? " · passes gate" : ""}
+            <span className="cell-sub" title={glance.preset ? undefined : `${glance.period.from} → ${glance.period.to}, not a preset period with standard costs, so it does not screen`}>
+              {glanceWhat(glance)}
+              {!glance.preset ? " · not screened" : glance.failed_checks.length === 0 ? " · passes gate" : ""}
             </span>
           </>
         ) : (
-          <span className="cell-sub">not backtested yet</span>
+          <span className="cell-sub">no completed backtest</span>
         )}
       </td>
+      <FigureCells figures={figures(entry)} />
       <td className="spark-cell chart-col">
         {live ? (
           <Sparkline curve={stats?.curve ?? []} mark={mark} benchmark="total-return SPY" />
@@ -449,6 +509,26 @@ function BotRow({ entry, mark, chosen, onChanged }: { entry: Entry; mark: Mark |
         {controls.dialog}
       </td>
     </tr>
+  );
+}
+
+function FigureCells({ figures: shown }: { figures: Figures }) {
+  const pair = (own: number | null | undefined, spy: number | null | undefined) =>
+    own === null || own === undefined ? (
+      <span className="muted">—</span>
+    ) : (
+      <>
+        <span className="num">{fmt.change(own)}</span>
+        {spy !== null && spy !== undefined && <span className="cell-sub">SPY {fmt.change(spy)}</span>}
+      </>
+    );
+  return (
+    <>
+      <td className="r nowrap wide-col">{pair(shown.cagr, shown.spyCagr)}</td>
+      <td className="r nowrap wide-col">{pair(shown.ret, shown.spyRet)}</td>
+      <td className="r nowrap wide-col">{pair(shown.drawdown, shown.spyDrawdown)}</td>
+      <td className="wider-col"><SubPeriods edges={shown.thirds} /></td>
+    </>
   );
 }
 

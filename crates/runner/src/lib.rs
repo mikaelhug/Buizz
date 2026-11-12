@@ -102,6 +102,7 @@ pub(crate) struct Inner {
     tokens: Mutex<HashMap<String, RunId>>,
     runs: Mutex<HashMap<RunId, RunHandle>>,
     live_stats: tokio::sync::Mutex<()>,
+    benchmarks: Mutex<Option<Arc<research::Benchmarks>>>,
 }
 
 impl Inner {
@@ -170,6 +171,7 @@ impl Runner {
                 tokens: Mutex::default(),
                 runs: Mutex::default(),
                 live_stats: tokio::sync::Mutex::default(),
+                benchmarks: Mutex::default(),
             }),
         }
     }

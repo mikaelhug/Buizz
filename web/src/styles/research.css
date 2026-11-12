@@ -152,6 +152,31 @@
   margin-bottom: var(--sp-1);
 }
 
+.research-suggest-text {
+  flex: 1 1 320px;
+}
+
+.research-suggest-stats {
+  display: flex;
+  flex: 10 1 520px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--sp-3) var(--sp-6);
+}
+
+.research-suggest-chart {
+  flex: 1 1 200px;
+  min-width: 160px;
+}
+
+.research-suggest-chart .sparkline svg {
+  height: 44px;
+}
+
+.research-table .headline-num {
+  font-weight: var(--fw-semibold);
+}
+
 .research-suggest p {
   margin: 0;
 }
@@ -195,9 +220,11 @@
 }
 
 .gate-fails {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
   color: var(--muted);
   font-size: var(--fs-sm);
-  white-space: normal;
 }
 
 .pill-plateau {

@@ -44,7 +44,8 @@ export function BotDetail({ name, view }: Props) {
   const live = summary.live.map((entry) => entry.run);
   const selected = runView && (runView.runId ?? live[0]?.id ?? summary.backtest?.run_id ?? runs.find((run) => run.status === "completed" && run.metrics)?.id ?? runs[0]?.id);
   const shownLive = live.find((run) => run.id === selected) ?? (live.length === 1 ? live[0] : undefined);
-  const promotable = summary.backtest?.run_id === selected && summary.backtest?.failed_checks.length === 0;
+  const screening = summary.backtest?.preset ? summary.backtest : undefined;
+  const promotable = screening?.run_id === selected && screening?.failed_checks.length === 0;
   const showRun = (run: Run) => {
     detail.reload();
     if (run.id !== selected) {
@@ -113,7 +114,7 @@ export function BotDetail({ name, view }: Props) {
           botHash={detail.data.bot_hash}
           recent={runs}
           liveParams={new Set(live.map((run) => JSON.stringify(run.config.params)))}
-          gate={summary.backtest?.run_id === selected ? summary.backtest.failed_checks : undefined}
+          gate={screening?.run_id === selected ? screening.failed_checks : undefined}
           runs={<RunHistory selected={selected} name={name} />}
         />
       )}
