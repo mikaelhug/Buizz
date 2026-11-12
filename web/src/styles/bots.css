@@ -122,7 +122,7 @@
 
 .bot-desc {
   display: block;
-  max-width: min(96ch, 40cqi);
+  max-width: min(96ch, 34cqi);
   overflow: hidden;
   color: var(--muted);
   font-size: var(--fs-xs);
