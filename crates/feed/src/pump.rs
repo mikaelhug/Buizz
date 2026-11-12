@@ -279,6 +279,12 @@ impl Pump {
             .connections
             .iter()
             .filter(|connection| !connection.closed);
+        let backfilling = open
+            .clone()
+            .any(|connection| !connection.subscribed.is_empty() && connection.backfill.is_some());
+        if backfilling || self.inner.unplaced() > 0 {
+            return None;
+        }
         let streaming: Vec<Option<Timestamp>> = open
             .clone()
             .filter(|connection| !connection.subscribed.is_empty())
@@ -326,7 +332,13 @@ impl Pump {
     }
 
     fn publish(&self) {
-        let error = describe([&self.calendar_problem, &self.store.problem]);
+        let unplaced = match self.inner.unplaced() {
+            0 => None,
+            count => Some(format!(
+                "{count} streamed symbols have no open connection with room, so live minute runs wait"
+            )),
+        };
+        let error = describe([&self.calendar_problem, &self.store.problem, &unplaced]);
         self.inner.slots.send_if_modified(|slots| {
             let mut changed = slots.error != error;
             slots.error = error;
@@ -484,11 +496,14 @@ impl Connection {
             Ok(bars) => {
                 let later = self.pending.split_off(&done.to);
                 let earlier = std::mem::replace(&mut self.pending, later);
-                let before_range = earlier
-                    .range(..done.from)
-                    .flat_map(|(_, arrived)| arrived.values().cloned())
+                let fetched: BTreeSet<(Timestamp, &Symbol)> =
+                    bars.iter().map(|bar| (bar.start, &bar.symbol)).collect();
+                let streamed_only = earlier
+                    .into_values()
+                    .flat_map(BTreeMap::into_values)
+                    .filter(|bar| !fetched.contains(&(bar.start, &bar.symbol)))
                     .collect();
-                store.queue(DataSource::AlpacaStream, before_range);
+                store.queue(DataSource::AlpacaStream, streamed_only);
                 store.queue(DataSource::Alpaca, bars);
                 self.settled_through = Some(
                     self.settled_through
