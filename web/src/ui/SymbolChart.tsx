@@ -39,6 +39,40 @@ type Props = { runId: number; symbol: string; sync?: ChartSync | undefined };
 
 const MINUTE_SECONDS = 60;
 const PAGE_EDGE = 20;
+const LABELLED_SPACING = 10;
+
+function markerStride(api: IChartApi): number {
+  return Math.max(1, Math.ceil(LABELLED_SPACING / api.timeScale().options().barSpacing));
+}
+
+function fillMarkers(fills: Placed[], candles: Candle[], stride: number, buy: string, sell: string): SeriesMarker<Time>[] {
+  if (stride === 1) {
+    return fills.map((fill) =>
+      fill.qty > 0
+        ? { id: `fill-${fill.order_id}-${fill.at}`, time: fill.time, position: "atPriceBottom", price: Number(fill.chart_price), shape: "arrowUp", color: buy, text: "B" }
+        : { id: `fill-${fill.order_id}-${fill.at}`, time: fill.time, position: "atPriceTop", price: Number(fill.chart_price), shape: "arrowDown", color: sell, text: "S" },
+    );
+  }
+  const index = new Map(candles.map((candle, at) => [candle.time, at]));
+  const buckets = new Map<string, SeriesMarker<Time>>();
+  for (const fill of fills) {
+    const bought = fill.qty > 0;
+    const key = `${bought ? "b" : "s"}-${Math.floor((index.get(fill.time) ?? 0) / stride)}`;
+    const price = Number(fill.chart_price);
+    const seen = buckets.get(key);
+    if (!seen) {
+      buckets.set(
+        key,
+        bought
+          ? { id: `fills-${key}`, time: fill.time, position: "atPriceBottom", price, shape: "arrowUp", color: buy }
+          : { id: `fills-${key}`, time: fill.time, position: "atPriceTop", price, shape: "arrowDown", color: sell },
+      );
+    } else if (seen.position === "atPriceBottom" || seen.position === "atPriceTop") {
+      seen.price = bought ? Math.min(seen.price, price) : Math.max(seen.price, price);
+    }
+  }
+  return [...buckets.values()];
+}
 const PANE = { price: 0, volume: 1 } as const;
 const STRETCH = { price: 0.78, volume: 0.22 } as const;
 
@@ -150,6 +184,7 @@ export function SymbolChart({ runId, symbol, sync }: Props) {
   const leading = useRef(false);
   const pointing = useRef(false);
   const link = useRef<Link | undefined>(undefined);
+  const stride = useRef(1);
   const growing = useRef<"idle" | "busy" | "again">("idle");
   const paging = useRef(false);
   const [pageError, setPageError] = useState<string | undefined>(undefined);
@@ -259,6 +294,41 @@ export function SymbolChart({ runId, symbol, sync }: Props) {
     }
   });
 
+  const drawMarkers = useCallback(() => {
+    const current = drawn.current;
+    if (!current) {
+      return;
+    }
+    const { candles, fills, splits, position } = model.current;
+    const buy = themeColor("--up");
+    const sell = themeColor("--down");
+    stride.current = markerStride(current.api);
+    const fillMarks = fillMarkers(fills, candles, stride.current, buy, sell);
+    const splitMarks = splits.flatMap((split): SeriesMarker<Time>[] => {
+      const midnight = Date.parse(split.ex_date) / 1000;
+      const day = firstFrom(candles, midnight);
+      return day && day.time - (day.time % DAY_SECONDS) === midnight
+        ? [{ id: `split-${split.ex_date}`, time: day.time, position: "aboveBar", shape: "circle", color: themeColor("--muted"), text: splitText(split.ratio) }]
+        : [];
+    });
+    current.markers.setMarkers([...fillMarks, ...splitMarks].sort((left, right) => Number(left.time) - Number(right.time)));
+    if (current.entry) {
+      current.candles.removePriceLine(current.entry);
+      current.entry = undefined;
+    }
+    if (position) {
+      const { qty, avg_cost } = position;
+      current.entry = current.candles.createPriceLine({
+        price: Number(avg_cost),
+        color: themeColor("--accent"),
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+        axisLabelVisible: true,
+        title: `Avg ${qty > 0 ? "long" : "short"} ${fmt.integer(Math.abs(qty))}`,
+      });
+    }
+  }, []);
+
   useEffect(() => {
     if (!host.current) {
       return;
@@ -302,6 +372,9 @@ export function SymbolChart({ runId, symbol, sync }: Props) {
       if (logical && logical.from < PAGE_EDGE && wantsOlder()) {
         loadOlder();
       }
+      if (markerStride(api) !== stride.current) {
+        drawMarkers();
+      }
     };
     const onDoubleClick = () => applyPreset("All");
     const engage = () => {
@@ -329,7 +402,7 @@ export function SymbolChart({ runId, symbol, sync }: Props) {
       api.remove();
       drawn.current = null;
     };
-  }, [refresh, applyPreset]);
+  }, [refresh, applyPreset, drawMarkers]);
 
   useEffect(() => {
     const current = drawn.current;
@@ -377,44 +450,6 @@ export function SymbolChart({ runId, symbol, sync }: Props) {
     current.volume.setData(model.current.candles.map((bar): HistogramData<UTCTimestamp> => ({ time: bar.time, value: bar.volume, color: bar.close >= bar.open ? up : down })));
   }, []);
 
-  const drawMarkers = useCallback(() => {
-    const current = drawn.current;
-    if (!current) {
-      return;
-    }
-    const { candles, fills, splits, position } = model.current;
-    const buy = themeColor("--up");
-    const sell = themeColor("--down");
-    const fillMarks = fills.map(
-      (fill): SeriesMarker<Time> =>
-        fill.qty > 0
-          ? { id: `fill-${fill.order_id}-${fill.at}`, time: fill.time, position: "atPriceBottom", price: Number(fill.chart_price), shape: "arrowUp", color: buy, text: "B" }
-          : { id: `fill-${fill.order_id}-${fill.at}`, time: fill.time, position: "atPriceTop", price: Number(fill.chart_price), shape: "arrowDown", color: sell, text: "S" },
-    );
-    const splitMarks = splits.flatMap((split): SeriesMarker<Time>[] => {
-      const midnight = Date.parse(split.ex_date) / 1000;
-      const day = firstFrom(candles, midnight);
-      return day && day.time - (day.time % DAY_SECONDS) === midnight
-        ? [{ id: `split-${split.ex_date}`, time: day.time, position: "aboveBar", shape: "circle", color: themeColor("--muted"), text: splitText(split.ratio) }]
-        : [];
-    });
-    current.markers.setMarkers([...fillMarks, ...splitMarks].sort((left, right) => Number(left.time) - Number(right.time)));
-    if (current.entry) {
-      current.candles.removePriceLine(current.entry);
-      current.entry = undefined;
-    }
-    if (position) {
-      const { qty, avg_cost } = position;
-      current.entry = current.candles.createPriceLine({
-        price: Number(avg_cost),
-        color: themeColor("--accent"),
-        lineWidth: 1,
-        lineStyle: LineStyle.Dashed,
-        axisLabelVisible: true,
-        title: `Avg ${qty > 0 ? "long" : "short"} ${fmt.integer(Math.abs(qty))}`,
-      });
-    }
-  }, []);
 
   useEffect(() => {
     const current = drawn.current;

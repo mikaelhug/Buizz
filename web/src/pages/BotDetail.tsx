@@ -2,18 +2,20 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { api, errorMessage, must, type Schemas } from "../api/client";
 import { useSpineEvents } from "../api/stream";
 import { label, paramsText } from "../lib/format";
-import { type BotTab, href, navigate } from "../lib/route";
+import { type BotTab, href, navigate, useQueryParam } from "../lib/route";
 import { useFrameBatch } from "../lib/useFrameBatch";
 import { PAGE_SIZE, usePaged } from "../lib/usePaged";
 import { useResource } from "../lib/useResource";
+import { Breadcrumbs } from "../ui/Breadcrumbs";
+import { BulkBar, CompareButton, SelectAll, SelectBox, useSelection } from "../ui/Selection";
 import { confirmDialog } from "../ui/Dialog";
 import { Failure, LoadMore, Loading, StaleFailure } from "../ui/Feedback";
 import { MetricValue } from "../ui/Metrics";
 import { HoldoutBadge, RunBadges, StatusPill } from "../ui/Status";
 import { Ago, matches, moveBetweenRows, openRow, SortHeader, type SortColumns, TableFilter, useFlash, useSort } from "../ui/Table";
 import { notify } from "../ui/Toaster";
-import { BacktestDialog } from "./BacktestDialog";
 import { BotActions } from "./BotActions";
+import { launchBacktest, launchSweep } from "./Launch";
 import { Research } from "./Research";
 import { RunView } from "./RunView";
 import "../styles/bot-detail.css";
@@ -26,7 +28,6 @@ type Props = { name: string; view: BotView };
 
 export function BotDetail({ name, view }: Props) {
   const detail = useResource(() => must(api.GET("/api/bots/{name}", { params: { path: { name } } })), [name]);
-  const [backtesting, setBacktesting] = useState(false);
   const reloadOnce = useFrameBatch<unknown>(() => detail.reload());
 
   useSpineEvents((event) => {
@@ -41,8 +42,9 @@ export function BotDetail({ name, view }: Props) {
   const { summary, runs, status, holdout_runs: holdoutRuns } = detail.data;
   const runView = "preset" in view ? undefined : view;
   const live = summary.live.map((entry) => entry.run);
-  const selected = runView && (runView.runId ?? live[0]?.id ?? runs.find((run) => run.metrics)?.id ?? runs[0]?.id);
-  const shownLive = live.find((run) => run.id === selected);
+  const selected = runView && (runView.runId ?? live[0]?.id ?? summary.backtest?.run_id ?? runs.find((run) => run.status === "completed" && run.metrics)?.id ?? runs[0]?.id);
+  const shownLive = live.find((run) => run.id === selected) ?? (live.length === 1 ? live[0] : undefined);
+  const promotable = summary.backtest?.run_id === selected && summary.backtest?.failed_checks.length === 0;
   const showRun = (run: Run) => {
     detail.reload();
     if (run.id !== selected) {
@@ -54,6 +56,13 @@ export function BotDetail({ name, view }: Props) {
     <div className="detail">
       <StaleFailure resource={detail} />
       <header className="detail-head">
+        <Breadcrumbs
+          trail={[
+            { text: "Bots", href: href({ page: "bots" }) },
+            { text: summary.name, href: href({ page: "bot", name }) },
+            ...(runView ? (selected === undefined ? [] : [{ text: `Run #${selected}` }]) : [{ text: "Research" }]),
+          ]}
+        />
         <div className="detail-title">
           <h1>{summary.name}</h1>
           <span className="tf">{summary.timeframe}</span>
@@ -61,8 +70,11 @@ export function BotDetail({ name, view }: Props) {
           {holdoutRuns > 0 && <HoldoutBadge runs={holdoutRuns} />}
         </div>
         <div className="detail-actions">
-          <BotActions name={name} live={shownLive} onChanged={showRun} />
-          <button type="button" className="btn btn-sm btn-primary" onClick={() => setBacktesting(true)}>
+          {(shownLive || !promotable) && <BotActions name={name} live={shownLive} onChanged={showRun} />}
+          <button type="button" className="btn btn-sm" onClick={() => launchSweep(name)} aria-keyshortcuts="s">
+            Sweep
+          </button>
+          <button type="button" className="btn btn-sm btn-primary" onClick={() => launchBacktest(name)} aria-keyshortcuts="b">
             Backtest
           </button>
         </div>
@@ -70,8 +82,8 @@ export function BotDetail({ name, view }: Props) {
       </header>
       <nav className="view-switch" aria-label="Bot views">
         <a href={href({ page: "bot", name })} className={runView ? "active" : undefined} aria-current={runView ? "page" : undefined}>
-          Live
-          {live.length > 0 && <span className="count">{live.length}</span>}
+          Runs
+          {live.length > 0 && <span className="count count-live">{live.length} live</span>}
         </a>
         <a href={href({ page: "research", name })} className={runView ? undefined : "active"} aria-current={runView ? undefined : "page"}>
           Research
@@ -86,7 +98,7 @@ export function BotDetail({ name, view }: Props) {
         <section className="panel detail-empty">
           <h2>No runs yet</h2>
           <p className="muted">Backtest {summary.name} on history to see its equity, metrics and trades, sweep its params under Research, or start a live paper run.</p>
-          <button type="button" className="btn btn-primary" onClick={() => setBacktesting(true)}>
+          <button type="button" className="btn btn-primary" onClick={() => launchBacktest(name)}>
             Run a backtest
           </button>
         </section>
@@ -100,19 +112,9 @@ export function BotDetail({ name, view }: Props) {
           symbol={runView.symbol}
           botHash={detail.data.bot_hash}
           recent={runs}
+          liveParams={new Set(live.map((run) => JSON.stringify(run.config.params)))}
+          gate={summary.backtest?.run_id === selected ? summary.backtest.failed_checks : undefined}
           runs={<RunHistory selected={selected} name={name} />}
-        />
-      )}
-      {backtesting && (
-        <BacktestDialog
-          name={name}
-          holdoutRuns={holdoutRuns}
-          risk={detail.data.manifest.risk ?? {}}
-          onClose={() => setBacktesting(false)}
-          onStarted={(run) => {
-            setBacktesting(false);
-            showRun(run);
-          }}
         />
       )}
     </div>
@@ -150,6 +152,10 @@ function Description({ text }: { text: string }) {
   );
 }
 
+function pending(run: Run): boolean {
+  return run.mode === "backtest" && (run.status === "queued" || run.status === "starting" || run.status === "running");
+}
+
 function period(run: Run): string {
   return `${run.config.start} → ${run.config.end ?? "now"}`;
 }
@@ -175,7 +181,7 @@ function RunHistory({ selected, name }: { selected: number | undefined; name: st
   }, [name]);
   const sorting = useSort("runs", RUN_COLUMNS, { key: "created", descending: true });
   const flash = useFlash(history.data?.items, (run) => run.id);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useQueryParam("runs");
   const reloadOnce = useFrameBatch<unknown>(() => history.reload());
 
   useSpineEvents((event) => {
@@ -184,33 +190,34 @@ function RunHistory({ selected, name }: { selected: number | undefined; name: st
     }
   });
 
-  const cancel = async (run: Run) => {
+  const cancel = async (runs: Run[]) => {
+    const [first] = runs;
     const confirmed = await confirmDialog({
-      title: `Cancel backtest #${run.id}?`,
-      message: `${period(run)}, ${run.status}`,
-      confirmLabel: "Cancel run",
+      title: runs.length === 1 && first ? `Cancel backtest #${first.id}?` : `Cancel ${runs.length} backtests?`,
+      message: runs.length === 1 && first ? `${period(first)}, ${first.status}` : runs.map((run) => `#${run.id}`).join(", "),
+      confirmLabel: runs.length === 1 ? "Cancel run" : "Cancel runs",
       danger: true,
     });
     if (!confirmed) {
       return;
     }
-    try {
-      await must(api.POST("/api/runs/{id}/cancel", { params: { path: { id: run.id } }, body: {} }));
-      history.reload();
-    } catch (error) {
-      notify(errorMessage(error));
-    }
+    const outcomes = await Promise.allSettled(runs.map((run) => must(api.POST("/api/runs/{id}/cancel", { params: { path: { id: run.id } }, body: {} }))));
+    outcomes.forEach((outcome) => outcome.status === "rejected" && notify(errorMessage(outcome.reason)));
+    chosen.clear();
+    history.reload();
   };
 
   const loaded = history.data?.items ?? [];
   const varied = new Set(loaded.map((run) => paramsText(run.config.params))).size > 1;
   const shown = sorting.order(loaded.filter((run) => matches(query, `#${run.id}`, run.mode, label(run.status), period(run), paramsText(run.config.params))));
+  const chosen = useSelection(shown.map((run) => run.id));
+  const cancellable = shown.filter((run) => chosen.has(run.id) && pending(run));
 
   return (
     <section className="panel">
       <header className="panel-head">
-        <h2>Runs</h2>
-        <span className="muted">Every run of {name}</span>
+        <h2>History</h2>
+        <span className="muted">Every run of {name}; select runs to compare them</span>
         {loaded.length > 0 && <TableFilter label="Filter runs" value={query} onChange={setQuery} />}
       </header>
       <StaleFailure resource={history} />
@@ -225,7 +232,7 @@ function RunHistory({ selected, name }: { selected: number | undefined; name: st
           <table className="table fin">
             <thead>
               <tr>
-                <SortHeader sorting={sorting} column="run">
+                <SortHeader sorting={sorting} column="run" select={<SelectAll selection={chosen} label="Select every run shown" />}>
                   Run
                 </SortHeader>
                 <SortHeader sorting={sorting} column="mode">
@@ -265,6 +272,7 @@ function RunHistory({ selected, name }: { selected: number | undefined; name: st
                 return (
                   <tr key={run.id} className={run.id === selected ? "clickable selected" : "clickable"} onClick={openRow(target)} {...flash.row(run.id)}>
                     <td>
+                      <SelectBox selection={chosen} value={run.id} label={`Select run #${run.id}`} />
                       <a href={target} aria-current={run.id === selected ? "true" : undefined}>
                         #{run.id}
                       </a>
@@ -289,8 +297,8 @@ function RunHistory({ selected, name }: { selected: number | undefined; name: st
                     </td>
                     <td className="badges">
                       <RunBadges badges={run.badges} />
-                      {run.mode === "backtest" && (run.status === "queued" || run.status === "starting" || run.status === "running") && (
-                        <button type="button" className="btn btn-xs btn-ghost" onClick={() => void cancel(run)}>
+                      {pending(run) && (
+                        <button type="button" className="btn btn-xs btn-ghost" onClick={() => void cancel([run])}>
                           Cancel
                         </button>
                       )}
@@ -302,11 +310,17 @@ function RunHistory({ selected, name }: { selected: number | undefined; name: st
           </table>
         </div>
       )}
-      <LoadMore
-        onClick={flash.quietly(history.loadMore)}
-        loaded={loaded.length}
-        noun="runs"
-      />
+      <LoadMore onClick={flash.quietly(history.loadMore)} loaded={loaded.length} noun="runs" />
+      <div className="bulk-dock">
+        <BulkBar selection={chosen} noun={chosen.keys.length === 1 ? "run" : "runs"}>
+          <CompareButton runs={chosen.keys} />
+          {cancellable.length > 0 && (
+            <button type="button" className="btn btn-sm btn-danger" onClick={() => void cancel(cancellable)}>
+              Cancel {cancellable.length}
+            </button>
+          )}
+        </BulkBar>
+      </div>
     </section>
   );
 }

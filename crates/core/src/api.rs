@@ -9,7 +9,7 @@ use utoipa::{IntoParams, ToSchema};
 use crate::market::{Coverage, DataSource, Dataset, Symbol, Timeframe, Watermarks};
 use crate::ops::{DataWarning, JobOutcome};
 use crate::order::{Fill, Order, OrderId, OrderUpdate};
-use crate::performance::{LiveStats, Metrics, RoundTrip};
+use crate::performance::{LivePoint, LiveStats, Metrics, RoundTrip};
 use crate::run::{
     BotManifest, CostModel, DesiredState, EquityPoint, Mode, Period, PeriodPreset, Reproducibility,
     RiskLimits, RunBadge, RunConfig, RunEvent, RunEventType, RunId, RunStatus,
@@ -45,8 +45,22 @@ pub struct BotSummary {
     pub params: Map<String, Value>,
     pub stage: BotStage,
     pub screening: Option<Screening>,
+    pub backtest: Option<BacktestGlance>,
     pub live: Vec<LiveSummary>,
     pub last_run_at: Option<Timestamp>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct BacktestGlance {
+    pub run_id: RunId,
+    pub preset: PeriodPreset,
+    pub plateau: bool,
+    pub failed_checks: Vec<GateCheck>,
+    #[schema(value_type = Object)]
+    pub params: Map<String, Value>,
+    pub metrics: Metrics,
+    pub benchmark: Metrics,
+    pub curve: Vec<LivePoint>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]

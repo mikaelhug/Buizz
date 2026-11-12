@@ -5,7 +5,7 @@ import { fmt } from "../lib/format";
 import { href } from "../lib/route";
 
 export type ToastKind = "error" | "warn" | "success" | "info";
-type ToastLink = { href: string; text: string };
+type ToastLink = { text: string } & ({ href: string } | { run: () => void });
 type Toast = { id: number; message: string; kind: ToastKind; link?: ToastLink };
 
 const TOAST_EVENT = "buizz-toast";
@@ -79,11 +79,25 @@ export function Toaster() {
       {toasts.map((toast) => (
         <div key={toast.id} className={`toast toast-${toast.kind}`}>
           <span className="toast-message">{toast.message}</span>
-          {toast.link && (
-            <a className="toast-link" href={toast.link.href} onClick={() => dismiss(toast.id)}>
-              {toast.link.text}
-            </a>
-          )}
+          {toast.link &&
+            ("href" in toast.link ? (
+              <a className="toast-link" href={toast.link.href} onClick={() => dismiss(toast.id)}>
+                {toast.link.text}
+              </a>
+            ) : (
+              <button
+                type="button"
+                className="toast-link"
+                onClick={() => {
+                  dismiss(toast.id);
+                  if (toast.link && "run" in toast.link) {
+                    toast.link.run();
+                  }
+                }}
+              >
+                {toast.link.text}
+              </button>
+            ))}
           <button type="button" className="toast-close" aria-label="Dismiss" onClick={() => dismiss(toast.id)}>
             ×
           </button>

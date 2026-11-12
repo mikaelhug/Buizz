@@ -18,6 +18,10 @@
   --accent-soft: light-dark(#ebf0fd, #1f2b4a);
   --accent-text: light-dark(#ffffff, #0f1420);
   --bench: light-dark(#8d96a3, #a0a9b6);
+  --series-1: light-dark(#2f62e6, #6f97ff);
+  --series-2: light-dark(#d9480f, #ff8a4c);
+  --series-3: light-dark(#7b3fe4, #b48cff);
+  --series-4: light-dark(#0d8f8f, #3fd0c9);
   --up: light-dark(#0b8a4c, #3cc684);
   --down: light-dark(#d1343f, #f2646d);
   --warn: light-dark(#a8690a, #e5ab4a);

@@ -10,7 +10,6 @@ use axum::response::{IntoResponse, Response};
 use axum::{Extension, Json};
 use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
 use buizz_core::api::{ApiError, LoginRequest, SESSION_COOKIE, SessionInfo};
-use subtle::ConstantTimeEq;
 use tokio::sync::watch;
 use tokio::time::Instant;
 
@@ -52,8 +51,8 @@ enum Refused {
 }
 
 pub(crate) struct Auth {
-    username: String,
-    password: String,
+    username: blake3::Hash,
+    password: blake3::Hash,
     secure_cookies: bool,
     sessions: Mutex<HashMap<String, Session>>,
     failures: Mutex<Failures>,
@@ -137,8 +136,8 @@ fn new_token() -> String {
 impl Auth {
     pub(crate) fn new(config: &ApiConfig) -> Self {
         Self {
-            username: config.admin_username.clone(),
-            password: config.admin_password.clone(),
+            username: blake3::hash(config.admin_username.as_bytes()),
+            password: blake3::hash(config.admin_password.as_bytes()),
             secure_cookies: config.secure_cookies,
             sessions: Mutex::default(),
             failures: Mutex::default(),
@@ -151,9 +150,9 @@ impl Auth {
             let mut failures = locked(&self.failures);
             failures.forget_before(now);
             failures.admit(client_key(client), now)?;
-            let username_matches = username.as_bytes().ct_eq(self.username.as_bytes());
-            let password_matches = password.as_bytes().ct_eq(self.password.as_bytes());
-            if !bool::from(username_matches & password_matches) {
+            let username_matches = blake3::hash(username.as_bytes()) == self.username;
+            let password_matches = blake3::hash(password.as_bytes()) == self.password;
+            if !(username_matches & password_matches) {
                 failures.record(client_key(client), now);
                 return Err(Refused::WrongCredentials);
             }

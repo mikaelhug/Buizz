@@ -19,7 +19,7 @@ use chrono::{Datelike, NaiveDate, TimeDelta};
 use rust_decimal::{Decimal, RoundingStrategy};
 use serde::{Deserialize, Serialize};
 
-pub const ENGINE_VERSION: u32 = 7;
+pub const ENGINE_VERSION: u32 = 8;
 
 #[derive(Debug, thiserror::Error)]
 pub enum EngineError {
@@ -955,6 +955,7 @@ impl Engine {
             .get(&order.symbol)
             .copied()
             .filter(|price| *price > Decimal::ZERO)
+            .filter(|_| instrument.last_session.is_none_or(|last| last >= session))
             .ok_or(RejectReason::NoPrice)?;
         let portfolio = &self.state.portfolio;
         let equity = portfolio.equity();
@@ -1552,6 +1553,52 @@ mod tests {
                 Some(RejectReason::NotShortable)
             ]
         );
+    }
+
+    #[test]
+    fn an_order_for_a_session_after_the_symbols_last_one_has_no_price() {
+        let (first, second) = (session(20), session(21));
+        let mut engine = Engine::new(&config("100000", "1"), first.open);
+        step(
+            &mut engine,
+            &first,
+            &[bar(&first, "100", "99", "100")],
+            &[("AAA", 1_000_000)],
+        );
+        let delisted = Instrument {
+            symbol: Symbol::new("AAA"),
+            name: "AAA".to_owned(),
+            exchange: "NYSE".to_owned(),
+            asset_class: AssetClass::Stock,
+            active: false,
+            shortable: true,
+            first_session: None,
+            last_session: Some(first.date),
+        };
+        let decision = Decision {
+            at: first.close - TimeDelta::minutes(30),
+            session: &second,
+            on_open: &second,
+            on_close: &first,
+        };
+        let on_close = order(
+            "AAA-close",
+            OrderSize::Qty { qty: 10 },
+            OrderType::MarketOnClose,
+        );
+        engine.accept(
+            &decision,
+            vec![buy("AAA-next", 10), on_close],
+            Vec::new(),
+            |_| Ok(&delisted),
+        );
+        let reasons: Vec<_> = engine
+            .drain()
+            .orders
+            .iter()
+            .map(|order| order.reject_reason)
+            .collect();
+        assert_eq!(reasons, [Some(RejectReason::NoPrice), None]);
     }
 
     #[test]

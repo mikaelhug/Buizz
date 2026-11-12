@@ -6,6 +6,11 @@
   margin-bottom: var(--sp-4);
 }
 
+.detail-head > .crumbs {
+  flex: 1 0 100%;
+  margin-bottom: calc(var(--sp-2) * -1);
+}
+
 .detail-title {
   display: flex;
   flex-wrap: wrap;
@@ -119,9 +124,27 @@
   background: var(--surface-2);
 }
 
-.run-mode {
-  color: var(--muted);
-  font-size: var(--fs-sm);
+.mode-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.mode-live {
+  border-color: color-mix(in srgb, var(--up) 45%, transparent);
+  color: var(--up);
+}
+
+.run-promote {
+  margin-left: auto;
 }
 
 .run-options {
@@ -290,7 +313,7 @@
   }
 
   .overview > .metrics-panel {
-    grid-row: 1 / span 2;
+    grid-row: 2 / span 2;
     grid-column: 2;
   }
 
@@ -304,6 +327,21 @@
 
   .overview .chart-stage-tall .equity-chart {
     height: clamp(500px, 58vh, 760px);
+  }
+}
+
+.metric-more {
+  display: none;
+}
+
+@container page (max-width: 720px) {
+  .metric-groups:not(.open) .metric:not(.metric-headline) {
+    display: none;
+  }
+
+  .metric-more {
+    display: inline-flex;
+    margin-top: var(--sp-3);
   }
 }
 
@@ -470,7 +508,7 @@
   z-index: 2;
 }
 
-.panel-head .info {
+.panel-head > .info {
   margin-left: calc(var(--sp-2) * -1);
 }
 
@@ -712,4 +750,63 @@
   color: var(--muted);
   font-size: var(--fs-sm);
   font-weight: var(--fw-regular);
+}
+
+.view-switch .count-live {
+  color: var(--up);
+  font-weight: var(--fw-medium);
+}
+
+.run-headline {
+  max-width: 90ch;
+  margin: 0 0 var(--sp-4);
+  color: var(--text-2);
+  font-size: var(--fs-lg);
+  line-height: 1.5;
+}
+
+.gate-list {
+  margin: 0;
+  padding-left: var(--sp-4);
+}
+
+.run-headline strong {
+  color: var(--text);
+  font-weight: var(--fw-semibold);
+}
+
+.run-headline strong.up {
+  color: var(--up);
+}
+
+.run-headline strong.down {
+  color: var(--down);
+}
+
+.setup-panel > summary {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  list-style: none;
+  cursor: pointer;
+}
+
+.setup-panel > summary::-webkit-details-marker {
+  display: none;
+}
+
+.setup-panel > summary::before {
+  content: "›";
+  display: inline-block;
+  width: 1em;
+  color: var(--muted);
+  transition: transform var(--dur-fast) var(--ease);
+}
+
+.setup-panel[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.setup-panel[open] > summary {
+  margin-bottom: var(--sp-4);
 }

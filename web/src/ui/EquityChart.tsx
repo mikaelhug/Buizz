@@ -182,7 +182,7 @@ export function EquityChart({ runId, points, benchmark, bot, benchmarkSymbol, ev
   const floor = useMemo(() => floorLine(envelope), [envelope]);
 
   const names = useMemo<Record<SeriesKey, string>>(
-    () => ({ strategy: bot ?? "Strategy", benchmark: `${benchmarkSymbol ?? "Benchmark"} buy & hold`, floor: "Backtest band" }),
+    () => ({ strategy: bot ?? "Strategy", benchmark: `Total-return ${benchmarkSymbol ?? "benchmark"}`, floor: "Backtest band" }),
     [bot, benchmarkSymbol],
   );
 

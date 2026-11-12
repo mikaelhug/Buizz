@@ -1,9 +1,9 @@
-description = "Growth-trend timing (Philosophical Economics, Livermore 2016; Newfound Research 2019 replication): at each month's last close hold IEF only when BOTH the latest unemployment rate visible then (unrate, the vintage published before that session) is above the average of the last 12 visible monthly rates AND SPY's month-end total-return close is below its 10-month SMA; otherwise hold SPY; trades at the next open. Decided at month end, not on jobs-report day, so the signal is one fixed date per month and uses only what was published before it. Valid from 2002-07-31, the first month end with IEF (listed 2002-07-30); unrate vintages reach back to the 1960s. Design period 2002-2015, holdout 2016 to now."
+description = "Growth-trend timing (Philosophical Economics, Livermore 2016; Newfound Research 2019 replication): at each month's last close hold IEF only when BOTH the latest unemployment rate visible then (unrate, the vintage published before that session) is above the average of the last 12 visible monthly rates AND SPY's month-end total-return close is below its 10-month SMA; otherwise hold SPY; trades at the next open. Decided at month end, not on jobs-report day, so the signal is one fixed date per month and uses only what was published before it. Valid from 2002-07-31, the first month end with IEF (listed 2002-07-30); unrate vintages reach back to the 1960s. Design period 2002-2015, holdout 2016 to now. risk_on_weight (default 1.0, swept 1.0/1.25/1.5) is the weight of SPY when risk-on, the excess over equity borrowed at the T-bill rate plus the financing spread; the held leg is resized at the next open once it drifts more than 0.10 from its weight."
 command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
 timeframe = "1d"
 wake = "bar"
 universe = { symbols = ["SPY", "IEF"] }
-params = { asset = "SPY", bonds = "IEF", sma_months = 10, unrate_months = 12 }
+params = { asset = "SPY", bonds = "IEF", sma_months = 10, unrate_months = 12, risk_on_weight = 1.0 }
 
 [risk]
-max_gross_exposure = 1.0
+max_gross_exposure = 1.5
