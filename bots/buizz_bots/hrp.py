@@ -47,8 +47,3 @@ def bisection_shares(covariance: Matrix, order: list[int]) -> list[list[float]]:
             for item in right:
                 shares[item].append(1 - alpha)
     return shares
-
-
-def hrp_weights(covariance: Matrix) -> Matrix:
-    shares = bisection_shares(covariance, quasi_diagonal(covariance))
-    return np.array([np.prod(path) for path in shares])

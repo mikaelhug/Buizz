@@ -1,4 +1,4 @@
-description = "Hierarchical risk parity across ten asset-class ETFs, re-estimated every 22 sessions on 260 sessions of returns"
+description = "Hierarchical risk parity across ten asset-class ETFs, re-estimated every 22 sessions on 260 sessions of returns; a target_vol above 0 levers the book, so raise max_gross_exposure above 1.0 with it"
 command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
 timeframe = "1d"
 wake = "bar"
