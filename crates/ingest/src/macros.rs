@@ -1,13 +1,34 @@
 use std::collections::{BTreeMap, HashSet};
 
-use buizz_core::market::{DataSource, Dataset, MacroObservation, MacroSeries};
+use buizz_core::market::{DataSource, Dataset, MacroObservation, MacroSeries, Symbol};
 use buizz_core::time::Timestamp;
 use chrono::{NaiveDate, TimeDelta};
 
-use crate::fetch::{Batch, FetchKey, Work};
-use crate::{Ingest, IngestError};
+use crate::fetch::{Batch, FetchKey, Work, read};
+use crate::{Ingest, IngestError, schedule};
+
+fn series_key(series: MacroSeries) -> Symbol {
+    Symbol::new(&format!("{series:?}"))
+}
 
 impl Ingest {
+    pub(crate) async fn series_unread(&self, job: &str) -> Result<bool, IngestError> {
+        let (source, series): (DataSource, &[MacroSeries]) = match job {
+            schedule::MACRO => (DataSource::Fred, &MacroSeries::FRED),
+            schedule::VIX => (DataSource::Cboe, &MacroSeries::CBOE),
+            _ => return Ok(false),
+        };
+        for series in series {
+            let fetch = self
+                .latest_fetch(source, Dataset::Macro, &series_key(*series))
+                .await?;
+            if !fetch.is_some_and(|fetch| read(&fetch)) {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     pub(crate) async fn macro_series(&self, now: Timestamp) -> Result<Work, IngestError> {
         let Some(fred) = &self.sources.fred else {
             return Ok(Work::unconfigured("FRED"));
@@ -17,7 +38,8 @@ impl Ingest {
         }
         let mut batch = Batch::default();
         for series in MacroSeries::FRED {
-            let key = FetchKey::new(DataSource::Fred, Dataset::Macro, None, None);
+            let symbol = series_key(series);
+            let key = FetchKey::new(DataSource::Fred, Dataset::Macro, Some(&symbol), None);
             let stored: HashSet<MacroObservation> = self
                 .market
                 .macro_observations(series)
@@ -30,6 +52,7 @@ impl Ingest {
                     .await
                 {
                     Ok(dates) if dates.is_empty() => {
+                        self.record_fetched(now, &key, 0).await?;
                         batch.success(0);
                         continue;
                     }
@@ -84,7 +107,8 @@ impl Ingest {
         let today = now.exchange_date();
         let mut batch = Batch::default();
         for series in MacroSeries::CBOE {
-            let key = FetchKey::new(DataSource::Cboe, Dataset::Macro, None, None);
+            let symbol = series_key(series);
+            let key = FetchKey::new(DataSource::Cboe, Dataset::Macro, Some(&symbol), None);
             let closes = match cboe.daily_closes(series).await {
                 Ok(closes) => closes,
                 Err(error) => {

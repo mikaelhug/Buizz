@@ -114,6 +114,10 @@ impl Leases {
         }
     }
 
+    fn unplaced(&self) -> usize {
+        self.symbols().len() - self.placed.len()
+    }
+
     fn used(&self) -> Vec<usize> {
         let mut used = vec![0; self.connections];
         for connection in self.placed.values() {
@@ -180,6 +184,10 @@ impl Inner {
 
     fn placement(&self) -> Vec<BTreeSet<Symbol>> {
         self.leases().placement()
+    }
+
+    fn unplaced(&self) -> usize {
+        self.leases().unplaced()
     }
 
     fn close_connection(&self, connection: usize) {

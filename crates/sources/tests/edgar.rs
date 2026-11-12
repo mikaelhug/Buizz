@@ -22,6 +22,7 @@ const SUBMISSIONS: &str = include_str!("../fixtures/edgar/submissions_sample.jso
 const SUBMISSIONS_PAGE: &str = include_str!("../fixtures/edgar/submissions_page_sample.json");
 const DAILY_INDEX: &str = include_str!("../fixtures/edgar/master_sample.idx");
 const FORM_4: &str = include_str!("../fixtures/edgar/form4_sample.xml");
+const DAILY_INDEX_LISTING: &str = r#"{"directory":{"item":[{"last-modified":"11/09/2026 10:02:13 PM","name":"master.20261109.idx","type":"file","href":"master.20261109.idx","size":"1 KB"}],"name":"daily-index/2026/QTR4/","parent-dir":"../"}}"#;
 
 fn date(year: i32, month: u32, day: u32) -> NaiveDate {
     NaiveDate::from_ymd_opt(year, month, day).unwrap()
@@ -77,6 +78,14 @@ async fn serve_sec() -> String {
         .route(
             "/Archives/edgar/daily-index/2026/QTR4/master.20261109.idx",
             get(guarded(DAILY_INDEX)),
+        )
+        .route(
+            "/Archives/edgar/daily-index/2026/QTR4/index.json",
+            get(guarded(DAILY_INDEX_LISTING)),
+        )
+        .route(
+            "/Archives/edgar/daily-index/2026/QTR4/{file}",
+            get(|| async { StatusCode::FORBIDDEN }),
         )
         .route(
             "/Archives/edgar/data/320193/000114036126042149/form4.xml",
@@ -175,6 +184,7 @@ fn a_later_filing_in_a_preferred_concept_keeps_the_original_filing() {
     );
     let facts = normalize_company_facts(
         &Symbol::new("XYZ"),
+        1,
         payload.as_bytes(),
         &weekday_calendar(2017, 2021),
     )
@@ -190,14 +200,16 @@ fn a_later_filing_in_a_preferred_concept_keeps_the_original_filing() {
 }
 
 #[test]
-fn a_filer_with_one_earnings_per_share_tag_has_diluted_eps_in_its_reporting_currency() {
-    let payload = r#"{"cik":2,"facts":{"us-gaap":{
+fn a_filer_with_one_earnings_per_share_tag_and_a_padded_cik_has_diluted_eps_in_its_reporting_currency()
+ {
+    let payload = r#"{"cik":"0000000002","facts":{"us-gaap":{
         "EarningsPerShareBasicAndDiluted":{"units":{"JPY/shares":[
             {"start":"2023-04-01","end":"2024-03-31","val":312.5,"fy":2023,"fp":"FY","form":"10-K","filed":"2024-06-20","accn":"0000000002-24-000001"}
         ]}}
     }}}"#;
     let facts = normalize_company_facts(
         &Symbol::new("XYZ"),
+        2,
         payload.as_bytes(),
         &weekday_calendar(2024, 2024),
     )
@@ -335,7 +347,7 @@ async fn a_form_4_gives_each_trade_with_its_insider_and_only_for_its_issuer() {
 }
 
 #[tokio::test]
-async fn a_missing_daily_index_is_skipped_and_a_refusal_is_a_rate_limit() {
+async fn a_daily_index_missing_from_its_quarter_listing_is_skipped_and_a_refusal_is_a_rate_limit() {
     let url = serve_sec().await;
     let client = |user_agent: &str| {
         EdgarClient::new(EdgarConfig {

@@ -28,13 +28,18 @@ const CHECKS: Record<Schemas["GateCheck"], string> = {
   drawdown_stop: "drawdown stop",
   few_trades: "under 10 round trips",
   no_edge: "Sharpe ≤ 0",
-  dominated_by_benchmark: "dominated by SPY",
+  trails_benchmark: "CAGR at volatility-matched risk not above total-return SPY",
+  deeper_drawdown: "max drawdown at volatility-matched risk deeper than total-return SPY",
+  inconsistent_edge: "ahead of total-return SPY in fewer than 2 of 3 thirds",
 };
 
 const PENDING: ReadonlySet<Schemas["RunStatus"]> = new Set(["queued", "starting", "running"]);
 
 const GATE_ABOUT =
-  "A variant passes the screening gate on the longest preset it has run: completed with default costs on the current code, no data warnings or drawdown stop, at least 10 round trips, Sharpe above 0, and not dominated by SPY (Sharpe at least SPY's or a smaller max drawdown). Passing is a screen, not a ranking: only live paper results rank bots.";
+  "A variant passes the screening gate on the longest preset it has run: completed with default costs on the current code, no data warnings or drawdown stop, at least 10 round trips and Sharpe above 0. At the same volatility as total-return SPY (dividends reinvested) it must also beat SPY's CAGR, draw down no deeper than SPY, and come out ahead of SPY in at least 2 of the period's 3 equal thirds. Passing is a screen, not a ranking: only live paper results rank bots.";
+
+const VOLATILITY_MATCH_ABOUT =
+  "Volatility matching scales a variant to total-return SPY's risk before comparing them: its daily returns above T-bills are multiplied by SPY's realised volatility divided by its own, the rest of the capital earns the T-bill rate, and leverage above 1× is charged the run's financing spread on top of the T-bill rate. A variant that only holds less or more market than SPY then shows no edge.";
 
 const LUCK_ABOUT =
   "The best Sharpe that many variants with no edge at all would reach by luck: σ·√(2 ln N), with N the variants ever tried on any code of this bot and σ ≈ √(252 / sessions), the standard error of an annualized Sharpe over the period.";
@@ -243,7 +248,7 @@ function Spread({ research, trials }: { research: PresetResearch; trials: number
   const [min, max] = [Math.min(...marks), Math.max(...marks)];
   const span = max - min || 1;
   const x = (value: number) => STRIP.pad + ((value - min) / span) * (STRIP.width - 2 * STRIP.pad);
-  const summary = `Sharpe of ${values.length} variants: median ${fmt.ratio(median)}, middle half ${fmt.ratio(low)} to ${fmt.ratio(high)}; ${passing} pass the gate; SPY ${fmt.ratio(spy)}; luck line ${fmt.ratio(luck)}`;
+  const summary = `Sharpe of ${values.length} variants: median ${fmt.ratio(median)}, middle half ${fmt.ratio(low)} to ${fmt.ratio(high)}; ${passing} pass the gate; total-return SPY ${fmt.ratio(spy)}; luck line ${fmt.ratio(luck)}`;
 
   return (
     <>
@@ -259,13 +264,16 @@ function Spread({ research, trials }: { research: PresetResearch; trials: number
           </dd>
         </div>
         <div>
-          <dt>Gate passes</dt>
+          <dt>
+            Gate passes
+            <Info label="Volatility matching">{VOLATILITY_MATCH_ABOUT}</Info>
+          </dt>
           <dd className="num">
             {passing} of {finished.length}
           </dd>
         </div>
         <div>
-          <dt>SPY Sharpe</dt>
+          <dt>Total-return SPY Sharpe</dt>
           <dd className="num">{fmt.ratio(spy)}</dd>
         </div>
         <div>
@@ -297,7 +305,7 @@ function Spread({ research, trials }: { research: PresetResearch; trials: number
           <span className="key key-dot">variant</span>
           <span className="key key-iqr">middle half</span>
           <span className="key key-median">median</span>
-          <span className="key key-spy">SPY</span>
+          <span className="key key-spy">total-return SPY</span>
           <span className="key key-luck">luck line</span>
           <span className="spread-range num">
             {fmt.ratio(min)} … {fmt.ratio(max)}

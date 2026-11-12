@@ -1,6 +1,5 @@
 use buizz_core::api::{RunSummary, SparkPoint, SpineEvent};
-use buizz_core::market::Timeframe;
-use buizz_core::money::round_cash;
+use buizz_core::market::{Bar, RiskFreeRate, Session, Timeframe};
 use buizz_core::performance::{LiveStats, Metrics};
 use buizz_core::run::{EquityPoint, Mode, RunEventKind, RunEventType, RunId, RunStatus};
 use buizz_core::time::Timestamp;
@@ -36,23 +35,21 @@ pub(crate) async fn benchmark(
             last.close,
         )
         .await?;
-    let Some(base) = bars
-        .first()
-        .map(|bar| bar.close)
-        .filter(|close| !close.is_zero())
-    else {
+    let bars: Vec<(Session, Bar)> = bars
+        .into_iter()
+        .filter_map(|bar| Some((*calendar.containing(bar.start)?, bar)))
+        .collect();
+    let Some((base, _)) = bars.first() else {
         return Ok(Vec::new());
     };
-    Ok(bars
-        .iter()
-        .filter_map(|bar| {
-            let session = calendar.containing(bar.start)?;
-            Some(SparkPoint {
-                at: session.close,
-                equity: round_cash(config.start_cash * bar.close / base),
-            })
-        })
-        .collect())
+    let actions = market
+        .corporate_actions(vec![config.benchmark.clone()], base.date, last.date)
+        .await?;
+    Ok(buizz_metrics::buy_and_hold(
+        config.start_cash,
+        &bars,
+        &actions,
+    ))
 }
 
 pub(crate) async fn metrics(
@@ -85,7 +82,7 @@ pub(crate) async fn benchmark_metrics(
     market: &MarketStore,
     run: &RunSummary,
     benchmark: &[SparkPoint],
-) -> Result<Metrics, RunnerError> {
+) -> Result<(Metrics, Vec<RiskFreeRate>), RunnerError> {
     let held: Vec<EquityPoint> = benchmark
         .iter()
         .filter(|point| point.at.exchange_date() >= run.config.start)
@@ -102,13 +99,14 @@ pub(crate) async fn benchmark_metrics(
     let risk_free = market
         .risk_free_rates(run.config.start - RISK_FREE_LOOKBACK, through)
         .await?;
-    Ok(buizz_metrics::compute(&MetricsInput {
+    let metrics = buizz_metrics::compute(&MetricsInput {
         start_cash: run.config.start_cash,
         equity: &held,
         benchmark,
         ledger: &[],
         risk_free: &risk_free,
-    }))
+    });
+    Ok((metrics, risk_free))
 }
 
 async fn paused_spans(
@@ -162,6 +160,8 @@ async fn source_backtest(
         .filter(|backtest| {
             !backtest.config.holdout
                 && backtest.config.params == run.config.params
+                && backtest.config.cost == run.config.cost
+                && backtest.config.risk == run.config.risk
                 && hash(backtest) == hash(run)
         })
         .max_by_key(|backtest| {
@@ -207,6 +207,7 @@ async fn live_stats(
 }
 
 pub(crate) async fn live_session(inner: &Inner, run_id: RunId) {
+    let _recording = inner.live_stats.lock().await;
     if let Err(error) = record_live_session(inner, run_id).await {
         tracing::warn!(run = %run_id, %error, "cannot record the live session stats");
     }

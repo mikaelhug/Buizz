@@ -210,4 +210,13 @@ async fn bots_see_index_membership_profiles_and_earnings_as_of_their_clock() {
         json!(["AAA", "BBB"]),
         "SPY trades the most dollars but is a fund"
     );
+    assert_eq!(
+        stocks[&stamp("2024-11-26T21:00:00Z")]["bars"],
+        json!(["AAA", "BBB", "SPY"])
+    );
+    assert_eq!(
+        stocks[&stamp("2024-12-04T21:00:00Z")]["bars"],
+        json!(["AAA", "BBB"]),
+        "a sold instrument outside the universe stops reaching the bot"
+    );
 }

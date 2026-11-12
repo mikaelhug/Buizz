@@ -1,36 +1,106 @@
 use std::cmp::Ordering;
 
-use buizz_core::api::{GateCheck, RunSummary};
-use buizz_core::performance::Metrics;
-use buizz_core::run::{RunBadge, RunStatus};
+use buizz_core::api::{GateCheck, RunSummary, SparkPoint};
+use buizz_core::market::RiskFreeRate;
+use buizz_core::run::{EquityPoint, RunBadge, RunStatus};
+use rust_decimal::prelude::ToPrimitive;
 use serde_json::{Map, Value};
 
-use crate::TRADING_DAYS;
+use crate::{
+    MIN_DAILY_VOLATILITY, TRADING_DAYS, benchmark_returns, daily_risk_free, max_drawdown,
+    sample_stdev, simple_returns,
+};
 
 const GATE_ROUND_TRIPS: u32 = 10;
 
-fn beats(value: Option<f64>, against: Option<f64>, better: fn(f64, f64) -> bool) -> bool {
-    match (value, against) {
-        (Some(value), Some(against)) => better(value, against),
-        (_, None) => true,
-        (None, Some(_)) => false,
+const SUB_PERIODS: usize = 3;
+const AHEAD_SUB_PERIODS: usize = 2;
+
+pub struct Screened<'a> {
+    pub equity: &'a [EquityPoint],
+    pub benchmark: &'a [SparkPoint],
+    pub risk_free: &'a [RiskFreeRate],
+}
+
+struct Matched {
+    returns: Vec<f64>,
+    benchmark: Vec<f64>,
+}
+
+impl Matched {
+    fn of(run: &RunSummary, screened: &Screened<'_>) -> Option<Self> {
+        let config = &run.config;
+        let values: Vec<f64> = std::iter::once(config.start_cash)
+            .chain(screened.equity.iter().map(|point| point.equity))
+            .map(|value| value.to_f64().unwrap_or(f64::NAN))
+            .collect();
+        let returns = simple_returns(&values)?;
+        let benchmark = benchmark_returns(screened.benchmark, screened.equity)?;
+        if returns.len() != benchmark.len() {
+            return None;
+        }
+        let volatility = sample_stdev(&returns).filter(|stdev| *stdev > MIN_DAILY_VOLATILITY)?;
+        let scale = sample_stdev(&benchmark)? / volatility;
+        let spread = config.cost.financing_spread.to_f64()? / TRADING_DAYS;
+        let returns = screened
+            .equity
+            .iter()
+            .zip(&returns)
+            .map(|(point, ret)| {
+                let risk_free = daily_risk_free(screened.risk_free, point)?;
+                Some(risk_free + scale * (ret - risk_free) - (scale - 1.0).max(0.0) * spread)
+            })
+            .collect::<Option<Vec<f64>>>()?;
+        Some(Self { returns, benchmark })
+    }
+
+    fn sub_periods_ahead(&self) -> usize {
+        let length = self.returns.len();
+        (0..SUB_PERIODS)
+            .filter(|part| {
+                let range = part * length / SUB_PERIODS..(part + 1) * length / SUB_PERIODS;
+                !range.is_empty()
+                    && growth(&self.returns[range.clone()]) > growth(&self.benchmark[range])
+            })
+            .count()
     }
 }
 
-pub fn gate(run: &RunSummary, benchmark: Option<&Metrics>) -> Vec<GateCheck> {
+fn growth(returns: &[f64]) -> f64 {
+    returns.iter().map(|ret| 1.0 + ret).product()
+}
+
+fn annualized(returns: &[f64]) -> f64 {
+    growth(returns)
+        .max(0.0)
+        .powf(TRADING_DAYS / returns.len() as f64)
+        - 1.0
+}
+
+fn path(returns: &[f64]) -> Vec<f64> {
+    std::iter::once(1.0)
+        .chain(returns.iter().scan(1.0, |value, ret| {
+            *value *= 1.0 + ret;
+            Some(*value)
+        }))
+        .collect()
+}
+
+pub fn gate(run: &RunSummary, screened: Option<&Screened<'_>>) -> Vec<GateCheck> {
     if !run.status.is_finished() {
         return vec![GateCheck::NotCompleted];
     }
     let metrics = run.metrics.as_ref();
     let sharpe = metrics.and_then(|metrics| metrics.sharpe);
-    let drawdown = metrics.and_then(|metrics| metrics.max_drawdown);
-    let dominated = !(beats(sharpe, benchmark.and_then(|spy| spy.sharpe), |run, spy| {
-        run >= spy
-    }) || beats(
-        drawdown,
-        benchmark.and_then(|spy| spy.max_drawdown),
-        |run, spy| run < spy,
-    ));
+    let (trails, deeper, inconsistent) =
+        match screened.and_then(|screened| Matched::of(run, screened)) {
+            Some(matched) => (
+                annualized(&matched.returns) <= annualized(&matched.benchmark),
+                max_drawdown(&path(&matched.returns)) > max_drawdown(&path(&matched.benchmark)),
+                matched.sub_periods_ahead() < AHEAD_SUB_PERIODS,
+            ),
+            None => (true, true, true),
+        };
     let stopped = run.badges.contains(&RunBadge::DrawdownStop);
     [
         (
@@ -50,7 +120,9 @@ pub fn gate(run: &RunSummary, benchmark: Option<&Metrics>) -> Vec<GateCheck> {
             GateCheck::NoEdge,
             !sharpe.is_some_and(|sharpe| sharpe > 0.0),
         ),
-        (GateCheck::DominatedByBenchmark, dominated),
+        (GateCheck::TrailsBenchmark, trails),
+        (GateCheck::DeeperDrawdown, deeper),
+        (GateCheck::InconsistentEdge, inconsistent),
     ]
     .into_iter()
     .filter_map(|(check, failed)| failed.then_some(check))

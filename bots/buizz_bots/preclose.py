@@ -1,13 +1,27 @@
 from collections.abc import Mapping
-from datetime import UTC, datetime
 from typing import Any
 
-from buizz import Bar, Context, History
+import numpy as np
+
+from buizz import Bar, Context, History, to_ns
+from buizz_bots.monthly import last_session
 
 
 def session_so_far(ctx: Context, symbol: str) -> Bar | None:
     bar = ctx.bars.get(symbol)
     return bar if bar is not None and bar.start == ctx.session.open else None
+
+
+def with_session_so_far(history: History, bar: Bar) -> History:
+    return History(
+        symbol=history.symbol,
+        start=np.append(history.start, np.int64(to_ns(bar.start))),
+        open=np.append(history.open, bar.open),
+        high=np.append(history.high, bar.high),
+        low=np.append(history.low, bar.low),
+        close=np.append(history.close, bar.close),
+        volume=np.append(history.volume, bar.volume),
+    )
 
 
 class ProxyLog:
@@ -17,7 +31,7 @@ class ProxyLog:
         self.decisions: dict[str, list[Any]] = {}
 
     def check(self, symbol: str, official: History, settled: Mapping[str, object]) -> None:
-        day = datetime.fromtimestamp(int(official.start[-1]) / 1e9, UTC).date().isoformat()
+        day = last_session(official).isoformat()
         decision = self.previous["decisions"].get(symbol)
         if self.previous["session"] != day or decision is None:
             return

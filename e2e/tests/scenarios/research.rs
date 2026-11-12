@@ -52,13 +52,19 @@ async fn a_swept_grid_runs_once_and_two_of_its_variants_go_live_side_by_side() {
     .await;
     spine.ingested().await;
 
+    let _own_cash: RunSummary = spine
+        .post(
+            "/api/bots/sma_cross/backtests",
+            json!({"preset": "1y", "params": {"fast": 5, "slow": 20}, "start_cash": "50000"}),
+        )
+        .await;
     let printed = cli_sweep(&spine).await;
     assert!(
         printed[0].starts_with("4 runs queued for sma_cross 1y")
             && printed[0].ends_with(", 0 already run"),
         "{printed:?}"
     );
-    assert_eq!(printed[1], "trials: 4 variants, 4 runs");
+    assert_eq!(printed[1], "trials: 4 variants, 5 runs");
     let again: SweepStarted = spine
         .post(
             "/api/bots/sma_cross/sweeps",
@@ -67,7 +73,7 @@ async fn a_swept_grid_runs_once_and_two_of_its_variants_go_live_side_by_side() {
         .await;
     assert!(again.queued.is_empty(), "{again:?}");
     assert_eq!(again.skipped, 4);
-    assert_eq!((again.trials.variants, again.trials.runs), (4, 4));
+    assert_eq!((again.trials.variants, again.trials.runs), (4, 5));
 
     let research = eventually("the sweep to finish", || async {
         let research: Research = spine.get("/api/bots/sma_cross/research").await;

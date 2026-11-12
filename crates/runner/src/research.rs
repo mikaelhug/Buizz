@@ -5,12 +5,14 @@ use buizz_core::api::{
     BacktestGlance, GateCheck, PresetResearch, Research, RunSummary, Screening, SparkPoint, Trials,
     VariantResult,
 };
-use buizz_core::market::Symbol;
+use buizz_core::market::{RiskFreeRate, Symbol};
 use buizz_core::performance::Metrics;
-use buizz_core::run::{CostModel, Mode, Period, PeriodPreset, RunId, RunStatus};
+use buizz_core::run::{CostModel, Mode, Period, PeriodPreset, RunConfig, RunId, RunStatus};
 use buizz_core::time::Timestamp;
 use buizz_market::MarketStore;
-use buizz_state::RunFilter;
+use buizz_metrics::Screened;
+use buizz_state::{RunFilter, StateStore};
+use buizz_supervisor::BotSpec;
 use chrono::NaiveDate;
 use serde_json::{Map, Value};
 use tokio::sync::OnceCell;
@@ -29,16 +31,18 @@ type BenchmarkKey = (Symbol, NaiveDate, NaiveDate);
 
 struct Figures {
     curve: Vec<SparkPoint>,
+    risk_free: Vec<RiskFreeRate>,
     metrics: Metrics,
 }
 
 pub struct Benchmarks {
     market: MarketStore,
+    state: StateStore,
     today: NaiveDate,
     figures: Mutex<HashMap<BenchmarkKey, Arc<OnceCell<Figures>>>>,
 }
 
-pub struct Screened {
+pub struct BotScreening {
     pub screening: Option<Screening>,
     pub backtest: Option<BacktestGlance>,
 }
@@ -50,19 +54,7 @@ struct Gated {
 }
 
 impl Benchmarks {
-    async fn metrics(&self, run: &RunSummary) -> Result<Metrics, RunnerError> {
-        self.figures(run, |figures| figures.metrics.clone()).await
-    }
-
-    async fn curve(&self, run: &RunSummary) -> Result<Vec<SparkPoint>, RunnerError> {
-        self.figures(run, |figures| figures.curve.clone()).await
-    }
-
-    async fn figures<T>(
-        &self,
-        run: &RunSummary,
-        read: impl FnOnce(&Figures) -> T,
-    ) -> Result<T, RunnerError> {
+    async fn figures(&self, run: &RunSummary) -> Result<Arc<OnceCell<Figures>>, RunnerError> {
         let config = &run.config;
         let key = (
             config.benchmark.clone(),
@@ -76,26 +68,59 @@ impl Benchmarks {
                 .entry(key)
                 .or_default(),
         );
-        let figures = cell
-            .get_or_try_init(|| async {
-                let curve = report::benchmark(&self.market, run, self.today).await?;
-                let metrics = report::benchmark_metrics(&self.market, run, &curve).await?;
-                Ok::<_, RunnerError>(Figures { curve, metrics })
+        cell.get_or_try_init(|| async {
+            let curve = report::benchmark(&self.market, run, self.today).await?;
+            let (metrics, risk_free) = report::benchmark_metrics(&self.market, run, &curve).await?;
+            Ok::<_, RunnerError>(Figures {
+                curve,
+                risk_free,
+                metrics,
             })
-            .await?;
-        Ok(read(figures))
+        })
+        .await?;
+        Ok(cell)
+    }
+
+    async fn metrics(&self, run: &RunSummary) -> Result<Metrics, RunnerError> {
+        let cell = self.figures(run).await?;
+        Ok(cell
+            .get()
+            .expect("benchmark figures are initialised")
+            .metrics
+            .clone())
+    }
+
+    async fn curve(&self, run: &RunSummary) -> Result<Vec<SparkPoint>, RunnerError> {
+        let cell = self.figures(run).await?;
+        Ok(cell
+            .get()
+            .expect("benchmark figures are initialised")
+            .curve
+            .clone())
+    }
+
+    async fn gate(&self, run: &RunSummary) -> Result<Vec<GateCheck>, RunnerError> {
+        if !run.status.is_finished() {
+            return Ok(buizz_metrics::gate(run, None));
+        }
+        let cell = self.figures(run).await?;
+        let figures = cell.get().expect("benchmark figures are initialised");
+        let equity = self.state.equity(run.id).await?;
+        Ok(buizz_metrics::gate(
+            run,
+            Some(&Screened {
+                equity: &equity,
+                benchmark: &figures.curve,
+                risk_free: &figures.risk_free,
+            }),
+        ))
     }
 }
 
 async fn gated(runs: &[RunSummary], benchmarks: &Benchmarks) -> Result<Gated, RunnerError> {
     let mut failed_checks = Vec::with_capacity(runs.len());
     for run in runs {
-        let benchmark = if run.status.is_finished() {
-            Some(benchmarks.metrics(run).await?)
-        } else {
-            None
-        };
-        failed_checks.push(buizz_metrics::gate(run, benchmark.as_ref()));
+        failed_checks.push(benchmarks.gate(run).await?);
     }
     let sharpes: Vec<_> = runs
         .iter()
@@ -125,31 +150,32 @@ fn featured<'a>(
     runs: &'a [RunSummary],
     plateau: Option<RunId>,
     defaults: &Map<String, Value>,
-) -> Option<&'a RunSummary> {
+) -> Option<(&'a RunSummary, Metrics)> {
     let completed = || {
         runs.iter()
-            .filter(|run| run.status == RunStatus::Completed && run.metrics.is_some())
+            .filter(|run| run.status == RunStatus::Completed)
+            .filter_map(|run| Some((run, run.metrics.clone()?)))
     };
     completed()
-        .find(|run| Some(run.id) == plateau)
-        .or_else(|| completed().find(|run| &run.config.params == defaults))
+        .find(|(run, _)| Some(run.id) == plateau)
+        .or_else(|| completed().find(|(run, _)| &run.config.params == defaults))
         .or_else(|| completed().next())
 }
 
-pub(crate) fn screening_period(run: &RunSummary) -> Option<PeriodPreset> {
-    let period = Period {
-        from: run.config.start,
-        to: run.config.end?,
-    };
-    (run.config.cost == CostModel::default())
-        .then(|| PeriodPreset::of(period, run.created_at.exchange_date()))
-        .flatten()
-}
-
-fn latest_variants(runs: Vec<RunSummary>) -> BTreeMap<PeriodPreset, Vec<RunSummary>> {
+fn latest_variants(
+    runs: Vec<RunSummary>,
+    standard: impl Fn(&RunConfig) -> bool,
+) -> BTreeMap<PeriodPreset, Vec<RunSummary>> {
     let mut presets: BTreeMap<PeriodPreset, Vec<RunSummary>> = BTreeMap::new();
     for run in runs {
-        let Some(preset) = screening_period(&run) else {
+        let Some(to) = run.config.end.filter(|_| standard(&run.config)) else {
+            continue;
+        };
+        let period = Period {
+            from: run.config.start,
+            to,
+        };
+        let Some(preset) = PeriodPreset::of(period, run.created_at.exchange_date()) else {
             continue;
         };
         let variants = presets.entry(preset).or_default();
@@ -175,40 +201,44 @@ impl Runner {
     pub fn benchmarks(&self) -> Benchmarks {
         Benchmarks {
             market: self.inner.market.clone(),
+            state: self.inner.state.clone(),
             today: Timestamp::now().exchange_date(),
             figures: Mutex::default(),
         }
     }
 
+    pub(crate) fn standard(&self, config: &RunConfig, spec: &BotSpec) -> bool {
+        config.cost == CostModel::default()
+            && config.risk == spec.manifest.risk
+            && config.start_cash == self.inner.config.start_cash
+    }
+
     async fn screened_runs(
         &self,
-        bot: &str,
-        bot_hash: &str,
+        spec: &BotSpec,
     ) -> Result<BTreeMap<PeriodPreset, Vec<RunSummary>>, RunnerError> {
         let runs = self
             .inner
             .state
             .runs(RunFilter {
-                bot: Some(bot.to_owned()),
-                bot_hash: Some(bot_hash.to_owned()),
+                bot: Some(spec.name.clone()),
+                bot_hash: Some(spec.content_hash.clone()),
                 mode: Some(Mode::Backtest),
                 statuses: SCREENED_STATUSES.to_vec(),
                 ..RunFilter::default()
             })
             .await?;
-        Ok(latest_variants(runs))
+        Ok(latest_variants(runs, |config| self.standard(config, spec)))
     }
 
     pub async fn screening(
         &self,
-        bot: &str,
-        bot_hash: &str,
-        defaults: &Map<String, Value>,
+        spec: &BotSpec,
         benchmarks: &Benchmarks,
-    ) -> Result<Screened, RunnerError> {
-        let presets = self.screened_runs(bot, bot_hash).await?;
+    ) -> Result<BotScreening, RunnerError> {
+        let presets = self.screened_runs(spec).await?;
         let Some(preset) = gate_preset(&presets) else {
-            return Ok(Screened {
+            return Ok(BotScreening {
                 screening: None,
                 backtest: None,
             });
@@ -226,16 +256,14 @@ impl Runner {
             passing: u32::try_from(finished().filter(|(_, failed)| failed.is_empty()).count())
                 .unwrap_or(u32::MAX),
         };
-        let featured = featured(runs, gated.plateau, defaults)
-            .and_then(|run| Some((run, run.metrics.clone()?)));
-        let backtest = match featured {
+        let backtest = match featured(runs, gated.plateau, &spec.manifest.params) {
             Some((run, metrics)) => Some(
                 self.glance(run, metrics, preset, gated.plateau, benchmarks)
                     .await?,
             ),
             None => None,
         };
-        Ok(Screened {
+        Ok(BotScreening {
             screening: Some(screening),
             backtest,
         })
@@ -264,7 +292,7 @@ impl Runner {
 
     pub async fn research(&self, bot: &str) -> Result<Research, RunnerError> {
         let spec = self.bot(bot).await?;
-        let presets = self.screened_runs(bot, &spec.content_hash).await?;
+        let presets = self.screened_runs(&spec).await?;
         let trials = self.inner.state.trials(bot).await?;
         let benchmarks = self.benchmarks();
         let gate_preset = gate_preset(&presets);

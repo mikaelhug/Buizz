@@ -19,7 +19,7 @@ use chrono::{Datelike, NaiveDate, TimeDelta};
 use rust_decimal::{Decimal, RoundingStrategy};
 use serde::{Deserialize, Serialize};
 
-pub const ENGINE_VERSION: u32 = 5;
+pub const ENGINE_VERSION: u32 = 6;
 
 #[derive(Debug, thiserror::Error)]
 pub enum EngineError {

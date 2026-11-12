@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 import numpy as np
@@ -12,6 +12,10 @@ MAX_SESSIONS_PER_MONTH = 23
 
 def session_days(history: History) -> npt.NDArray[np.datetime64]:
     return history.start.astype("datetime64[ns]").astype("datetime64[D]")
+
+
+def last_session(history: History) -> date:
+    return datetime.fromtimestamp(int(history.start[-1]) / 1e9, UTC).date()
 
 
 def period_end_closes(

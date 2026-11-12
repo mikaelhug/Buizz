@@ -18,7 +18,7 @@ use buizz_core::money::CASH_DECIMALS;
 use buizz_core::ops::{CoverageGap, DataWarning};
 use buizz_core::performance::Metrics;
 use buizz_core::run::{
-    CostModel, DesiredState, MAX_SWEEP_VARIANTS, Mode, PeriodPreset, RunBadge, RunConfig, RunEvent,
+    DesiredState, MAX_SWEEP_VARIANTS, Mode, PeriodPreset, RunBadge, RunConfig, RunEvent,
     RunEventKind, RunId, RunStatus, UNIVERSE_SESSIONS, UniverseSpec, coerce_param,
 };
 use buizz_core::time::Timestamp;
@@ -101,6 +101,7 @@ pub(crate) struct Inner {
     events: broadcast::Sender<SpineEvent>,
     tokens: Mutex<HashMap<String, RunId>>,
     runs: Mutex<HashMap<RunId, RunHandle>>,
+    live_stats: tokio::sync::Mutex<()>,
 }
 
 impl Inner {
@@ -168,6 +169,7 @@ impl Runner {
                 events: broadcast::Sender::new(EVENT_BUFFER),
                 tokens: Mutex::default(),
                 runs: Mutex::default(),
+                live_stats: tokio::sync::Mutex::default(),
             }),
         }
     }
@@ -309,7 +311,7 @@ impl Runner {
             .filter(|run| {
                 run.config.start == period.from
                     && run.config.end == Some(period.to)
-                    && run.config.cost == CostModel::default()
+                    && self.standard(&run.config, &spec)
             })
             .map(|run| run.config.params)
             .collect();
@@ -512,7 +514,11 @@ impl Runner {
         run: &RunSummary,
         benchmark: &[SparkPoint],
     ) -> Result<Metrics, RunnerError> {
-        report::benchmark_metrics(&self.inner.market, run, benchmark).await
+        Ok(
+            report::benchmark_metrics(&self.inner.market, run, benchmark)
+                .await?
+                .0,
+        )
     }
 
     pub async fn shutdown(&self) {

@@ -141,8 +141,8 @@ export function Compare({ runs: ids }: { runs: number[] }) {
             <header className="panel-head">
               <h2>Return since each run's start</h2>
               <Info label="Compared returns">
-                Each run's equity as a change from its own first mark, so runs with different capital or periods line up. The dashed line is {compared.data[0]?.run.config.benchmark}{" "}
-                bought and held over the first run's period.
+                Each run's equity as a change from its own first mark, so runs with different capital or periods line up. The dashed line is total-return {compared.data[0]?.run.config.benchmark}{" "}
+                (dividends reinvested) over the first run's period.
               </Info>
             </header>
             <CompareChart entries={compared.data} />
@@ -254,7 +254,7 @@ function CompareChart({ entries }: { entries: Compared[] }) {
         ))}
         <span className="legend-row">
           <span className="legend-swatch legend-swatch-benchmark" />
-          <span className="legend-name">{entries[0]?.run.config.benchmark} buy & hold</span>
+          <span className="legend-name">Total-return {entries[0]?.run.config.benchmark}</span>
           <span className={`num ${tone(readout.benchmark) ?? ""}`}>{fmt.change(readout.benchmark)}</span>
         </span>
       </div>
@@ -272,7 +272,7 @@ function MetricTable({ entries }: { entries: Compared[] }) {
     return value === null || value === undefined ? undefined : key === "max_drawdown" ? -value : value;
   };
   const rows = [
-    { id: "excess", name: "CAGR vs SPY", title: "The run's CAGR minus its benchmark's over the same sessions.", better: "high" as Better, values: entries.map(excessCagr), render: fmt.change },
+    { id: "excess", name: "CAGR vs SPY", title: "The run's CAGR minus total-return SPY's over the same sessions; — where either is undefined, such as under a year of sessions.", better: "high" as Better, values: entries.map(excessCagr), render: fmt.change },
     ...ROWS.map(({ key, better }) => ({
       id: key,
       name: METRICS[key].name,

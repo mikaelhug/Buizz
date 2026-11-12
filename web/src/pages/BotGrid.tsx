@@ -65,7 +65,7 @@ const IDLE_SORT: SortColumns<Bot, IdleKey> = {
 };
 
 const BACKTEST_ABOUT =
-  "The screening backtest on the longest preset period the bot's current code has run, with default costs: the plateau variant if one passes the gate, else the bot's default params, else its latest completed variant. CAGR vs SPY is the bot's CAGR minus SPY's total-return CAGR over the same sessions. A backtest screens a bot; only live paper results rank it.";
+  "The screening backtest on the longest preset period the bot's current code has run with default costs, its own risk limits and the standard start cash: the plateau variant if one passes the gate, else the bot's default params, else its latest completed variant. Every SPY figure is total-return SPY (dividends reinvested) over the same sessions; CAGR vs SPY is the bot's CAGR minus SPY's. A figure that is undefined for the run, such as CAGR under a year, shows as —. A backtest screens a bot; only live paper results rank it.";
 
 const finished = (status: Run["status"]) => status === "completed" || status === "failed" || status === "cancelled";
 
@@ -234,7 +234,7 @@ export function BotGrid() {
                   </SortHeader>
                   <th scope="colgroup" colSpan={5} className="group-head">
                     <span className="th-inner">
-                      Screening backtest
+                      Screening backtest vs total-return SPY
                       <Info label="Screening backtest">{BACKTEST_ABOUT}</Info>
                     </span>
                   </th>
@@ -343,7 +343,7 @@ function BacktestCells({ bot }: { bot: Bot }) {
       </td>
       <td className="spark-cell">
         <a href={target} className="spark-link" aria-label={`Backtest run #${glance.run_id} of ${bot.name}`}>
-          <Sparkline curve={glance.curve} mark={undefined} benchmark="SPY" />
+          <Sparkline curve={glance.curve} mark={undefined} benchmark="total-return SPY" />
         </a>
       </td>
     </>

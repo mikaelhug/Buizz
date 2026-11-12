@@ -11,15 +11,18 @@ use buizz_core::time::Timestamp;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
 
+pub use crate::benchmark::buy_and_hold;
 pub use crate::live::{LiveInput, Source, backtest_curve, live, live_summary};
-pub use crate::research::{gate, luck_sharpe, neighbourhood_sharpes};
+pub use crate::research::{Screened, gate, luck_sharpe, neighbourhood_sharpes};
 
+mod benchmark;
 mod envelope;
 mod live;
 mod research;
 
 const TRADING_DAYS: f64 = CostModel::TRADING_DAYS_PER_YEAR as f64;
 const MIN_SPREAD: f64 = f64::EPSILON;
+const MIN_DAILY_VOLATILITY: f64 = 1e-5;
 
 pub struct MetricsInput<'a> {
     pub start_cash: Decimal,
@@ -41,8 +44,11 @@ pub fn compute(input: &MetricsInput<'_>) -> Metrics {
         .chain(closes.iter().copied())
         .collect();
     let returns = simple_returns(&values);
+    let volatility = returns.as_deref().and_then(sample_stdev);
+    let moves = volatility.is_some_and(|stdev| stdev > MIN_DAILY_VOLATILITY);
     let excess = returns
         .as_deref()
+        .filter(|_| moves)
         .and_then(|returns| excess_returns(input, returns));
     let cagr = cagr(input.start_cash, input.equity);
     let max_drawdown = max_drawdown(&values);
@@ -55,15 +61,13 @@ pub fn compute(input: &MetricsInput<'_>) -> Metrics {
     Metrics {
         total_return: final_ratio(input.start_cash, input.equity).map(|ratio| ratio - 1.0),
         cagr,
-        volatility: returns
-            .as_deref()
-            .and_then(sample_stdev)
-            .map(|stdev| stdev * TRADING_DAYS.sqrt()),
+        volatility: volatility.map(|stdev| stdev * TRADING_DAYS.sqrt()),
         sharpe: excess.as_deref().and_then(sharpe),
         sortino: excess.as_deref().and_then(sortino),
         max_drawdown,
         calmar: cagr
             .zip(max_drawdown)
+            .filter(|_| moves)
             .and_then(|(cagr, drawdown)| (drawdown > 0.0).then(|| cagr / drawdown)),
         win_rate: win_rate(&trips),
         profit_factor: profit_factor(&trips),
@@ -307,20 +311,19 @@ fn beta(returns: &[f64], benchmark: &[f64]) -> Option<f64> {
 }
 
 fn alpha_beta(input: &MetricsInput<'_>, returns: &[f64]) -> Option<(f64, f64)> {
-    let benchmark = benchmark_returns(input)?;
+    let benchmark = benchmark_returns(input.benchmark, input.equity)?;
     let returns = returns.get(returns.len().checked_sub(benchmark.len())?..)?;
     let beta = beta(returns, &benchmark)?;
     let alpha = (mean(returns) - beta * mean(&benchmark)) * TRADING_DAYS;
     Some((alpha, beta))
 }
 
-fn benchmark_returns(input: &MetricsInput<'_>) -> Option<Vec<f64>> {
-    let by_time: BTreeMap<Timestamp, f64> = input
-        .benchmark
+fn benchmark_returns(benchmark: &[SparkPoint], equity: &[EquityPoint]) -> Option<Vec<f64>> {
+    let by_time: BTreeMap<Timestamp, f64> = benchmark
         .iter()
         .map(|point| (point.at, point.equity.to_f64().unwrap_or(f64::NAN)))
         .collect();
-    let first = input.equity.first()?;
+    let first = equity.first()?;
     let base = by_time
         .range(..first.at)
         .next_back()
@@ -328,12 +331,7 @@ fn benchmark_returns(input: &MetricsInput<'_>) -> Option<Vec<f64>> {
     let values: Vec<f64> = base
         .map(Some)
         .into_iter()
-        .chain(
-            input
-                .equity
-                .iter()
-                .map(|point| by_time.get(&point.at).copied()),
-        )
+        .chain(equity.iter().map(|point| by_time.get(&point.at).copied()))
         .collect::<Option<_>>()?;
     simple_returns(&values)
 }
@@ -417,6 +415,42 @@ mod tests {
         close("beta", actual.beta, expected.beta);
         assert_eq!(actual.trades, expected.trades);
         assert_eq!(actual.sessions, expected.sessions);
+    }
+
+    #[test]
+    fn a_run_left_in_cash_has_no_sharpe_sortino_or_calmar() {
+        let first = NaiveDate::from_ymd_opt(2024, 1, 2).unwrap();
+        let days: Vec<NaiveDate> = first.iter_days().take(300).collect();
+        let risk_free: Vec<RiskFreeRate> = days
+            .iter()
+            .zip(0..)
+            .map(|(date, step)| RiskFreeRate {
+                date: *date,
+                percent: Decimal::new(500 + step % 7, 2),
+            })
+            .collect();
+        let equity: Vec<EquityPoint> = days
+            .iter()
+            .zip(0..)
+            .map(|(date, step)| EquityPoint {
+                at: Timestamp::at_exchange_time(*date, chrono::NaiveTime::MIN).unwrap(),
+                equity: Decimal::new(10_000_000 + step % 2, 2),
+                cash: Decimal::new(10_000_000 + step % 2, 2),
+                gross_exposure: Decimal::ZERO,
+            })
+            .collect();
+        let metrics = compute(&MetricsInput {
+            start_cash: Decimal::from(100_000),
+            equity: &equity,
+            benchmark: &[],
+            ledger: &[],
+            risk_free: &risk_free,
+        });
+        assert_eq!(
+            (metrics.sharpe, metrics.sortino, metrics.calmar),
+            (None, None, None),
+            "{metrics:?}"
+        );
     }
 
     #[test]

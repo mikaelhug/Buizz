@@ -6,11 +6,12 @@ use buizz_core::api::{
     LiveSummary, Research, RunSummary, StartBacktest, StartSweep, SweepStarted,
 };
 use buizz_core::performance::LiveVerdict;
-use buizz_core::run::{BotManifest, DesiredState, Mode, RunBadge, RunStatus};
+use buizz_core::run::{DesiredState, Mode, RunBadge, RunStatus};
 use buizz_core::time::Timestamp;
 use buizz_metrics::live_summary;
 use buizz_runner::Benchmarks;
 use buizz_state::RunFilter;
+use buizz_supervisor::BotSpec;
 use futures::future::{try_join, try_join_all};
 
 use crate::AppState;
@@ -18,12 +19,6 @@ use crate::error::Failure;
 use crate::extract::{JsonBody, Path};
 
 const RECENT_RUNS: u32 = 50;
-
-struct Bot<'a> {
-    name: &'a str,
-    manifest: &'a BotManifest,
-    hash: &'a str,
-}
 
 fn bot_status(runs: &[RunSummary], live: &[RunSummary]) -> BotStatus {
     let paused =
@@ -55,19 +50,14 @@ fn live_runs(bot: Option<&str>, statuses: &[RunStatus]) -> RunFilter {
 
 async fn summarize(
     app: &AppState,
-    bot: Bot<'_>,
+    bot: &BotSpec,
     live: &[RunSummary],
     started: u32,
     benchmarks: &Benchmarks,
 ) -> Result<BotSummary, Failure> {
     let (last_run_at, screened) = try_join(
-        async { Ok::<_, Failure>(app.state.last_run_at(bot.name).await?) },
-        async {
-            Ok(app
-                .runner
-                .screening(bot.name, bot.hash, &bot.manifest.params, benchmarks)
-                .await?)
-        },
+        async { Ok::<_, Failure>(app.state.last_run_at(&bot.name).await?) },
+        async { Ok(app.runner.screening(bot, benchmarks).await?) },
     )
     .await?;
     let live: Vec<LiveSummary> = live
@@ -84,7 +74,7 @@ async fn summarize(
         (true, false) => BotStage::Draft,
     };
     Ok(BotSummary {
-        name: bot.name.to_owned(),
+        name: bot.name.clone(),
         description: bot.manifest.description.clone(),
         timeframe: bot.manifest.timeframe,
         params: bot.manifest.params.clone(),
@@ -108,14 +98,11 @@ pub(crate) async fn list_bots(
     )
     .await?;
     let benchmarks = app.runner.benchmarks();
-    let summaries = try_join_all(scan.bots.iter().map(|spec| {
-        let bot = Bot {
-            name: &spec.name,
-            manifest: &spec.manifest,
-            hash: &spec.content_hash,
-        };
-        summarize(&app, bot, &live, started, &benchmarks)
-    }))
+    let summaries = try_join_all(
+        scan.bots
+            .iter()
+            .map(|spec| summarize(&app, spec, &live, started, &benchmarks)),
+    )
     .await?;
     Ok(Json(summaries))
 }
@@ -146,14 +133,9 @@ pub(crate) async fn bot_detail(
         try_join(app.state.live_runs_started(), app.state.holdout_runs(&name)),
     )
     .await?;
-    let bot = Bot {
-        name: &spec.name,
-        manifest: &spec.manifest,
-        hash: &spec.content_hash,
-    };
     Ok(Json(BotDetail {
         status: bot_status(&runs, &live),
-        summary: summarize(&app, bot, &live, started, &app.runner.benchmarks()).await?,
+        summary: summarize(&app, spec, &live, started, &app.runner.benchmarks()).await?,
         holdout_runs,
         manifest: spec.manifest.clone(),
         bot_hash: spec.content_hash.clone(),

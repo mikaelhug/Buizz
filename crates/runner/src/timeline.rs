@@ -41,6 +41,17 @@ struct Fetched {
     risk_free_rate: Option<Decimal>,
 }
 
+impl Fetched {
+    fn narrow(&mut self, held: &BTreeSet<Symbol>) {
+        self.tracked = self.universe.iter().chain(held).cloned().collect();
+        let tracked = &self.tracked;
+        self.actions
+            .retain(|action| tracked.contains(&action.symbol));
+        self.average_daily_volume
+            .retain(|symbol, _| tracked.contains(symbol));
+    }
+}
+
 type Upcoming = (NaiveDate, JoinHandle<Result<Fetched, MarketError>>);
 
 #[derive(Default)]
@@ -170,10 +181,11 @@ impl Timeline {
             Some((date, task)) if date == session.date => Some(task.await??),
             _ => None,
         };
-        let fetched = match upcoming.filter(|fetched| held.is_subset(&fetched.tracked)) {
+        let mut fetched = match upcoming.filter(|fetched| held.is_subset(&fetched.tracked)) {
             Some(fetched) => fetched,
             None => self.fetch(session.date, held.clone()).await?,
         };
+        fetched.narrow(held);
         let listed = |symbol: &Symbol| {
             self.instruments
                 .get(symbol)

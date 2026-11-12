@@ -99,7 +99,7 @@ pub struct Ingest {
     state: StateStore,
     sources: Sources,
     events: broadcast::Sender<SpineEvent>,
-    gate: Arc<Mutex<()>>,
+    ran_since_boot: Arc<Mutex<BTreeSet<&'static str>>>,
     stopping: Arc<AtomicBool>,
     booted_at: Timestamp,
 }
@@ -117,14 +117,14 @@ impl Ingest {
             state,
             sources,
             events: broadcast::Sender::new(EVENT_CAPACITY),
-            gate: Arc::new(Mutex::new(())),
+            ran_since_boot: Arc::default(),
             stopping: Arc::default(),
             booted_at: Timestamp::now(),
         }
     }
 
     pub async fn tick(&self, now: Timestamp) -> Result<TickReport, IngestError> {
-        let _serial = self.gate.lock().await;
+        let mut ran_since_boot = self.ran_since_boot.lock().await;
         let started = tokio::time::Instant::now();
         let finished_at = || now + TimeDelta::from_std(started.elapsed()).unwrap_or_default();
         let latest = self.state.latest_jobs().await?;
@@ -138,9 +138,15 @@ impl Ingest {
             let previous = latest.iter().find(|run| run.job == spec.name);
             let streak = failures.get(spec.name).copied().unwrap_or(0);
             let limited = spec.source.and_then(|source| limits.get(&source).copied());
-            if due_at(&spec, previous, streak, limited).is_some_and(|due| due > now) {
+            let waiting = due_at(&spec, previous, streak, limited).is_some_and(|due| due > now);
+            let settled_before_boot = !ran_since_boot.contains(spec.name)
+                && previous.is_some_and(|run| {
+                    matches!(run.outcome, Some(JobOutcome::Ok | JobOutcome::Noop))
+                });
+            if waiting && !(settled_before_boot && self.series_unread(spec.name).await?) {
                 continue;
             }
+            ran_since_boot.insert(spec.name);
             let run_id = self.state.start_job(spec.name, now).await?;
             let work = match self.run(spec.name, now).await {
                 Ok(work) => work,
@@ -207,7 +213,10 @@ impl Ingest {
 
     pub async fn stop(&self, grace: Duration) {
         self.stopping.store(true, Ordering::SeqCst);
-        if tokio::time::timeout(grace, self.gate.lock()).await.is_err() {
+        if tokio::time::timeout(grace, self.ran_since_boot.lock())
+            .await
+            .is_err()
+        {
             tracing::warn!(
                 ?grace,
                 "an ingest job was still running at shutdown; it resumes on the next start"

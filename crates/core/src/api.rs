@@ -83,7 +83,9 @@ pub enum GateCheck {
     DrawdownStop,
     FewTrades,
     NoEdge,
-    DominatedByBenchmark,
+    TrailsBenchmark,
+    DeeperDrawdown,
+    InconsistentEdge,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
