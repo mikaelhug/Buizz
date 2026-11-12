@@ -1,11 +1,13 @@
 mod config;
 
 use std::io::IsTerminal;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
 use buizz_api::{ApiConfig, AppState};
+use buizz_core::time::Timestamp;
 use buizz_feed::{FeedConfig, FeedManager};
 use buizz_ingest::{Ingest, IngestConfig};
 use buizz_market::MarketStore;
@@ -43,6 +45,36 @@ async fn main() -> Result<()> {
         )
         .with_ansi(std::io::stdout().is_terminal())
         .init();
+    let mut arguments = std::env::args().skip(1);
+    match (
+        arguments.next().as_deref(),
+        arguments.next(),
+        arguments.next(),
+    ) {
+        (None, ..) => serve().await,
+        (Some("restore"), Some(backup), None) => restore(backup.into()).await,
+        _ => anyhow::bail!("usage: buizz-spine [restore <market backup directory>]"),
+    }
+}
+
+async fn restore(backup: PathBuf) -> Result<()> {
+    let data_dir = config::data_dir();
+    std::fs::create_dir_all(&data_dir)
+        .with_context(|| format!("cannot create {}", data_dir.display()))?;
+    let market = MarketStore::open(&data_dir.join(buizz_market::FILE_NAME), 1).await?;
+    let state = StateStore::open(&data_dir.join(buizz_state::FILE_NAME)).await?;
+    let restored = buizz_ingest::restore(&market, &state, backup.clone(), Timestamp::now()).await?;
+    tracing::info!(
+        backup = %backup.display(),
+        parts = restored.parts,
+        batches = restored.batches,
+        rows = restored.rows,
+        "restored the market backup; ingest fetches everything else again on the next start"
+    );
+    Ok(())
+}
+
+async fn serve() -> Result<()> {
     let config = Config::from_env()?;
     let listener = TcpListener::bind(config.bind)
         .await
@@ -61,10 +93,17 @@ async fn main() -> Result<()> {
     market
         .limit(config.duckdb_memory.clone(), config.duckdb_threads)
         .await?;
+    let market_was_empty = market.is_empty().await?;
     if let Some(fixture_dir) = &config.fixture_dir {
         market.load_fixture(fixture_dir).await?;
     }
     let state = StateStore::open(&config.data_dir.join(buizz_state::FILE_NAME)).await?;
+    if market_was_empty && state.reset_market(Timestamp::now()).await? {
+        tracing::warn!(
+            "the market store is new but the state store has ingest history; that history \
+             no longer describes the market store, so ingest starts over"
+        );
+    }
 
     let sources = Sources {
         alpaca: config.alpaca.clone().map(AlpacaClient::new).transpose()?,

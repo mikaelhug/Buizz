@@ -40,7 +40,7 @@ flowchart LR
 
 | Component | Crate or folder | Job |
 |---|---|---|
-| Spine | `crates/spine` | The binary: reads the environment, wires everything, serves HTTP, shuts down cleanly on SIGTERM or Ctrl-C (closing event streams, then stopping runs at their last checkpoint); a second signal exits at once |
+| Spine | `crates/spine` | The binary: reads the environment, wires everything, serves HTTP, shuts down cleanly on SIGTERM or Ctrl-C (closing event streams, then stopping runs at their last checkpoint); a second signal exits at once. `buizz-spine restore <backup>` loads a market backup into an empty store instead (see Restoring) |
 | Core | `crates/core` | Types and rules shared by all: run config, cost model, risk limits, order and ledger types, visibility rules, bot protocol messages, API types |
 | Market store | `crates/market` | Embedded DuckDB (`market.duckdb`): instruments, companies (SIC codes), calendar, daily and 1m bars, corporate actions, fundamentals, earnings releases, index membership, borrow availability, rates, macro series, coverage. All reads a run does are as-of queries here. The schema is versioned in `schema_version`: a fresh file gets `schema.sql`, an older one the numbered migrations in `crates/market/migrations/` it has not seen (version 1 is the first deployed schema, kept in `tests/fixtures/schema_v1.sql`), applied in one transaction on open; a file from a newer spine is refused |
 | State store | `crates/state` | SQLite in WAL mode (`state.db`): runs, orders, ledger, equity points, run events, job runs, fetch records, step checkpoints. Opening an older file applies the numbered migrations in `crates/state/migrations/` it has not seen |
@@ -111,7 +111,13 @@ All under `BUIZZ_DATA_DIR` (default `data/`) unless noted.
 
 Bots are read from `BUIZZ_BOTS_DIR`. The daily watermark is stored in `market.duckdb` whenever it advances and read back on start; the minute watermark is held in memory and re-advanced by the feed manager.
 
-Restoring: stop the spine, then copy a `backups/state-YYYY-MM-DD.db` over `state.db` (its WAL files `state.db-wal` and `state.db-shm` removed first). For the market store, either keep `market.duckdb`, or start from an empty one and, before ingest has written a borrow snapshot, load the Parquet copies with DuckDB, for example `INSERT INTO borrow_availability SELECT * FROM 'backups/market-YYYY-MM-DD/borrow_availability.parquet'`, table by table; ingest then fetches everything else again. Both stores open older files and migrate them forward, and refuse a file a newer spine wrote.
+Restoring, with the spine stopped (on the cluster: scale the Deployment to 0 and run the same image once with the `buizz-data` volume mounted):
+
+1. To bring back run history, copy a `backups/state-YYYY-MM-DD.db` over `state.db`, removing `state.db-wal` and `state.db-shm` first.
+2. If `market.duckdb` is lost or damaged, move it aside and run `buizz-spine restore <backup>` with `BUIZZ_DATA_DIR` set, where `<backup>` is `backups/market` (or a `market-YYYY-MM-DD` full copy from an older spine). It creates an empty market store, loads every part in order, takes index membership from the latest part that has it (replacing, not appending), moves the `ingest_batch_id` sequence past the highest restored batch, and records the reset in `state.db`. It refuses a store that already holds an ingest batch, so it must run before ingest has started.
+3. Start the spine. The state store's job runs and successful fetches from before the reset no longer describe the market store, so every job is due at once and ingest fetches everything else again (rejections and the fetch budgets still count). A spine that starts with a new, empty market store and an older `state.db` records the same reset on its own.
+
+Both stores open older files and migrate them forward, and refuse a file a newer spine wrote.
 
 ## Running on the cluster
 

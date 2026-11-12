@@ -12,6 +12,7 @@ use crate::{FetchUsage, Result};
 const TRANSIENT_BACKOFF: TimeDelta = TimeDelta::hours(6);
 const PERMANENT_BACKOFF: TimeDelta = TimeDelta::days(30);
 
+const RESET: &str = "(SELECT coalesce(max(at), 0) FROM market_reset)";
 const JOB_COLUMNS: &str = "id, job, started_at, finished_at, outcome, rows, message";
 const FETCH_COLUMNS: &str = "source, dataset, symbol, requested_from, requested_to, at, status, \
     http_status, rows, retry_after, message";
@@ -77,8 +78,8 @@ pub fn finish_job(
 
 pub fn latest_jobs(connection: &Connection) -> Result<Vec<JobRun>> {
     let mut statement = connection.prepare_cached(&format!(
-        "SELECT {JOB_COLUMNS} FROM job_run \
-         WHERE id IN (SELECT MAX(id) FROM job_run GROUP BY job) ORDER BY job"
+        "SELECT {JOB_COLUMNS} FROM job_run WHERE id IN \
+         (SELECT MAX(id) FROM job_run WHERE started_at >= {RESET} GROUP BY job) ORDER BY job"
     ))?;
     let jobs = statement
         .query_map([], job_run)?
@@ -91,7 +92,8 @@ pub fn last_job_success(connection: &Connection, job: &str) -> Result<Option<Job
         .query_row(
             &format!(
                 "SELECT {JOB_COLUMNS} FROM job_run \
-                 WHERE job = ? AND outcome IN ('ok', 'partial', 'noop', 'waiting') ORDER BY id DESC LIMIT 1"
+                 WHERE job = ? AND outcome IN ('ok', 'partial', 'noop', 'waiting') \
+                 AND started_at >= {RESET} ORDER BY id DESC LIMIT 1"
             ),
             [job],
             job_run,
@@ -127,18 +129,31 @@ pub fn failure_streaks(
     connection: &Connection,
     unfinished_before: Timestamp,
 ) -> Result<BTreeMap<String, u32>> {
-    let mut statement = connection.prepare_cached(
+    let mut statement = connection.prepare_cached(&format!(
         "SELECT job, COUNT(*) FROM job_run failed \
-         WHERE (outcome = 'failed' OR (outcome IS NULL AND started_at < ?)) AND id > \
+         WHERE (outcome = 'failed' OR (outcome IS NULL AND started_at < ?)) \
+         AND started_at >= {RESET} AND id > \
          COALESCE((SELECT MAX(id) FROM job_run other WHERE other.job = failed.job \
-         AND other.outcome <> 'failed'), 0) GROUP BY job",
-    )?;
+         AND other.outcome <> 'failed'), 0) GROUP BY job"
+    ))?;
     let streaks = statement
         .query_map([unfinished_before.nanos()], |row| {
             Ok((row.get(0)?, row.get(1)?))
         })?
         .collect::<rusqlite::Result<_>>()?;
     Ok(streaks)
+}
+
+pub fn reset_market(connection: &Connection, at: Timestamp) -> Result<bool> {
+    let inserted = connection.execute(
+        &format!(
+            "INSERT INTO market_reset (at) SELECT ? WHERE \
+             EXISTS (SELECT 1 FROM job_run WHERE started_at >= {RESET}) \
+             OR EXISTS (SELECT 1 FROM source_fetch WHERE at >= {RESET})"
+        ),
+        [at.nanos()],
+    )?;
+    Ok(inserted > 0)
 }
 
 pub fn record_fetch(connection: &Connection, fetch: &SourceFetch) -> Result<()> {
@@ -190,7 +205,8 @@ pub fn recent_fetches(
 ) -> Result<Vec<SourceFetch>> {
     let mut statement = connection.prepare_cached(&format!(
         "SELECT {FETCH_COLUMNS} FROM source_fetch WHERE source = ? AND dataset = ? \
-         AND symbol IS ? ORDER BY at DESC, id DESC LIMIT ?"
+         AND symbol IS ? AND NOT (status IN ('ok', 'empty') AND at < {RESET}) \
+         ORDER BY at DESC, id DESC LIMIT ?"
     ))?;
     let fetches = statement
         .query_map(
@@ -211,10 +227,11 @@ pub fn settled_symbols(
     source: DataSource,
     dataset: Dataset,
 ) -> Result<BTreeSet<Symbol>> {
-    let mut statement = connection.prepare_cached(
+    let mut statement = connection.prepare_cached(&format!(
         "SELECT DISTINCT symbol FROM source_fetch WHERE source = ? AND dataset = ? \
-         AND symbol IS NOT NULL AND status IN ('ok', 'empty', 'rejected')",
-    )?;
+         AND symbol IS NOT NULL AND (status = 'rejected' \
+         OR (status IN ('ok', 'empty') AND at >= {RESET}))"
+    ))?;
     let symbols = statement
         .query_map(params![enum_text(&source)?, enum_text(&dataset)?], |row| {
             Ok(Symbol::new(&row.get::<_, String>(0)?))

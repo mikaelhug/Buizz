@@ -10,7 +10,10 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Router, serve};
 use buizz_core::api::{JobView, SpineEvent};
-use buizz_core::market::{AssetClass, DataSource, Dataset, Symbol, Timeframe};
+use buizz_core::market::{
+    AssetClass, BorrowAvailability, DataSource, Dataset, IndexHistory, IndexMember, StockIndex,
+    Symbol, Timeframe,
+};
 use buizz_core::ops::{FetchStatus, JobOutcome};
 use buizz_core::time::Timestamp;
 use buizz_ingest::{Ingest, IngestConfig, TickReport};
@@ -331,21 +334,15 @@ async fn rows(market: &MarketStore) -> Rows {
     }
 }
 
-#[tokio::test]
-async fn ticks_backfill_back_off_and_settle_into_noops() {
-    let fake = Arc::new(Fake::default());
-    let url = serve_fakes(fake.clone()).await;
-    let directory = tempfile::tempdir().unwrap();
-    let market = MarketStore::open(&directory.path().join("market.duckdb"), 2)
+async fn spine(directory: &std::path::Path, url: &str) -> (MarketStore, StateStore, Ingest) {
+    let market = MarketStore::open(&directory.join("market.duckdb"), 2)
         .await
         .unwrap();
-    let state = StateStore::open(&directory.path().join("state.db"))
-        .await
-        .unwrap();
+    let state = StateStore::open(&directory.join("state.db")).await.unwrap();
     let ingest = Ingest::new(
         IngestConfig {
             tick: Duration::from_secs(60),
-            snapshot_dir: directory.path().join("snapshots"),
+            snapshot_dir: directory.join("snapshots"),
             snapshot_keep: 1,
             history_start: date(HISTORY_START),
             enabled: true,
@@ -353,8 +350,140 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
         },
         market.clone(),
         state.clone(),
-        sources(&url),
+        sources(url),
     );
+    (market, state, ingest)
+}
+
+fn sp500(members: &[&str]) -> IndexHistory {
+    IndexHistory {
+        index: StockIndex::Sp500,
+        members: members
+            .iter()
+            .map(|symbol| IndexMember {
+                index: StockIndex::Sp500,
+                symbol: Symbol::new(symbol),
+                start: Some(date("2010-01-04")),
+                end: None,
+            })
+            .collect(),
+        changes: u32::try_from(members.len()).unwrap(),
+        reliable_from: Some(date("2011-01-03")),
+    }
+}
+
+fn borrow(at: Timestamp) -> Vec<BorrowAvailability> {
+    vec![BorrowAvailability {
+        symbol: Symbol::new("SPY"),
+        at,
+        con_id: 756733,
+        rebate_rate: None,
+        fee_rate: None,
+        available: 10_000_000,
+        available_or_more: true,
+    }]
+}
+
+#[tokio::test]
+async fn a_market_backup_restores_into_an_empty_store_and_ingest_starts_over() {
+    let fake = Arc::new(Fake::default());
+    let url = serve_fakes(fake.clone()).await;
+    let lost = tempfile::tempdir().unwrap();
+    let (market, state, ingest) = spine(lost.path(), &url).await;
+    let first_at = stamp("2024-07-05T21:00:00Z");
+    let source = DataSource::Wikipedia;
+    market
+        .replace_index_history(source, sp500(&["SPY"]), first_at.exchange_date())
+        .await
+        .unwrap();
+    market
+        .append_borrow_availability(DataSource::InteractiveBrokers, borrow(first_at))
+        .await
+        .unwrap();
+    ingest.tick(first_at).await.unwrap();
+    let second_at = first_at + TimeDelta::hours(25);
+    market
+        .replace_index_history(source, sp500(&["SPY", "AAPL"]), second_at.exchange_date())
+        .await
+        .unwrap();
+    market
+        .append_borrow_availability(DataSource::InteractiveBrokers, borrow(second_at))
+        .await
+        .unwrap();
+    fake.revised.store(true, Ordering::SeqCst);
+    let second = ingest.tick(second_at).await.unwrap();
+    assert!(second.ran.contains(&("market_snapshot", JobOutcome::Ok)));
+    let backup = lost.path().join("snapshots/market");
+    assert_eq!(std::fs::read_dir(&backup).unwrap().count(), 2);
+    let full = |market: MarketStore, name: &'static str| {
+        let into = lost.path().join(name);
+        async move {
+            std::fs::create_dir_all(&into).unwrap();
+            market.export_unrecoverable(into, 0).await.unwrap().unwrap()
+        }
+    };
+    let original = full(market.clone(), "original").await;
+    let replacement = tempfile::tempdir().unwrap();
+    state
+        .snapshot(&replacement.path().join("state.db"))
+        .await
+        .unwrap();
+    drop((ingest, market, state));
+
+    let (market, state, ingest) = spine(replacement.path(), &url).await;
+    let reset_at = second_at + TimeDelta::hours(1);
+    let restored = buizz_ingest::restore(&market, &state, backup.clone(), reset_at)
+        .await
+        .unwrap();
+    assert_eq!((restored.parts, restored.batches), (2, original.through));
+    assert_eq!(full(market.clone(), "restored").await, original);
+    let members = market
+        .index_history(StockIndex::Sp500)
+        .await
+        .unwrap()
+        .unwrap()
+        .members;
+    assert_eq!(members.len(), 2);
+    assert_eq!(market.latest_borrow().await.unwrap(), Some(second_at));
+    let borrow_coverage = market
+        .coverage()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|row| row.dataset == Dataset::Borrow)
+        .map(|row| (row.first, row.last));
+    assert_eq!(
+        borrow_coverage,
+        Some((first_at.exchange_date(), second_at.exchange_date()))
+    );
+    assert!(
+        buizz_ingest::restore(&market, &state, backup, reset_at)
+            .await
+            .is_err()
+    );
+
+    let tiingo_hits = fake.hits("tiingo");
+    let started_over = ingest.tick(reset_at + TimeDelta::minutes(1)).await.unwrap();
+    assert!(started_over.ran.contains(&("calendar", JobOutcome::Ok)));
+    assert!(started_over.ran.contains(&("bars_1d", JobOutcome::Ok)));
+    assert_eq!(
+        rows(&market).await.bars,
+        weekdays(date(ALPACA_FIRST_BAR), date(ALPACA_LAST_BAR)).len()
+    );
+    assert_eq!(fake.hits("tiingo"), tiingo_hits);
+    let next = market
+        .upsert_instruments(DataSource::Fixture, Vec::new())
+        .await
+        .unwrap();
+    assert!(next.batch_id > original.through);
+}
+
+#[tokio::test]
+async fn ticks_backfill_back_off_and_settle_into_noops() {
+    let fake = Arc::new(Fake::default());
+    let url = serve_fakes(fake.clone()).await;
+    let directory = tempfile::tempdir().unwrap();
+    let (market, state, ingest) = spine(directory.path(), &url).await;
     let mut events = ingest.events();
 
     let first_at = stamp("2024-07-05T21:00:00Z");

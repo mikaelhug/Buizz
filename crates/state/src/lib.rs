@@ -295,6 +295,12 @@ impl StateStore {
             .await
     }
 
+    pub async fn reset_market(&self, at: Timestamp) -> Result<bool> {
+        self.db
+            .transaction(move |transaction| jobs::reset_market(transaction, at))
+            .await
+    }
+
     pub async fn record_fetch(&self, fetch: SourceFetch) -> Result<()> {
         self.db
             .transaction(move |transaction| jobs::record_fetch(transaction, &fetch))

@@ -107,3 +107,5 @@ CREATE INDEX IF NOT EXISTS source_fetch_by_key ON source_fetch (source, dataset,
 
 CREATE INDEX IF NOT EXISTS source_fetch_rate_limits ON source_fetch (source, retry_after)
     WHERE status = 'rate_limited';
+
+CREATE TABLE IF NOT EXISTS market_reset (at INTEGER NOT NULL) STRICT;

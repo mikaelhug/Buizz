@@ -25,7 +25,7 @@ use buizz_core::market::{
 };
 use buizz_core::ops::JobOutcome;
 use buizz_core::time::Timestamp;
-use buizz_market::{MarketError, MarketStore};
+use buizz_market::{MarketError, MarketStore, Restored};
 use buizz_sources::Sources;
 use buizz_sources::http::SourceError;
 use buizz_state::{StateError, StateStore};
@@ -416,6 +416,18 @@ impl Ingest {
             .filter_map(|row| Some((row.symbol.clone()?, row)))
             .collect())
     }
+}
+
+pub async fn restore(
+    market: &MarketStore,
+    state: &StateStore,
+    backup: PathBuf,
+    at: Timestamp,
+) -> Result<Restored, IngestError> {
+    let restored = market.restore(backup).await?;
+    state.reset_market(at).await?;
+    market.checkpoint().await?;
+    Ok(restored)
 }
 
 pub(crate) fn day_start(date: NaiveDate) -> Timestamp {

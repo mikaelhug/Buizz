@@ -26,7 +26,10 @@ mod fixture;
 mod lane;
 mod migrate;
 mod read;
+mod restore;
 mod write;
+
+pub use restore::Restored;
 
 pub(crate) const SCHEMA: &str = include_str!("../schema.sql");
 pub const FILE_NAME: &str = "market.duckdb";
@@ -57,6 +60,8 @@ pub enum MarketError {
     Io(#[from] std::io::Error),
     #[error("market store schema is version {found}, newer than the {known} this spine knows")]
     NewerSchema { found: i64, known: i64 },
+    #[error("market restore: {0}")]
+    Restore(String),
     #[error("market store setting: {0}")]
     Setting(String),
     #[error("market store has shut down")]
@@ -213,6 +218,27 @@ impl MarketStore {
                     }
                 }
                 Ok(Some(Export { through, rows }))
+            })
+            .await
+    }
+
+    pub async fn restore(&self, backup: PathBuf) -> Result<Restored> {
+        self.writer
+            .run(move |connection| {
+                let parts = restore::parts(&backup)?;
+                restore::restore(connection, &parts)
+            })
+            .await
+    }
+
+    pub async fn is_empty(&self) -> Result<bool> {
+        self.readers
+            .run(|connection| {
+                Ok(
+                    connection.query_row("SELECT count(*) = 0 FROM ingest_batch", [], |row| {
+                        row.get(0)
+                    })?,
+                )
             })
             .await
     }
