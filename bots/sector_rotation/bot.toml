@@ -1,0 +1,17 @@
+description = "Faber sector rotation: top three sector SPDRs by the average 1/3/6/9/12-month total return, all T-bills while SPY is below its 10-month SMA"
+command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
+timeframe = "1d"
+wake = "bar"
+universe = { symbols = ["XLB", "XLC", "XLE", "XLF", "XLI", "XLK", "XLP", "XLRE", "XLU", "XLV", "XLY", "SPY", "BIL"] }
+
+[params]
+sectors = ["XLB", "XLC", "XLE", "XLF", "XLI", "XLK", "XLP", "XLRE", "XLU", "XLV", "XLY"]
+top = 3
+lookbacks_months = [1, 3, 6, 9, 12]
+hedge = true
+market = "SPY"
+sma_months = 10
+cash = "BIL"
+
+[risk]
+max_gross_exposure = 1.0
