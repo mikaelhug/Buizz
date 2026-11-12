@@ -1563,6 +1563,65 @@
           "stopped"
         ]
       },
+      "Envelope": {
+        "type": "object",
+        "required": [
+          "source",
+          "source_sessions",
+          "windows",
+          "breaches"
+        ],
+        "properties": {
+          "source": {
+            "$ref": "#/components/schemas/RunId"
+          },
+          "source_sessions": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "windows": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "excess_floor": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "drawdown_ceiling": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "volatility": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "breaches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnvelopeBreach"
+            }
+          }
+        }
+      },
+      "EnvelopeBreach": {
+        "type": "string",
+        "enum": [
+          "excess",
+          "drawdown",
+          "volatility"
+        ]
+      },
       "EquityPoint": {
         "type": "object",
         "required": [
@@ -1903,6 +1962,12 @@
           },
           "benchmark": {
             "type": "string"
+          },
+          "floor": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -2013,6 +2078,16 @@
           "verdict": {
             "$ref": "#/components/schemas/LiveVerdict"
           },
+          "envelope": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Envelope"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "curve": {
             "type": "array",
             "items": {
@@ -2044,7 +2119,10 @@
         "type": "string",
         "enum": [
           "incubating",
-          "tracking"
+          "tracking",
+          "no_backtest",
+          "falsified",
+          "proven"
         ]
       },
       "LogLevel": {

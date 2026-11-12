@@ -119,6 +119,10 @@
   border-top: 2px dashed var(--bench);
 }
 
+.legend-swatch-floor {
+  border-top: 2px dotted var(--warn);
+}
+
 .legend-value,
 .legend-change,
 .legend-drawdown {

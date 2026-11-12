@@ -164,7 +164,7 @@ pub(crate) async fn league(State(app): State<AppState>) -> Result<Json<League>, 
                 .run
                 .live_stats
                 .as_ref()
-                .is_some_and(|stats| stats.verdict != LiveVerdict::Incubating)
+                .is_some_and(|stats| stats.sessions >= LiveVerdict::TRACKING_SESSIONS)
         });
     ranked.sort_by(|left, right| confidence(right).total_cmp(&confidence(left)));
     Ok(Json(League {

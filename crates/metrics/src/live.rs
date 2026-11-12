@@ -3,35 +3,57 @@ use std::f64::consts::SQRT_2;
 
 use buizz_core::api::{LiveSummary, RunSummary, SparkPoint};
 use buizz_core::money::round_cash;
-use buizz_core::performance::{LivePoint, LiveStats, LiveVerdict, SharpeMoments};
-use buizz_core::run::EquityPoint;
+use buizz_core::performance::{
+    Envelope, EnvelopeBreach, LivePoint, LiveStats, LiveVerdict, SharpeMoments,
+};
+use buizz_core::run::{EquityPoint, RunId};
 use buizz_core::time::Timestamp;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
-use rust_decimal::prelude::ToPrimitive;
+use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 
+use crate::envelope::Backtest;
 use crate::{MIN_SPREAD, TRADING_DAYS, beta, max_drawdown, mean, sample_stdev, simple_returns};
 
 const CURVE_POINTS: usize = 60;
 const PROVEN_ALPHA: f64 = 0.05;
 const QUANTILE_STEPS: u32 = 200;
 const QUANTILE_BOUND: f64 = 40.0;
+const VOLATILITY_LIMIT: f64 = 1.5;
 
 pub struct LiveInput<'a> {
     pub start_cash: Decimal,
     pub equity: &'a [EquityPoint],
     pub benchmark: &'a [SparkPoint],
     pub paused: &'a [(Timestamp, Option<Timestamp>)],
+    pub source: Option<Source<'a>>,
+    pub started: u32,
 }
 
-pub fn live(input: &LiveInput<'_>) -> Option<LiveStats> {
-    let benchmark: BTreeMap<NaiveDate, &SparkPoint> = input
-        .benchmark
+pub struct Source<'a> {
+    pub run: RunId,
+    pub start_cash: Decimal,
+    pub equity: &'a [EquityPoint],
+    pub benchmark: &'a [SparkPoint],
+}
+
+struct Track<'a> {
+    sessions: Vec<(&'a EquityPoint, Decimal)>,
+    base: &'a SparkPoint,
+    held: Vec<f64>,
+    index: Vec<f64>,
+}
+
+fn track<'a>(
+    start_cash: Decimal,
+    equity: &'a [EquityPoint],
+    benchmark: &'a [SparkPoint],
+) -> Option<Track<'a>> {
+    let benchmark: BTreeMap<NaiveDate, &SparkPoint> = benchmark
         .iter()
         .map(|point| (point.at.exchange_date(), point))
         .collect();
-    let closes: BTreeMap<NaiveDate, &EquityPoint> = input
-        .equity
+    let closes: BTreeMap<NaiveDate, &EquityPoint> = equity
         .iter()
         .map(|point| (point.at.exchange_date(), point))
         .collect();
@@ -41,10 +63,10 @@ pub fn live(input: &LiveInput<'_>) -> Option<LiveStats> {
         .collect();
     let (first, _) = sessions.first()?;
     let (_, base) = benchmark.range(..first.at.exchange_date()).next_back()?;
-    if base.equity <= Decimal::ZERO || input.start_cash <= Decimal::ZERO {
+    if base.equity <= Decimal::ZERO || start_cash <= Decimal::ZERO {
         return None;
     }
-    let held: Vec<f64> = std::iter::once(input.start_cash)
+    let held: Vec<f64> = std::iter::once(start_cash)
         .chain(sessions.iter().map(|(point, _)| point.equity))
         .map(|value| value.to_f64().unwrap_or(f64::NAN))
         .collect();
@@ -52,6 +74,56 @@ pub fn live(input: &LiveInput<'_>) -> Option<LiveStats> {
         .chain(sessions.iter().map(|(_, close)| *close))
         .map(|value| value.to_f64().unwrap_or(f64::NAN))
         .collect();
+    Some(Track {
+        sessions,
+        base,
+        held,
+        index,
+    })
+}
+
+fn envelope(run: RunId, backtest: &Backtest, live: &LiveStats) -> Envelope {
+    let age = live.sessions as usize;
+    let excess_floor = backtest.excess_floor(age);
+    let drawdown_ceiling = backtest.drawdown_ceiling(age);
+    let backtest_volatility = backtest.volatility();
+    let breaches = [
+        (
+            EnvelopeBreach::Excess,
+            excess_floor.is_some_and(|floor| live.excess_return < floor),
+        ),
+        (
+            EnvelopeBreach::Drawdown,
+            drawdown_ceiling.is_some_and(|ceiling| live.max_drawdown > ceiling),
+        ),
+        (
+            EnvelopeBreach::Volatility,
+            live.volatility
+                .zip(backtest_volatility)
+                .is_some_and(|(live, backtest)| live > backtest * VOLATILITY_LIMIT),
+        ),
+    ];
+    Envelope {
+        source: run,
+        source_sessions: u32::try_from(backtest.sessions()).unwrap_or(u32::MAX),
+        windows: u32::try_from(backtest.windows(age)).unwrap_or(u32::MAX),
+        excess_floor,
+        drawdown_ceiling,
+        volatility: backtest_volatility,
+        breaches: breaches
+            .into_iter()
+            .filter_map(|(breach, failed)| failed.then_some(breach))
+            .collect(),
+    }
+}
+
+pub fn live(input: &LiveInput<'_>) -> Option<LiveStats> {
+    let Track {
+        sessions,
+        base,
+        held,
+        index,
+    } = track(input.start_cash, input.equity, input.benchmark)?;
     let returns = simple_returns(&held)?;
     let market = simple_returns(&index)?;
     let excess: Vec<f64> = returns.iter().zip(&market).map(|(r, b)| r - b).collect();
@@ -64,20 +136,45 @@ pub fn live(input: &LiveInput<'_>) -> Option<LiveStats> {
     let (cagr, benchmark_cagr) = (annualized(total_return), annualized(benchmark_return));
     let excess_stdev = sample_stdev(&excess);
     let moments = sharpe_moments(&excess);
+    let max_drawdown = max_drawdown(&held)?;
+    let volatility = sample_stdev(&returns).map(|stdev| stdev * TRADING_DAYS.sqrt());
+    let backtest = input.source.as_ref().and_then(|source| {
+        let track = track(source.start_cash, source.equity, source.benchmark)?;
+        let backtest = Backtest {
+            held: track.held,
+            index: track.index,
+        };
+        Some((source.run, backtest))
+    });
     let rebased = |close: Decimal| round_cash(input.start_cash * close / base.equity);
-    let curve: Vec<LivePoint> = std::iter::once(LivePoint {
+    let floor = |age: usize, benchmark: Decimal| {
+        let (_, backtest) = backtest.as_ref()?;
+        let excess = Decimal::from_f64(backtest.excess_floor(age)?)?;
+        Some(round_cash(benchmark + input.start_cash * excess))
+    };
+    let curve: Vec<(usize, LivePoint)> = std::iter::once(LivePoint {
         at: base.at,
         equity: input.start_cash,
         benchmark: input.start_cash,
+        floor: None,
     })
     .chain(sessions.iter().map(|(point, close)| LivePoint {
         at: point.at,
         equity: point.equity,
         benchmark: rebased(*close),
+        floor: None,
     }))
+    .enumerate()
     .collect();
+    let curve = thin(curve)
+        .into_iter()
+        .map(|(age, point)| LivePoint {
+            floor: floor(age, point.benchmark),
+            ..point
+        })
+        .collect();
     let sessions_count = u32::try_from(count).unwrap_or(u32::MAX);
-    Some(LiveStats {
+    let mut stats = LiveStats {
         through: sessions.last()?.0.at.exchange_date(),
         sessions: sessions_count,
         paused_sessions: u32::try_from(
@@ -95,14 +192,41 @@ pub fn live(input: &LiveInput<'_>) -> Option<LiveStats> {
         benchmark_return,
         excess_return: total_return - benchmark_return,
         excess_error: excess_stdev.map(|stdev| stdev * (count as f64).sqrt()),
-        max_drawdown: max_drawdown(&held)?,
-        volatility: sample_stdev(&returns).map(|stdev| stdev * TRADING_DAYS.sqrt()),
+        max_drawdown,
+        volatility,
         beta: beta(&returns, &market),
         probabilistic_sharpe: moments.and_then(|moments| probabilistic_sharpe(&moments, 0.0)),
         excess: moments,
-        verdict: LiveVerdict::after(sessions_count),
-        curve: thin(curve),
-    })
+        verdict: LiveVerdict::Incubating,
+        envelope: None,
+        curve,
+    };
+    stats.envelope = backtest
+        .as_ref()
+        .map(|(run, backtest)| envelope(*run, backtest, &stats));
+    stats.verdict = verdict(&stats, input.started);
+    Some(stats)
+}
+
+fn verdict(stats: &LiveStats, started: u32) -> LiveVerdict {
+    let falsified = stats
+        .envelope
+        .as_ref()
+        .is_some_and(|envelope| !envelope.breaches.is_empty());
+    let proven = stats
+        .probabilistic_sharpe
+        .is_some_and(|confidence| confidence >= proven_confidence(started));
+    if stats.sessions < LiveVerdict::TRACKING_SESSIONS {
+        LiveVerdict::Incubating
+    } else if falsified {
+        LiveVerdict::Falsified
+    } else if proven {
+        LiveVerdict::Proven
+    } else if stats.envelope.is_none() {
+        LiveVerdict::NoBacktest
+    } else {
+        LiveVerdict::Tracking
+    }
 }
 
 fn paused_at(paused: &[(Timestamp, Option<Timestamp>)], at: Timestamp) -> bool {
@@ -111,7 +235,7 @@ fn paused_at(paused: &[(Timestamp, Option<Timestamp>)], at: Timestamp) -> bool {
         .any(|(from, to)| *from <= at && to.is_none_or(|to| at < to))
 }
 
-fn thin(curve: Vec<LivePoint>) -> Vec<LivePoint> {
+fn thin<T>(curve: Vec<T>) -> Vec<T> {
     let stride = curve.len().div_ceil(CURVE_POINTS).max(1);
     let last = curve.len().saturating_sub(1);
     curve
@@ -171,7 +295,10 @@ fn proven_confidence(started: u32) -> f64 {
     1.0 - PROVEN_ALPHA / f64::from(started.max(1))
 }
 
-pub fn live_summary(run: RunSummary, started: u32) -> LiveSummary {
+pub fn live_summary(mut run: RunSummary, started: u32) -> LiveSummary {
+    if let Some(stats) = run.live_stats.as_mut() {
+        stats.verdict = verdict(stats, started);
+    }
     LiveSummary {
         sessions_needed: run
             .live_stats
