@@ -7,7 +7,8 @@ use crate::{Ingest, IngestError};
 
 const STATE_PREFIX: &str = "state-";
 const STATE_SUFFIX: &str = ".db";
-const MARKET_PREFIX: &str = "market-";
+const LEGACY_MARKET_PREFIX: &str = "market-";
+const MARKET_DIR: &str = "market";
 const PARTIAL_SUFFIX: &str = ".partial";
 
 impl Ingest {
@@ -30,23 +31,34 @@ impl Ingest {
         ))
     }
 
-    pub(crate) async fn market_snapshot(&self, now: Timestamp) -> Result<Work, IngestError> {
-        let Some((target, partial)) = self.prepare(now, MARKET_PREFIX, "").await? else {
-            return Ok(Work::noop("today's market snapshot already exists"));
-        };
+    pub(crate) async fn market_snapshot(&self, _now: Timestamp) -> Result<Work, IngestError> {
+        let chain = self.config.snapshot_dir.join(MARKET_DIR);
+        tokio::fs::create_dir_all(&chain).await?;
+        remove_partials(&self.config.snapshot_dir).await?;
+        remove_partials(&chain).await?;
+        let after = last_exported(&chain).await?;
+        let partial = chain.join(format!("{:020}{PARTIAL_SUFFIX}", after + 1));
         tokio::fs::create_dir_all(&partial).await?;
-        let rows = self.market.export_unrecoverable(partial.clone()).await?;
+        let Some(export) = self
+            .market
+            .export_unrecoverable(partial.clone(), after)
+            .await?
+        else {
+            remove(&partial).await?;
+            return Ok(Work::noop(format!(
+                "no ingest batch since batch {after} to back up"
+            )));
+        };
+        let target = chain.join(format!("{:020}-{:020}", after + 1, export.through));
         tokio::fs::rename(&partial, &target).await?;
-        let pruned = prune(
-            &self.config.snapshot_dir,
-            MARKET_PREFIX,
-            "",
-            self.config.snapshot_keep,
-        )
-        .await?;
+        let pruned = prune(&self.config.snapshot_dir, LEGACY_MARKET_PREFIX, "", 0).await?;
         Ok(Work::ok(
-            rows,
-            format!("wrote {} ({rows} rows), pruned {pruned}", target.display()),
+            export.rows,
+            format!(
+                "wrote {} ({} rows), removed {pruned} full copies",
+                target.display(),
+                export.rows
+            ),
         ))
     }
 
@@ -63,10 +75,39 @@ impl Ingest {
             return Ok(None);
         }
         tokio::fs::create_dir_all(directory).await?;
+        remove_partials(directory).await?;
         let partial = directory.join(format!("{prefix}{date}{suffix}{PARTIAL_SUFFIX}"));
-        remove(&partial).await?;
         Ok(Some((target, partial)))
     }
+}
+
+async fn remove_partials(directory: &Path) -> Result<(), IngestError> {
+    let mut entries = tokio::fs::read_dir(directory).await?;
+    while let Some(entry) = entries.next_entry().await? {
+        if entry
+            .file_name()
+            .to_string_lossy()
+            .ends_with(PARTIAL_SUFFIX)
+        {
+            remove(&entry.path()).await?;
+        }
+    }
+    Ok(())
+}
+
+async fn last_exported(chain: &Path) -> Result<i64, IngestError> {
+    let mut last = 0;
+    let mut entries = tokio::fs::read_dir(chain).await?;
+    while let Some(entry) = entries.next_entry().await? {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if let Some(through) = name
+            .split_once('-')
+            .and_then(|(_, through)| through.parse::<i64>().ok())
+        {
+            last = last.max(through);
+        }
+    }
+    Ok(last)
 }
 
 async fn remove(path: &Path) -> Result<(), IngestError> {

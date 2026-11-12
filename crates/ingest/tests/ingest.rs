@@ -447,6 +447,7 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
     }
     assert_eq!(failed_events, 1);
 
+    std::fs::create_dir_all(directory.path().join("snapshots/stale.partial")).unwrap();
     fake.revised.store(true, Ordering::SeqCst);
     let revised = ingest.tick(first_at + TimeDelta::hours(6)).await.unwrap();
     assert!(revised.ran.contains(&("bars_1d", JobOutcome::Ok)));
@@ -495,16 +496,33 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
     assert_eq!(calendar.next_due, Some(second_at + TimeDelta::days(1)));
     assert_eq!(fake.last_bars.lock().unwrap()["symbols"], "SPY");
     assert_eq!(fake.hits("tiingo"), 1);
-    let mut snapshots: Vec<_> = std::fs::read_dir(directory.path().join("snapshots"))
-        .unwrap()
-        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
-        .collect();
-    snapshots.sort();
-    assert_eq!(snapshots, ["market-2024-07-06", "state-2024-07-06.db"]);
-    let borrow = directory
-        .path()
-        .join("snapshots/market-2024-07-06/borrow_availability.parquet");
-    assert!(borrow.exists());
+    let listing = |path: &str| {
+        let mut names: Vec<String> = std::fs::read_dir(directory.path().join(path))
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+            .collect();
+        names.sort();
+        names
+    };
+    assert_eq!(listing("snapshots"), ["market", "state-2024-07-06.db"]);
+    let parts = listing("snapshots/market");
+    assert_eq!(parts.len(), 2);
+    let (first_from, first_through) = parts[0].split_once('-').unwrap();
+    let (second_from, _) = parts[1].split_once('-').unwrap();
+    assert_eq!(first_from.parse::<i64>().unwrap(), 1);
+    assert_eq!(
+        second_from.parse::<i64>().unwrap(),
+        first_through.parse::<i64>().unwrap() + 1
+    );
+    assert!(
+        directory
+            .path()
+            .join("snapshots/market")
+            .join(&parts[1])
+            .join("bar_1d_revision.parquet")
+            .exists()
+    );
+    assert!(!directory.path().join("snapshots/stale.partial").exists());
 
     *fake.closed.lock().unwrap() = Some(date("2025-01-09"));
     fake.fail_bars.store(true, Ordering::SeqCst);

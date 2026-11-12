@@ -147,7 +147,7 @@ Follows `~/akrell/akrell-apps` conventions (pattern: `apps/base/bande-logs/`, gu
 - Default chosen: public route + app login, as `bro`/`engly`/`vabblarna` do. Say so if you prefer a LAN-only MetalLB IP.
 - The spine runs ingest there, so the `borrow` job records Interactive Brokers' short availability daily from the first deploy; `just dev` runs with ingest off and records nothing.
 - `buizz-data` PVC of 50 GiB; pod requests 1 CPU and 2 GiB, limits 4 CPU and 4 GiB, `BUIZZ_DUCKDB_MEMORY=1GB`, `BUIZZ_DUCKDB_THREADS=2` (sizing in `docs/architecture.md`).
-- Backups: nightly `state.db` snapshots and Parquet copies of the market tables no source can give again (borrow history, revisions, index membership) on the PVC (keep 14). The cluster has one Longhorn replica and no off-cluster backup target, so disk loss still loses run history and the borrow history; the rest of the market data is re-downloadable. Copying `backups/` off the cluster now and then is the cheap protection.
+- Backups: nightly `state.db` snapshots (keep 14) and an incremental Parquet backup of the market tables no source can give again (borrow history, revisions, index membership) on the PVC. The cluster has one Longhorn replica and no off-cluster backup target, so disk loss still loses run history and the borrow history; the rest of the market data is re-downloadable. Copying `backups/` off the cluster now and then is the cheap protection.
 
 ## Needed from you
 

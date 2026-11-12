@@ -30,22 +30,21 @@ mod write;
 
 pub(crate) const SCHEMA: &str = include_str!("../schema.sql");
 pub const FILE_NAME: &str = "market.duckdb";
-const UNRECOVERABLE: [&str; 14] = [
-    "ingest_batch",
-    "borrow_availability",
-    "index_member",
-    "index_history",
-    "instrument_revision",
-    "calendar_revision",
-    "bar_1d_revision",
-    "corporate_action_revision",
-    "rate_daily_revision",
-    "macro_observation_revision",
-    "company_revision",
-    "earnings_release_revision",
-    "index_member_revision",
-    "index_history_revision",
+const APPENDED: [(&str, &str); 12] = [
+    ("ingest_batch", "id"),
+    ("borrow_availability", "batch_id"),
+    ("instrument_revision", "superseded_by"),
+    ("calendar_revision", "superseded_by"),
+    ("bar_1d_revision", "superseded_by"),
+    ("corporate_action_revision", "superseded_by"),
+    ("rate_daily_revision", "superseded_by"),
+    ("macro_observation_revision", "superseded_by"),
+    ("company_revision", "superseded_by"),
+    ("earnings_release_revision", "superseded_by"),
+    ("index_member_revision", "superseded_by"),
+    ("index_history_revision", "superseded_by"),
 ];
+const REPLACED: [&str; 2] = ["index_member", "index_history"];
 pub const TIMESTAMP_RESOLUTION: TimeDelta = TimeDelta::microseconds(1);
 
 #[derive(Debug, thiserror::Error)]
@@ -85,6 +84,12 @@ pub struct ActionWindow {
     pub from: NaiveDate,
     pub through: NaiveDate,
     pub covered_to: Option<NaiveDate>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Export {
+    pub through: i64,
+    pub rows: u64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -165,19 +170,49 @@ impl MarketStore {
             .await
     }
 
-    pub async fn export_unrecoverable(&self, directory: PathBuf) -> Result<u64> {
+    pub async fn export_unrecoverable(
+        &self,
+        directory: PathBuf,
+        after: i64,
+    ) -> Result<Option<Export>> {
         self.readers
             .run(move |connection| {
-                let mut rows = 0;
-                for table in UNRECOVERABLE {
+                let transaction = connection.transaction()?;
+                let through: i64 = transaction.query_row(
+                    "SELECT coalesce(max(id), 0) FROM ingest_batch",
+                    [],
+                    |row| row.get(0),
+                )?;
+                if through <= after {
+                    return Ok(None);
+                }
+                let copy = |query: String, table: &str| -> Result<u64> {
                     let path = directory.join(format!("{table}.parquet"));
                     let path = path.to_string_lossy().replace('\'', "''");
-                    rows += connection.execute(
-                        &format!("COPY (SELECT * FROM {table}) TO '{path}' (FORMAT parquet)"),
-                        [],
-                    )? as u64;
+                    Ok(transaction
+                        .execute(&format!("COPY ({query}) TO '{path}' (FORMAT parquet)"), [])?
+                        as u64)
+                };
+                let mut rows = 0;
+                for (table, batch) in APPENDED {
+                    rows += copy(
+                        format!(
+                            "SELECT * FROM {table} WHERE {batch} > {after} AND {batch} <= {through}"
+                        ),
+                        table,
+                    )?;
                 }
-                Ok(rows)
+                let index_changed: bool = transaction.query_row(
+                    "SELECT coalesce(max(batch_id), 0) > ? FROM index_history",
+                    [after],
+                    |row| row.get(0),
+                )?;
+                if index_changed {
+                    for table in REPLACED {
+                        rows += copy(format!("SELECT * FROM {table}"), table)?;
+                    }
+                }
+                Ok(Some(Export { through, rows }))
             })
             .await
     }
@@ -699,7 +734,7 @@ mod tests {
         assert_eq!(revisions.len(), 10);
         let missing: Vec<&String> = revisions
             .iter()
-            .filter(|table| !UNRECOVERABLE.contains(&table.as_str()))
+            .filter(|table| !APPENDED.iter().any(|(backed_up, _)| backed_up == table))
             .collect();
         assert!(missing.is_empty(), "not backed up: {missing:?}");
     }
