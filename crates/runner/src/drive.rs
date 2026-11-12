@@ -1062,12 +1062,39 @@ impl Driver {
             return Ok(());
         }
         self.backfill_unfetched(&untracked, session.date).await?;
+        if self.live() && self.timeline.prices_from_minutes(session, self.after) {
+            self.fetch_minutes_so_far(&untracked, session).await?;
+        }
         let closes = self
             .timeline
             .last_closes(session, self.after, untracked.into_iter().collect())
             .await?;
         self.engine.quote(closes);
         Ok(())
+    }
+
+    async fn fetch_minutes_so_far(
+        &mut self,
+        symbols: &BTreeSet<Symbol>,
+        session: &Session,
+    ) -> Flow<()> {
+        let fetched = self
+            .inner
+            .feed
+            .session_minutes(symbols.iter().cloned(), session, self.after)
+            .await;
+        let Err(error) = fetched else {
+            return Ok(());
+        };
+        let names: Vec<&str> = symbols.iter().map(Symbol::as_str).collect();
+        self.record(RunEventKind::Log {
+            level: LogLevel::Warn,
+            message: format!(
+                "fetching the session's minute bars of {} failed, so they are priced at their last daily close: {error}",
+                names.join(", ")
+            ),
+        })
+        .await
     }
 
     async fn backfill_newcomers(&mut self, from: NaiveDate) -> Flow<()> {

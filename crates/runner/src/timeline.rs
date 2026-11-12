@@ -312,6 +312,10 @@ impl Timeline {
         Ok(so_far.into_values().collect())
     }
 
+    pub(crate) fn prices_from_minutes(&self, session: &Session, at: Timestamp) -> bool {
+        self.timeframe == Timeframe::Minute || !session.is_closed_at(at)
+    }
+
     pub(crate) async fn last_closes(
         &self,
         session: &Session,
@@ -319,7 +323,7 @@ impl Timeline {
         symbols: Vec<Symbol>,
     ) -> Result<BTreeMap<Symbol, Decimal>, MarketError> {
         let mut closes = BTreeMap::new();
-        if self.timeframe == Timeframe::Minute || !session.is_closed_at(at) {
+        if self.prices_from_minutes(session, at) {
             let through = at - TimeDelta::seconds(60) + TIMESTAMP_RESOLUTION;
             let minutes = self
                 .market
