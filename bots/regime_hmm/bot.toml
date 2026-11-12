@@ -1,0 +1,22 @@
+description = "Nystrup regime-based allocation: adaptive 2-state HMM on DM stocks tilts a 10-ETF 60/40 risk-on or risk-off"
+command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
+timeframe = "1d"
+wake = "bar"
+universe = { symbols = ["URTH", "EEM", "RWO", "HYG", "EMHY", "USO", "GLD", "LQD", "TIP", "BNDX"] }
+step_timeout = 600
+
+[params]
+variant = "rbaa"
+signal = "URTH"
+p = 0.5
+effective_memory = 520
+threshold = 0.9998
+init_sessions = 252
+saa = { URTH = 0.25, EEM = 0.05, RWO = 0.10, HYG = 0.05, EMHY = 0.05, USO = 0.05, GLD = 0.05, LQD = 0.10, TIP = 0.10, BNDX = 0.20 }
+risky = ["URTH", "EEM", "RWO", "HYG", "EMHY", "USO", "GLD"]
+median_days = 21
+delay = 0
+seed = 7
+
+[risk]
+max_gross_exposure = 1.0
