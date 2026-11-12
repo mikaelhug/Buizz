@@ -14,6 +14,10 @@ export function panel(page: Page, heading: string): Locator {
   return page.locator("section.panel").filter({ has: page.getByRole("heading", { name: heading, exact: true }) });
 }
 
+export async function openTab(page: Page, name: string): Promise<void> {
+  await page.getByRole("tablist", { name: "Run views" }).getByRole("tab", { name, exact: true }).click();
+}
+
 export function pill(scope: Locator, status: string): Locator {
   return scope.locator(".pill", { hasText: new RegExp(`^${status}$`) });
 }

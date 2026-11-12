@@ -1,5 +1,5 @@
 import type { Page } from "playwright-core";
-import { env, panel, pill, signedIn } from "./session.ts";
+import { env, openTab, panel, pill, signedIn } from "./session.ts";
 
 type Seen = { run: number; months: Record<string, string>; benchmarkReturn: string; trades: number };
 
@@ -10,7 +10,7 @@ async function customPeriodBacktest(page: Page): Promise<Seen> {
   await dialog.getByRole("radio", { name: "custom" }).click();
   await dialog.getByLabel("From").fill(env("PERIOD_FROM"));
   await dialog.getByLabel("To", { exact: true }).fill(env("PERIOD_TO"));
-  await dialog.getByLabel("Drawdown stop %").fill("90");
+  await dialog.getByLabel("Drawdown stop %", { exact: true }).fill("90");
   const shown = page.url();
   await dialog.getByRole("button", { name: "Run", exact: true }).click();
 
@@ -19,7 +19,7 @@ async function customPeriodBacktest(page: Page): Promise<Seen> {
   if (!Number.isInteger(run)) {
     throw new Error(`the page names no run: ${page.url()}`);
   }
-  const head = page.locator(".run-head").filter({ has: page.getByRole("heading", { name: `Run #${run}`, exact: true }) });
+  const head = page.locator(".run-bar").filter({ has: page.getByRole("heading", { name: `Run #${run}`, exact: true }) });
   await pill(head, "completed").waitFor();
 
   const monthly = panel(page, "Monthly returns").locator("table");
@@ -30,6 +30,7 @@ async function customPeriodBacktest(page: Page): Promise<Seen> {
   const months = Object.fromEntries(headings.map((heading, index) => [heading, cells[index] ?? ""]).filter(([heading, cell]) => heading && cell));
 
   const benchmarkReturn = await page.locator(".metric", { hasText: "Return" }).first().locator(".metric-bench").textContent();
+  await openTab(page, "Trades");
   const trades = panel(page, "Trades");
   await trades.locator(".metric", { hasText: "Net P&L" }).waitFor();
   return { run, months, benchmarkReturn: benchmarkReturn ?? "", trades: await trades.locator("tbody tr").count() };

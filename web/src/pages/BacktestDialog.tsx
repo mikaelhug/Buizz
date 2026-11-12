@@ -2,6 +2,7 @@ import { useState } from "react";
 import { api, errorMessage, must, type Schemas } from "../api/client";
 import { PRESETS, type Preset } from "../lib/route";
 import { Modal } from "../ui/Dialog";
+import { Info } from "../ui/Popover";
 import { notify } from "../ui/Toaster";
 
 type Props = {
@@ -142,22 +143,26 @@ export function BacktestDialog({ bot, risk, onStarted, onClose }: Props) {
           </label>
         </div>
       )}
-      <label
-        className="toggle help"
-        title={
-          custom
-            ? `Allow the period to reach into the locked last 12 months; counted per bot (${bot.holdout_runs} so far)`
-            : `Run on the locked last 12 months instead; counted per bot (${bot.holdout_runs} so far)`
-        }
-      >
-        <input type="checkbox" checked={holdout} onChange={(event) => setHoldout(event.target.checked)} />
-        Holdout
-      </label>
+      <span className="toggle-row">
+        <label className="toggle">
+          <input type="checkbox" checked={holdout} onChange={(event) => setHoldout(event.target.checked)} />
+          Holdout
+        </label>
+        <Info label="Holdout">
+          {custom ? "Allow the period to reach into the locked last 12 months" : "Run on the locked last 12 months instead"}; counted per bot ({bot.holdout_runs} so far).
+        </Info>
+      </span>
       <fieldset className="risk-limits" aria-label="Risk limits">
         {LIMITS.map(({ key, label, title }) => (
-          <label key={key} className="help" title={`${title}. Empty for no limit; the bot's own is ${defaults[key] || "none"}.`}>
-            {label}
+          <div key={key} className="field">
+            <span className="field-label">
+              <label htmlFor={`limit-${key}`}>{label}</label>
+              <Info label={label}>
+                {title}. Empty for no limit; the bot's own is {defaults[key] || "none"}.
+              </Info>
+            </span>
             <input
+              id={`limit-${key}`}
               className="input"
               type="number"
               min="0"
@@ -169,10 +174,9 @@ export function BacktestDialog({ bot, risk, onStarted, onClose }: Props) {
                 setLimits((current) => ({ ...current, [key]: value }));
               }}
             />
-          </label>
+          </div>
         ))}
       </fieldset>
-
     </Modal>
   );
 }

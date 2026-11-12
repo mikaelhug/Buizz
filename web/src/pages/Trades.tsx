@@ -1,8 +1,11 @@
 import { useState } from "react";
-import type { Schemas } from "../api/client";
+import { api, must, type Schemas } from "../api/client";
+import { useSpineEvents } from "../api/stream";
 import { ABSENT, fmt, tone } from "../lib/format";
-import type { Resource } from "../lib/useResource";
+import { useResource } from "../lib/useResource";
 import { Failure, Loading, StaleFailure } from "../ui/Feedback";
+import { type Stat, StatGrid } from "../ui/Metrics";
+import { Info } from "../ui/Popover";
 
 type Trade = Schemas["TradeView"];
 type SortKey = "closed" | "pnl" | "held";
@@ -46,8 +49,8 @@ function Summary({ trades }: { trades: Trade[] }) {
   const averageWin = mean(wins);
   const averageLoss = mean(losses);
   const hold = median(trades.map(held));
-  const money = (label: string, title: string, value: number | undefined) => ({ label, title, text: fmt.money(value), tone: tone(value) });
-  const stats = [
+  const money = (label: string, title: string, value: number | undefined): Stat => ({ label, title, text: fmt.money(value), tone: tone(value) });
+  const stats: Stat[] = [
     money("Net P&L", "Sum over closed trades, after costs, dividends and borrow", pnl.reduce((sum, value) => sum + value, 0)),
     money("Expectancy", "Average P&L per closed trade", mean(pnl)),
     money("Avg win", "Average P&L of winning trades", averageWin),
@@ -56,27 +59,22 @@ function Summary({ trades }: { trades: Trade[] }) {
       label: "Payoff",
       title: "Average win divided by average loss",
       text: averageWin !== undefined && averageLoss !== undefined ? fmt.ratio(averageWin / -averageLoss) : ABSENT,
-      tone: undefined,
+      note: averageWin === undefined ? "no winning trades" : averageLoss === undefined ? "no losing trades" : undefined,
     },
     money("Best", "Largest winning trade", wins.length ? Math.max(...wins) : undefined),
     money("Worst", "Largest losing trade", losses.length ? Math.min(...losses) : undefined),
-    { label: "Median hold", title: "Median time from opening to closing a position", text: hold === undefined ? ABSENT : duration(hold), tone: undefined },
+    { label: "Median hold", title: "Median time from opening to closing a position", text: hold === undefined ? ABSENT : duration(hold) },
   ];
-  return (
-    <dl className="metric-grid trade-summary">
-      {stats.map((stat) => (
-        <div key={stat.label} className="metric">
-          <dt className="help" title={stat.title}>
-            {stat.label}
-          </dt>
-          <dd className={`num ${stat.tone ?? ""}`}>{stat.text}</dd>
-        </div>
-      ))}
-    </dl>
-  );
+  return <StatGrid stats={stats} />;
 }
 
-export function Trades({ trades }: { trades: Resource<Trade[]> }) {
+export function Trades({ runId, positionsHref }: { runId: number; positionsHref: string }) {
+  const trades = useResource(() => must(api.GET("/api/runs/{id}/trades", { params: { path: { id: runId } } })), [runId]);
+  useSpineEvents((event) => {
+    if (event.type === "fill" && event.run_id === runId) {
+      trades.reload();
+    }
+  });
   const [sort, setSort] = useState<Sort>({ key: "closed", descending: true });
   const [all, setAll] = useState(false);
 
@@ -87,23 +85,29 @@ export function Trades({ trades }: { trades: Resource<Trade[]> }) {
 
   return (
     <section className="panel">
-      <h2>Trades</h2>
+      <header className="panel-head">
+        <h2>Trades</h2>
+        {trades.data && trades.data.length > 0 && <span className="muted">{fmt.integer(trades.data.length)} closed</span>}
+      </header>
       <StaleFailure resource={trades} />
       {!trades.data ? (
         trades.error ? <Failure message={trades.error} onRetry={trades.reload} /> : <Loading shape="table" />
       ) : trades.data.length === 0 ? (
-        <p className="empty">No closed trades</p>
+        <p className="empty">
+          No closed trades yet. A trade is a position opened and taken back to flat; open ones are under <a href={positionsHref}>Positions &amp; events</a>.
+        </p>
       ) : (
         <>
           <Summary trades={trades.data} />
-          <div className="table-wrap">
-            <table className="table">
+          <div className="table-wrap table-scroll">
+            <table className="table fin">
               <thead>
                 <tr>
                   <th>Symbol</th>
                   <th>Side</th>
-                  <th className="r help" title="Largest position held during the trade">
+                  <th className="r">
                     Size
+                    <Info label="Size">Largest position held during the trade, in shares.</Info>
                   </th>
                   <th>Opened</th>
                   {(["closed", "held", "pnl"] as const).map((key) => (

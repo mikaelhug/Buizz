@@ -120,7 +120,7 @@ function Shell({ onLoggedOut }: { onLoggedOut: () => void }) {
       <main className="page">
         <ErrorBoundary resetOn={href(route)}>
           {route.page === "bots" && <BotGrid />}
-          {route.page === "bot" && <BotDetail key={route.name} name={route.name} runId={route.run} />}
+          {route.page === "bot" && <BotDetail key={route.name} name={route.name} runId={route.run} tab={route.tab ?? "overview"} />}
           {route.page === "leaderboard" && <Leaderboard preset={route.preset} />}
           {route.page === "data" && <DataHealth />}
         </ErrorBoundary>
