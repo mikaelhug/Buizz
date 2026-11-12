@@ -1,6 +1,6 @@
 from collections import defaultdict
-from collections.abc import Iterable
-from datetime import date
+from collections.abc import Iterable, Mapping
+from datetime import date, timedelta
 from itertools import pairwise
 
 from buizz import Context, FundamentalPoint, History, Metric, split_ratio, to_ns
@@ -10,6 +10,9 @@ DOMESTIC_FORMS = DOMESTIC_ANNUAL_FORMS | {"10-Q", "10-Q/A"}
 MIN_GAP_DAYS = 300
 MAX_GAP_DAYS = 430
 MAX_STALENESS_DAYS = 548
+SHARES_AFTER_PERIOD_END_DAYS = 120
+QUARTER_TOLERANCE_DAYS = 7
+QUARTERS_BEFORE_THE_FOURTH = 3
 NON_MONETARY_UNITS: dict[Metric, str] = {"shares_outstanding": "shares", "eps_diluted": "USD/shares"}
 
 Annual = dict[tuple[str, Metric], dict[date, FundamentalPoint]]
@@ -33,6 +36,67 @@ def domestic_annual(points: list[FundamentalPoint]) -> Annual:
 def amount(annual: Annual, symbol: str, metric: Metric, period_end: date) -> float | None:
     point = annual.get((symbol, metric), {}).get(period_end)
     return None if point is None else float(point.value)
+
+
+def amount_or_zero(annual: Annual, symbol: str, metric: Metric, period_end: date) -> float:
+    return amount(annual, symbol, metric, period_end) or 0.0
+
+
+def current_debt(annual: Annual, symbol: str, period_end: date) -> float:
+    reported = amount(annual, symbol, "short_term_debt", period_end)
+    if reported is not None:
+        return reported
+    return amount_or_zero(annual, symbol, "short_term_borrowings", period_end) + amount_or_zero(
+        annual, symbol, "current_long_term_debt", period_end
+    )
+
+
+def total_debt(annual: Annual, symbol: str, period_end: date) -> float:
+    noncurrent = amount(annual, symbol, "long_term_debt_noncurrent", period_end)
+    if noncurrent is not None:
+        return noncurrent + current_debt(annual, symbol, period_end)
+    reported_total = amount(annual, symbol, "long_term_debt", period_end)
+    if reported_total is None:
+        return current_debt(annual, symbol, period_end)
+    return reported_total + amount_or_zero(annual, symbol, "short_term_borrowings", period_end)
+
+
+def gross_profit(annual: Annual, symbol: str, period_end: date) -> float | None:
+    reported = amount(annual, symbol, "gross_profit", period_end)
+    if reported is not None:
+        return reported
+    revenue = amount(annual, symbol, "revenue", period_end)
+    cost = amount(annual, symbol, "cost_of_revenue", period_end)
+    return None if revenue is None or cost is None else revenue - cost
+
+
+def gross_margin(annual: Annual, symbol: str, period_end: date) -> float | None:
+    revenue = amount(annual, symbol, "revenue", period_end)
+    profit = gross_profit(annual, symbol, period_end)
+    return None if revenue is None or revenue <= 0 or profit is None else profit / revenue
+
+
+def shares_after(counts: Mapping[date, FundamentalPoint], period_end: date) -> FundamentalPoint | None:
+    after = [day for day in counts if 0 <= (day - period_end).days <= SHARES_AFTER_PERIOD_END_DAYS]
+    return counts[min(after)] if after else None
+
+
+def year_end_shares(annual: Annual, symbol: str, period_end: date) -> FundamentalPoint | None:
+    return shares_after(annual.get((symbol, "shares_outstanding"), {}), period_end)
+
+
+def with_fourth_quarters(
+    quarters: Mapping[date, float], years: Iterable[tuple[date, date, float]]
+) -> dict[date, float]:
+    tolerance = timedelta(days=QUARTER_TOLERANCE_DAYS)
+    filled = dict(quarters)
+    for start, year_end, value in years:
+        if any(abs(end - year_end) <= tolerance for end in quarters):
+            continue
+        inside = [end for end in quarters if start + tolerance < end < year_end - tolerance]
+        if len(inside) == QUARTERS_BEFORE_THE_FOURTH:
+            filled[year_end] = value - sum(quarters[end] for end in inside)
+    return filled
 
 
 def consecutive_fiscal_ends(period_ends: Iterable[date], today: date, years: int) -> list[date] | None:
