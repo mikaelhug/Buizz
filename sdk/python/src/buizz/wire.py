@@ -209,6 +209,7 @@ class FundamentalFact(msgspec.Struct, frozen=True):
     period_start: date | None
     period_end: date
     value: Decimal
+    unit: str
     form: str
     filed: date
     available_at: int

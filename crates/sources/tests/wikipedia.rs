@@ -5,8 +5,9 @@ use axum::extract::Query;
 use axum::http::{HeaderMap, StatusCode, header::USER_AGENT};
 use axum::routing::get;
 use buizz_core::market::{IndexMember, StockIndex, Symbol};
+use buizz_sources::http::SourceError;
 use buizz_sources::wikipedia::{
-    SP500_CHANGES, SP500_CONSTITUENTS, WikipediaClient, WikipediaConfig,
+    SP500_CHANGES, SP500_CONSTITUENTS, WikipediaClient, WikipediaConfig, normalize_sp500,
 };
 use chrono::NaiveDate;
 
@@ -50,7 +51,9 @@ async fn membership_is_rebuilt_backwards_from_todays_constituents_through_the_ch
     })
     .unwrap();
 
-    let history = client.sp500(date("2026-11-11")).await.unwrap();
+    let parsed = client.sp500(date("2026-11-11")).await.unwrap();
+    assert_eq!(parsed.unparsed_rows, 0);
+    let history = parsed.history;
 
     let spans = |symbol: &str| -> Vec<(Option<NaiveDate>, Option<NaiveDate>)> {
         history
@@ -99,4 +102,47 @@ async fn membership_is_rebuilt_backwards_from_todays_constituents_through_the_ch
         history.reliable_from, None,
         "nine changes over fifty years are a thin log"
     );
+}
+
+fn wikitext(page: &str) -> String {
+    let page: serde_json::Value = serde_json::from_str(page).unwrap();
+    page["parse"]["wikitext"].as_str().unwrap().to_owned()
+}
+
+#[test]
+fn same_day_changes_apply_additions_first_and_unreadable_rows_are_counted() {
+    let log = "{| class=\"wikitable\" id=\"changes\"\n\
+        |-\n|March 1, 2024\n|\n|\n|MMMX\n|[[3M]]\n|Ticker change.\n\
+        |-\n|March 1, 2024\n|MMM\n|[[3M]]\n|\n|\n|Ticker change.\n\
+        |-\n|Sometime in 2023\n|AOS\n|[[A. O. Smith]]\n|\n|\n|Undated.\n|}";
+
+    let parsed = normalize_sp500(&wikitext(CONSTITUENTS), log, date("2026-11-11")).unwrap();
+
+    assert_eq!(parsed.unparsed_rows, 1);
+    assert!(
+        parsed
+            .history
+            .members
+            .iter()
+            .any(|member| member.symbol == Symbol::new("MMM")
+                && member.member_on(date("2024-02-01"))),
+        "3M stays a member across its same-day removal and addition"
+    );
+}
+
+#[test]
+fn a_parse_far_from_five_hundred_members_is_refused() {
+    let truncated = wikitext(CONSTITUENTS)
+        .split("\n|-")
+        .take(300)
+        .collect::<Vec<_>>()
+        .join("\n|-")
+        + "\n|}";
+
+    let Err(SourceError::Decode(message)) =
+        normalize_sp500(&truncated, &wikitext(CHANGES), date("2026-11-11"))
+    else {
+        panic!("a 298-member S&P 500 parsed");
+    };
+    assert!(message.contains("298 members"), "{message}");
 }

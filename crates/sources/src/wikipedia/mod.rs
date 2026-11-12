@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use buizz_core::market::IndexHistory;
 use chrono::NaiveDate;
 use serde::Deserialize;
 
@@ -9,7 +8,7 @@ use crate::http::{HttpClient, RateLimit, SourceError};
 mod membership;
 mod wikitext;
 
-pub use membership::{RELIABLE_CHANGES_PER_YEAR, normalize_sp500};
+pub use membership::{RELIABLE_CHANGES_PER_YEAR, SP500_MEMBERS, Sp500History, normalize_sp500};
 
 pub const BASE_URL: &str = "https://en.wikipedia.org";
 pub const RATE_LIMIT: RateLimit = RateLimit {
@@ -50,7 +49,7 @@ impl WikipediaClient {
         })
     }
 
-    pub async fn sp500(&self, today: NaiveDate) -> Result<IndexHistory, SourceError> {
+    pub async fn sp500(&self, today: NaiveDate) -> Result<Sp500History, SourceError> {
         let constituents = self.wikitext(SP500_CONSTITUENTS).await?;
         let changes = self.wikitext(SP500_CHANGES).await?;
         normalize_sp500(&constituents, &changes, today)

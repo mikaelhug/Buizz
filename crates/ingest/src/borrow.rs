@@ -1,5 +1,6 @@
 use buizz_core::market::{DataSource, Dataset};
 use buizz_core::time::Timestamp;
+use buizz_sources::ibkr::BorrowFile;
 
 use crate::fetch::{FetchKey, Work};
 use crate::{Ingest, IngestError};
@@ -10,8 +11,11 @@ impl Ingest {
             return Ok(Work::unconfigured("Interactive Brokers"));
         };
         let key = FetchKey::new(DataSource::InteractiveBrokers, Dataset::Borrow, None, None);
-        let records = match ibkr.us_borrow().await {
-            Ok(records) => records,
+        let BorrowFile {
+            records,
+            malformed_rows,
+        } = match ibkr.us_borrow().await {
+            Ok(file) => file,
             Err(error) => return self.source_failure(now, &key, &error).await,
         };
         self.record_fetched(now, &key, records.len()).await?;
@@ -27,9 +31,13 @@ impl Ingest {
             .market
             .append_borrow_availability(DataSource::InteractiveBrokers, records)
             .await?;
-        Ok(Work::ok(
-            summary.rows,
-            format!("borrow: {} tickers as of {at}", summary.rows),
-        ))
+        let message = format!("borrow: {} tickers as of {at}", summary.rows);
+        Ok(match malformed_rows {
+            0 => Work::ok(summary.rows, message),
+            rows => Work::partial(
+                summary.rows,
+                format!("{message}, {rows} malformed rows skipped"),
+            ),
+        })
     }
 }

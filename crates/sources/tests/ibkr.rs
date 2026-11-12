@@ -6,7 +6,9 @@ const FIXTURE: &[u8] = include_bytes!("../fixtures/ibkr/usa.txt");
 
 #[test]
 fn the_short_stock_file_becomes_one_record_per_us_ticker_stamped_with_its_new_york_time() {
-    let records = normalize_borrow(FIXTURE).unwrap();
+    let file = normalize_borrow(FIXTURE).unwrap();
+    assert_eq!(file.malformed_rows, 0);
+    let records = file.records;
 
     let symbols: Vec<&str> = records
         .iter()
@@ -40,4 +42,19 @@ fn the_short_stock_file_becomes_one_record_per_us_ticker_stamped_with_its_new_yo
         normalize_borrow(truncated).is_err(),
         "a cut-off download is refused"
     );
+}
+
+#[test]
+fn a_malformed_row_is_skipped_and_counted_instead_of_losing_the_day() {
+    let text = String::from_utf8_lossy(FIXTURE)
+        .replace(
+            "GME|USD|",
+            "XYZ|USD|BROKEN ROW|not-a-contract|X|1|1|1||\nGME|USD|",
+        )
+        .replace("#EOF|6", "#EOF|7");
+
+    let file = normalize_borrow(text.as_bytes()).unwrap();
+
+    assert_eq!(file.malformed_rows, 1);
+    assert_eq!(file.records.len(), 6);
 }

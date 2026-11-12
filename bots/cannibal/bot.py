@@ -1,6 +1,8 @@
 from collections import defaultdict
 
-from buizz import Bot, Context, FundamentalPoint, History, run, split_ratio
+from buizz_bots.fundamentals import adjusted_shares
+
+from buizz import Bot, Context, FundamentalPoint, History, run
 
 YEARS_NEEDED = 2
 MIN_GAP_DAYS = 300
@@ -20,11 +22,11 @@ def share_change(shares: list[FundamentalPoint], raw: History, adjusted: History
     latest, prior = shares[0], shares[1]
     if not MIN_GAP_DAYS <= (latest.period_end - prior.period_end).days <= MAX_GAP_DAYS:
         return None
-    latest_ratio = split_ratio(raw, adjusted, latest.period_end)
-    prior_ratio = split_ratio(raw, adjusted, prior.period_end)
-    if latest_ratio is None or prior_ratio is None or prior.value <= 0:
+    latest_shares = adjusted_shares(latest, raw, adjusted)
+    prior_shares = adjusted_shares(prior, raw, adjusted)
+    if latest_shares is None or prior_shares is None or prior_shares <= 0:
         return None
-    return float(latest.value) * latest_ratio / (float(prior.value) * prior_ratio) - 1
+    return latest_shares / prior_shares - 1
 
 
 def shrinkers(ctx: Context, candidates: dict[str, list[FundamentalPoint]]) -> list[tuple[str, float]]:

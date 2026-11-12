@@ -259,6 +259,7 @@ class FundamentalPoint(msgspec.Struct, frozen=True):
     period_start: date | None
     period_end: date
     value: Decimal
+    unit: str
     form: str
     filed: date
     available_at: datetime
@@ -423,6 +424,7 @@ class Context:
                 f.period_start,
                 f.period_end,
                 f.value,
+                f.unit,
                 f.form,
                 f.filed,
                 from_ns(f.available_at),

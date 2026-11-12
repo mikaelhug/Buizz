@@ -412,8 +412,8 @@ pub(crate) fn fundamentals(
         return Ok(Vec::new());
     }
     let sql = format!(
-        "SELECT symbol, metric, period_type, period_start, period_end, value, form, filed, \
-         available_at FROM fundamental_fact WHERE symbol IN ({}) AND metric IN ({}) \
+        "SELECT symbol, metric, period_type, period_start, period_end, value, unit, form, \
+         filed, available_at FROM fundamental_fact WHERE symbol IN ({}) AND metric IN ({}) \
          AND period_type IS NOT NULL AND available_at <= ? \
          QUALIFY row_number() OVER (PARTITION BY symbol, metric, period_end, period_type, \
          period_start ORDER BY available_at DESC, filed DESC, accession DESC) = 1",
@@ -437,9 +437,10 @@ pub(crate) fn fundamentals(
                 period_start: row.get(3)?,
                 period_end: row.get(4)?,
                 value: row.get::<_, Dec>(5)?.0,
-                form: row.get(6)?,
-                filed: row.get(7)?,
-                available_at: row.get::<_, Ts>(8)?.0,
+                unit: row.get(6)?,
+                form: row.get(7)?,
+                filed: row.get(8)?,
+                available_at: row.get::<_, Ts>(9)?.0,
             })
         })?
         .collect::<duckdb::Result<Vec<_>>>()?;
@@ -673,7 +674,10 @@ pub(crate) fn earnings_releases(
     }
     let sql = format!(
         "SELECT symbol, cik, accession, form, filed, report_date, accepted_at \
-         FROM earnings_release WHERE symbol IN ({}) AND accepted_at <= ? \
+         FROM earnings_release e WHERE symbol IN ({}) AND accepted_at <= ? \
+         AND NOT (form LIKE '%/A' AND EXISTS (SELECT 1 FROM earnings_release o \
+         WHERE o.symbol = e.symbol AND o.report_date = e.report_date \
+         AND o.accepted_at < e.accepted_at)) \
          ORDER BY symbol, accepted_at, accession",
         placeholders(symbols.len())
     );
@@ -694,6 +698,18 @@ pub(crate) fn earnings_releases(
         })?
         .collect::<duckdb::Result<Vec<_>>>()?;
     Ok(releases)
+}
+
+pub(crate) fn earnings_accessions(
+    connection: &Connection,
+    symbol: &Symbol,
+) -> Result<BTreeSet<String>> {
+    let mut statement =
+        connection.prepare_cached("SELECT accession FROM earnings_release WHERE symbol = ?")?;
+    let accessions = statement
+        .query_map([symbol.as_str()], |row| row.get(0))?
+        .collect::<duckdb::Result<_>>()?;
+    Ok(accessions)
 }
 
 pub(crate) fn latest_sec_filings(

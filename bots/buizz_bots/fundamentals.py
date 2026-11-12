@@ -10,14 +10,19 @@ DOMESTIC_FORMS = DOMESTIC_ANNUAL_FORMS | {"10-Q", "10-Q/A"}
 MIN_GAP_DAYS = 300
 MAX_GAP_DAYS = 430
 MAX_STALENESS_DAYS = 548
+NON_MONETARY_UNITS: dict[Metric, str] = {"shares_outstanding": "shares", "eps_diluted": "USD/shares"}
 
 Annual = dict[tuple[str, Metric], dict[date, FundamentalPoint]]
+
+
+def in_dollars(point: FundamentalPoint) -> bool:
+    return point.unit == NON_MONETARY_UNITS.get(point.metric, "USD")
 
 
 def domestic_annual(points: list[FundamentalPoint]) -> Annual:
     annual: Annual = defaultdict(dict)
     for point in points:
-        if point.period_type != "FY" or point.form not in DOMESTIC_ANNUAL_FORMS:
+        if point.period_type != "FY" or point.form not in DOMESTIC_ANNUAL_FORMS or not in_dollars(point):
             continue
         if point.metric == "shares_outstanding" and point.period_start is not None:
             continue
