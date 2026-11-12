@@ -1,9 +1,9 @@
 import math
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from typing import Any
 
 import numpy as np
+from buizz_bots.monthly import session_days
 from numpy.typing import NDArray
 from scipy.optimize import minimize
 from scipy.special import expit, logit
@@ -101,15 +101,13 @@ def weighted_score(theta: Array, returns: Array, weights: Array) -> tuple[float,
     return float(weights @ (np.log(norms) + peak)), weights @ scores, scores[-1]
 
 
-def filtered_state(theta: Array, returns: Array) -> tuple[int, int]:
+def filtered_state(theta: Array, returns: Array) -> int:
     hmm = Hmm.of(theta)
     filtered, _ = forward(hmm, scaled_densities(hmm, returns)[0])
-    return int(np.argmax(filtered[-1])), hmm.calm
+    return int(np.argmax(filtered[-1]))
 
 
-def online_step(
-    theta: Array, returns: Array, decided: int | None, threshold: float
-) -> tuple[list[tuple[int, float]], int]:
+def online_step(theta: Array, returns: Array, decided: int | None, threshold: float) -> list[tuple[int, float]]:
     hmm = Hmm.of(theta)
     with np.errstate(divide="ignore"):
         log_densities = np.log(scaled_densities(hmm, returns)[0])
@@ -131,7 +129,7 @@ def online_step(
             break
         classified.append((state, mass[state]))
         decided = state
-    return classified, hmm.calm
+    return classified
 
 
 def forgetting_weights(count: int, memory: int) -> Array:
@@ -183,10 +181,6 @@ def initial_fit(returns: Array, memory: int, seed: int) -> tuple[Array, Array]:
     return best[1], -best[2] / weights.sum()
 
 
-def session_dates(starts: NDArray[np.int64]) -> list[str]:
-    return [datetime.fromtimestamp(int(ns) / 1e9, UTC).date().isoformat() for ns in starts]
-
-
 class RegimeHmm(Bot):
     def on_start(self, ctx: Context) -> None:
         if ctx.params["variant"] not in VARIANTS:
@@ -208,21 +202,10 @@ class RegimeHmm(Bot):
         online = ctx.params["variant"] == "rbaa"
         history = ctx.history([symbol], "1d", MAX_BARS, adjust="all")[symbol]
         returns = np.diff(np.log(history.close))
-        dates = session_dates(history.start)[1:]
+        dates: list[str] = session_days(history).astype(str).tolist()[1:]
         state = ctx.state
-        if "theta" not in state:
-            if len(returns) <= initial:
-                return None
-            theta, information = initial_fit(returns[:initial], memory, int(ctx.params["seed"]))
-            state.update(
-                theta=theta.tolist(),
-                information=information.tolist(),
-                through=dates[initial - 1],
-                unclassified=dates[initial],
-                classified=None,
-                votes=[],
-            )
-            ctx.log(f"initial fit on the first {initial} returns of {symbol}, {dates[0]} to {dates[initial - 1]}")
+        if "theta" not in state and (len(returns) <= initial or not self.fit(ctx, returns, dates)):
+            return None
         if state["through"] not in dates:
             raise RuntimeError(f"{symbol} history no longer holds {state['through']}, the last estimated day")
         theta = np.array(state["theta"], dtype=np.float64)
@@ -236,15 +219,16 @@ class RegimeHmm(Bot):
             count = day + 1
             window = returns[max(0, count - span) : count]
             _, gradient, latest = weighted_score(theta, window, forgetting_weights(len(window), memory))
-            information += (np.outer(latest, latest) - information) / count
-            theta = theta + TUNING / min(count, memory) * np.linalg.solve(information, gradient)
+            step = 1 / min(count, memory)
+            information += step * (np.outer(latest, latest) - information)
+            theta = theta + TUNING * step * np.linalg.solve(information, gradient)
+            calm = Hmm.of(theta).calm
             if online:
-                decided = None if classified is None else int(classified["state"])
-                decisions, calm = online_step(theta, returns[unclassified:count], decided, threshold)
+                decided = None if classified is None else calm if classified["regime"] == ON else 1 - calm
+                decisions = online_step(theta, returns[unclassified:count], decided, threshold)
                 for state_index, certainty in decisions:
                     classified = {
                         "date": dates[unclassified],
-                        "state": state_index,
                         "regime": ON if state_index == calm else OFF,
                         "confidence": certainty,
                         "at": dates[day],
@@ -254,8 +238,7 @@ class RegimeHmm(Bot):
                     regimes = ", ".join(ON if state_index == calm else OFF for state_index, _ in decisions)
                     ctx.log(f"classified {dates[unclassified - len(decisions)]} onwards: {regimes}", level="debug")
             else:
-                filtered, calm = filtered_state(theta, window)
-                votes = [*votes, ON if filtered == calm else OFF][-median_days:]
+                votes = [*votes, ON if filtered_state(theta, window) == calm else OFF][-median_days:]
         state.update(
             theta=theta.tolist(),
             information=information.tolist(),
@@ -276,11 +259,37 @@ class RegimeHmm(Bot):
         regime = ON if votes.count(ON) > median_days // 2 else OFF
         return regime, f"{regime} regime by the median of the {median_days} filtered states to {dates[-1]}"
 
+    def fit(self, ctx: Context, returns: Array, dates: list[str]) -> bool:
+        initial: int = ctx.params["init_sessions"]
+        state = ctx.state
+        end = len(returns) if state.get("fit_failed") else initial
+        fitted = f"{initial} returns of {ctx.params['signal']}, {dates[end - initial]} to {dates[end - 1]}"
+        try:
+            theta, information = initial_fit(
+                returns[end - initial : end], ctx.params["effective_memory"], int(ctx.params["seed"])
+            )
+        except RuntimeError as error:
+            ctx.log(f"initial fit on the {fitted} failed, retrying on the latest ones: {error}", level="warn")
+            state["fit_failed"] = True
+            return False
+        state.pop("fit_failed", None)
+        state.update(
+            theta=theta.tolist(),
+            information=information.tolist(),
+            through=dates[end - 1],
+            unclassified=dates[end] if end < len(dates) else None,
+            classified=None,
+            votes=[],
+        )
+        ctx.log(f"initial fit on the {fitted}")
+        return True
+
     def allocate(self, ctx: Context, regime: str, why: str) -> None:
         delay: int = ctx.params["delay"]
         state = ctx.state
         if regime == state.get("held"):
             state["pending"] = None
+            self.restore(ctx, regime)
             return
         pending: dict[str, Any] | None = state.get("pending")
         if pending is None or pending["regime"] != regime:
@@ -289,19 +298,39 @@ class RegimeHmm(Bot):
             state["pending"] = {**pending, "wait": pending["wait"] - 1}
             return
         targets = self.targets(ctx, regime)
-        equity = float(ctx.portfolio.equity)
-        held = {
-            symbol: ctx.position(symbol).qty * ctx.bars[symbol].close / equity if symbol in ctx.bars else 0.0
-            for symbol in targets
-        }
         delayed = f", traded {delay} session{'s' if delay != 1 else ''} late" if delay else ""
         ctx.rebalance(
-            {symbol: targets[symbol] for symbol in sorted(targets, key=lambda s: held[s] - targets[s], reverse=True)},
+            targets,
             reason={symbol: f"{pending['why']}{delayed}: {symbol} {weight:.1%}" for symbol, weight in targets.items()},
             exit_reason="not part of the regime allocation",
         )
         ctx.log(f"{state.get('held') or 'no allocation'} -> {regime}: {pending['why']}")
         state.update(held=regime, pending=None)
+
+    def restore(self, ctx: Context, regime: str) -> None:
+        band = float(ctx.params["drift_band"])
+        targets = self.targets(ctx, regime)
+        equity = float(ctx.portfolio.equity)
+        ordered = {order.symbol for order in ctx.portfolio.working}
+        weights = {
+            symbol: ctx.position(symbol).qty * ctx.bars[symbol].close / equity
+            for symbol in targets
+            if symbol in ctx.bars and symbol not in ordered
+        }
+        off = [
+            f"{symbol} {weight:.1%} against {targets[symbol]:.1%}"
+            for symbol, weight in weights.items()
+            if (weight == 0 and targets[symbol] > 0) or abs(weight - targets[symbol]) > band
+        ]
+        if not off:
+            return
+        why = f"{regime} regime held, {', '.join(off)}"
+        ctx.rebalance(
+            targets,
+            reason={symbol: f"{why}: {symbol} {weight:.1%}" for symbol, weight in targets.items()},
+            exit_reason="not part of the regime allocation",
+        )
+        ctx.log(f"back to the {regime} allocation: {', '.join(off)}")
 
     def targets(self, ctx: Context, regime: str) -> dict[str, float]:
         saa: dict[str, float] = {symbol: float(weight) for symbol, weight in ctx.params["saa"].items()}
