@@ -254,6 +254,20 @@ async fn answer(
                 .map_err(|error| error.to_string())?;
             Ok(DataResult::Macro { points })
         }
+        QueryRequest::InsiderTrades { symbols, since } => {
+            let trades = market
+                .insider_trades(symbols, since, clock)
+                .await
+                .map_err(|error| error.to_string())?;
+            Ok(DataResult::InsiderTrades { trades })
+        }
+        QueryRequest::News { symbols, since } => {
+            let articles = market
+                .news(symbols, since, clock)
+                .await
+                .map_err(|error| error.to_string())?;
+            Ok(DataResult::News { articles })
+        }
         QueryRequest::Fomc { from, to } => {
             if from > to {
                 return Err(format!("fomc from {from} is after to {to}"));

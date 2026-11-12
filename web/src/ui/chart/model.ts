@@ -66,7 +66,7 @@ export function capitalOrigin(points: Point[], benchmark: Point[]): Sample | und
   return { time: wallTime(base.at), value: Number(base.equity) };
 }
 
-function countBefore(line: Line, time: number, inclusive: boolean): number {
+function countBefore(line: { time: number }[], time: number, inclusive: boolean): number {
   let low = 0;
   let high = line.length;
   while (low < high) {
@@ -81,11 +81,11 @@ function countBefore(line: Line, time: number, inclusive: boolean): number {
   return low;
 }
 
-export function asOf(line: Line, time: number): Sample | undefined {
+export function asOf<T extends { time: number }>(line: T[], time: number): T | undefined {
   return line[countBefore(line, time, true) - 1];
 }
 
-export function firstFrom(line: Line, time: number): Sample | undefined {
+export function firstFrom<T extends { time: number }>(line: T[], time: number): T | undefined {
   return line[countBefore(line, time, false)];
 }
 

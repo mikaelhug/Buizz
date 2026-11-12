@@ -1,0 +1,9 @@
+description = "Moreira-Muir volatility-managed SPY: at each week's last close hold min(cap, 15% / EWMA vol) of SPY (30-day half-life of daily returns), the rest in BIL, trading at the next open only when the SPY weight is off by more than the 10-point band; cap = 1.5 borrows the excess at the T-bill rate plus the financing spread"
+command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
+timeframe = "1d"
+wake = "bar"
+universe = { symbols = ["SPY", "BIL"] }
+params = { asset = "SPY", cash = "BIL", target_vol = 0.15, vol_half_life_days = 30, cap = 1.0, band = 0.10 }
+
+[risk]
+max_gross_exposure = 1.5

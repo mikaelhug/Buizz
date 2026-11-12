@@ -3,7 +3,8 @@ use std::str::FromStr;
 
 use buizz_core::market::{
     Adjustment, CorporateAction, CorporateActionKind, Feed, FomcAnnouncement, FundamentalMetric,
-    FundamentalPoint, MacroPoint, MacroSeries, PeriodType, Session, Symbol, Timeframe,
+    FundamentalPoint, InsiderOwner, InsiderTrade, InsiderTransaction, MacroPoint, MacroSeries,
+    NewsArticle, PeriodType, Session, Symbol, Timeframe,
 };
 use buizz_core::order::{
     Fill, OrderId, OrderRequest, OrderSize, OrderStatus, OrderType, OrderUpdate, Side, TimeInForce,
@@ -450,9 +451,91 @@ fn main() {
 
     write(
         &dir,
-        "query_fomc",
+        "query_insider_trades",
         &BotMessage::Query(Query {
             id: 7,
+            request: QueryRequest::InsiderTrades {
+                symbols: vec![bbb.clone()],
+                since: date("2024-10-01"),
+            },
+        }),
+    );
+
+    write(
+        &dir,
+        "data_insider_trades",
+        &SpineMessage::Data(Data {
+            id: 7,
+            result: DataResult::InsiderTrades {
+                trades: vec![InsiderTrade {
+                    symbol: bbb.clone(),
+                    accession: "0001140361-24-041201".to_owned(),
+                    form: "4".to_owned(),
+                    filed: date("2024-11-19"),
+                    accepted_at: at("2024-11-19T22:30:14Z"),
+                    available_at: at("2024-11-20T14:30:00Z"),
+                    owners: vec![InsiderOwner {
+                        cik: 1214156,
+                        name: "Doe Jane".to_owned(),
+                        director: true,
+                        officer: true,
+                        ten_percent_owner: false,
+                        other: false,
+                        officer_title: Some("Chief Executive Officer".to_owned()),
+                    }],
+                    transaction: InsiderTransaction {
+                        security: "Common Stock".to_owned(),
+                        date: date("2024-11-18"),
+                        code: "P".to_owned(),
+                        acquired: true,
+                        shares: Some(money("1000")),
+                        price: Some(money("49.1250")),
+                        shares_after: Some(money("25000")),
+                        direct: true,
+                    },
+                }],
+            },
+        }),
+    );
+
+    write(
+        &dir,
+        "query_news",
+        &BotMessage::Query(Query {
+            id: 8,
+            request: QueryRequest::News {
+                symbols: vec![bbb.clone()],
+                since: date("2024-11-20"),
+            },
+        }),
+    );
+
+    write(
+        &dir,
+        "data_news",
+        &SpineMessage::Data(Data {
+            id: 8,
+            result: DataResult::News {
+                articles: vec![NewsArticle {
+                    id: 42_133_817,
+                    symbols: vec![bbb.clone()],
+                    headline: "BBB CEO Buys Shares".to_owned(),
+                    summary: String::new(),
+                    source: "benzinga".to_owned(),
+                    created_at: at("2024-11-20T15:02:10Z"),
+                    updated_at: at("2024-11-20T15:02:10Z"),
+                    received_at: at("2024-11-20T15:02:11Z"),
+                    backfilled: false,
+                }],
+            },
+        }),
+    );
+
+    write(
+        &dir,
+        "query_fomc",
+        &BotMessage::Query(Query {
+            id: 9,
             request: QueryRequest::Fomc {
                 from: date("2024-11-21"),
                 to: date("2024-12-31"),
@@ -464,7 +547,7 @@ fn main() {
         &dir,
         "data_fomc",
         &SpineMessage::Data(Data {
-            id: 7,
+            id: 9,
             result: DataResult::Fomc {
                 announcements: vec![FomcAnnouncement {
                     date: date("2024-12-18"),

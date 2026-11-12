@@ -169,6 +169,7 @@ async fn serve() -> Result<()> {
 
     let feed_task = feed.spawn();
     let ingest_task = ingest.spawn();
+    let news_task = ingest.record_news(config.news_stream());
 
     let (shutting_down, shutdown) = watch::channel(false);
     let app = buizz_api::router(AppState {
@@ -194,7 +195,7 @@ async fn serve() -> Result<()> {
     .await?;
 
     ingest.stop(INGEST_STOP_GRACE).await;
-    if let Some(task) = ingest_task {
+    for task in [ingest_task, news_task].into_iter().flatten() {
         task.abort();
     }
     runner.shutdown().await;

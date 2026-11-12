@@ -62,6 +62,7 @@ The spine (`cargo run -p buizz-spine`) reads these environment variables. Empty 
 | `ALPACA_DATA_URL` | `https://data.alpaca.markets` | Alpaca data endpoint |
 | `ALPACA_TRADING_URL` | `https://paper-api.alpaca.markets` | Alpaca endpoint for the calendar and assets |
 | `ALPACA_STREAM_URL` | `wss://stream.data.alpaca.markets/v2/iex` | Alpaca real-time stream |
+| `ALPACA_NEWS_URL` | `wss://stream.data.alpaca.markets/v1beta1/news` | Alpaca real-time news stream, recorded while ingest is on |
 | `TIINGO_API_KEY` | unset | Enables Tiingo daily history from 2000 to Alpaca's 2016 start |
 | `TIINGO_URL` | `https://api.tiingo.com` | Tiingo endpoint |
 | `SEC_USER_AGENT` | unset | Enables SEC EDGAR fundamentals, SIC codes and earnings releases, and Wikipedia's S&P 500 membership; the SEC requires a contact in the User-Agent, for example `name email@example.com`, and the same contact goes into the Wikipedia User-Agent |

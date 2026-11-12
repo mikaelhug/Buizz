@@ -8,7 +8,8 @@ use serde_json::{Map, Value};
 use crate::ledger::Portfolio;
 use crate::market::{
     Adjustment, CorporateAction, EarningsRelease, FomcAnnouncement, FundamentalMetric,
-    FundamentalPoint, InstrumentProfile, MacroPoint, MacroSeries, Session, Symbol, Timeframe,
+    FundamentalPoint, InsiderTrade, InstrumentProfile, MacroPoint, MacroSeries, NewsArticle,
+    Session, Symbol, Timeframe,
 };
 use crate::order::{Fill, Order, OrderId, OrderRequest, OrderType, OrderUpdate, Side};
 use crate::run::{LogLevel, Mode, RunId, UniverseSpec, Wake};
@@ -122,6 +123,14 @@ pub enum QueryRequest {
         from: NaiveDate,
         to: NaiveDate,
     },
+    InsiderTrades {
+        symbols: Vec<Symbol>,
+        since: NaiveDate,
+    },
+    News {
+        symbols: Vec<Symbol>,
+        since: NaiveDate,
+    },
     Fomc {
         from: NaiveDate,
         to: NaiveDate,
@@ -159,6 +168,12 @@ pub enum DataResult {
     },
     Macro {
         points: Vec<MacroPoint>,
+    },
+    InsiderTrades {
+        trades: Vec<InsiderTrade>,
+    },
+    News {
+        articles: Vec<NewsArticle>,
     },
     Fomc {
         announcements: Vec<FomcAnnouncement>,

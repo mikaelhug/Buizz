@@ -3,6 +3,7 @@ use buizz_core::time::Timestamp;
 use rust_decimal::Decimal;
 use serde::Deserialize;
 
+use crate::alpaca::WireNews;
 use crate::http::decimal;
 
 pub const AUTH_FAILED_CODES: [u16; 4] = [401, 402, 403, 404];
@@ -22,6 +23,8 @@ pub enum Frame {
     },
     #[serde(rename = "b")]
     Bar(WireBar),
+    #[serde(rename = "n")]
+    News(WireNews),
     #[serde(other)]
     Other,
 }

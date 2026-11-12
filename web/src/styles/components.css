@@ -575,6 +575,17 @@
   font-weight: var(--fw-semibold);
 }
 
+.sym-link {
+  color: inherit;
+  text-decoration: underline dotted var(--muted);
+  text-underline-offset: 3px;
+}
+
+.sym-link:hover {
+  color: var(--accent-text);
+  text-decoration-color: currentColor;
+}
+
 .table .reason {
   min-width: 160px;
 }

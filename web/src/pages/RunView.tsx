@@ -7,12 +7,14 @@ import { appendPoints } from "../lib/series";
 import { useFrameBatch } from "../lib/useFrameBatch";
 import { PAGE_SIZE, usePaged } from "../lib/usePaged";
 import { useResource } from "../lib/useResource";
+import { chartSync } from "../ui/chart/sync";
 import { EquityChart } from "../ui/EquityChart";
 import { Failure, LoadMore, Loading, StaleFailure } from "../ui/Feedback";
 import { MetricGroups, MetricValue } from "../ui/Metrics";
 import { monthlyCalendar, MonthlyReturns } from "../ui/MonthlyReturns";
 import { Info, Popover } from "../ui/Popover";
 import { RunBadges, StatusPill } from "../ui/Status";
+import { SymbolChart, SymbolLink } from "../ui/SymbolChart";
 import { Trades } from "./Trades";
 
 type Run = Schemas["RunSummary"];
@@ -22,6 +24,7 @@ type Row = [string, ReactNode];
 
 const DAILY_BARS_JOB = "bars_1d";
 const PICKER_RUNS = 12;
+const MARK_KINDS = ["risk_breach", "status"] as const;
 
 const TAB_LABELS: Record<BotTab, string> = {
   overview: "Overview",
@@ -37,15 +40,17 @@ type Props = {
   runId: number;
   pinned: boolean;
   tab: BotTab;
+  symbol: string | undefined;
   botHash: string;
   recent: Run[];
   runs: ReactNode;
 };
 
-export function RunView({ name, runId, pinned, tab, botHash, recent, runs }: Props) {
+export function RunView({ name, runId, pinned, tab, symbol, botHash, recent, runs }: Props) {
   const run = useResource(() => must(api.GET("/api/runs/{id}", { params: { path: { id: runId } } })), [runId]);
   const tabRoute = (target: BotTab): Route => ({ page: "bot", name, ...(pinned ? { run: runId } : {}), tab: target });
   const tabHref = (target: BotTab) => href(tabRoute(target));
+  const symbolHref = (shown: string) => href({ page: "bot", name, ...(pinned ? { run: runId } : {}), symbol: shown });
 
   const mark = useFrameBatch<SparkPoint>((points) => {
     const last = points.at(-1);
@@ -74,12 +79,12 @@ export function RunView({ name, runId, pinned, tab, botHash, recent, runs }: Pro
       <RunBar run={run.data} name={name} tab={tab} botHash={botHash} recent={recent} logsHref={tabHref("logs")} runsHref={tabHref("runs")} />
       <Tabs tab={tab} routeFor={tabRoute} />
       <div className="tab-panel" role="tabpanel" id="run-tabpanel" aria-labelledby={`tab-${tab}`}>
-        {tab === "overview" && <Overview run={run.data} />}
-        {tab === "trades" && <Trades runId={runId} positionsHref={tabHref("events")} />}
-        {tab === "orders" && <Orders runId={runId} active={!run.data.finished_at} />}
+        {tab === "overview" && <Overview run={run.data} symbol={symbol} closeHref={tabHref("overview")} />}
+        {tab === "trades" && <Trades runId={runId} positionsHref={tabHref("events")} symbolHref={symbolHref} />}
+        {tab === "orders" && <Orders runId={runId} active={!run.data.finished_at} symbolHref={symbolHref} />}
         {tab === "events" && (
           <div className="split split-wide">
-            <Positions runId={runId} clock={run.data.clock} />
+            <Positions runId={runId} clock={run.data.clock} symbolHref={symbolHref} />
             <Events runId={runId} />
           </div>
         )}
@@ -334,10 +339,37 @@ function RunPicker({ run, name, tab, recent, runsHref }: { run: Run; name: strin
   );
 }
 
-function Overview({ run }: { run: Run }) {
+async function markEvents(runId: number): Promise<Schemas["RunEvent"][]> {
+  const events: Schemas["RunEvent"][] = [];
+  let after: number | undefined;
+  do {
+    const page = await must(
+      api.GET("/api/runs/{id}/events", { params: { path: { id: runId }, query: { kind: [...MARK_KINDS], limit: PAGE_SIZE, ...(after === undefined ? {} : { after }) } } }),
+    );
+    events.push(...page.items);
+    after = page.next_after ?? undefined;
+  } while (after !== undefined);
+  return events;
+}
+
+function isMark(event: Schemas["RunEvent"]): boolean {
+  return MARK_KINDS.some((kind) => kind === event.kind.type);
+}
+
+function Overview({ run, symbol, closeHref }: { run: Run; symbol: string | undefined; closeHref: string }) {
   const path = { params: { path: { id: run.id } } };
   const curve = useResource<Curve>(() => must(api.GET("/api/runs/{id}/equity", path)), [run.id]);
+  const marks = useResource(() => markEvents(run.id), [run.id]);
   const live = run.mode === "live" && !run.finished_at;
+  const sync = useMemo(chartSync, []);
+  const pricePanel = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (symbol) {
+      const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      pricePanel.current?.scrollIntoView({ block: "start", behavior: reduced ? "auto" : "smooth" });
+    }
+  }, [symbol]);
 
   const append = useFrameBatch<SparkPoint>((points) => curve.mutate((current) => ({ ...current, points: appendPoints(current.points, points) })));
 
@@ -355,6 +387,9 @@ function Overview({ run }: { run: Run }) {
       curve.reload();
     } else if (event.type === "equity") {
       append({ at: event.at, equity: event.equity });
+    } else if (event.type === "log" && isMark(event.event)) {
+      const added = event.event;
+      marks.mutate((current) => ((current.at(-1)?.seq ?? 0) < added.seq ? [...current, added] : current));
     }
   });
 
@@ -370,7 +405,15 @@ function Overview({ run }: { run: Run }) {
         <StaleFailure resource={curve} />
         {curve.data ? (
           curve.data.points.length > 0 ? (
-            <EquityChart runId={run.id} points={curve.data.points} benchmark={curve.data.benchmark} bot={run.bot} benchmarkSymbol={run.config.benchmark} />
+            <EquityChart
+              runId={run.id}
+              points={curve.data.points}
+              benchmark={curve.data.benchmark}
+              bot={run.bot}
+              benchmarkSymbol={run.config.benchmark}
+              events={marks.data}
+              sync={sync}
+            />
           ) : (
             <p className="empty chart-empty">
               {awaitingData(run) ? "Waiting for market data. Equity is marked once the first bar arrives." : run.finished_at ? "This run recorded no equity." : "No equity yet. The curve draws as the run marks each session."}
@@ -382,6 +425,22 @@ function Overview({ run }: { run: Run }) {
           <Loading shape="chart" />
         )}
       </section>
+      {symbol && (
+        <section ref={pricePanel} className="panel chart-panel price-panel" aria-label={`${symbol} price`}>
+          <header className="panel-head">
+            <h2>{symbol}</h2>
+            <span className="muted">{run.config.timeframe === "1d" ? "Daily" : "1-minute"} candles with this run's fills</span>
+            <Info label="Prices on this chart">
+              Bars up to the run's clock, adjusted for the splits visible by then, so the latest prices match the positions. A fill before a split sits at its split-adjusted
+              price; the legend shows the price it traded at. Hover a candle for its fills and their reasons.
+            </Info>
+            <a className="btn btn-ghost btn-sm" href={closeHref}>
+              Close
+            </a>
+          </header>
+          <SymbolChart key={symbol} runId={run.id} symbol={symbol} sync={sync} />
+        </section>
+      )}
       <section className="panel">
         <h2 className="visually-hidden">Metrics</h2>
         <MetricGroups metrics={run.metrics ?? curve.data?.interim_metrics} benchmark={benchmark} months={calendar?.range} />
@@ -427,7 +486,9 @@ function Setup({ run }: { run: Run }) {
   );
 }
 
-function Positions({ runId, clock }: { runId: number; clock: string | null | undefined }) {
+type SymbolHref = (symbol: string) => string;
+
+function Positions({ runId, clock, symbolHref }: { runId: number; clock: string | null | undefined; symbolHref: SymbolHref }) {
   const positions = useResource(() => must(api.GET("/api/runs/{id}/positions", { params: { path: { id: runId } } })), [runId]);
   useSpineEvents((event) => {
     if ((event.type === "order" || event.type === "fill") && event.run_id === runId) {
@@ -460,7 +521,9 @@ function Positions({ runId, clock }: { runId: number; clock: string | null | und
             <tbody>
               {positions.data.map((position) => (
                 <tr key={position.symbol}>
-                  <td className="sym">{position.symbol}</td>
+                  <td className="sym">
+                    <SymbolLink symbol={position.symbol} href={symbolHref} />
+                  </td>
                   <td className={`r num ${tone(position.qty) ?? ""}`}>{fmt.integer(position.qty)}</td>
                   <td className="r num">{fmt.price(position.avg_cost)}</td>
                   <td className="r num">{fmt.price(position.last_price)}</td>
@@ -509,7 +572,7 @@ function withFill(order: Order, qty: number, price: number): Pick<Order, "filled
   return { filled_qty: filled, avg_fill_price: String(average) };
 }
 
-function Orders({ runId, active }: { runId: number; active: boolean }) {
+function Orders({ runId, active, symbolHref }: { runId: number; active: boolean; symbolHref: SymbolHref }) {
   const orders = usePaged(
     (after) => must(api.GET("/api/runs/{id}/orders", { params: { path: { id: runId }, query: { limit: PAGE_SIZE, ...(after === undefined ? {} : { after }) } } })),
     [runId],
@@ -567,7 +630,9 @@ function Orders({ runId, active }: { runId: number; active: boolean }) {
             <tbody>
               {orders.data.items.map((order) => (
                 <tr key={order.id} className={order.qty === 0 ? "quiet" : undefined}>
-                  <td className="sym">{order.symbol}</td>
+                  <td className="sym">
+                    <SymbolLink symbol={order.symbol} href={symbolHref} />
+                  </td>
                   {order.qty === 0 ? <td className="muted">{ABSENT}</td> : <td className={order.side === "buy" ? "up" : "down"}>{order.side}</td>}
                   <td className="nowrap">
                     <StatusPill status={order.status} />

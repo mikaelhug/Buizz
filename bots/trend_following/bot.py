@@ -1,23 +1,9 @@
-import math
-
 import numpy as np
-import numpy.typing as npt
 from buizz_bots.monthly import MAX_SESSIONS_PER_MONTH, anchor_session, trailing_return
 from buizz_bots.sessions import last_session_of_month
+from buizz_bots.volatility import ewma_sessions, ex_ante_volatility
 
 from buizz import Bot, Context, run
-
-VARIANCE_DAYS_PER_YEAR = 261
-TRUNCATED_WEIGHT = 1e-4
-
-
-def ex_ante_volatility(closes: npt.NDArray[np.float64], centre_of_mass: float) -> float:
-    newest_first = (closes[1:] / closes[:-1] - 1)[::-1]
-    delta = centre_of_mass / (centre_of_mass + 1)
-    weights = delta ** np.arange(newest_first.size)
-    weights /= weights.sum()
-    mean = float(weights @ newest_first)
-    return math.sqrt(VARIANCE_DAYS_PER_YEAR * float(weights @ (newest_first - mean) ** 2))
 
 
 class TrendFollowing(Bot):
@@ -34,7 +20,7 @@ class TrendFollowing(Bot):
         if (anchor := anchor_session(ctx, months)) is None:
             ctx.log(f"the calendar has no session {months} months back, no signal yet", level="warn")
             return
-        vol_sessions = math.ceil(math.log(TRUNCATED_WEIGHT) / math.log(centre_of_mass / (centre_of_mass + 1)))
+        vol_sessions = ewma_sessions(centre_of_mass)
         history = ctx.history(
             [*assets, cash], "1d", max(vol_sessions, MAX_SESSIONS_PER_MONTH * (months + 1)) + 1, adjust="all"
         )

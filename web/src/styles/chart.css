@@ -158,6 +158,42 @@
   color: var(--warn);
 }
 
+.chart-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: var(--surface);
+}
+
+.price-legend {
+  display: block;
+  max-width: calc(100% - 80px);
+}
+
+.legend-ohlc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--sp-3);
+  padding-left: var(--sp-1);
+  color: var(--text);
+}
+
+.legend-fill {
+  white-space: normal;
+}
+
+.legend-fill.up {
+  color: var(--up);
+}
+
+.legend-fill.down {
+  color: var(--down);
+}
+
+.legend-reason {
+  color: var(--muted);
+}
+
 .chart-empty {
   display: grid;
   height: 300px;
@@ -165,6 +201,10 @@
 }
 
 @media (max-width: 640px) {
+  .price-legend {
+    max-width: none;
+  }
+
   .chart-toolbar-end {
     margin-left: 0;
   }

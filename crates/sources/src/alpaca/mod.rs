@@ -4,8 +4,8 @@ use std::time::Duration;
 
 pub use buizz_core::market::SIP_DELAY;
 use buizz_core::market::{
-    Bar, Calendar, CorporateAction, CorporateActionKind, Feed, Instrument, Session, Symbol,
-    Timeframe,
+    Bar, Calendar, CorporateAction, CorporateActionKind, Feed, Instrument, NewsArticle, Session,
+    Symbol, Timeframe,
 };
 use buizz_core::time::Timestamp;
 use chrono::{NaiveDate, TimeDelta};
@@ -16,7 +16,8 @@ use crate::http::{HttpClient, REDACTED, RateLimit, SourceError};
 
 mod wire;
 
-use wire::{ActionsPage, BarsPage, Paged, WireAsset, WireCalendarDay};
+pub(crate) use wire::WireNews;
+use wire::{ActionsPage, BarsPage, NewsPage, Paged, WireAsset, WireCalendarDay};
 
 pub const DATA_URL: &str = "https://data.alpaca.markets";
 pub const TRADING_URL: &str = "https://paper-api.alpaca.markets";
@@ -29,6 +30,8 @@ pub use buizz_core::market::ALPACA_HISTORY_START as HISTORY_START;
 pub const MAX_PAGE_LIMIT: u32 = 10_000;
 pub const ACTIONS_PAGE_LIMIT: u32 = 1_000;
 pub const ACTIONS_SYMBOLS_PER_REQUEST: usize = 100;
+pub const NEWS_PAGE_LIMIT: u32 = 50;
+pub const NEWS_HISTORY_START: NaiveDate = NaiveDate::from_ymd_opt(2015, 1, 1).expect("valid date");
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct AlpacaConfig {
@@ -71,6 +74,11 @@ pub struct BarsRequest {
 
 pub struct BarPage {
     pub bars: Vec<Bar>,
+    pub next: Option<String>,
+}
+
+pub struct NewsArticles {
+    pub articles: Vec<NewsArticle>,
     pub next: Option<String>,
 }
 
@@ -166,6 +174,34 @@ impl AlpacaClient {
         Ok(BarPage {
             bars: page.into_bars(request.timeframe, request.feed, calendar),
             next,
+        })
+    }
+
+    pub async fn news_page(
+        &self,
+        from: Timestamp,
+        to: Timestamp,
+        token: Option<String>,
+    ) -> Result<NewsArticles, SourceError> {
+        let mut query = vec![
+            ("start", from.to_string()),
+            ("end", to.to_string()),
+            ("sort", "asc".to_owned()),
+            ("limit", NEWS_PAGE_LIMIT.to_string()),
+        ];
+        if let Some(token) = token {
+            query.push(("page_token", token));
+        }
+        let url = format!("{}/v1beta1/news", self.config.data_url);
+        let page: NewsPage = self.get(&url, &query).await?;
+        let received_at = Timestamp::now();
+        Ok(NewsArticles {
+            articles: page
+                .news
+                .into_iter()
+                .map(|news| news.into_article(received_at, true))
+                .collect(),
+            next: page.next_page_token.filter(|token| !token.is_empty()),
         })
     }
 

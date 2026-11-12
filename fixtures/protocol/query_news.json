@@ -1,0 +1,11 @@
+{
+  "id": 8,
+  "request": {
+    "kind": "news",
+    "since": "2024-11-20",
+    "symbols": [
+      "BBB"
+    ]
+  },
+  "type": "query"
+}

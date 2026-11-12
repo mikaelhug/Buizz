@@ -4,10 +4,11 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, PoisonError, RwLock};
 
 use buizz_core::market::{
-    Adjustment, Bar, BorrowAvailability, Calendar, Company, CorporateAction, Coverage, DataSource,
-    EarningsRelease, FomcAnnouncement, FomcMeeting, FundamentalFact, FundamentalMetric,
-    FundamentalPoint, IndexHistory, Instrument, InstrumentProfile, MacroObservation, MacroPoint,
-    MacroSeries, RiskFreeRate, SecFiling, Session, StockIndex, Symbol, Timeframe, Watermarks,
+    Adjustment, AdjustmentFactor, Bar, BorrowAvailability, Calendar, Company, CorporateAction,
+    Coverage, DataSource, EarningsRelease, FomcAnnouncement, FomcMeeting, FundamentalFact,
+    FundamentalMetric, FundamentalPoint, IndexHistory, InsiderFiling, InsiderTrade, Instrument,
+    InstrumentProfile, MacroObservation, MacroPoint, MacroSeries, NewsArticle, RiskFreeRate,
+    SecFiling, Session, StockIndex, Symbol, Timeframe, Watermarks,
 };
 use buizz_core::ops::{CoverageGap, DataWarning};
 use buizz_core::protocol::BarRow;
@@ -34,9 +35,10 @@ pub use restore::Restored;
 
 pub(crate) const SCHEMA: &str = include_str!("../schema.sql");
 pub const FILE_NAME: &str = "market.duckdb";
-const APPENDED: [(&str, &str); 13] = [
+const APPENDED: [(&str, &str); 14] = [
     ("ingest_batch", "id"),
     ("borrow_availability", "batch_id"),
+    ("news_article", "batch_id"),
     ("instrument_revision", "superseded_by"),
     ("calendar_revision", "superseded_by"),
     ("bar_1d_revision", "superseded_by"),
@@ -83,6 +85,24 @@ pub struct HistoryRequest {
     pub bars: u32,
     pub adjust: Adjustment,
     pub as_of: Timestamp,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ChartRequest {
+    pub symbol: Symbol,
+    pub timeframe: Timeframe,
+    pub from: Timestamp,
+    pub after: Option<Timestamp>,
+    pub before: Option<Timestamp>,
+    pub bars: usize,
+    pub as_of: Timestamp,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ChartBars {
+    pub bars: Vec<BarRow>,
+    pub older: bool,
+    pub splits: Vec<AdjustmentFactor>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -443,6 +463,27 @@ impl MarketStore {
             .await
     }
 
+    pub async fn append_insider_filings(
+        &self,
+        source: DataSource,
+        filings: Vec<InsiderFiling>,
+    ) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| write::insider_filings(connection, source, filings))
+            .await
+    }
+
+    pub async fn append_news(
+        &self,
+        source: DataSource,
+        articles: Vec<NewsArticle>,
+        window: Option<(NaiveDate, NaiveDate)>,
+    ) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| write::news_articles(connection, source, articles, window))
+            .await
+    }
+
     pub async fn replace_index_history(
         &self,
         source: DataSource,
@@ -564,6 +605,13 @@ impl MarketStore {
             .await
     }
 
+    pub async fn chart(&self, request: ChartRequest) -> Result<ChartBars> {
+        let calendar = self.shared.calendar();
+        self.readers
+            .run(move |connection| read::chart(connection, &calendar, &request))
+            .await
+    }
+
     pub async fn fundamentals(
         &self,
         symbols: Vec<Symbol>,
@@ -672,6 +720,37 @@ impl MarketStore {
     pub async fn earnings_accessions(&self, symbol: Symbol) -> Result<BTreeSet<String>> {
         self.readers
             .run(move |connection| read::earnings_accessions(connection, &symbol))
+            .await
+    }
+
+    pub async fn insider_accessions(&self, symbol: Symbol) -> Result<BTreeSet<String>> {
+        self.readers
+            .run(move |connection| read::insider_accessions(connection, &symbol))
+            .await
+    }
+
+    pub async fn insider_trades(
+        &self,
+        symbols: Vec<Symbol>,
+        since: NaiveDate,
+        as_of: Timestamp,
+    ) -> Result<Vec<InsiderTrade>> {
+        let calendar = self.shared.calendar();
+        self.readers
+            .run(move |connection| {
+                read::insider_trades(connection, &calendar, &symbols, since, as_of)
+            })
+            .await
+    }
+
+    pub async fn news(
+        &self,
+        symbols: Vec<Symbol>,
+        since: NaiveDate,
+        as_of: Timestamp,
+    ) -> Result<Vec<NewsArticle>> {
+        self.readers
+            .run(move |connection| read::news(connection, &symbols, since, as_of))
             .await
     }
 

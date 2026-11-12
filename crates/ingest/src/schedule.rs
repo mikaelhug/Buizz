@@ -15,6 +15,8 @@ pub(crate) const CORPORATE_ACTIONS: &str = "corporate_actions";
 pub(crate) const SEC_INDEX: &str = "sec_index";
 pub(crate) const FUNDAMENTALS: &str = "fundamentals";
 pub(crate) const FILINGS: &str = "filings";
+pub(crate) const INSIDER_TRADES: &str = "insider_trades";
+pub(crate) const NEWS: &str = "news";
 pub(crate) const INDEX_MEMBERSHIP: &str = "index_membership";
 pub(crate) const RATES: &str = "rates";
 pub(crate) const BORROW: &str = "borrow";
@@ -32,7 +34,7 @@ const SHORT_RETRY: Duration = HOUR;
 const FIRST_FAILURE_RETRY: Duration = Duration::from_secs(5 * 60);
 const STALE_AFTER_INTERVALS: i32 = 3;
 
-pub(crate) const JOBS: [JobSpec; 16] = [
+pub(crate) const JOBS: [JobSpec; 18] = [
     JobSpec {
         name: CALENDAR,
         source: Some(DataSource::Alpaca),
@@ -74,6 +76,11 @@ pub(crate) const JOBS: [JobSpec; 16] = [
         every: SIX_HOURS,
     },
     JobSpec {
+        name: INSIDER_TRADES,
+        source: Some(DataSource::Edgar),
+        every: SIX_HOURS,
+    },
+    JobSpec {
         name: RATES,
         source: Some(DataSource::Treasury),
         every: DAY,
@@ -87,6 +94,11 @@ pub(crate) const JOBS: [JobSpec; 16] = [
         name: MACRO,
         source: Some(DataSource::Fred),
         every: DAY,
+    },
+    JobSpec {
+        name: NEWS,
+        source: Some(DataSource::Alpaca),
+        every: SIX_HOURS,
     },
     JobSpec {
         name: VIX,

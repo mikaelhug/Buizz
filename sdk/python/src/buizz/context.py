@@ -29,6 +29,9 @@ from buizz.wire import (
     FundamentalsResult,
     HistoryRequest,
     HistoryResult,
+    InsiderOwner,
+    InsiderTradesRequest,
+    InsiderTradesResult,
     InstrumentProfile,
     InstrumentsRequest,
     InstrumentsResult,
@@ -42,6 +45,8 @@ from buizz.wire import (
     MarketOnClose,
     MarketOnOpen,
     Metric,
+    NewsRequest,
+    NewsResult,
     OrderRequest,
     OrderType,
     Position,
@@ -277,6 +282,36 @@ class EarningsRelease(msgspec.Struct, frozen=True):
     accepted_at: datetime
 
 
+class InsiderTrade(msgspec.Struct, frozen=True):
+    symbol: str
+    accession: str
+    form: str
+    filed: date
+    accepted_at: datetime
+    available_at: datetime
+    owners: list[InsiderOwner]
+    security: str
+    date: date
+    code: str
+    acquired: bool
+    shares: Decimal | None
+    price: Decimal | None
+    shares_after: Decimal | None
+    direct: bool
+
+
+class NewsArticle(msgspec.Struct, frozen=True):
+    id: int
+    symbols: list[str]
+    headline: str
+    summary: str
+    source: str
+    created_at: datetime
+    updated_at: datetime
+    received_at: datetime
+    backfilled: bool
+
+
 class MacroPoint(msgspec.Struct, frozen=True):
     series: MacroSeries
     date: date
@@ -456,6 +491,52 @@ class Context:
         return [
             EarningsRelease(r.symbol, r.cik, r.accession, r.form, r.filed, r.report_date, from_ns(r.accepted_at))
             for r in result.releases
+        ]
+
+    def insider_trades(self, symbols: list[str], since: date) -> list[InsiderTrade]:
+        self._current("ctx.insider_trades")
+        result = self._query(InsiderTradesRequest(texts("symbols", symbols), day("since", since)))
+        if not isinstance(result, InsiderTradesResult):
+            raise ProtocolError(f"insider trades query answered with {type(result).__name__}")
+        return [
+            InsiderTrade(
+                t.symbol,
+                t.accession,
+                t.form,
+                t.filed,
+                from_ns(t.accepted_at),
+                from_ns(t.available_at),
+                t.owners,
+                t.transaction.security,
+                t.transaction.date,
+                t.transaction.code,
+                t.transaction.acquired,
+                t.transaction.shares,
+                t.transaction.price,
+                t.transaction.shares_after,
+                t.transaction.direct,
+            )
+            for t in result.trades
+        ]
+
+    def news(self, symbols: list[str], since: date) -> list[NewsArticle]:
+        self._current("ctx.news")
+        result = self._query(NewsRequest(texts("symbols", symbols), day("since", since)))
+        if not isinstance(result, NewsResult):
+            raise ProtocolError(f"news query answered with {type(result).__name__}")
+        return [
+            NewsArticle(
+                a.id,
+                a.symbols,
+                a.headline,
+                a.summary,
+                a.source,
+                from_ns(a.created_at),
+                from_ns(a.updated_at),
+                from_ns(a.received_at),
+                a.backfilled,
+            )
+            for a in result.articles
         ]
 
     def calendar(self, start: date, end: date) -> list[Session]:

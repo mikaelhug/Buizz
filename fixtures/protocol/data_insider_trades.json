@@ -1,0 +1,38 @@
+{
+  "id": 7,
+  "result": {
+    "kind": "insider_trades",
+    "trades": [
+      {
+        "accepted_at": 1732055414000000000,
+        "accession": "0001140361-24-041201",
+        "available_at": 1732113000000000000,
+        "filed": "2024-11-19",
+        "form": "4",
+        "owners": [
+          {
+            "cik": 1214156,
+            "director": true,
+            "name": "Doe Jane",
+            "officer": true,
+            "officer_title": "Chief Executive Officer",
+            "other": false,
+            "ten_percent_owner": false
+          }
+        ],
+        "symbol": "BBB",
+        "transaction": {
+          "acquired": true,
+          "code": "P",
+          "date": "2024-11-18",
+          "direct": true,
+          "price": "49.1250",
+          "security": "Common Stock",
+          "shares": "1000",
+          "shares_after": "25000"
+        }
+      }
+    ]
+  },
+  "type": "data"
+}

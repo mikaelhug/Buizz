@@ -2,9 +2,11 @@ use std::ops::RangeInclusive;
 
 use buizz_core::api::{RunSummary, SparkPoint};
 use buizz_core::ledger::{LedgerEntry, LedgerKind, Portfolio};
+use buizz_core::market::Symbol;
 use buizz_core::order::{Fill, Order, OrderId};
 use buizz_core::run::{
-    DesiredState, EquityPoint, Reproducibility, RunEvent, RunEventKind, RunId, RunStatus,
+    DesiredState, EquityPoint, Reproducibility, RunEvent, RunEventKind, RunEventType, RunId,
+    RunStatus,
 };
 use buizz_core::time::Timestamp;
 use rusqlite::types::Value as Sql;
@@ -260,7 +262,7 @@ pub fn insert_events(connection: &Connection, run_id: RunId, events: &[RunEvent]
             int(event.seq)?,
             event.at.nanos(),
             event.clock.map(Timestamp::nanos),
-            tag_of(&event.kind)?,
+            enum_text(&event.kind.event_type())?,
             json_text(&event.kind)?,
         ])?;
     }
@@ -357,27 +359,26 @@ pub fn orders(
     Ok(orders)
 }
 
-pub fn fills(
+fn reasoned_fills(
     connection: &Connection,
-    run_id: RunId,
-    orders: RangeInclusive<OrderId>,
-) -> Result<Vec<Fill>> {
-    let mut statement = connection.prepare_cached(
-        "SELECT ledger_entry.at, ledger_entry.body, run_order.client_id FROM ledger_entry \
+    condition: &str,
+    values: Vec<Sql>,
+) -> Result<Vec<(Fill, String)>> {
+    let mut statement = connection.prepare_cached(&format!(
+        "SELECT ledger_entry.at, ledger_entry.body, run_order.client_id, \
+         json_extract(run_order.body, '$.reason') FROM ledger_entry \
          JOIN run_order ON run_order.run_id = ledger_entry.run_id \
          AND run_order.order_id = json_extract(ledger_entry.body, '$.order_id') \
-         WHERE ledger_entry.run_id = ? AND ledger_entry.kind = 'fill' \
-         AND json_extract(ledger_entry.body, '$.order_id') BETWEEN ? AND ? \
-         ORDER BY ledger_entry.seq",
-    )?;
-    let first = int(orders.start().0)?;
-    let last = int(orders.end().0)?;
+         WHERE ledger_entry.run_id = ? AND ledger_entry.kind = 'fill' AND {condition} \
+         ORDER BY ledger_entry.seq"
+    ))?;
     let fills = statement
-        .query_map(params![run_id.0, first, last], |row| {
+        .query_map(params_from_iter(values), |row| {
             let at = read_timestamp(row, 0)?;
             let kind: LedgerKind = read_json(row, 1)?;
             let client_id: String = row.get(2)?;
-            Ok((at, kind, client_id))
+            let reason: String = row.get(3)?;
+            Ok((at, kind, client_id, reason))
         })?
         .filter_map(|found| match found {
             Ok((
@@ -391,21 +392,54 @@ pub fn fills(
                     feed,
                 },
                 client_id,
-            )) => Some(Ok(Fill {
-                order_id,
-                client_id,
-                symbol,
-                at,
-                qty,
-                price,
-                commission,
-                feed,
-            })),
+                reason,
+            )) => Some(Ok((
+                Fill {
+                    order_id,
+                    client_id,
+                    symbol,
+                    at,
+                    qty,
+                    price,
+                    commission,
+                    feed,
+                },
+                reason,
+            ))),
             Ok(_) => None,
             Err(error) => Some(Err(error)),
         })
         .collect::<rusqlite::Result<_>>()?;
     Ok(fills)
+}
+
+pub fn fills(
+    connection: &Connection,
+    run_id: RunId,
+    orders: RangeInclusive<OrderId>,
+) -> Result<Vec<Fill>> {
+    let fills = reasoned_fills(
+        connection,
+        "json_extract(ledger_entry.body, '$.order_id') BETWEEN ? AND ?",
+        vec![
+            run_id.0.into(),
+            int(orders.start().0)?.into(),
+            int(orders.end().0)?.into(),
+        ],
+    )?;
+    Ok(fills.into_iter().map(|(fill, _)| fill).collect())
+}
+
+pub fn symbol_fills(
+    connection: &Connection,
+    run_id: RunId,
+    symbol: &Symbol,
+) -> Result<Vec<(Fill, String)>> {
+    reasoned_fills(
+        connection,
+        "ledger_entry.symbol = ?",
+        vec![run_id.0.into(), symbol.as_str().to_owned().into()],
+    )
 }
 
 pub fn equity(connection: &Connection, run_id: RunId) -> Result<Vec<EquityPoint>> {
@@ -449,14 +483,26 @@ pub fn events(
     run_id: RunId,
     after: Option<u64>,
     limit: u32,
+    types: &[RunEventType],
 ) -> Result<Vec<RunEvent>> {
-    let after = after.map(int).transpose()?.unwrap_or(-1);
-    let mut statement = connection.prepare_cached(
-        "SELECT seq, at, clock, body FROM run_event WHERE run_id = ? AND seq > ? \
-         ORDER BY seq LIMIT ?",
-    )?;
+    let mut values: Vec<Sql> = vec![
+        run_id.0.into(),
+        after.map(int).transpose()?.unwrap_or(-1).into(),
+    ];
+    let mut predicate = String::new();
+    if !types.is_empty() {
+        predicate = format!(" AND kind IN ({})", vec!["?"; types.len()].join(", "));
+        for event_type in types {
+            values.push(enum_text(event_type)?.into());
+        }
+    }
+    values.push(i64::from(limit).into());
+    let mut statement = connection.prepare_cached(&format!(
+        "SELECT seq, at, clock, body FROM run_event WHERE run_id = ? AND seq > ?{predicate} \
+         ORDER BY seq LIMIT ?"
+    ))?;
     let events = statement
-        .query_map(params![run_id.0, after, limit], |row| {
+        .query_map(params_from_iter(values), |row| {
             Ok(RunEvent {
                 seq: read_u64(row, 0)?,
                 at: read_timestamp(row, 1)?,
