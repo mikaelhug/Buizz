@@ -1,0 +1,9 @@
+description = "Bollinger lower-band reversion: the 100 most liquid stocks bought on a close below the 20-day mean minus 2 sigma while above their 200-day SMA, sold back at the middle band or after 10 sessions, both in the closing auction"
+command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
+timeframe = "1d"
+wake = "before_close:10m"
+universe = { top_dollar_volume = 100, asset_class = "stock" }
+params = { band_period = 20, band_sigma = 2.0, trend_sma = 200, max_positions = 10, max_hold = 10 }
+
+[risk]
+max_gross_exposure = 1.0
