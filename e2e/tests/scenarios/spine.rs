@@ -273,6 +273,12 @@ impl Spine {
         copy
     }
 
+    pub fn edit_shared_module(&self, name: &str, text: &str) {
+        let shared = self.dir.path().join("bots/buizz_bots");
+        std::fs::create_dir_all(&shared).expect("the shared bot package");
+        std::fs::write(shared.join(name), text).expect("the shared module");
+    }
+
     pub fn now(&self) -> Timestamp {
         now() + self.clock_shift
     }

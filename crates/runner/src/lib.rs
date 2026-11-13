@@ -298,7 +298,7 @@ impl Runner {
             .state
             .runs(RunFilter {
                 bot: Some(spec.name.clone()),
-                bot_hash: Some(spec.content_hash.clone()),
+                code: Some(spec.code()),
                 mode: Some(Mode::Backtest),
                 statuses: vec![
                     RunStatus::Queued,
@@ -374,7 +374,7 @@ impl Runner {
             }
             if run
                 .reproducibility
-                .is_none_or(|record| record.bot_hash != spec.content_hash)
+                .is_none_or(|record| !record.code().same_as(&spec.code()))
             {
                 return Err(RunnerError::InvalidRequest(format!(
                     "run {source} backtested older code of {}; backtest the current code first",

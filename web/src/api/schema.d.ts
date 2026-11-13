@@ -531,6 +531,7 @@ export interface components {
             holdout_runs: number;
             manifest: components["schemas"]["BotManifest"];
             bot_hash: string;
+            behaviour_hash: string;
             runs: components["schemas"]["RunSummary"][];
         };
         BotFootprint: {

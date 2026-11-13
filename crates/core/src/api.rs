@@ -186,6 +186,7 @@ pub struct BotDetail {
     pub holdout_runs: u32,
     pub manifest: BotManifest,
     pub bot_hash: String,
+    pub behaviour_hash: String,
     pub runs: Vec<RunSummary>,
 }
 

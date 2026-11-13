@@ -10,7 +10,7 @@ bots/red_green/
   bot.py
 ```
 
-The spine rescans `bots/` on every request, so a new or edited bot shows up without a restart. A folder is a bot when it holds a `bot.toml`; folders starting with `.` are ignored. Each run records a content hash of the folder and never continues under different code: when a backtest is (re)started after a restart, or a live run is started, resumed, starts its bot for a new session or restarts it after a crash, with edited bot code, the backtest fails and the live run pauses with the reason. Stop it and start a new run.
+The spine rescans `bots/` on every request, so a new or edited bot shows up without a restart. A folder is a bot when it holds a `bot.toml`; folders starting with `.` are ignored. Each run records a content hash of the folder with all shared code, and a behaviour hash of the bot's own code: its folder (Markdown notes and the `bot.toml` description left out) and the `buizz_bots` modules it imports, directly or through each other. A run never continues under different own code: when a backtest is (re)started after a restart, or a live run is started, resumed, starts its bot for a new session or restarts it after a crash, with edited bot code, the backtest fails and the live run pauses with the reason. Stop it and start a new run. An edit to a shared module the bot does not import, to the SDK or to the lockfile changes only the content hash, so the bot's screen, queued backtests and live runs carry on.
 
 ## Python environment and shared code
 

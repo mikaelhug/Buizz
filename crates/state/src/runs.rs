@@ -135,9 +135,17 @@ pub fn list(connection: &Connection, filter: &RunFilter) -> Result<Vec<RunSummar
         conditions.push("bot = ?".to_owned());
         values.push(bot.clone().into());
     }
-    if let Some(bot_hash) = &filter.bot_hash {
-        conditions.push("bot_hash = ?".to_owned());
-        values.push(bot_hash.clone().into());
+    if let Some(code) = &filter.code {
+        match &code.behaviour_hash {
+            Some(behaviour_hash) => {
+                conditions.push(
+                    "(behaviour_hash = ? OR (behaviour_hash IS NULL AND bot_hash = ?))".to_owned(),
+                );
+                values.push(behaviour_hash.clone().into());
+            }
+            None => conditions.push("bot_hash = ?".to_owned()),
+        }
+        values.push(code.content_hash.clone().into());
     }
     if let Some(mode) = filter.mode {
         conditions.push("mode = ?".to_owned());

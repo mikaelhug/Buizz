@@ -42,7 +42,7 @@ async fn cli_sweep(spine: &Spine) -> Vec<String> {
 #[tokio::test(flavor = "multi_thread")]
 async fn a_swept_grid_runs_once_and_two_of_its_variants_go_live_side_by_side() {
     let fake = FakeProviders::serve(World::screening(now())).await;
-    let spine = Spine::start(
+    let mut spine = Spine::start(
         fake,
         Options {
             bots: &["sma_cross"],
@@ -75,7 +75,7 @@ async fn a_swept_grid_runs_once_and_two_of_its_variants_go_live_side_by_side() {
     assert_eq!(again.skipped, 4);
     assert_eq!((again.trials.variants, again.trials.runs), (4, 5));
 
-    let research = eventually("the sweep to finish", || async {
+    eventually("the sweep to finish", || async {
         let research: Research = spine.get("/api/bots/sma_cross/research").await;
         research
             .presets
@@ -87,9 +87,28 @@ async fn a_swept_grid_runs_once_and_two_of_its_variants_go_live_side_by_side() {
                         .iter()
                         .all(|variant| variant.status == RunStatus::Completed)
             })
-            .then_some(research)
+            .then_some(())
     })
     .await;
+    spine.edit_shared_module("unused.py", "WINDOW = 20\n");
+    let research: Research = spine.get("/api/bots/sma_cross/research").await;
+    assert_eq!(
+        (research.gate_preset, research.presets[0].variants.len()),
+        (Some(research.presets[0].preset), 4),
+        "a shared module sma_cross does not import leaves its screen standing"
+    );
+    let rerun: RunSummary = spine
+        .post(
+            "/api/bots/sma_cross/backtests",
+            json!({"preset": "1y", "params": {"fast": 5, "slow": 20}}),
+        )
+        .await;
+    spine.kill().await;
+    spine.edit_shared_module("unused.py", "WINDOW = 50\n");
+    spine.restart().await;
+    spine.finished(rerun.id).await;
+    let research: Research = spine.get("/api/bots/sma_cross/research").await;
+    assert_eq!((research.trials.variants, research.trials.runs), (4, 6));
     let variants = &research.presets[0].variants;
     let mut grid: Vec<(i64, i64)> = variants
         .iter()

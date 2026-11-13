@@ -654,6 +654,30 @@ pub struct Reproducibility {
     pub data_watermark: Option<Timestamp>,
 }
 
+impl Reproducibility {
+    pub fn code(&self) -> BotCode {
+        BotCode {
+            content_hash: self.bot_hash.clone(),
+            behaviour_hash: self.behaviour_hash.clone(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BotCode {
+    pub content_hash: String,
+    pub behaviour_hash: Option<String>,
+}
+
+impl BotCode {
+    pub fn same_as(&self, other: &BotCode) -> bool {
+        match (&self.behaviour_hash, &other.behaviour_hash) {
+            (Some(own), Some(theirs)) => own == theirs,
+            _ => self.content_hash == other.content_hash,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum RunBadge {

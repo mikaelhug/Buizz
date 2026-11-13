@@ -277,7 +277,7 @@ impl Runner {
             .state
             .runs(RunFilter {
                 bot: Some(spec.name.clone()),
-                bot_hash: Some(spec.content_hash.clone()),
+                code: Some(spec.code()),
                 mode: Some(Mode::Backtest),
                 statuses: SCREENED_STATUSES.to_vec(),
                 ..RunFilter::default()
@@ -346,7 +346,7 @@ impl Runner {
             .state
             .runs(RunFilter {
                 bot: Some(spec.name.clone()),
-                bot_hash: Some(spec.content_hash.clone()),
+                code: Some(spec.code()),
                 mode: Some(Mode::Backtest),
                 statuses: vec![RunStatus::Completed],
                 limit: Some(1),

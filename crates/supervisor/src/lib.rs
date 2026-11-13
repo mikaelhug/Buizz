@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use buizz_core::api::ProcessSlots;
 use buizz_core::protocol::{ENV_RUN_ID, ENV_RUN_TOKEN, ENV_SPINE_URL};
-use buizz_core::run::{BotManifest, RunId};
+use buizz_core::run::{BotCode, BotManifest, RunId};
 use nix::errno::Errno;
 use nix::sys::signal::{Signal, killpg};
 use nix::unistd::Pid;
@@ -100,6 +100,15 @@ pub fn load_bot(bots_dir: &Path, name: &str) -> Result<BotSpec, SupervisorError>
         return Err(SupervisorError::NoSuchBot(name.to_owned()));
     }
     load(name.to_owned(), dir)
+}
+
+impl BotSpec {
+    pub fn code(&self) -> BotCode {
+        BotCode {
+            content_hash: self.content_hash.clone(),
+            behaviour_hash: Some(self.behaviour_hash.clone()),
+        }
+    }
 }
 
 fn load(name: String, dir: PathBuf) -> Result<BotSpec, SupervisorError> {
@@ -212,22 +221,29 @@ fn module_file(package: &Path, module: &[String]) -> Option<(PathBuf, Vec<String
         .then(|| (file, parent.to_vec()))
 }
 
-fn logical_statements(source: &str) -> Vec<String> {
+fn import_statements(source: &str) -> Vec<String> {
     let mut statements = Vec::new();
-    let mut current = String::new();
+    let mut current: Option<String> = None;
     let mut depth = 0_i32;
     for line in source.lines() {
-        let code = line.split('#').next().unwrap_or_default();
-        let continued = code.trim_end().ends_with('\\');
-        current.push(' ');
-        current.push_str(code.trim_end().trim_end_matches('\\'));
+        let code = line.split('#').next().unwrap_or_default().trim();
+        let statement = match current.as_mut() {
+            Some(statement) => statement,
+            None if code.starts_with("from ") || code.starts_with("import ") => {
+                depth = 0;
+                current.insert(String::new())
+            }
+            None => continue,
+        };
+        let continued = code.ends_with('\\');
+        statement.push(' ');
+        statement.push_str(code.trim_end_matches('\\'));
         depth += code.matches('(').count() as i32 - code.matches(')').count() as i32;
         if depth <= 0 && !continued {
-            statements.push(std::mem::take(&mut current));
-            depth = 0;
+            statements.extend(current.take());
         }
     }
-    statements.push(current);
+    statements.extend(current);
     statements
 }
 
@@ -247,7 +263,7 @@ fn shared_imports(source: &str, own_package: Option<&[String]>) -> Vec<Vec<Strin
         let mut parts = dotted.split('.');
         (parts.next() == Some(SHARED_PACKAGE)).then(|| parts.map(str::to_owned).collect())
     };
-    for statement in logical_statements(source) {
+    for statement in import_statements(source) {
         let statement = statement.trim();
         if let Some(targets) = statement.strip_prefix("import ") {
             for target in targets.split(',') {

@@ -1348,6 +1348,7 @@
           "holdout_runs",
           "manifest",
           "bot_hash",
+          "behaviour_hash",
           "runs"
         ],
         "properties": {
@@ -1366,6 +1367,9 @@
             "$ref": "#/components/schemas/BotManifest"
           },
           "bot_hash": {
+            "type": "string"
+          },
+          "behaviour_hash": {
             "type": "string"
           },
           "runs": {
