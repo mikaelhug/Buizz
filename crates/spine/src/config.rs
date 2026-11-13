@@ -6,6 +6,7 @@ use anyhow::{Context, Result};
 use buizz_core::market::Symbol;
 use buizz_sources::alpaca::{self, AlpacaConfig};
 use buizz_sources::alpaca_stream::{self, STREAM_KEYS_ENV, StreamConfig, stream_keys};
+use buizz_sources::anthropic::{self, AnthropicConfig};
 use buizz_sources::cboe::{self, CboeConfig};
 use buizz_sources::edgar::{self, EdgarConfig};
 use buizz_sources::factset::{self, FactsetConfig};
@@ -18,6 +19,7 @@ use buizz_sources::tiingo::{self, TiingoConfig};
 use buizz_sources::treasury::{self, TreasuryConfig};
 use buizz_sources::wikipedia::{self, WikipediaConfig};
 use chrono::TimeDelta;
+use rust_decimal::Decimal;
 
 pub struct Config {
     pub bind: SocketAddr,
@@ -44,6 +46,7 @@ pub struct Config {
     pub fed: FedConfig,
     pub factset: Option<FactsetConfig>,
     pub finra: FinraConfig,
+    pub anthropic: Option<AnthropicConfig>,
     pub ingest_symbols: Option<BTreeSet<Symbol>>,
     pub duckdb_memory: String,
     pub duckdb_threads: usize,
@@ -79,6 +82,17 @@ fn admin_password(value: Option<String>) -> Result<String> {
         "BUIZZ_ADMIN_PASSWORD must be at least {MIN_ADMIN_PASSWORD_CHARS} characters, it has {length}"
     );
     Ok(password)
+}
+
+fn spend_cap(value: Option<String>) -> Result<Decimal> {
+    value.map_or(Ok(anthropic::DEFAULT_SPEND_CAP), |dollars| {
+        dollars
+            .trim()
+            .parse::<Decimal>()
+            .ok()
+            .filter(|cap| !cap.is_sign_negative())
+            .with_context(|| format!("{} must be a dollar amount", anthropic::SPEND_CAP_ENV))
+    })
 }
 
 pub fn clock_offset() -> Result<TimeDelta> {
@@ -185,6 +199,15 @@ impl Config {
                 cdn_url: var_or(finra::CDN_URL_ENV, finra::CDN_URL),
                 site_url: var_or(finra::SITE_URL_ENV, finra::SITE_URL),
             },
+            anthropic: var(anthropic::KEY_ENV)
+                .map(|api_key| -> Result<AnthropicConfig> {
+                    Ok(AnthropicConfig {
+                        base_url: var_or(anthropic::URL_ENV, anthropic::BASE_URL),
+                        spend_cap: spend_cap(var(anthropic::SPEND_CAP_ENV))?,
+                        ..AnthropicConfig::new(api_key)
+                    })
+                })
+                .transpose()?,
             ingest_symbols: var("BUIZZ_INGEST_SYMBOLS").map(|symbols| {
                 symbols
                     .split(',')

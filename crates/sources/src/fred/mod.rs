@@ -6,7 +6,7 @@ use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use serde::Deserialize;
 
-use crate::http::{HttpClient, REDACTED, RateLimit, SourceError};
+use crate::http::{HttpClient, REDACTED, RateLimit, SourceError, decode_json};
 
 pub const BASE_URL: &str = "https://api.stlouisfed.org";
 pub const RATE_LIMIT: RateLimit = RateLimit {
@@ -104,7 +104,7 @@ impl FredClient {
                 ("offset", &offset),
             ]);
             let body = self.http.fetch(request).await.map_err(without_url)?;
-            let page: WireVintageDates = decode(&body)?;
+            let page: WireVintageDates = decode_json(&body)?;
             let received = page.vintage_dates.len();
             dates.extend(page.vintage_dates);
             if received == 0 || dates.len() >= page.count {
@@ -150,7 +150,7 @@ impl FredClient {
                 ("offset", &offset),
             ]);
             let body = self.http.fetch(request).await.map_err(without_url)?;
-            let page: WirePage = decode(&body)?;
+            let page: WirePage = decode_json(&body)?;
             let received = page.observations.len();
             observations.extend(page.observations);
             if received == 0 || observations.len() >= page.count {
@@ -210,10 +210,6 @@ pub fn normalize(
             })
         })
         .collect()
-}
-
-fn decode<T: serde::de::DeserializeOwned>(body: &[u8]) -> Result<T, SourceError> {
-    serde_json::from_slice(body).map_err(|error| SourceError::Decode(error.to_string()))
 }
 
 fn without_url(error: SourceError) -> SourceError {

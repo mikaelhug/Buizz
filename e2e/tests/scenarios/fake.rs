@@ -24,6 +24,7 @@ const FOMC_CALENDAR: &str = include_str!("../../../crates/sources/fixtures/fed/f
 const FINRA_SCHEDULE: &str =
     include_str!("../../../crates/sources/fixtures/finra/short-interest.htm");
 const RETRY_AFTER_SECONDS: &str = "3600";
+const CLAUDE_BATCH_ID: &str = "msgbatch_e2e";
 const SYMBOL_LIMIT_EXCEEDED: &str = r#"[{"T":"error","code":405,"msg":"symbol limit exceeded"}]"#;
 
 type Params = HashMap<String, String>;
@@ -36,6 +37,7 @@ struct Fake {
     rate_limited: Mutex<BTreeMap<&'static str, u32>>,
     stream_accounts: usize,
     subscriptions: Mutex<BTreeMap<String, BTreeSet<Symbol>>>,
+    batch: Mutex<Vec<String>>,
 }
 
 impl Fake {
@@ -94,6 +96,7 @@ impl FakeProviders {
             rate_limited: Mutex::default(),
             stream_accounts,
             subscriptions: Mutex::default(),
+            batch: Mutex::default(),
         });
         let router = Router::new()
             .route("/v2/calendar", get(calendar))
@@ -127,6 +130,10 @@ impl FakeProviders {
             .route("/earningsinsight", get(latest_earnings_insight))
             .route("/hubfs/{*file}", get(earnings_insight))
             .route("/cdx/search/cdx", get(|| async { "" }))
+            .route("/v1/messages", post(|| async { Json(claude_message()) }))
+            .route("/v1/messages/batches", post(create_batch))
+            .route("/v1/messages/batches/{id}", get(claude_batch))
+            .route("/v1/messages/batches/{id}/results", get(batch_results))
             .route("/control/release", post(release))
             .with_state(fake.clone());
         let listener = TcpListener::bind("127.0.0.1:0")
@@ -764,6 +771,75 @@ async fn earnings_insight(State(fake): State<Arc<Fake>>, Path(file): Path<String
         }
         _ => StatusCode::NOT_FOUND.into_response(),
     }
+}
+
+fn claude_message() -> Value {
+    json!({
+        "id": "msg_e2e",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-haiku-5-5",
+        "content": [{"type": "text", "text": "{}"}],
+        "stop_reason": "end_turn",
+        "stop_details": null,
+        "usage": {
+            "input_tokens": 1200,
+            "output_tokens": 40,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 1500,
+        },
+    })
+}
+
+fn claude_batch_status(fake: &Fake) -> Value {
+    let requests = fake
+        .batch
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .len();
+    json!({
+        "id": CLAUDE_BATCH_ID,
+        "type": "message_batch",
+        "processing_status": "ended",
+        "request_counts": {
+            "processing": 0,
+            "succeeded": requests,
+            "errored": 0,
+            "canceled": 0,
+            "expired": 0,
+        },
+    })
+}
+
+async fn create_batch(State(fake): State<Arc<Fake>>, Json(request): Json<Value>) -> Response {
+    let custom_ids = request["requests"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|request| request["custom_id"].as_str().map(str::to_owned))
+        .collect();
+    *fake.batch.lock().unwrap_or_else(PoisonError::into_inner) = custom_ids;
+    Json(claude_batch_status(&fake)).into_response()
+}
+
+async fn claude_batch(State(fake): State<Arc<Fake>>) -> Response {
+    Json(claude_batch_status(&fake)).into_response()
+}
+
+async fn batch_results(State(fake): State<Arc<Fake>>) -> Response {
+    let batch = fake.batch.lock().unwrap_or_else(PoisonError::into_inner);
+    batch
+        .iter()
+        .rev()
+        .map(|custom_id| {
+            let line = json!({
+                "custom_id": custom_id,
+                "result": {"type": "succeeded", "message": claude_message()},
+            });
+            format!("{line}\n")
+        })
+        .collect::<String>()
+        .into_response()
 }
 
 async fn release(State(fake): State<Arc<Fake>>, Json(request): Json<Value>) -> Response {

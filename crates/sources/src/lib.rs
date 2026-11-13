@@ -1,5 +1,6 @@
 pub mod alpaca;
 pub mod alpaca_stream;
+pub mod anthropic;
 pub mod cboe;
 pub mod edgar;
 pub mod factset;
@@ -14,6 +15,7 @@ pub mod treasury;
 pub mod wikipedia;
 
 use alpaca::AlpacaClient;
+use anthropic::AnthropicClient;
 use cboe::CboeClient;
 use edgar::EdgarClient;
 use factset::FactsetClient;
@@ -40,4 +42,5 @@ pub struct Sources {
     pub fed: Option<FedClient>,
     pub factset: Option<FactsetClient>,
     pub finra: Option<FinraClient>,
+    pub anthropic: Option<AnthropicClient>,
 }

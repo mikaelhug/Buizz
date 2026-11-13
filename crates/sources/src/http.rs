@@ -56,10 +56,18 @@ pub struct HttpClient {
 
 impl HttpClient {
     pub fn new(user_agent: &str, limit: RateLimit) -> Result<Self, SourceError> {
+        Self::with_timeout(user_agent, limit, Duration::from_secs(60))
+    }
+
+    pub fn with_timeout(
+        user_agent: &str,
+        limit: RateLimit,
+        timeout: Duration,
+    ) -> Result<Self, SourceError> {
         let client = reqwest::Client::builder()
             .user_agent(user_agent)
             .connect_timeout(Duration::from_secs(10))
-            .timeout(Duration::from_secs(60))
+            .timeout(timeout)
             .build()?;
         Ok(Self {
             client,
@@ -104,6 +112,12 @@ impl HttpClient {
     }
 
     async fn fetch_once(&self, request: RequestBuilder) -> Result<(String, Vec<u8>), SourceError> {
+        let response = self.open(request).await?;
+        let url = response.url().to_string();
+        Ok((url, response.bytes().await?.to_vec()))
+    }
+
+    pub async fn open(&self, request: RequestBuilder) -> Result<reqwest::Response, SourceError> {
         self.wait_for_slot().await;
         let response = request.send().await?;
         let status = response.status();
@@ -120,8 +134,7 @@ impl HttpClient {
                 body,
             });
         }
-        let url = response.url().to_string();
-        Ok((url, response.bytes().await?.to_vec()))
+        Ok(response)
     }
 
     async fn hold(&self, wait: Duration) {
@@ -140,7 +153,7 @@ impl HttpClient {
     }
 }
 
-fn transient(error: &SourceError) -> bool {
+pub(crate) fn transient(error: &SourceError) -> bool {
     match error {
         SourceError::Http(error) => {
             error.is_timeout()
@@ -166,6 +179,10 @@ fn retry_after(headers: &HeaderMap) -> Option<Duration> {
         .ok()?
         .as_secs();
     Some(Duration::from_secs(reset.saturating_sub(now).max(1)))
+}
+
+pub(crate) fn decode_json<T: de::DeserializeOwned>(body: &[u8]) -> Result<T, SourceError> {
+    serde_json::from_slice(body).map_err(|error| SourceError::Decode(error.to_string()))
 }
 
 pub(crate) fn json_decimal(number: &Number) -> Option<Decimal> {

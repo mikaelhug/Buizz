@@ -79,6 +79,9 @@ The spine (`cargo run -p buizz-spine`) reads these environment variables. Empty 
 | `FRED_URL` | `https://api.stlouisfed.org` | FRED endpoint |
 | `CBOE_URL` | `https://cdn.cboe.com` | CBOE endpoint for the daily VIX and VIX3M history files |
 | `FED_URL` | `https://www.federalreserve.gov` | Federal Reserve Board site, read for the FOMC meeting calendar |
+| `ANTHROPIC_API_KEY` | unset | Enables Claude Haiku 5.5 for reading facts out of 8-K text; a key from the Claude Console (a Claude subscription is not one). Never logged. Without it the client is unconfigured |
+| `ANTHROPIC_SPEND_CAP_USD` | `5` | Dollars the spine may spend on the Anthropic API before it refuses new requests, counted from each response's `usage` since the spine started |
+| `ANTHROPIC_URL` | `https://api.anthropic.com` | Anthropic API endpoint |
 | `FINRA_URL`, `FINRA_API_URL`, `FINRA_CDN_URL` | `https://www.finra.org`, `https://api.finra.org`, `https://cdn.finra.org` | FINRA's site (the short interest publication schedule), its public Query API (short interest) and its file server (daily short sale volume); free, no key or account, so the `short_interest` and `short_volume` jobs always run |
 | `BUIZZ_DUCKDB_MEMORY` | `1GB` | Memory the market store may use for queries and writes before it spills to `market.duckdb.tmp/` in the data directory |
 | `BUIZZ_DUCKDB_THREADS` | `2` | Threads the market store uses |

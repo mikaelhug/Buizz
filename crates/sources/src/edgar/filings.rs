@@ -4,7 +4,7 @@ use chrono::NaiveDate;
 use serde::Deserialize;
 
 use super::{EARNINGS_FORMS, INSIDER_FORMS, PERIODIC_FORMS, symbol as ticker};
-use crate::http::SourceError;
+use crate::http::{SourceError, decode_json};
 
 const RESULTS_OF_OPERATIONS: &str = "2.02";
 
@@ -80,12 +80,8 @@ struct Columns {
     document: Vec<String>,
 }
 
-fn decode<T: for<'de> Deserialize<'de>>(payload: &[u8]) -> Result<T, SourceError> {
-    serde_json::from_slice(payload).map_err(|error| SourceError::Decode(error.to_string()))
-}
-
 pub fn normalize_submissions(symbol: &Symbol, payload: &[u8]) -> Result<Submissions, SourceError> {
-    let wire: WireSubmissions = decode(payload)?;
+    let wire: WireSubmissions = decode_json(payload)?;
     let cik: u32 = wire
         .cik
         .parse()
@@ -121,7 +117,7 @@ pub fn normalize_filings_page(
     cik: u32,
     payload: &[u8],
 ) -> Result<Filings, SourceError> {
-    filings(symbol, cik, &decode(payload)?)
+    filings(symbol, cik, &decode_json(payload)?)
 }
 
 fn filings(symbol: &Symbol, cik: u32, columns: &Columns) -> Result<Filings, SourceError> {

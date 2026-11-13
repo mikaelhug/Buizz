@@ -15,6 +15,7 @@ use buizz_runner::{Runner, RunnerConfig, RunnerDeps};
 use buizz_sources::Sources;
 use buizz_sources::alpaca::AlpacaClient;
 use buizz_sources::alpaca_stream::SYMBOL_CAP;
+use buizz_sources::anthropic::AnthropicClient;
 use buizz_sources::cboe::CboeClient;
 use buizz_sources::edgar::EdgarClient;
 use buizz_sources::factset::FactsetClient;
@@ -135,6 +136,11 @@ async fn serve() -> Result<()> {
         fed: Some(FedClient::new(config.fed.clone())?),
         factset: config.factset.clone().map(FactsetClient::new).transpose()?,
         finra: Some(FinraClient::new(config.finra.clone())?),
+        anthropic: config
+            .anthropic
+            .clone()
+            .map(AnthropicClient::new)
+            .transpose()?,
     };
     let feed = FeedManager::new(
         FeedConfig {

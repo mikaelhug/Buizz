@@ -174,6 +174,8 @@ impl Spine {
             .env("FRED_URL", url)
             .env("CBOE_URL", url)
             .env("FED_URL", url)
+            .env("ANTHROPIC_API_KEY", "e2e-anthropic")
+            .env("ANTHROPIC_URL", url)
             .env(
                 "BUIZZ_TEXT_DIRS",
                 text_dirs
