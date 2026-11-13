@@ -1,8 +1,15 @@
 from collections.abc import Mapping
+from typing import NamedTuple
 
 from buizz import Context
 
 UNCHANGED_SHARE_MARGIN = 0.5
+
+
+class Book(NamedTuple):
+    targets: dict[str, float]
+    reasons: dict[str, str]
+    exit_reason: str
 
 
 def rebalance_within_band(
