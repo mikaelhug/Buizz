@@ -10,12 +10,15 @@ type Changes = BTreeMap<Symbol, Vec<(NaiveDate, Symbol)>>;
 pub struct Listings {
     renamed_to: Changes,
     renamed_from: Changes,
+    succeeded_from: Changes,
+    merged_away: BTreeMap<Symbol, Vec<NaiveDate>>,
     ended: BTreeMap<Symbol, Vec<NaiveDate>>,
 }
 
 impl Listings {
     pub fn new<'a>(
         actions: impl IntoIterator<Item = &'a CorporateAction>,
+        successions: impl IntoIterator<Item = &'a CorporateAction>,
         keys: impl IntoIterator<Item = &'a Symbol>,
     ) -> Self {
         let mut listings = Self::default();
@@ -43,6 +46,28 @@ impl Listings {
                     .push((action.ex_date, action.symbol.clone()));
             }
         }
+        for action in successions {
+            if let CorporateActionKind::StockMerger {
+                acquirer,
+                old_rate,
+                new_rate,
+                cash_rate,
+            } = &action.kind
+                && old_rate == new_rate
+                && cash_rate.is_zero()
+            {
+                listings
+                    .succeeded_from
+                    .entry(acquirer.clone())
+                    .or_default()
+                    .push((action.ex_date, action.symbol.clone()));
+                listings
+                    .merged_away
+                    .entry(action.symbol.clone())
+                    .or_default()
+                    .push(action.ex_date);
+            }
+        }
         for (ticker, last) in keys.into_iter().filter_map(Symbol::ended_listing) {
             listings.ended.entry(ticker).or_default().push(last);
         }
@@ -50,6 +75,7 @@ impl Listings {
             .renamed_to
             .values_mut()
             .chain(listings.renamed_from.values_mut())
+            .chain(listings.succeeded_from.values_mut())
         {
             changes.sort();
         }
@@ -107,10 +133,16 @@ impl Listings {
         let (mut ticker, mut on) = (ticker.clone(), on);
         let mut seen = BTreeSet::new();
         while seen.insert(ticker.clone()) {
-            let renamed = self
-                .renamed_to
-                .get(&ticker)
-                .and_then(|changes| changes.iter().find(|(date, _)| *date > on));
+            let taken_over = |until: NaiveDate| {
+                self.renamed_from.get(&ticker).is_some_and(|changes| {
+                    changes.iter().any(|(date, _)| on < *date && *date <= until)
+                })
+            };
+            let renamed = self.renamed_to.get(&ticker).and_then(|changes| {
+                changes
+                    .iter()
+                    .find(|(date, _)| *date > on && !taken_over(*date))
+            });
             let ended = self
                 .ended
                 .get(&ticker)
@@ -123,11 +155,18 @@ impl Listings {
                 (_, None) => break,
             }
         }
-        let arrives_later = self
-            .renamed_from
+        let later = |changes: &Changes| {
+            changes
+                .get(&ticker)
+                .is_some_and(|changes| changes.iter().any(|(date, _)| *date > on))
+        };
+        let arrives_later = later(&self.renamed_from);
+        let merged_away = self
+            .merged_away
             .get(&ticker)
-            .is_some_and(|changes| changes.iter().any(|(date, _)| *date > on));
-        (!arrives_later).then_some(ticker)
+            .is_some_and(|dates| dates.iter().any(|date| *date > on));
+        let held_before = arrives_later && (later(&self.renamed_to) || merged_away);
+        (!arrives_later || held_before).then_some(ticker)
     }
 
     pub fn renamed_into(&self, ticker: &Symbol, since: NaiveDate) -> bool {
@@ -163,15 +202,22 @@ impl Listings {
         let (mut symbol, mut bound) = (symbol.clone(), until.unwrap_or(NaiveDate::MAX));
         let mut seen = BTreeSet::new();
         while seen.insert(symbol.clone()) {
-            let Some((date, old)) = self.renamed_from.get(&symbol).and_then(|changes| {
+            let within = |changes: &Vec<(NaiveDate, Symbol)>| {
                 changes
                     .iter()
                     .rfind(|(date, _)| on < *date && *date <= bound)
-            }) else {
+                    .cloned()
+            };
+            let renamed = self.renamed_from.get(&symbol).and_then(within);
+            let succeeded = self
+                .succeeded_from
+                .get(&self.current(&symbol, on))
+                .and_then(within);
+            let Some((date, old)) = renamed.into_iter().chain(succeeded).max() else {
                 break;
             };
             bound = date.pred_opt().unwrap_or(NaiveDate::MIN);
-            symbol = old.clone();
+            symbol = old;
         }
         symbol
     }
@@ -287,6 +333,7 @@ mod tests {
                 renamed("UTX", "RTX", "2020-04-03"),
             ],
             [],
+            [],
         );
         let spin_off = listings.rekey(CorporateAction {
             symbol: sym("UTX"),
@@ -314,6 +361,68 @@ mod tests {
         assert_eq!(
             listings.former(&[sym("GEN")]),
             vec![sym("GEN"), sym("NLOK"), sym("SYMC")]
+        );
+    }
+
+    #[test]
+    fn a_ticker_renamed_away_by_a_company_that_took_it_later_names_the_earlier_company_before_then()
+    {
+        let ended = sym("XL@2016-07-22");
+        let listings = Listings::new(
+            &[
+                renamed("PIC", "XL", "2020-12-24"),
+                renamed("XL", "SPRU", "2022-11-14"),
+            ],
+            [],
+            [&ended],
+        );
+        assert_eq!(
+            listings.listing(&sym("XL"), date("2016-03-01")),
+            Some(ended)
+        );
+        assert_eq!(
+            listings.listing(&sym("XL"), date("2018-03-01")),
+            Some(sym("XL")),
+            "XL Group traded under XL before XL Fleet took the ticker and renamed it away"
+        );
+        assert_eq!(
+            listings.listing(&sym("XL"), date("2021-06-01")),
+            Some(sym("SPRU"))
+        );
+    }
+
+    #[test]
+    fn a_member_merged_one_for_one_into_a_new_company_was_the_merged_company_before() {
+        let merged = CorporateAction {
+            symbol: sym("PARA"),
+            ex_date: date("2025-08-07"),
+            kind: CorporateActionKind::StockMerger {
+                acquirer: sym("SKYD"),
+                old_rate: 1.into(),
+                new_rate: 1.into(),
+                cash_rate: 0.into(),
+            },
+        };
+        let listings = Listings::new(
+            &[
+                renamed("PSKY", "SKYD", "2026-10-06"),
+                renamed("BNZI", "PARA", "2026-08-07"),
+            ],
+            [&merged],
+            [],
+        );
+        assert_eq!(
+            listings.listing(&sym("PARA"), date("2024-01-02")),
+            Some(sym("PARA")),
+            "Paramount traded as PARA before another company took the ticker"
+        );
+        assert_eq!(
+            listings.ticker(&sym("SKYD"), date("2024-01-02"), None, None),
+            sym("PARA")
+        );
+        assert_eq!(
+            listings.ticker(&sym("SKYD"), date("2025-09-02"), None, None),
+            sym("PSKY")
         );
     }
 }

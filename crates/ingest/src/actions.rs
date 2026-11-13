@@ -39,7 +39,7 @@ impl Ingest {
         if self.name_changes(now, alpaca, &mut batch, through).await? {
             return Ok(batch.finish("corporate actions"));
         }
-        let renames = Listings::new(&self.market.actions_reaching_other_symbols().await?, []);
+        let renames = Listings::new(&self.market.actions_reaching_other_symbols().await?, [], []);
         let covered = self
             .symbol_coverage(Dataset::CorporateActions, DataSource::Alpaca)
             .await?;
@@ -175,6 +175,55 @@ impl Ingest {
                     from,
                     through,
                     covered_to: (!backfilled).then_some(today),
+                },
+            )
+            .await?;
+        self.record_fetched(now, &key, count).await?;
+        batch.success(summary.rows);
+        let key = FetchKey::new(
+            DataSource::Alpaca,
+            Dataset::CorporateActions,
+            None,
+            Some((history_start, through)),
+        );
+        let mergers = alpaca
+            .stock_mergers(
+                history_start - PROCESS_DATE_SLACK,
+                through + PROCESS_DATE_SLACK,
+            )
+            .await;
+        let mergers = match mergers {
+            Ok(actions) => actions,
+            Err(error) => {
+                self.record_failure(now, &key, &error).await?;
+                return Ok(batch.source_error("stock mergers", &error));
+            }
+        };
+        let renames = Listings::new(&self.market.actions_reaching_other_symbols().await?, [], []);
+        let mergers: Vec<CorporateAction> = mergers
+            .into_iter()
+            .filter(|action| {
+                (history_start..=through).contains(&action.ex_date)
+                    && matches!(&action.kind, CorporateActionKind::StockMerger {
+                        old_rate,
+                        new_rate,
+                        cash_rate,
+                        ..
+                    } if old_rate == new_rate && cash_rate.is_zero())
+            })
+            .map(|action| renames.rekey(action))
+            .collect();
+        let count = mergers.len();
+        let summary = self
+            .market
+            .replace_stock_mergers(
+                DataSource::Alpaca,
+                mergers,
+                ActionWindow {
+                    symbols: Vec::new(),
+                    from: history_start,
+                    through,
+                    covered_to: None,
                 },
             )
             .await?;

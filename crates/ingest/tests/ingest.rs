@@ -1121,6 +1121,7 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
         action_starts,
         vec![
             (String::new(), "2024-03-12".to_owned(), true),
+            (String::new(), "2015-12-02".to_owned(), false),
             (String::new(), "2024-03-12".to_owned(), false),
             ("BADX,MSFT".to_owned(), "2015-12-02".to_owned(), false),
         ]

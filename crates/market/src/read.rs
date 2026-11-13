@@ -73,12 +73,18 @@ pub(crate) fn instruments(connection: &Connection) -> Result<Vec<Instrument>> {
 
 pub(crate) fn listings(connection: &Connection) -> Result<Listings> {
     let renames = select_actions(connection, "kind = 'name_change'", Params::new())?;
+    let successions = select_actions(
+        connection,
+        "kind = 'stock_merger' AND NOT EXISTS (SELECT 1 FROM bar_1d b \
+         WHERE b.symbol = other_symbol AND b.date < ex_date - INTERVAL 30 DAY)",
+        Params::new(),
+    )?;
     let mut statement =
         connection.prepare_cached("SELECT symbol FROM instrument WHERE contains(symbol, '@')")?;
     let keys = statement
         .query_map([], |row| Ok(row.get::<_, Sym>(0)?.0))?
         .collect::<duckdb::Result<Vec<_>>>()?;
-    Ok(Listings::new(&renames, &keys))
+    Ok(Listings::new(&renames, &successions, &keys))
 }
 
 pub(crate) fn listed_on(calendar: &Calendar, at: Timestamp) -> NaiveDate {

@@ -277,6 +277,14 @@ impl AlpacaClient {
         self.actions(None, "name_change", from, to).await
     }
 
+    pub async fn stock_mergers(
+        &self,
+        from: NaiveDate,
+        to: NaiveDate,
+    ) -> Result<Vec<CorporateAction>, SourceError> {
+        self.actions(None, "stock_merger", from, to).await
+    }
+
     async fn actions(
         &self,
         symbols: Option<String>,

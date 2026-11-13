@@ -480,8 +480,7 @@ impl MarketStore {
         let shared = Arc::clone(&self.shared);
         self.writer
             .run(move |connection| {
-                let summary =
-                    write::corporate_actions(connection, source, actions, &window, false)?;
+                let summary = write::corporate_actions(connection, source, actions, &window, None)?;
                 shared.refresh_actions(connection)?;
                 Ok(summary)
             })
@@ -497,7 +496,39 @@ impl MarketStore {
         let shared = Arc::clone(&self.shared);
         self.writer
             .run(move |connection| {
-                let summary = write::corporate_actions(connection, source, actions, &window, true)?;
+                let summary = write::corporate_actions(
+                    connection,
+                    source,
+                    actions,
+                    &window,
+                    Some("c.kind = 'name_change'"),
+                )?;
+                shared.refresh_listings(connection)?;
+                shared.refresh_actions(connection)?;
+                Ok(summary)
+            })
+            .await
+    }
+
+    pub async fn replace_stock_mergers(
+        &self,
+        source: DataSource,
+        actions: Vec<CorporateAction>,
+        window: ActionWindow,
+    ) -> Result<WriteSummary> {
+        let shared = Arc::clone(&self.shared);
+        self.writer
+            .run(move |connection| {
+                let summary = write::corporate_actions(
+                    connection,
+                    source,
+                    actions,
+                    &window,
+                    Some(
+                        "c.kind = 'stock_merger' AND c.old_rate = c.new_rate \
+                         AND coalesce(c.rate, 0) = 0",
+                    ),
+                )?;
                 shared.refresh_listings(connection)?;
                 shared.refresh_actions(connection)?;
                 Ok(summary)

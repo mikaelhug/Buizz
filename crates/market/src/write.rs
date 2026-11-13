@@ -501,7 +501,7 @@ pub(crate) fn corporate_actions(
     source: DataSource,
     actions: Vec<CorporateAction>,
     window: &ActionWindow,
-    renames: bool,
+    market_wide: Option<&'static str>,
 ) -> Result<WriteSummary> {
     let ActionWindow {
         symbols: covered,
@@ -534,7 +534,7 @@ pub(crate) fn corporate_actions(
         .collect();
     let mut coverage = Coverage::new();
     if let Some(covered_to) = covered_to {
-        if renames {
+        if market_wide.is_some() {
             cover(&mut coverage, None, from);
             cover(&mut coverage, None, *covered_to);
         }
@@ -544,9 +544,11 @@ pub(crate) fn corporate_actions(
         }
     }
     let source_name = wire_name(&source);
-    let scope = match renames {
-        true => "c.kind = 'name_change'",
-        false => "c.kind <> 'name_change' AND c.symbol IN (SELECT symbol FROM action_scope)",
+    let scope = match market_wide {
+        Some(scope) => scope.to_owned(),
+        None => {
+            "c.kind <> 'name_change' AND c.symbol IN (SELECT symbol FROM action_scope)".to_owned()
+        }
     };
     write_batch(
         connection,
@@ -1454,7 +1456,7 @@ mod tests {
             DataSource::Alpaca,
             vec![split(0)],
             &window,
-            false,
+            None,
         )
         .unwrap();
         assert_eq!(written.rows, 0);
