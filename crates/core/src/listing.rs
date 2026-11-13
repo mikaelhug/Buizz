@@ -1,10 +1,12 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use chrono::NaiveDate;
+use chrono::{NaiveDate, TimeDelta};
 
 use crate::market::{CorporateAction, CorporateActionKind, Symbol};
 
 type Changes = BTreeMap<Symbol, Vec<(NaiveDate, Symbol)>>;
+
+const RENAMED_AFTER_LAST_SESSION: TimeDelta = TimeDelta::days(7);
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Listings {
@@ -148,7 +150,10 @@ impl Listings {
                 .get(&ticker)
                 .and_then(|lasts| lasts.iter().find(|last| **last >= on));
             match (ended, renamed) {
-                (Some(last), renamed) if renamed.is_none_or(|(date, _)| last < date) => {
+                (Some(last), renamed)
+                    if renamed
+                        .is_none_or(|(date, _)| *last + RENAMED_AFTER_LAST_SESSION < *date) =>
+                {
                     return Some(Symbol::ended(&ticker, *last));
                 }
                 (_, Some((date, new))) => (ticker, on) = (new.clone(), *date),
@@ -399,6 +404,21 @@ mod tests {
         assert_eq!(
             listings.listing(&sym("XL"), date("2021-06-01")),
             Some(sym("SPRU"))
+        );
+    }
+
+    #[test]
+    fn a_listing_ended_on_the_eve_of_its_rename_continues_under_the_new_ticker() {
+        let l_brands = sym("LB@2021-08-02");
+        let listings = Listings::new(&[renamed("LB", "BBWI", "2021-08-03")], [], [&l_brands]);
+        assert_eq!(
+            listings.listing(&sym("LB"), date("2019-03-01")),
+            Some(sym("BBWI")),
+            "L Brands became Bath & Body Works, LandBridge took LB in 2024"
+        );
+        assert_eq!(
+            listings.listing(&sym("LB"), date("2025-03-03")),
+            Some(sym("LB"))
         );
     }
 

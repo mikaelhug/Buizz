@@ -9,9 +9,9 @@ use buizz_core::api::{
 use buizz_core::listing::Listings;
 use buizz_core::market::{
     ALPACA_HISTORY_START, Adjustment, AdjustmentFactor, Bar, Borrow, BorrowAvailability, Calendar,
-    Company, CorporateAction, Coverage, DataSource, Dataset, DelistingCheck, DocumentSections,
-    EarningsInsight, EarningsRelease, EstimateFact, EtfHolding, EtfHoldingsFile, EtfShares,
-    EtfSharesRecord, Fact, FailToDeliver, FailToDeliverRecord, Filing, FilingText,
+    Company, CorporateAction, CorporateActionKind, Coverage, DataSource, Dataset, DelistingCheck,
+    DocumentSections, EarningsInsight, EarningsRelease, EstimateFact, EtfHolding, EtfHoldingsFile,
+    EtfShares, EtfSharesRecord, Fact, FailToDeliver, FailToDeliverRecord, Filing, FilingText,
     FomcAnnouncement, FomcMeeting, FundamentalFact, FundamentalMetric, FundamentalPoint,
     IndexHistory, InsiderFiling, InsiderPlan, InsiderReport, InsiderTrade, Instrument,
     InstrumentProfile, Liquidity, MacroObservation, MacroPoint, MacroSeries, ModelBatch,
@@ -560,9 +560,18 @@ impl MarketStore {
         window: ActionWindow,
     ) -> Result<WriteSummary> {
         let shared = Arc::clone(&self.shared);
+        let renames = actions.iter().any(|action| {
+            matches!(
+                action.kind,
+                CorporateActionKind::NameChange { .. } | CorporateActionKind::StockMerger { .. }
+            )
+        });
         self.writer
             .run(move |connection| {
                 let summary = write::corporate_actions(connection, source, actions, &window, None)?;
+                if renames {
+                    shared.refresh_listings(connection)?;
+                }
                 shared.refresh_actions(connection)?;
                 Ok(summary)
             })

@@ -1,18 +1,25 @@
+use std::collections::{BTreeMap, BTreeSet};
+
 use buizz_core::market::{
-    AssetClass, CorporateAction, CorporateActionKind, DataSource, Dataset, Instrument, Symbol,
-    Timeframe,
+    AssetClass, Bar, CorporateAction, CorporateActionKind, Coverage, DataSource, Dataset,
+    Instrument, Symbol, Timeframe,
 };
 use buizz_market::ActionWindow;
 use chrono::{NaiveDate, TimeDelta};
 use rust_decimal::Decimal;
 
-use crate::{Ingest, IngestError};
+use crate::{Ingest, IngestError, day_start};
 
-const RENAMES: [(&str, &str, &str); 2] =
-    [("UA", "UAA", "2016-04-08"), ("DLPH", "APTV", "2017-12-05")];
-const SPIN_OFFS: [(&str, &str, &str, &str); 2] = [
+const RENAMES: [(&str, &str, &str); 4] = [
+    ("UA", "UAA", "2016-04-08"),
+    ("DLPH", "APTV", "2017-12-05"),
+    ("FOXA", "TFCFA", "2019-03-19"),
+    ("LB", "BBWI", "2021-08-03"),
+];
+const SPIN_OFFS: [(&str, &str, &str, &str); 3] = [
     ("UAA", "UA", "2016-04-08", "1"),
     ("APTV", "DLPH", "2017-12-05", "0.33333333"),
+    ("BBWI", "VSXY", "2021-08-03", "0.33333333"),
 ];
 const ENDED: [(&str, &str); 1] = [("TIVO", "2016-09-07")];
 
@@ -20,16 +27,25 @@ fn date(text: &str) -> NaiveDate {
     text.parse().expect("a curated date is a date")
 }
 
-fn curated_actions() -> Vec<CorporateAction> {
-    let renames = RENAMES.iter().map(|(old, new, on)| CorporateAction {
-        symbol: Symbol::new(old),
-        ex_date: date(on),
-        kind: CorporateActionKind::NameChange {
-            new_symbol: Symbol::new(new),
-        },
-    });
+fn curated_actions(priced: &BTreeMap<Symbol, Coverage>) -> Vec<CorporateAction> {
+    let priced = |tickers: &[&str]| {
+        tickers
+            .iter()
+            .any(|ticker| priced.contains_key(&Symbol::new(ticker)))
+    };
+    let renames = RENAMES
+        .iter()
+        .filter(|(old, new, _)| priced(&[old, new]))
+        .map(|(old, new, on)| CorporateAction {
+            symbol: Symbol::new(old),
+            ex_date: date(on),
+            kind: CorporateActionKind::NameChange {
+                new_symbol: Symbol::new(new),
+            },
+        });
     let spin_offs = SPIN_OFFS
         .iter()
+        .filter(|(parent, _, _, _)| priced(&[parent]))
         .map(|(parent, child, on, rate)| CorporateAction {
             symbol: Symbol::new(parent),
             ex_date: date(on),
@@ -49,10 +65,7 @@ impl Ingest {
             .symbol_coverage(Dataset::Bars1d, DataSource::Alpaca)
             .await?;
         let stored = self.market.actions_reaching_other_symbols().await?;
-        let actions: Vec<CorporateAction> = curated_actions()
-            .into_iter()
-            .filter(|action| priced.contains_key(&action.symbol))
-            .collect();
+        let actions = curated_actions(&priced);
         if actions.iter().any(|action| !stored.contains(action)) {
             let window = ActionWindow {
                 symbols: actions.iter().map(|action| action.symbol.clone()).collect(),
@@ -102,13 +115,44 @@ impl Ingest {
                 .rows;
         }
         let floor = self.config.history_start;
+        let keys: BTreeSet<Symbol> = instruments
+            .into_iter()
+            .map(|instrument| instrument.symbol)
+            .collect();
+        let listings = self.market.listings();
         let mut listed = Vec::new();
         for (old, new, on) in RENAMES {
-            let last = date(on) - TimeDelta::days(1);
-            listed.extend(
-                self.listed_as(&Symbol::new(old), &Symbol::new(new), floor, last)
-                    .await?,
-            );
+            let (old, new, on) = (Symbol::new(old), Symbol::new(new), date(on));
+            if !priced.contains_key(&old) && !priced.contains_key(&new) {
+                continue;
+            }
+            let Some(listing) = listings.listing(&new, on) else {
+                continue;
+            };
+            let eve = self
+                .market
+                .calendar(on - TimeDelta::days(10), on - TimeDelta::days(1))
+                .await?
+                .sessions()
+                .last()
+                .map(|session| session.date);
+            let traded_as = eve
+                .map(|eve| Symbol::ended(&old, eve))
+                .filter(|ended| keys.contains(ended))
+                .unwrap_or(old);
+            let bars = self
+                .market
+                .bars_between(
+                    Timeframe::Day,
+                    vec![traded_as],
+                    day_start(floor),
+                    day_start(on),
+                )
+                .await?;
+            listed.extend(bars.into_iter().map(|bar| Bar {
+                symbol: listing.clone(),
+                ..bar
+            }));
         }
         for (ticker, last) in ENDED {
             let ticker = Symbol::new(ticker);
