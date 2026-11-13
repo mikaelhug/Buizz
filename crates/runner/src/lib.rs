@@ -669,8 +669,10 @@ impl Runner {
         let instruments = inner.market.instruments().await?;
         let mut badges = Vec::new();
         let mut survivorship = survivorship_biased(&config.universe, &instruments);
+        let mut minor_gaps = false;
         if let UniverseSpec::Index { index } = config.universe {
             let check = index_check(&inner.market, index, config).await?;
+            minor_gaps = check.minor && warnings.is_empty();
             survivorship |= !check.unpriced.is_empty();
             if check.thin {
                 badges.push(RunBadge::ThinIndexHistory);
@@ -683,7 +685,9 @@ impl Runner {
         if config.holdout {
             badges.push(RunBadge::Holdout);
         }
-        if !warnings.is_empty() {
+        if minor_gaps {
+            badges.push(RunBadge::MinorDataGaps);
+        } else if !warnings.is_empty() {
             badges.push(RunBadge::DataWarnings);
         }
         let created_at = Timestamp::now();
@@ -857,7 +861,10 @@ fn survivorship_biased(universe: &UniverseSpec, instruments: &[Instrument]) -> b
 struct IndexCheck {
     thin: bool,
     unpriced: Vec<CoverageGap>,
+    minor: bool,
 }
+
+const MINOR_GAPS_PER_MEMBER_SESSION: u64 = 200;
 
 async fn index_check(
     market: &MarketStore,
@@ -872,10 +879,28 @@ async fn index_check(
     })?;
     let end = config.end.unwrap_or(config.start);
     let unpriced = market.unpriced_members(index, config.start, end).await?;
+    let calendar = market.calendar(config.start, end).await?;
+    let sessions = |from: NaiveDate, to: NaiveDate| calendar.between(from, to).len() as u64;
+    let member_sessions: u64 = history
+        .members
+        .iter()
+        .map(|member| {
+            let from = member
+                .start
+                .map_or(config.start, |start| start.max(config.start));
+            let to = member
+                .end
+                .and_then(|left| left.pred_opt())
+                .map_or(end, |last| last.min(end));
+            sessions(from, to)
+        })
+        .sum();
+    let missing: u64 = unpriced.iter().map(|gap| sessions(gap.from, gap.to)).sum();
     Ok(IndexCheck {
         thin: history
             .reliable_from
             .is_none_or(|reliable| config.start < reliable),
+        minor: !unpriced.is_empty() && missing * MINOR_GAPS_PER_MEMBER_SESSION <= member_sessions,
         unpriced,
     })
 }

@@ -1038,7 +1038,7 @@ export interface components {
             pnl: string;
         };
         /** @enum {string} */
-        RunBadge: "survivorship_biased" | "holdout" | "data_warnings" | "drawdown_stop" | "thin_index_history";
+        RunBadge: "survivorship_biased" | "holdout" | "data_warnings" | "drawdown_stop" | "thin_index_history" | "minor_data_gaps";
         RunConfig: {
             bot: string;
             mode: components["schemas"]["Mode"];

@@ -7,7 +7,7 @@ use buizz_core::run::{
     RunId, RunStatus, UniverseSpec, Wake,
 };
 use buizz_core::time::Timestamp;
-use buizz_state::{FILE_NAME, NewRun, StateError, StateStore, StepCommit};
+use buizz_state::{FILE_NAME, NewRun, RunOutcome, StateError, StateStore, StepCommit};
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 
@@ -225,6 +225,34 @@ async fn a_bot_has_one_live_run_per_variant_and_at_most_three_variants() {
     create(&store, variant(Mode::Live, 0.5)).await.unwrap_err();
     let trials = store.trials("momentum").await.unwrap();
     assert_eq!((trials.variants, trials.runs), (4, 5));
+}
+
+#[tokio::test]
+async fn a_rerun_on_new_code_that_reproduces_a_result_is_the_same_trial() {
+    let directory = tempfile::tempdir().unwrap();
+    let store = StateStore::open(&directory.path().join(FILE_NAME))
+        .await
+        .unwrap();
+    let finished = |result: &str| RunOutcome {
+        status: RunStatus::Completed,
+        finished_at: at(9),
+        result_hash: Some(result.to_owned()),
+        metrics: None,
+        message: None,
+        badge: None,
+    };
+    for (bot_hash, result) in [("v1", "same"), ("v2", "same"), ("v3", "changed")] {
+        let mut run = variant(Mode::Backtest, 0.5);
+        run.bot_hash = bot_hash.to_owned();
+        let id = create(&store, run).await.unwrap();
+        store.finish_run(id, finished(result)).await.unwrap();
+    }
+    let trials = store.trials("momentum").await.unwrap();
+    assert_eq!(
+        (trials.variants, trials.runs),
+        (2, 3),
+        "v2 reproduced v1's result exactly; only v3 changed behaviour"
+    );
 }
 
 #[tokio::test]

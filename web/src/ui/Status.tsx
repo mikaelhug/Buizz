@@ -35,6 +35,11 @@ const BADGES: Record<Schemas["RunBadge"], { text: string; about: string }> = {
     text: "Thin index history",
     about: "The run starts before the index change log is complete enough to rebuild membership reliably.",
   },
+  minor_data_gaps: {
+    text: "Minor data gaps",
+    about:
+      "A few index members have no prices on some sessions of their membership, at most 0.5% of the universe's member-sessions, and the bot never ordered or held them then, so the screening gate lets it pass. The Positions & events tab lists each gap.",
+  },
 };
 
 function RunBadge({ badge }: { badge: Schemas["RunBadge"] }) {

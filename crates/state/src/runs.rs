@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::ops::RangeInclusive;
 
 use buizz_core::api::{BotFootprint, BotUsage, RunSummary, Trials};
@@ -610,15 +611,62 @@ pub fn last_run_at(connection: &Connection, bot: &str) -> Result<Option<Timestam
     )?)
 }
 
+type Version = (Option<String>, String);
+
+type Outcome = (Option<String>, Option<String>, Option<String>);
+
+fn root(parent: &mut [usize], mut node: usize) -> usize {
+    while parent[node] != node {
+        parent[node] = parent[parent[node]];
+        node = parent[node];
+    }
+    node
+}
+
 pub fn trials(connection: &Connection, bot: &str) -> Result<Trials> {
-    Ok(connection.query_row(
-        "SELECT COUNT(DISTINCT json_array(bot_hash, variant)), COUNT(*) FROM run WHERE bot = ?",
-        [bot],
-        |row| {
-            Ok(Trials {
-                variants: row.get(0)?,
-                runs: row.get(1)?,
-            })
-        },
-    )?)
+    let mut statement = connection.prepare_cached(
+        "SELECT variant, bot_hash, json_extract(config, '$.start'), json_extract(config, '$.end'), \
+         result_hash FROM run WHERE bot = ?",
+    )?;
+    let runs = statement
+        .query_map([bot], |row| -> rusqlite::Result<(Version, Outcome)> {
+            Ok((
+                (row.get::<_, Option<String>>(0)?, row.get::<_, String>(1)?),
+                (
+                    row.get::<_, Option<String>>(2)?,
+                    row.get::<_, Option<String>>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                ),
+            ))
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    let mut versions: BTreeMap<&Version, usize> = BTreeMap::new();
+    let mut parent: Vec<usize> = Vec::new();
+    let mut results: BTreeMap<(&Option<String>, &Outcome), usize> = BTreeMap::new();
+    for (version, result) in &runs {
+        let next = parent.len();
+        let node = *versions.entry(version).or_insert(next);
+        if node == next {
+            parent.push(next);
+        }
+        if result.2.is_none() {
+            continue;
+        }
+        match results.get(&(&version.0, result)) {
+            Some(&same) => {
+                let (a, b) = (root(&mut parent, node), root(&mut parent, same));
+                parent[a] = b;
+            }
+            None => {
+                results.insert((&version.0, result), node);
+            }
+        }
+    }
+    let distinct = (0..parent.len())
+        .filter(|node| root(&mut parent, *node) == *node)
+        .count();
+    Ok(Trials {
+        variants: u32::try_from(distinct).unwrap_or(u32::MAX),
+        runs: u32::try_from(runs.len()).unwrap_or(u32::MAX),
+    })
 }

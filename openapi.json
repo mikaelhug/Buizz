@@ -3435,7 +3435,8 @@
           "holdout",
           "data_warnings",
           "drawdown_stop",
-          "thin_index_history"
+          "thin_index_history",
+          "minor_data_gaps"
         ]
       },
       "RunConfig": {

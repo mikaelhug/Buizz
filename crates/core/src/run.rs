@@ -661,6 +661,7 @@ pub enum RunBadge {
     DataWarnings,
     DrawdownStop,
     ThinIndexHistory,
+    MinorDataGaps,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]

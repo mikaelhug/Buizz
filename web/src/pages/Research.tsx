@@ -42,7 +42,7 @@ export const CHECKS: Record<Schemas["GateCheck"], string> = {
 const PENDING: ReadonlySet<Schemas["RunStatus"]> = new Set(["queued", "starting", "running"]);
 
 const GATE_ABOUT =
-  "A variant passes the screening gate on the longest preset it has run: completed with default costs on the current code, no data warnings or drawdown stop, at least 10 round trips and Sharpe above 0. At the same volatility as total-return SPY (dividends reinvested) it must also beat SPY's CAGR, draw down no deeper than SPY, and come out ahead of SPY in at least 2 of the period's 3 equal thirds. Passing is a screen, not a ranking: only live paper results rank bots.";
+  "A variant passes the screening gate on the longest preset it has run: completed with default costs on the current code, no data warnings (gaps in at most 0.5% of an index universe's member-sessions, in members the bot never ordered or held then, are minor and pass) or drawdown stop, at least 10 round trips and Sharpe above 0. At the same volatility as total-return SPY (dividends reinvested) it must also beat SPY's CAGR, draw down no deeper than SPY, and come out ahead of SPY in at least 2 of the period's 3 equal thirds. Passing is a screen, not a ranking: only live paper results rank bots.";
 
 const VOLATILITY_MATCH_ABOUT =
   "Volatility matching scales a variant to total-return SPY's risk before comparing them: its daily returns above T-bills are multiplied by SPY's realised volatility divided by its own, the rest of the capital earns the T-bill rate, and leverage above 1× is charged the run's financing spread on top of the T-bill rate. A variant that only holds less or more market than SPY then shows no edge.";
@@ -140,8 +140,9 @@ export function Research({ name, preset: requested, defaults, live }: Props) {
             <span className="muted"> · {fmt.integer(trials.runs)} runs</span>
           </span>
           <Info label="Trials">
-            Every distinct code and params combination ever run for {name}, live runs and failed backtests included. The more variants tried, the higher the best one
-            climbs by luck alone.
+            {fmt.integer(trials.variants)} distinct trials from {fmt.integer(trials.runs)} runs of {name}, live runs and failed backtests included: each params combination
+            counts once per code version, and a newer code version that reproduced an earlier result exactly on the same period counts as the same trial. The more
+            variants tried, the higher the best one climbs by luck alone.
           </Info>
         </div>
         <div className="research-actions">

@@ -13,7 +13,7 @@ use buizz_core::protocol::{
 };
 use buizz_core::run::{
     DRAWDOWN_STOP, DesiredState, EquityPoint, LogLevel, Mode, RunBadge, RunConfig, RunEvent,
-    RunEventKind, RunId, RunStatus,
+    RunEventKind, RunId, RunStatus, UniverseSpec,
 };
 use buizz_core::time::Timestamp;
 use buizz_core::visibility::{close_auction_session, open_auction_session, order_session};
@@ -314,6 +314,13 @@ pub(crate) async fn conclude(
         RunStatus::Cancelled => message.or_else(|| run.message.clone()),
         _ => message,
     };
+    let touched = match status {
+        RunStatus::Completed if run.badges.contains(&RunBadge::MinorDataGaps) => {
+            touched_gap(inner, &run).await?
+        }
+        _ => None,
+    };
+    let badge = badge.or(touched.as_ref().map(|_| RunBadge::DataWarnings));
     let metrics = match result_hash {
         Some(_) => match report::metrics(&inner.market, &inner.state, &run).await {
             Ok(metrics) => Some(metrics),
@@ -339,7 +346,22 @@ pub(crate) async fn conclude(
             },
         )
         .await?;
-    let seq = last_event_seq(inner, run_id).await? + 1;
+    let mut seq = last_event_seq(inner, run_id).await? + 1;
+    if let Some(warning) = touched {
+        inner
+            .state
+            .append_events(
+                run_id,
+                vec![RunEvent {
+                    seq,
+                    at,
+                    clock: run.clock,
+                    kind: RunEventKind::DataWarning { message: warning },
+                }],
+            )
+            .await?;
+        seq += 1;
+    }
     let event = RunEvent {
         seq,
         at,
@@ -358,6 +380,56 @@ pub(crate) async fn conclude(
         status,
     });
     Ok(())
+}
+
+async fn touched_gap(inner: &Inner, run: &RunSummary) -> Result<Option<String>, StateError> {
+    let UniverseSpec::Index { index } = run.config.universe else {
+        return Ok(None);
+    };
+    let end = run.config.end.unwrap_or(run.config.start);
+    let gaps = match inner
+        .market
+        .unpriced_members(index, run.config.start, end)
+        .await
+    {
+        Ok(gaps) => gaps,
+        Err(error) => {
+            return Ok(Some(format!(
+                "the member gaps could not be checked against the run's orders: {error}"
+            )));
+        }
+    };
+    let mut orders = Vec::new();
+    let mut after = None;
+    loop {
+        let page = inner.state.orders(run.id, after, ORDER_PAGE).await?;
+        let Some(last) = page.last() else {
+            break;
+        };
+        after = Some(last.id.0);
+        orders.extend(page);
+    }
+    for gap in gaps {
+        let within = |at: Timestamp| (gap.from..=gap.to).contains(&at.exchange_date());
+        let fills = inner.state.symbol_fills(run.id, gap.symbol.clone()).await?;
+        let held_into: i64 = fills
+            .iter()
+            .filter(|(fill, _)| fill.at.exchange_date() < gap.from)
+            .map(|(fill, _)| fill.qty)
+            .sum();
+        let touched = held_into != 0
+            || fills.iter().any(|(fill, _)| within(fill.at))
+            || orders
+                .iter()
+                .any(|order| order.symbol == gap.symbol && within(order.decided_at));
+        if touched {
+            return Ok(Some(format!(
+                "{} was ordered or held while it had no 1d bars, from {} to {}",
+                gap.symbol, gap.from, gap.to
+            )));
+        }
+    }
+    Ok(None)
 }
 
 async fn client_ids(inner: &Inner, run_id: RunId) -> Result<BTreeSet<String>, StateError> {
