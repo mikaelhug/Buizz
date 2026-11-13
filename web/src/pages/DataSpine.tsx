@@ -28,7 +28,7 @@ const DOMAINS: Record<Domain, { name: string; caption: string }> = {
   reference: { name: "Reference", caption: "listings, sessions, index members, companies" },
   filings: { name: "Filings & estimates", caption: "what companies reported, and when the market could know it" },
   macro: { name: "Macro & rates", caption: "the economy, interest rates and the Fed" },
-  alternative: { name: "News & short selling", caption: "headlines, short positions and the cost of borrowing" },
+  alternative: { name: "News, halts & short selling", caption: "headlines, trading halts, short positions and the cost of borrowing" },
 };
 
 const DOMAIN_ORDER: Domain[] = ["prices", "reference", "filings", "macro", "alternative"];
@@ -37,9 +37,11 @@ const DATASETS: Record<Dataset, { name: string; caption: string }> = {
   bars1d: { name: "Daily prices", caption: "open, high, low, close and volume per session" },
   bars1m: { name: "Minute prices", caption: "intraday bars for the symbols bots use, kept current" },
   corporate_actions: { name: "Splits, dividends & mergers", caption: "corporate actions, cross-checked between sources" },
+  option_chains: { name: "Option chains", caption: "every contract's quote, implied volatility, greeks and open interest, recorded before each close" },
   instruments: { name: "Listed securities", caption: "every stock and ETF with its listing dates" },
   calendar: { name: "Trading calendar", caption: "sessions, half days and closing times" },
   index_membership: { name: "S&P 500 membership", caption: "who was in the index on each day" },
+  etf_holdings: { name: "ETF holdings", caption: "SPDR ETFs' daily holdings and shares outstanding, recorded daily" },
   delistings: { name: "Delistings", caption: "SEC Form 25 notices, each priced as an ended listing where Alpaca has its bars" },
   companies: { name: "Company profiles", caption: "industry codes and listing exchange per company" },
   fundamentals: { name: "Financial statements", caption: "XBRL facts from 10-K and 10-Q filings, as filed" },
@@ -61,10 +63,11 @@ const DATASETS: Record<Dataset, { name: string; caption: string }> = {
   borrow: { name: "Short borrow", caption: "borrow fee and shares available, recorded daily" },
   short_interest: { name: "Short interest", caption: "shares held short twice a month, as FINRA published them" },
   short_volume: { name: "Short sale volume", caption: "daily off-exchange short volume reported to FINRA" },
+  trading_halts: { name: "Trading halts", caption: "Nasdaq halts and resumptions with their reason, recorded as they appear" },
 };
 
 const SOURCES: Record<Source, { name: string; caption: string }> = {
-  alpaca: { name: "Alpaca", caption: "prices, actions, listings, news" },
+  alpaca: { name: "Alpaca", caption: "prices, actions, listings, news, option chains" },
   alpaca_stream: { name: "Alpaca stream", caption: "live minute bars" },
   tiingo: { name: "Tiingo", caption: "price history before 2016" },
   edgar: { name: "SEC EDGAR", caption: "filings and financial statements" },
@@ -73,11 +76,12 @@ const SOURCES: Record<Source, { name: string; caption: string }> = {
   fixture: { name: "Fixtures", caption: "local test data" },
   wikipedia: { name: "Wikipedia", caption: "S&P 500 change log" },
   interactive_brokers: { name: "Interactive Brokers", caption: "short availability" },
-  nasdaq: { name: "Nasdaq", caption: "listings" },
+  nasdaq: { name: "Nasdaq", caption: "listings and trading halts" },
   cboe: { name: "Cboe", caption: "VIX and VIX3M closes" },
   federal_reserve: { name: "Federal Reserve", caption: "FOMC calendar" },
   factset: { name: "FactSet", caption: "S&P 500 earnings insight" },
   finra: { name: "FINRA", caption: "short interest and short sale volume" },
+  state_street: { name: "State Street", caption: "SPDR ETF holdings and shares outstanding" },
   curated: { name: "Curated", caption: "ticker links and actions checked by hand" },
 };
 

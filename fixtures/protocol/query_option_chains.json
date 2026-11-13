@@ -1,0 +1,11 @@
+{
+  "id": 17,
+  "request": {
+    "kind": "option_chains",
+    "since": "2024-11-20",
+    "underlyings": [
+      "AAA"
+    ]
+  },
+  "type": "query"
+}

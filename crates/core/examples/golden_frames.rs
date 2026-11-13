@@ -3,10 +3,11 @@ use std::str::FromStr;
 
 use buizz_core::api::ContractState;
 use buizz_core::market::{
-    Adjustment, Borrow, CorporateAction, CorporateActionKind, DataSource, Dataset, FactStatus,
-    Feed, Filing, FomcAnnouncement, FundamentalMetric, FundamentalPoint, InsiderOwner,
-    InsiderTrade, InsiderTransaction, MacroPoint, MacroSeries, NewsArticle, PeriodType,
-    PressRelease, Session, ShortInterest, ShortVolume, Symbol, Timeframe,
+    Adjustment, Borrow, CorporateAction, CorporateActionKind, DataSource, Dataset, EtfHolding,
+    EtfShares, FactStatus, Feed, Filing, FomcAnnouncement, FundamentalMetric, FundamentalPoint,
+    InsiderOwner, InsiderTrade, InsiderTransaction, MacroPoint, MacroSeries, NewsArticle,
+    OptionQuote, OptionRight, PeriodType, PressRelease, Session, ShortInterest, ShortVolume,
+    Symbol, Timeframe, TradingHalt,
 };
 use buizz_core::order::{
     Fill, OrderId, OrderRequest, OrderSize, OrderStatus, OrderType, OrderUpdate, Side, TimeInForce,
@@ -796,6 +797,127 @@ fn main() {
                         fields: Map::new(),
                     },
                 ],
+            },
+        }),
+    );
+
+    write(
+        &dir,
+        "query_option_chains",
+        &BotMessage::Query(Query {
+            id: 17,
+            request: QueryRequest::OptionChains {
+                underlyings: vec![aaa.clone()],
+                since: date("2024-11-20"),
+            },
+        }),
+    );
+
+    write(
+        &dir,
+        "data_option_chains",
+        &SpineMessage::Data(Data {
+            id: 17,
+            result: DataResult::OptionChains {
+                quotes: vec![OptionQuote {
+                    contract: Symbol::new("AAA241220C00105000"),
+                    underlying: aaa.clone(),
+                    expiration: date("2024-12-20"),
+                    right: OptionRight::Call,
+                    strike: money("105"),
+                    at: at("2024-11-20T20:30:04Z"),
+                    bid: Some(money("2.35")),
+                    ask: Some(money("2.5")),
+                    bid_size: Some(12),
+                    ask_size: Some(30),
+                    quoted_at: Some(at("2024-11-20T20:14:59Z")),
+                    last: Some(money("2.41")),
+                    traded_at: Some(at("2024-11-20T20:11:32Z")),
+                    volume: 1_284,
+                    open_interest: Some(8_310),
+                    open_interest_date: Some(date("2024-11-19")),
+                    implied_volatility: Some(money("0.2841")),
+                    delta: Some(money("0.4122")),
+                    gamma: Some(money("0.0311")),
+                    theta: Some(money("-0.0604")),
+                    vega: Some(money("0.1418")),
+                    rho: Some(money("0.0377")),
+                    available_at: at("2024-11-20T20:31:10Z"),
+                }],
+            },
+        }),
+    );
+
+    write(
+        &dir,
+        "query_trading_halts",
+        &BotMessage::Query(Query {
+            id: 18,
+            request: QueryRequest::TradingHalts {
+                symbols: None,
+                since: date("2024-11-20"),
+            },
+        }),
+    );
+
+    write(
+        &dir,
+        "data_trading_halts",
+        &SpineMessage::Data(Data {
+            id: 18,
+            result: DataResult::TradingHalts {
+                halts: vec![TradingHalt {
+                    symbol: bbb.clone(),
+                    halted_at: at("2024-11-20T15:02:11.482Z"),
+                    name: "Beta Fixture Inc".to_owned(),
+                    market: "NASDAQ".to_owned(),
+                    reason: "LUDP".to_owned(),
+                    pause_threshold: None,
+                    resumption_date: Some(date("2024-11-20")),
+                    quotes_resume_at: Some(at("2024-11-20T15:02:11Z")),
+                    trading_resumes_at: Some(at("2024-11-20T15:07:11Z")),
+                    available_at: at("2024-11-20T15:05:00Z"),
+                }],
+            },
+        }),
+    );
+
+    write(
+        &dir,
+        "query_etf_holdings",
+        &BotMessage::Query(Query {
+            id: 19,
+            request: QueryRequest::EtfHoldings {
+                etfs: vec![Symbol::new("SPY")],
+                since: date("2024-11-20"),
+            },
+        }),
+    );
+
+    write(
+        &dir,
+        "data_etf_holdings",
+        &SpineMessage::Data(Data {
+            id: 19,
+            result: DataResult::EtfHoldings {
+                holdings: vec![EtfHolding {
+                    etf: Symbol::new("SPY"),
+                    as_of: date("2024-11-19"),
+                    name: "ALPHA FIXTURE INC".to_owned(),
+                    ticker: Some(aaa.clone()),
+                    identifier: Some("000000AA1".to_owned()),
+                    weight: money("6.912345"),
+                    quantity: Some(money("178410117")),
+                    available_at: at("2024-11-20T11:00:42Z"),
+                }],
+                shares: vec![EtfShares {
+                    etf: Symbol::new("SPY"),
+                    date: date("2024-11-19"),
+                    nav: money("590.312455"),
+                    shares_outstanding: money("1012182116"),
+                    net_assets: money("597505000000.12"),
+                    available_at: at("2024-11-20T11:00:42Z"),
+                }],
             },
         }),
     );

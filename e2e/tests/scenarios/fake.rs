@@ -11,6 +11,8 @@ use buizz_core::market::{AssetClass, Bar, CorporateActionKind, MacroSeries, Symb
 use buizz_core::time::Timestamp;
 use buizz_sources::alpaca_stream::SYMBOL_CAP;
 use buizz_sources::finra;
+use buizz_sources::nasdaq;
+use buizz_sources::ssga;
 use chrono::{Datelike, NaiveDate, NaiveTime, TimeDelta};
 use serde_json::{Number, Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -21,6 +23,12 @@ use crate::world::World;
 
 const PAGE_ROWS: usize = 1000;
 const FOMC_CALENDAR: &str = include_str!("../../../crates/sources/fixtures/fed/fomccalendars.htm");
+const OPTION_CONTRACTS: &str =
+    include_str!("../../../crates/sources/fixtures/alpaca/option_contracts.json");
+const OPTION_SNAPSHOTS: &str =
+    include_str!("../../../crates/sources/fixtures/alpaca/option_snapshots.json");
+const TRADE_HALTS: &str = include_str!("../../../crates/sources/fixtures/nasdaq/tradehalts.xml");
+const OPTIONED: &str = "SPY";
 const FINRA_SCHEDULE: &str =
     include_str!("../../../crates/sources/fixtures/finra/short-interest.htm");
 const RETRY_AFTER_SECONDS: &str = "3600";
@@ -110,6 +118,13 @@ impl FakeProviders {
             .route("/files/company_tickers.json", get(tickers))
             .route("/files/company_tickers_mf.json", get(fund_tickers))
             .route("/dynamic/SymDir/nasdaqtraded.txt", get(symbol_directory))
+            .route(nasdaq::HALTS_PATH, get(|| async { TRADE_HALTS }))
+            .route("/v2/options/contracts", get(option_contracts))
+            .route(
+                "/v1beta1/options/snapshots/{underlying}",
+                get(option_snapshots),
+            )
+            .route(&format!("{}/{{file}}", ssga::FUND_DATA_PATH), get(ssga_workbook))
             .route("/api/xbrl/companyfacts/{file}", get(company_facts))
             .route("/submissions/{file}", get(submissions))
             .route("/Archives/edgar/data/{*path}", get(archive))
@@ -1034,4 +1049,99 @@ async fn converse(fake: Arc<Fake>, mut socket: WebSocket) {
             }
         }
     }
+}
+
+fn json_body(body: &'static str) -> Response {
+    ([(header::CONTENT_TYPE, "application/json")], body).into_response()
+}
+
+async fn option_contracts(Query(params): Query<Params>) -> Response {
+    if params.get("underlying_symbols").map(String::as_str) == Some(OPTIONED) {
+        json_body(OPTION_CONTRACTS)
+    } else {
+        json_body(r#"{"option_contracts":[],"next_page_token":null}"#)
+    }
+}
+
+async fn option_snapshots(Path(underlying): Path<String>) -> Response {
+    if underlying == OPTIONED {
+        json_body(OPTION_SNAPSHOTS)
+    } else {
+        json_body(r#"{"snapshots":{},"next_page_token":null}"#)
+    }
+}
+
+async fn ssga_workbook(Path(file): Path<String>) -> Response {
+    let Some((kind, ticker)) = file
+        .strip_suffix(".xlsx")
+        .and_then(|name| name.split_once("-us-en-"))
+    else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let ticker = ticker.to_ascii_uppercase();
+    let rows: Vec<Vec<&str>> = match kind {
+        "holdings-daily" => vec![
+            vec!["Fund Name:", "Fixture SPDR ETF"],
+            vec!["Ticker Symbol:", &ticker],
+            vec!["Holdings:", "As of 05-Jul-2024"],
+            vec![],
+            vec!["Name", "Ticker", "Identifier", "Weight", "Shares Held"],
+            vec!["APPLE INC", "AAPL", "037833100", "7.1", "1.78410117E8"],
+            vec!["US DOLLAR", "-", "999USDZ92", "0.02", "4.6345519E7"],
+            vec![],
+            vec!["Past performance is no guarantee of future results."],
+        ],
+        "navhist" => vec![
+            vec!["Fund Name:", "Fixture SPDR ETF"],
+            vec!["Ticker Symbol:", &ticker],
+            vec![],
+            vec!["Date", "NAV", "Shares Outstanding", "Total Net Assets"],
+            vec!["05-Jul-2024", "554.6", "1.0001E9", "5.546E11"],
+            vec!["03-Jul-2024", "551.2", "1.0E9", "5.512E11"],
+        ],
+        _ => return StatusCode::NOT_FOUND.into_response(),
+    };
+    xlsx(&rows).into_response()
+}
+
+fn xlsx(rows: &[Vec<&str>]) -> Vec<u8> {
+    let mut strings: Vec<&str> = Vec::new();
+    let mut sheet = String::from(
+        r#"<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>"#,
+    );
+    for (index, row) in rows.iter().enumerate() {
+        sheet.push_str(&format!(r#"<row r="{}">"#, index + 1));
+        for (column, cell) in row.iter().enumerate() {
+            let reference = format!("{}{}", char::from(b'A' + column as u8), index + 1);
+            if cell.parse::<f64>().is_ok() {
+                sheet.push_str(&format!(r#"<c r="{reference}" t="n"><v>{cell}</v></c>"#));
+            } else {
+                sheet.push_str(&format!(
+                    r#"<c r="{reference}" t="s"><v>{}</v></c>"#,
+                    strings.len()
+                ));
+                strings.push(cell);
+            }
+        }
+        sheet.push_str("</row>");
+    }
+    sheet.push_str("</sheetData></worksheet>");
+    let shared: String = strings
+        .iter()
+        .map(|text| format!("<si><t>{text}</t></si>"))
+        .collect();
+    let shared = format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">{shared}</sst>"#
+    );
+    let mut archive = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+    for (name, body) in [
+        ("xl/sharedStrings.xml", shared),
+        ("xl/worksheets/sheet1.xml", sheet),
+    ] {
+        archive
+            .start_file(name, zip::write::SimpleFileOptions::default())
+            .expect("a workbook entry");
+        std::io::Write::write_all(&mut archive, body.as_bytes()).expect("a workbook entry");
+    }
+    archive.finish().expect("a workbook").into_inner()
 }

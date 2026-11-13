@@ -1,0 +1,9 @@
+{
+  "id": 18,
+  "request": {
+    "kind": "trading_halts",
+    "since": "2024-11-20",
+    "symbols": null
+  },
+  "type": "query"
+}

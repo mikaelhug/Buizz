@@ -188,6 +188,7 @@ impl Spine {
             .env("FINRA_API_URL", url)
             .env("FINRA_CDN_URL", url)
             .env("FACTSET_URL", url)
+            .env("SSGA_URL", url)
             .env("WAYBACK_URL", url)
             .stdout(log.try_clone().expect("the spine log"))
             .stderr(log)

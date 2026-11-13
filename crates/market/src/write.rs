@@ -3,10 +3,11 @@ use std::ops::RangeInclusive;
 
 use buizz_core::market::{
     Bar, BorrowAvailability, Company, CorporateAction, CorporateActionKind, DataSource, Dataset,
-    DelistingCheck, DocumentSections, EarningsInsight, EarningsRelease, EstimateFact, Filing,
-    FilingDocument, FilingText, FomcMeeting, FundamentalFact, IndexHistory, InsiderFiling,
-    InsiderPlan, Instrument, MacroObservation, NewsArticle, PressExhibit, RiskFreeRate, SecFiling,
-    Section, Session, ShortInterestRecord, ShortVolumeRecord, Symbol, split_rates,
+    DelistingCheck, DocumentSections, EarningsInsight, EarningsRelease, EstimateFact,
+    EtfHoldingsFile, EtfSharesRecord, Filing, FilingDocument, FilingText, FomcMeeting,
+    FundamentalFact, IndexHistory, InsiderFiling, InsiderPlan, Instrument, MacroObservation,
+    NewsArticle, OptionQuoteRecord, PressExhibit, RiskFreeRate, SecFiling, Section, Session,
+    ShortInterestRecord, ShortVolumeRecord, Symbol, TradingHaltRecord, split_rates,
 };
 use buizz_core::ops::ActionDisagreement;
 use buizz_core::time::Timestamp;
@@ -1263,6 +1264,157 @@ pub(crate) fn borrow_availability(
             }
             appender.flush()?;
             Ok(unique.len() as u64)
+        },
+    )
+}
+
+pub(crate) fn option_quotes(
+    connection: &mut Connection,
+    source: DataSource,
+    session: NaiveDate,
+    quotes: Vec<OptionQuoteRecord>,
+) -> Result<WriteSummary> {
+    let mut coverage = Coverage::new();
+    cover(&mut coverage, None, session);
+    write_batch(
+        connection,
+        source,
+        Dataset::OptionChains,
+        coverage,
+        |transaction, batch_id| {
+            let mut appender = transaction.appender("option_quote")?;
+            for quote in &quotes {
+                appender.append_row(params![
+                    quote.contract.as_str(),
+                    quote.underlying.as_str(),
+                    quote.expiration,
+                    wire_name(&quote.right),
+                    Dec(quote.strike),
+                    session,
+                    Ts(quote.at),
+                    quote.bid.map(Dec),
+                    quote.ask.map(Dec),
+                    quote.bid_size,
+                    quote.ask_size,
+                    quote.quoted_at.map(Ts),
+                    quote.last.map(Dec),
+                    quote.traded_at.map(Ts),
+                    quote.volume,
+                    quote.open_interest,
+                    quote.open_interest_date,
+                    quote.implied_volatility.map(Dec),
+                    quote.delta.map(Dec),
+                    quote.gamma.map(Dec),
+                    quote.theta.map(Dec),
+                    quote.vega.map(Dec),
+                    quote.rho.map(Dec),
+                    batch_id,
+                ])?;
+            }
+            appender.flush()?;
+            Ok(quotes.len() as u64)
+        },
+    )
+}
+
+pub(crate) fn seen(
+    connection: &mut Connection,
+    source: DataSource,
+    dataset: Dataset,
+    day: NaiveDate,
+) -> Result<WriteSummary> {
+    let mut coverage = Coverage::new();
+    cover(&mut coverage, None, day);
+    write_batch(connection, source, dataset, coverage, |_, _| Ok(0))
+}
+
+pub(crate) fn trading_halts(
+    connection: &mut Connection,
+    source: DataSource,
+    at: Timestamp,
+    halts: Vec<TradingHaltRecord>,
+) -> Result<WriteSummary> {
+    let mut coverage = Coverage::new();
+    cover(&mut coverage, None, at.exchange_date());
+    write_batch(
+        connection,
+        source,
+        Dataset::TradingHalts,
+        coverage,
+        |transaction, batch_id| {
+            let mut appender = transaction.appender("trading_halt")?;
+            for halt in &halts {
+                appender.append_row(params![
+                    halt.symbol.as_str(),
+                    Ts(halt.halted_at),
+                    halt.name,
+                    halt.market,
+                    halt.reason,
+                    halt.pause_threshold.map(Dec),
+                    halt.resumption_date,
+                    halt.quotes_resume_at.map(Ts),
+                    halt.trading_resumes_at.map(Ts),
+                    Ts(at),
+                    batch_id,
+                ])?;
+            }
+            appender.flush()?;
+            Ok(halts.len() as u64)
+        },
+    )
+}
+
+pub(crate) fn etf_holdings(
+    connection: &mut Connection,
+    source: DataSource,
+    at: Timestamp,
+    file: Option<EtfHoldingsFile>,
+    shares: Vec<EtfSharesRecord>,
+    etf: Symbol,
+) -> Result<WriteSummary> {
+    let mut coverage = Coverage::new();
+    cover(&mut coverage, None, at.exchange_date());
+    write_batch(
+        connection,
+        source,
+        Dataset::EtfHoldings,
+        coverage,
+        |transaction, batch_id| {
+            let mut rows = 0;
+            let mut appender = transaction.appender("etf_holding")?;
+            for (file, holding) in file
+                .iter()
+                .flat_map(|file| file.holdings.iter().map(move |holding| (file, holding)))
+            {
+                appender.append_row(params![
+                    file.etf.as_str(),
+                    file.as_of,
+                    holding.name,
+                    holding.ticker.as_ref().map(Symbol::as_str),
+                    holding.identifier,
+                    Dec(holding.weight),
+                    holding.quantity.map(Dec),
+                    Ts(at),
+                    batch_id,
+                ])?;
+                rows += 1;
+            }
+            appender.flush()?;
+            let mut appender = transaction.appender("etf_shares")?;
+            for day in &shares {
+                appender.append_row(params![
+                    etf.as_str(),
+                    day.date,
+                    Dec(day.nav),
+                    Dec(day.shares_outstanding),
+                    Dec(day.net_assets),
+                    Ts(at),
+                    batch_id,
+                ])?;
+                rows += 1;
+            }
+            appender.flush()?;
+            Ok(rows)
         },
     )
 }

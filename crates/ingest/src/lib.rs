@@ -7,16 +7,19 @@ mod curated;
 mod delistings;
 mod documents;
 mod estimates;
+mod etfs;
 mod facts;
 mod fetch;
 mod filings;
 mod finra;
 mod fomc;
+mod halts;
 mod index;
 mod insiders;
 mod macros;
 mod minute;
 mod news;
+mod options;
 mod press;
 pub mod recipe;
 mod reference;
@@ -49,7 +52,7 @@ use crate::schedule::{JOBS, due_at};
 
 const EVENT_CAPACITY: usize = 64;
 const OTC: &str = "OTC";
-const CORE_ETFS: [&str; 63] = [
+pub(crate) const CORE_ETFS: [&str; 63] = [
     "SPY", "QQQ", "IWM", "DIA", "IVV", "VOO", "VTI", "MDY", "IJR", "EFA", "EEM", "VEU", "VWO",
     "AGG", "BND", "TLT", "IEF", "SHY", "SHV", "BIL", "LQD", "HYG", "TIP", "GLD", "SLV", "DBC",
     "GSG", "USO", "VNQ", "XLB", "XLC", "XLE", "XLF", "XLI", "XLK", "XLP", "XLRE", "XLU", "XLV",
@@ -308,6 +311,9 @@ impl Ingest {
             schedule::INDEX_MEMBERSHIP => self.index_membership(now).await,
             schedule::RATES => self.rates(now).await,
             schedule::BORROW => self.borrow(now).await,
+            schedule::OPTION_CHAINS => self.option_chains(now).await,
+            schedule::TRADING_HALTS => self.trading_halts(now).await,
+            schedule::ETF_HOLDINGS => self.etf_holdings(now).await,
             schedule::SHORT_INTEREST => self.short_interest(now).await,
             schedule::SHORT_VOLUME => self.short_volume(now).await,
             schedule::MACRO => self.macro_series(now).await,

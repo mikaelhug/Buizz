@@ -1,0 +1,29 @@
+{
+  "id": 19,
+  "result": {
+    "holdings": [
+      {
+        "as_of": "2024-11-19",
+        "available_at": 1732100442000000000,
+        "etf": "SPY",
+        "identifier": "000000AA1",
+        "name": "ALPHA FIXTURE INC",
+        "quantity": "178410117",
+        "ticker": "AAA",
+        "weight": "6.912345"
+      }
+    ],
+    "kind": "etf_holdings",
+    "shares": [
+      {
+        "available_at": 1732100442000000000,
+        "date": "2024-11-19",
+        "etf": "SPY",
+        "nav": "590.312455",
+        "net_assets": "597505000000.12",
+        "shares_outstanding": "1012182116"
+      }
+    ]
+  },
+  "type": "data"
+}

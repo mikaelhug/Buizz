@@ -7,9 +7,10 @@ use buizz_core::market::{
 use buizz_core::time::Timestamp;
 use chrono::{NaiveDate, NaiveTime};
 use rust_decimal::Decimal;
+use rust_decimal::prelude::ToPrimitive;
 use serde::Deserialize;
 
-use crate::http::{SourceError, decimal};
+use crate::http::{SourceError, decimal, json_decimal};
 
 pub trait Paged {
     fn take_next_page_token(&mut self) -> Option<String>;
@@ -331,4 +332,117 @@ pub struct NewsPage {
     #[serde(default)]
     pub news: Vec<WireNews>,
     pub next_page_token: Option<String>,
+}
+
+fn flexible_decimal<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<Decimal>, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Flexible {
+        Number(serde_json::Number),
+        Text(String),
+    }
+    Ok(match Option::<Flexible>::deserialize(deserializer)? {
+        Some(Flexible::Number(number)) => json_decimal(&number),
+        Some(Flexible::Text(text)) => text.trim().parse().ok(),
+        None => None,
+    })
+}
+
+#[derive(Deserialize)]
+pub struct OptionContractsPage {
+    #[serde(default)]
+    option_contracts: Vec<WireOptionContract>,
+    next_page_token: Option<String>,
+}
+
+impl Paged for OptionContractsPage {
+    fn take_next_page_token(&mut self) -> Option<String> {
+        self.next_page_token.take()
+    }
+}
+
+#[derive(Deserialize)]
+struct WireOptionContract {
+    symbol: String,
+    #[serde(default, deserialize_with = "flexible_decimal")]
+    open_interest: Option<Decimal>,
+    open_interest_date: Option<NaiveDate>,
+}
+
+impl OptionContractsPage {
+    pub fn into_open_interest(self) -> impl Iterator<Item = (Symbol, (u64, Option<NaiveDate>))> {
+        self.option_contracts.into_iter().filter_map(|contract| {
+            let open_interest = contract.open_interest?.trunc().to_u64()?;
+            Some((
+                Symbol::new(&contract.symbol),
+                (open_interest, contract.open_interest_date),
+            ))
+        })
+    }
+}
+
+#[derive(Deserialize)]
+pub struct OptionSnapshotsPage {
+    #[serde(default)]
+    pub snapshots: BTreeMap<String, WireOptionSnapshot>,
+    next_page_token: Option<String>,
+}
+
+impl Paged for OptionSnapshotsPage {
+    fn take_next_page_token(&mut self) -> Option<String> {
+        self.next_page_token.take()
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WireOptionSnapshot {
+    pub latest_quote: Option<WireOptionQuote>,
+    pub latest_trade: Option<WireOptionTrade>,
+    pub daily_bar: Option<WireOptionBar>,
+    pub greeks: Option<WireGreeks>,
+    #[serde(default, deserialize_with = "flexible_decimal")]
+    pub implied_volatility: Option<Decimal>,
+}
+
+#[derive(Deserialize)]
+pub struct WireOptionQuote {
+    #[serde(default, deserialize_with = "flexible_decimal")]
+    pub bp: Option<Decimal>,
+    #[serde(default, deserialize_with = "flexible_decimal")]
+    pub ap: Option<Decimal>,
+    pub bs: Option<u64>,
+    #[serde(rename = "as")]
+    pub ask_size: Option<u64>,
+    pub t: Option<Timestamp>,
+}
+
+#[derive(Deserialize)]
+pub struct WireOptionTrade {
+    #[serde(default, deserialize_with = "flexible_decimal")]
+    pub p: Option<Decimal>,
+    pub t: Option<Timestamp>,
+}
+
+#[derive(Deserialize)]
+pub struct WireOptionBar {
+    pub t: Timestamp,
+    #[serde(default)]
+    pub v: u64,
+}
+
+#[derive(Deserialize)]
+pub struct WireGreeks {
+    #[serde(default, deserialize_with = "flexible_decimal")]
+    pub delta: Option<Decimal>,
+    #[serde(default, deserialize_with = "flexible_decimal")]
+    pub gamma: Option<Decimal>,
+    #[serde(default, deserialize_with = "flexible_decimal")]
+    pub theta: Option<Decimal>,
+    #[serde(default, deserialize_with = "flexible_decimal")]
+    pub vega: Option<Decimal>,
+    #[serde(default, deserialize_with = "flexible_decimal")]
+    pub rho: Option<Decimal>,
 }

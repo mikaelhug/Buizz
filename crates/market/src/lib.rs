@@ -10,13 +10,15 @@ use buizz_core::listing::Listings;
 use buizz_core::market::{
     ALPACA_HISTORY_START, Adjustment, AdjustmentFactor, Bar, Borrow, BorrowAvailability, Calendar,
     Company, CorporateAction, Coverage, DataSource, Dataset, DelistingCheck, DocumentSections,
-    EarningsInsight, EarningsRelease, EstimateFact, Fact, Filing, FilingText, FomcAnnouncement,
-    FomcMeeting, FundamentalFact, FundamentalMetric, FundamentalPoint, IndexHistory, InsiderFiling,
-    InsiderPlan, InsiderTrade, Instrument, InstrumentProfile, Liquidity, MacroObservation,
-    MacroPoint, MacroSeries, ModelBatch, ModelRequest, ModelSpend, NewsArticle, PendingDelisting,
-    PressCandidate, PressExhibit, PressRelease, RecipeSection, RecipeState, RecipeVersion,
-    RiskFreeRate, SecFiling, Session, ShortInterest, ShortInterestRecord, ShortVolume,
-    ShortVolumeRecord, StockIndex, Symbol, TextCandidate, Timeframe, UnsplitDocument, Watermarks,
+    EarningsInsight, EarningsRelease, EstimateFact, EtfHolding, EtfHoldingsFile, EtfShares,
+    EtfSharesRecord, Fact, Filing, FilingText, FomcAnnouncement, FomcMeeting, FundamentalFact,
+    FundamentalMetric, FundamentalPoint, IndexHistory, InsiderFiling, InsiderPlan, InsiderTrade,
+    Instrument, InstrumentProfile, Liquidity, MacroObservation, MacroPoint, MacroSeries,
+    ModelBatch, ModelRequest, ModelSpend, NewsArticle, OptionQuote, OptionQuoteRecord,
+    PendingDelisting, PressCandidate, PressExhibit, PressRelease, RecipeSection, RecipeState,
+    RecipeVersion, RiskFreeRate, SecFiling, Session, ShortInterest, ShortInterestRecord,
+    ShortVolume, ShortVolumeRecord, StockIndex, Symbol, TextCandidate, Timeframe, TradingHalt,
+    TradingHaltRecord, UnsplitDocument, Watermarks,
 };
 use buizz_core::ops::{
     ActionDisagreement, CoverageGap, DataWarning, UNPRICED_DELISTINGS_TOLERATED,
@@ -49,11 +51,21 @@ pub use text::{FILL_LIMIT, Space, TextVolume, TextVolumes};
 pub use recipe::ReadFact;
 pub use restore::Restored;
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct EtfDates {
+    pub holdings: Option<NaiveDate>,
+    pub shares: Option<NaiveDate>,
+}
+
 pub(crate) const SCHEMA: &str = include_str!("../schema.sql");
 pub const FILE_NAME: &str = "market.duckdb";
-const APPENDED: [(&str, &str); 24] = [
+const APPENDED: [(&str, &str); 28] = [
     ("ingest_batch", "id"),
     ("borrow_availability", "batch_id"),
+    ("option_quote", "batch_id"),
+    ("trading_halt", "batch_id"),
+    ("etf_holding", "batch_id"),
+    ("etf_shares", "batch_id"),
     ("short_interest", "batch_id"),
     ("news_article", "batch_id"),
     ("instrument_revision", "superseded_by"),
@@ -1715,6 +1727,123 @@ impl MarketStore {
                 let on = read::listed_on(&calendar, as_of);
                 let spans = read::spans(&listings, &symbols, on, since, as_of.exchange_date());
                 read::borrow(connection, &spans, since, as_of)
+            })
+            .await
+    }
+
+    pub async fn append_option_quotes(
+        &self,
+        source: DataSource,
+        session: NaiveDate,
+        quotes: Vec<OptionQuoteRecord>,
+    ) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| write::option_quotes(connection, source, session, quotes))
+            .await
+    }
+
+    pub async fn option_quotes(
+        &self,
+        underlyings: Vec<Symbol>,
+        since: NaiveDate,
+        as_of: Timestamp,
+    ) -> Result<Vec<OptionQuote>> {
+        let (calendar, listings) = (self.shared.calendar(), self.shared.listings());
+        self.readers
+            .run(move |connection| {
+                let on = read::listed_on(&calendar, as_of);
+                let spans = read::spans(&listings, &underlyings, on, since, as_of.exchange_date());
+                read::option_quotes(connection, &spans, since, as_of)
+            })
+            .await
+    }
+
+    pub async fn option_underlyings_on(&self, session: NaiveDate) -> Result<BTreeSet<Symbol>> {
+        self.readers
+            .run(move |connection| read::option_underlyings_on(connection, session))
+            .await
+    }
+
+    pub async fn record_seen(
+        &self,
+        source: DataSource,
+        dataset: Dataset,
+        day: NaiveDate,
+    ) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| write::seen(connection, source, dataset, day))
+            .await
+    }
+
+    pub async fn append_trading_halts(
+        &self,
+        source: DataSource,
+        at: Timestamp,
+        halts: Vec<TradingHaltRecord>,
+    ) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| write::trading_halts(connection, source, at, halts))
+            .await
+    }
+
+    pub async fn latest_trading_halts(
+        &self,
+        since: Timestamp,
+    ) -> Result<BTreeSet<TradingHaltRecord>> {
+        self.readers
+            .run(move |connection| read::latest_trading_halts(connection, since))
+            .await
+    }
+
+    pub async fn trading_halts(
+        &self,
+        symbols: Option<Vec<Symbol>>,
+        since: NaiveDate,
+        as_of: Timestamp,
+    ) -> Result<Vec<TradingHalt>> {
+        let (calendar, listings) = (self.shared.calendar(), self.shared.listings());
+        self.readers
+            .run(move |connection| {
+                let spans = symbols.map(|symbols| {
+                    let on = read::listed_on(&calendar, as_of);
+                    read::spans(&listings, &symbols, on, since, as_of.exchange_date())
+                });
+                read::trading_halts(connection, spans.as_deref(), since, as_of)
+            })
+            .await
+    }
+
+    pub async fn append_etf_holdings(
+        &self,
+        source: DataSource,
+        at: Timestamp,
+        etf: Symbol,
+        file: Option<EtfHoldingsFile>,
+        shares: Vec<EtfSharesRecord>,
+    ) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| write::etf_holdings(connection, source, at, file, shares, etf))
+            .await
+    }
+
+    pub async fn latest_etf_dates(&self) -> Result<BTreeMap<Symbol, EtfDates>> {
+        self.readers
+            .run(|connection| read::latest_etf_dates(connection))
+            .await
+    }
+
+    pub async fn etf_holdings(
+        &self,
+        etfs: Vec<Symbol>,
+        since: NaiveDate,
+        as_of: Timestamp,
+    ) -> Result<(Vec<EtfHolding>, Vec<EtfShares>)> {
+        let (calendar, listings) = (self.shared.calendar(), self.shared.listings());
+        self.readers
+            .run(move |connection| {
+                let on = read::listed_on(&calendar, as_of);
+                let spans = read::spans(&listings, &etfs, on, since, as_of.exchange_date());
+                read::etf_holdings(connection, &spans, since, as_of)
             })
             .await
     }

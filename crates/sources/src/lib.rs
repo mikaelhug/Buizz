@@ -10,6 +10,7 @@ pub mod fred;
 pub mod http;
 pub mod ibkr;
 pub mod nasdaq;
+pub mod ssga;
 pub mod tiingo;
 pub mod treasury;
 pub mod wikipedia;
@@ -24,6 +25,7 @@ use finra::FinraClient;
 use fred::FredClient;
 use ibkr::IbkrClient;
 use nasdaq::NasdaqClient;
+use ssga::SsgaClient;
 use tiingo::TiingoClient;
 use treasury::TreasuryClient;
 use wikipedia::WikipediaClient;
@@ -42,5 +44,6 @@ pub struct Sources {
     pub fed: Option<FedClient>,
     pub factset: Option<FactsetClient>,
     pub finra: Option<FinraClient>,
+    pub ssga: Option<SsgaClient>,
     pub anthropic: Option<AnthropicClient>,
 }

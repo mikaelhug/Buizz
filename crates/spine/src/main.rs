@@ -24,6 +24,7 @@ use buizz_sources::finra::FinraClient;
 use buizz_sources::fred::FredClient;
 use buizz_sources::ibkr::IbkrClient;
 use buizz_sources::nasdaq::NasdaqClient;
+use buizz_sources::ssga::SsgaClient;
 use buizz_sources::tiingo::TiingoClient;
 use buizz_sources::treasury::TreasuryClient;
 use buizz_sources::wikipedia::WikipediaClient;
@@ -136,6 +137,7 @@ async fn serve() -> Result<()> {
         fed: Some(FedClient::new(config.fed.clone())?),
         factset: config.factset.clone().map(FactsetClient::new).transpose()?,
         finra: Some(FinraClient::new(config.finra.clone())?),
+        ssga: Some(SsgaClient::new(config.ssga.clone())?),
         anthropic: config
             .anthropic
             .clone()

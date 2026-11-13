@@ -4,8 +4,8 @@ use std::time::Duration;
 
 pub use buizz_core::market::SIP_DELAY;
 use buizz_core::market::{
-    Bar, Calendar, CorporateAction, CorporateActionKind, Feed, Instrument, NewsArticle, Session,
-    Symbol, Timeframe,
+    Bar, Calendar, CorporateAction, CorporateActionKind, Feed, Instrument, NewsArticle,
+    OptionQuoteRecord, OptionRight, Session, Symbol, Timeframe,
 };
 use buizz_core::time::Timestamp;
 use chrono::{NaiveDate, TimeDelta};
@@ -17,7 +17,10 @@ use crate::http::{HttpClient, REDACTED, RateLimit, SourceError};
 mod wire;
 
 pub(crate) use wire::WireNews;
-use wire::{ActionsPage, BarsPage, NewsPage, Paged, WireAsset, WireCalendarDay};
+use wire::{
+    ActionsPage, BarsPage, NewsPage, OptionContractsPage, OptionSnapshotsPage, Paged, WireAsset,
+    WireCalendarDay,
+};
 
 pub const DATA_URL: &str = "https://data.alpaca.markets";
 pub const TRADING_URL: &str = "https://paper-api.alpaca.markets";
@@ -33,6 +36,11 @@ pub const ACTIONS_SYMBOLS_PER_REQUEST: usize = 100;
 const ACTION_TYPES: &str = "forward_split,reverse_split,cash_dividend,stock_dividend,spin_off,\
     cash_merger,stock_merger,stock_and_cash_merger,worthless_removal,name_change";
 pub const NEWS_PAGE_LIMIT: u32 = 50;
+pub const OPTION_CONTRACTS_PAGE_LIMIT: u32 = 10_000;
+pub const OPTION_SNAPSHOTS_PAGE_LIMIT: u32 = 1_000;
+pub const OPTION_FEED: &str = "indicative";
+const OCC_TAIL: usize = 15;
+const OPTION_EXPIRATIONS_DAYS: i64 = 3_660;
 pub const NEWS_HISTORY_START: NaiveDate = NaiveDate::from_ymd_opt(2015, 1, 1).expect("valid date");
 
 #[derive(Clone, PartialEq, Eq)]
@@ -311,6 +319,86 @@ impl AlpacaClient {
             .collect())
     }
 
+    pub async fn option_chain(
+        &self,
+        underlying: &Symbol,
+        session: NaiveDate,
+    ) -> Result<Vec<OptionQuoteRecord>, SourceError> {
+        let contracts_url = format!("{}/v2/options/contracts", self.config.trading_url);
+        let contracts_query = [
+            ("underlying_symbols", underlying.to_string()),
+            ("expiration_date_gte", session.to_string()),
+            (
+                "expiration_date_lte",
+                (session + TimeDelta::days(OPTION_EXPIRATIONS_DAYS)).to_string(),
+            ),
+            ("limit", OPTION_CONTRACTS_PAGE_LIMIT.to_string()),
+        ];
+        let open_interest: BTreeMap<Symbol, (u64, Option<NaiveDate>)> = self
+            .pages::<OptionContractsPage>(&contracts_url, &contracts_query)
+            .await?
+            .into_iter()
+            .flat_map(OptionContractsPage::into_open_interest)
+            .collect();
+        let snapshots_url = format!(
+            "{}/v1beta1/options/snapshots/{underlying}",
+            self.config.data_url
+        );
+        let snapshots_query = [
+            ("feed", OPTION_FEED.to_owned()),
+            ("limit", OPTION_SNAPSHOTS_PAGE_LIMIT.to_string()),
+        ];
+        let at = Timestamp::now();
+        let mut quotes = Vec::new();
+        for page in self
+            .pages::<OptionSnapshotsPage>(&snapshots_url, &snapshots_query)
+            .await?
+        {
+            for (contract, snapshot) in page.snapshots {
+                let Some((expiration, right, strike)) = occ_terms(&contract) else {
+                    return Err(SourceError::Decode(format!(
+                        "Alpaca option symbol {contract:?} is not an OCC symbol"
+                    )));
+                };
+                let contract = Symbol::new(&contract);
+                let (open_interest, open_interest_date) = open_interest
+                    .get(&contract)
+                    .map_or((None, None), |(count, date)| (Some(*count), *date));
+                let quote = snapshot.latest_quote;
+                let trade = snapshot.latest_trade;
+                let greeks = snapshot.greeks;
+                quotes.push(OptionQuoteRecord {
+                    contract,
+                    underlying: underlying.clone(),
+                    expiration,
+                    right,
+                    strike,
+                    at,
+                    bid: quote.as_ref().and_then(|quote| quote.bp),
+                    ask: quote.as_ref().and_then(|quote| quote.ap),
+                    bid_size: quote.as_ref().and_then(|quote| quote.bs),
+                    ask_size: quote.as_ref().and_then(|quote| quote.ask_size),
+                    quoted_at: quote.as_ref().and_then(|quote| quote.t),
+                    last: trade.as_ref().and_then(|trade| trade.p),
+                    traded_at: trade.as_ref().and_then(|trade| trade.t),
+                    volume: snapshot
+                        .daily_bar
+                        .filter(|bar| bar.t.exchange_date() == session)
+                        .map_or(0, |bar| bar.v),
+                    open_interest,
+                    open_interest_date,
+                    implied_volatility: snapshot.implied_volatility,
+                    delta: greeks.as_ref().and_then(|greeks| greeks.delta),
+                    gamma: greeks.as_ref().and_then(|greeks| greeks.gamma),
+                    theta: greeks.as_ref().and_then(|greeks| greeks.theta),
+                    vega: greeks.as_ref().and_then(|greeks| greeks.vega),
+                    rho: greeks.as_ref().and_then(|greeks| greeks.rho),
+                });
+            }
+        }
+        Ok(quotes)
+    }
+
     async fn get<T: DeserializeOwned>(
         &self,
         url: &str,
@@ -380,4 +468,16 @@ fn join_symbols(symbols: &[Symbol]) -> String {
         .map(Symbol::as_str)
         .collect::<Vec<_>>()
         .join(",")
+}
+
+fn occ_terms(contract: &str) -> Option<(NaiveDate, OptionRight, Decimal)> {
+    let tail = contract.get(contract.len().checked_sub(OCC_TAIL)?..)?;
+    let expiration = NaiveDate::parse_from_str(&tail[..6], "%y%m%d").ok()?;
+    let right = match &tail[6..7] {
+        "C" => OptionRight::Call,
+        "P" => OptionRight::Put,
+        _ => return None,
+    };
+    let thousandths: i64 = tail[7..].parse().ok()?;
+    Some((expiration, right, Decimal::new(thousandths, 3).normalize()))
 }

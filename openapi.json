@@ -2219,6 +2219,7 @@
           "federal_reserve",
           "factset",
           "finra",
+          "state_street",
           "curated"
         ]
       },
@@ -2426,7 +2427,10 @@
           "short_volume",
           "delistings",
           "listing_notices",
-          "earnings_guidance"
+          "earnings_guidance",
+          "option_chains",
+          "trading_halts",
+          "etf_holdings"
         ]
       },
       "DatasetSpine": {

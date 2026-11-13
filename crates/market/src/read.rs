@@ -6,13 +6,13 @@ use buizz_core::listing::Listings;
 use buizz_core::market::{
     Adjustment, AdjustmentFactor, AssetClass, Bar, Borrow, Calendar, Company, CorporateAction,
     CorporateActionKind, Coverage, DataSource, Dataset, DelistingTally, EarningsInsight,
-    EarningsRelease, EstimateFact, EstimateMetric, EstimateScope, Filing, FomcAnnouncement,
-    FomcMeeting, FundamentalMetric, FundamentalPoint, HISTORY_FLOORS, HISTORY_START, IndexHistory,
-    IndexMember, InsiderOwner, InsiderPlan, InsiderTrade, InsiderTransaction, Instrument,
-    InstrumentProfile, Liquidity, MacroObservation, MacroPoint, MacroSeries, NewsArticle,
-    PendingDelisting, PressCandidate, PressRelease, RiskFreeRate, SIP_DELAY, SecFiling, Section,
-    Session, ShortInterest, ShortInterestRecord, ShortVolume, StockIndex, Symbol, TextCandidate,
-    Timeframe,
+    EarningsRelease, EstimateFact, EstimateMetric, EstimateScope, EtfHolding, EtfShares, Filing,
+    FomcAnnouncement, FomcMeeting, FundamentalMetric, FundamentalPoint, HISTORY_FLOORS,
+    HISTORY_START, IndexHistory, IndexMember, InsiderOwner, InsiderPlan, InsiderTrade,
+    InsiderTransaction, Instrument, InstrumentProfile, Liquidity, MacroObservation, MacroPoint,
+    MacroSeries, NewsArticle, OptionQuote, PendingDelisting, PressCandidate, PressRelease,
+    RiskFreeRate, SIP_DELAY, SecFiling, Section, Session, ShortInterest, ShortInterestRecord,
+    ShortVolume, StockIndex, Symbol, TextCandidate, Timeframe, TradingHalt, TradingHaltRecord,
 };
 use buizz_core::ops::{ActionDisagreement, CoverageGap, DataWarning, UNEXPLAINED_MOVE_THRESHOLD};
 use buizz_core::protocol::BarRow;
@@ -31,7 +31,7 @@ use crate::codec::{
     ActionColumns, Dec, FeedColumn, IN_SYMBOLS, Params, Sym, Ts, Wire, placeholders, symbol_list,
     text_list, wire_name,
 };
-use crate::{AccessionProgress, ChartBars, ChartRequest, HistoryRequest, Result};
+use crate::{AccessionProgress, ChartBars, ChartRequest, EtfDates, HistoryRequest, Result};
 
 const MINUTES_PER_SESSION: usize = 390;
 const EX_DATE_REACH_DAYS: i32 = 7;
@@ -2131,6 +2131,248 @@ pub(crate) fn borrow(
         rows,
         |row| row.at.exchange_date(),
         |row| &mut row.symbol,
+    ))
+}
+
+pub(crate) fn option_quotes(
+    connection: &Connection,
+    spans: &[Span],
+    since: NaiveDate,
+    as_of: Timestamp,
+) -> Result<Vec<OptionQuote>> {
+    let tickers = span_tickers(spans);
+    if tickers.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut statement = connection.prepare_cached(&format!(
+        "SELECT q.contract, q.underlying, q.expiration, q.option_right, q.strike, q.session, \
+         q.recorded_at, q.bid, q.ask, q.bid_size, q.ask_size, q.quoted_at, q.last, q.traded_at, \
+         q.volume, q.open_interest, q.open_interest_date, q.implied_volatility, q.delta, \
+         q.gamma, q.theta, q.vega, q.rho, b.created_at FROM option_quote q \
+         JOIN ingest_batch b ON b.id = q.batch_id \
+         WHERE q.underlying {IN_SYMBOLS} AND q.session >= ? AND b.created_at <= ? \
+         ORDER BY q.session, q.underlying, q.expiration, q.strike, q.option_right"
+    ))?;
+    let params: Params = vec![symbol_list(&tickers), Box::new(since), Box::new(Ts(as_of))];
+    let decimal = |value: Option<Dec>| value.map(|value| value.0.normalize());
+    let rows = statement
+        .query_map(params_from_iter(params.iter()), |row| {
+            Ok((
+                row.get::<_, NaiveDate>(5)?,
+                OptionQuote {
+                    contract: row.get::<_, Sym>(0)?.0,
+                    underlying: row.get::<_, Sym>(1)?.0,
+                    expiration: row.get(2)?,
+                    right: row.get::<_, Wire<_>>(3)?.0,
+                    strike: row.get::<_, Dec>(4)?.0.normalize(),
+                    at: row.get::<_, Ts>(6)?.0,
+                    bid: decimal(row.get(7)?),
+                    ask: decimal(row.get(8)?),
+                    bid_size: row.get(9)?,
+                    ask_size: row.get(10)?,
+                    quoted_at: row.get::<_, Option<Ts>>(11)?.map(|at| at.0),
+                    last: decimal(row.get(12)?),
+                    traded_at: row.get::<_, Option<Ts>>(13)?.map(|at| at.0),
+                    volume: row.get(14)?,
+                    open_interest: row.get(15)?,
+                    open_interest_date: row.get(16)?,
+                    implied_volatility: decimal(row.get(17)?),
+                    delta: decimal(row.get(18)?),
+                    gamma: decimal(row.get(19)?),
+                    theta: decimal(row.get(20)?),
+                    vega: decimal(row.get(21)?),
+                    rho: decimal(row.get(22)?),
+                    available_at: row.get::<_, Ts>(23)?.0,
+                },
+            ))
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    Ok(within_spans(
+        spans,
+        rows,
+        |(session, _)| *session,
+        |(_, quote)| &mut quote.underlying,
+    )
+    .into_iter()
+    .map(|(_, quote)| quote)
+    .collect())
+}
+
+pub(crate) fn option_underlyings_on(
+    connection: &Connection,
+    session: NaiveDate,
+) -> Result<BTreeSet<Symbol>> {
+    let mut statement = connection
+        .prepare_cached("SELECT DISTINCT underlying FROM option_quote WHERE session = ?")?;
+    let underlyings = statement
+        .query_map([session], |row| Ok(row.get::<_, Sym>(0)?.0))?
+        .collect::<duckdb::Result<BTreeSet<_>>>()?;
+    Ok(underlyings)
+}
+
+const HALT_COLUMNS: &str = "h.symbol, h.halted_at, h.name, h.market, h.reason, \
+     h.pause_threshold, h.resumption_date, h.quotes_resume_at, h.trading_resumes_at";
+
+fn halt_record(row: &duckdb::Row<'_>) -> duckdb::Result<TradingHaltRecord> {
+    Ok(TradingHaltRecord {
+        symbol: row.get::<_, Sym>(0)?.0,
+        halted_at: row.get::<_, Ts>(1)?.0,
+        name: row.get(2)?,
+        market: row.get(3)?,
+        reason: row.get(4)?,
+        pause_threshold: row
+            .get::<_, Option<Dec>>(5)?
+            .map(|price| price.0.normalize()),
+        resumption_date: row.get(6)?,
+        quotes_resume_at: row.get::<_, Option<Ts>>(7)?.map(|at| at.0),
+        trading_resumes_at: row.get::<_, Option<Ts>>(8)?.map(|at| at.0),
+    })
+}
+
+pub(crate) fn latest_trading_halts(
+    connection: &Connection,
+    since: Timestamp,
+) -> Result<BTreeSet<TradingHaltRecord>> {
+    let mut statement = connection.prepare_cached(&format!(
+        "SELECT {HALT_COLUMNS} FROM trading_halt h WHERE h.halted_at >= ? \
+         QUALIFY row_number() OVER (PARTITION BY h.symbol, h.halted_at ORDER BY h.batch_id DESC) = 1"
+    ))?;
+    let halts = statement
+        .query_map(params![Ts(since)], halt_record)?
+        .collect::<duckdb::Result<BTreeSet<_>>>()?;
+    Ok(halts)
+}
+
+pub(crate) fn trading_halts(
+    connection: &Connection,
+    spans: Option<&[Span]>,
+    since: NaiveDate,
+    as_of: Timestamp,
+) -> Result<Vec<TradingHalt>> {
+    let Some(from) = Timestamp::at_exchange_time(since, NaiveTime::MIN) else {
+        return Ok(Vec::new());
+    };
+    let tickers = spans.map(span_tickers);
+    if tickers.as_ref().is_some_and(Vec::is_empty) {
+        return Ok(Vec::new());
+    }
+    let only = if tickers.is_some() {
+        format!("AND h.symbol {IN_SYMBOLS}")
+    } else {
+        String::new()
+    };
+    let mut statement = connection.prepare_cached(&format!(
+        "SELECT {HALT_COLUMNS}, b.created_at FROM trading_halt h \
+         JOIN ingest_batch b ON b.id = h.batch_id \
+         WHERE h.halted_at >= ? AND b.created_at <= ? {only} \
+         ORDER BY h.halted_at, h.symbol, b.created_at"
+    ))?;
+    let mut params: Params = vec![Box::new(Ts(from)), Box::new(Ts(as_of))];
+    if let Some(tickers) = &tickers {
+        params.push(symbol_list(tickers));
+    }
+    let rows = statement
+        .query_map(params_from_iter(params.iter()), |row| {
+            let record = halt_record(row)?;
+            Ok(TradingHalt {
+                symbol: record.symbol,
+                halted_at: record.halted_at,
+                name: record.name,
+                market: record.market,
+                reason: record.reason,
+                pause_threshold: record.pause_threshold,
+                resumption_date: record.resumption_date,
+                quotes_resume_at: record.quotes_resume_at,
+                trading_resumes_at: record.trading_resumes_at,
+                available_at: row.get::<_, Ts>(9)?.0,
+            })
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    Ok(match spans {
+        Some(spans) => within_spans(
+            spans,
+            rows,
+            |row| row.halted_at.exchange_date(),
+            |row| &mut row.symbol,
+        ),
+        None => rows,
+    })
+}
+
+pub(crate) fn latest_etf_dates(connection: &Connection) -> Result<BTreeMap<Symbol, EtfDates>> {
+    let mut statement = connection.prepare_cached(
+        "SELECT etf, max(holdings), max(shares) FROM ( \
+         SELECT etf, max(as_of) AS holdings, NULL::DATE AS shares FROM etf_holding GROUP BY etf \
+         UNION ALL SELECT etf, NULL::DATE, max(date) FROM etf_shares GROUP BY etf) GROUP BY etf",
+    )?;
+    let dates = statement
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, Sym>(0)?.0,
+                EtfDates {
+                    holdings: row.get(1)?,
+                    shares: row.get(2)?,
+                },
+            ))
+        })?
+        .collect::<duckdb::Result<BTreeMap<_, _>>>()?;
+    Ok(dates)
+}
+
+pub(crate) fn etf_holdings(
+    connection: &Connection,
+    spans: &[Span],
+    since: NaiveDate,
+    as_of: Timestamp,
+) -> Result<(Vec<EtfHolding>, Vec<EtfShares>)> {
+    let tickers = span_tickers(spans);
+    if tickers.is_empty() {
+        return Ok((Vec::new(), Vec::new()));
+    }
+    let mut statement = connection.prepare_cached(&format!(
+        "SELECT h.etf, h.as_of, h.name, h.ticker, h.identifier, h.weight, h.quantity, \
+         b.created_at FROM etf_holding h JOIN ingest_batch b ON b.id = h.batch_id \
+         WHERE h.etf {IN_SYMBOLS} AND h.as_of >= ? AND b.created_at <= ? \
+         ORDER BY h.as_of, h.etf, h.weight DESC, h.name"
+    ))?;
+    let params: Params = vec![symbol_list(&tickers), Box::new(since), Box::new(Ts(as_of))];
+    let holdings = statement
+        .query_map(params_from_iter(params.iter()), |row| {
+            Ok(EtfHolding {
+                etf: row.get::<_, Sym>(0)?.0,
+                as_of: row.get(1)?,
+                name: row.get(2)?,
+                ticker: row.get::<_, Option<Sym>>(3)?.map(|ticker| ticker.0),
+                identifier: row.get(4)?,
+                weight: row.get::<_, Dec>(5)?.0.normalize(),
+                quantity: row
+                    .get::<_, Option<Dec>>(6)?
+                    .map(|quantity| quantity.0.normalize()),
+                available_at: row.get::<_, Ts>(7)?.0,
+            })
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    let mut statement = connection.prepare_cached(&format!(
+        "SELECT s.etf, s.date, s.nav, s.shares_outstanding, s.net_assets, b.created_at \
+         FROM etf_shares s JOIN ingest_batch b ON b.id = s.batch_id \
+         WHERE s.etf {IN_SYMBOLS} AND s.date >= ? AND b.created_at <= ? \
+         ORDER BY s.date, s.etf, b.created_at"
+    ))?;
+    let shares = statement
+        .query_map(params_from_iter(params.iter()), |row| {
+            Ok(EtfShares {
+                etf: row.get::<_, Sym>(0)?.0,
+                date: row.get(1)?,
+                nav: row.get::<_, Dec>(2)?.0.normalize(),
+                shares_outstanding: row.get::<_, Dec>(3)?.0.normalize(),
+                net_assets: row.get::<_, Dec>(4)?.0.normalize(),
+                available_at: row.get::<_, Ts>(5)?.0,
+            })
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    Ok((
+        within_spans(spans, holdings, |row| row.as_of, |row| &mut row.etf),
+        within_spans(spans, shares, |row| row.date, |row| &mut row.etf),
     ))
 }
 

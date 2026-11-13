@@ -61,7 +61,7 @@ The spine (`cargo run -p buizz-spine`) reads these environment variables. Empty 
 | `BUIZZ_INGEST` | `true` | Run the scheduled data jobs; `false` for fixture-only work |
 | `BUIZZ_INGEST_SYMBOLS` | unset | A comma-separated list that limits prices, corporate actions, fundamentals, filings and Tiingo history to these symbols, for a quick real-data spine on a laptop; calendar, instruments, membership, rates, macro and borrow stay complete |
 | `BUIZZ_CLOCK_OFFSET_SECONDS` | `0` | Shifts the spine's clock by this many seconds, positive or negative; the end-to-end scenarios use it to run at noon New York time whatever the hour |
-| `ALPACA_KEY_ID`, `ALPACA_SECRET_KEY` | unset | Alpaca market data credentials; both are needed to enable Alpaca, the live feed and minute-bar backtests |
+| `ALPACA_KEY_ID`, `ALPACA_SECRET_KEY` | unset | Alpaca market data credentials; both are needed to enable Alpaca, the live feed, minute-bar backtests and the `option_chains` recorder (the free indicative options feed) |
 | `ALPACA_DATA_URL` | `https://data.alpaca.markets` | Alpaca data endpoint |
 | `ALPACA_TRADING_URL` | `https://paper-api.alpaca.markets` | Alpaca endpoint for the calendar and assets |
 | `ALPACA_STREAM_KEYS` | unset | Alpaca accounts for the real-time bar stream, one `key_id:secret` per line; each account streams 30 symbols on its own connection. Unset, the `ALPACA_KEY_ID` account is the one stream account; set, only the listed accounts stream, while `ALPACA_KEY_ID` stays the key for REST and the news stream |
@@ -73,7 +73,8 @@ The spine (`cargo run -p buizz-spine`) reads these environment variables. Empty 
 | `SEC_DATA_URL`, `SEC_WWW_URL` | `https://data.sec.gov`, `https://www.sec.gov` | EDGAR endpoints |
 | `TREASURY_URL` | `https://home.treasury.gov` | US Treasury rates endpoint |
 | `WIKIPEDIA_URL` | `https://en.wikipedia.org` | MediaWiki endpoint for S&P 500 membership |
-| `NASDAQ_TRADER_URL` | `https://www.nasdaqtrader.com` | NASDAQ Trader's symbol directory, read daily to tell ETFs from stocks |
+| `NASDAQ_TRADER_URL` | `https://www.nasdaqtrader.com` | NASDAQ Trader's symbol directory, read daily to tell ETFs from stocks, and its trade halt feed, read every 5 minutes by the `trading_halts` job |
+| `SSGA_URL` | `https://www.ssga.com` | State Street's SPDR fund files, read daily by the `etf_holdings` job for holdings and shares outstanding; free, no key |
 | `IBKR_FTP_ADDRESS` | `ftp2.interactivebrokers.com:21` | Interactive Brokers' public short stock FTP server, read daily by the `borrow` job |
 | `FRED_API_KEY` | unset | Enables the FRED macro series for bots (`ctx.macro`); a free key from fred.stlouisfed.org. Without it the `macro` job reports that FRED is not configured |
 | `FRED_URL` | `https://api.stlouisfed.org` | FRED endpoint |

@@ -17,6 +17,7 @@ type LogLevel = Literal["debug", "info", "warn", "error"]
 type EndReason = Literal["completed", "paused", "stopped", "risk_limit", "failed", "session_end", "disconnected"]
 type TimeInForce = Literal["day", "gtc"]
 type Auction = Literal["open", "close"]
+type OptionRight = Literal["call", "put"]
 type MacroSeries = Literal[
     "treasury_3m",
     "tb3ms",
@@ -453,6 +454,78 @@ class BorrowResult(msgspec.Struct, frozen=True, tag_field="kind", tag="borrow"):
     snapshots: list[BorrowFrame]
 
 
+class OptionQuoteFrame(msgspec.Struct, frozen=True):
+    contract: str
+    underlying: str
+    expiration: date
+    right: OptionRight
+    strike: Decimal
+    at: int
+    bid: Decimal | None
+    ask: Decimal | None
+    bid_size: int | None
+    ask_size: int | None
+    quoted_at: int | None
+    last: Decimal | None
+    traded_at: int | None
+    volume: int
+    open_interest: int | None
+    open_interest_date: date | None
+    implied_volatility: Decimal | None
+    delta: Decimal | None
+    gamma: Decimal | None
+    theta: Decimal | None
+    vega: Decimal | None
+    rho: Decimal | None
+    available_at: int
+
+
+class OptionChainsResult(msgspec.Struct, frozen=True, tag_field="kind", tag="option_chains"):
+    quotes: list[OptionQuoteFrame]
+
+
+class TradingHaltFrame(msgspec.Struct, frozen=True):
+    symbol: str
+    halted_at: int
+    name: str
+    market: str
+    reason: str
+    pause_threshold: Decimal | None
+    resumption_date: date | None
+    quotes_resume_at: int | None
+    trading_resumes_at: int | None
+    available_at: int
+
+
+class TradingHaltsResult(msgspec.Struct, frozen=True, tag_field="kind", tag="trading_halts"):
+    halts: list[TradingHaltFrame]
+
+
+class EtfHoldingFrame(msgspec.Struct, frozen=True):
+    etf: str
+    as_of: date
+    name: str
+    ticker: str | None
+    identifier: str | None
+    weight: Decimal
+    quantity: Decimal | None
+    available_at: int
+
+
+class EtfSharesFrame(msgspec.Struct, frozen=True):
+    etf: str
+    date: date
+    nav: Decimal
+    shares_outstanding: Decimal
+    net_assets: Decimal
+    available_at: int
+
+
+class EtfHoldingsResult(msgspec.Struct, frozen=True, tag_field="kind", tag="etf_holdings"):
+    holdings: list[EtfHoldingFrame]
+    shares: list[EtfSharesFrame]
+
+
 class CompletenessFrame(msgspec.Struct, frozen=True):
     dataset: str
     source: str
@@ -494,6 +567,9 @@ type Result = (
     | ShortInterestResult
     | ShortVolumeResult
     | BorrowResult
+    | OptionChainsResult
+    | TradingHaltsResult
+    | EtfHoldingsResult
     | CompletenessResult
     | FactsResult
 )
@@ -577,6 +653,21 @@ class BorrowRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="borrow")
     since: date
 
 
+class OptionChainsRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="option_chains"):
+    underlyings: list[str]
+    since: date
+
+
+class TradingHaltsRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="trading_halts"):
+    symbols: list[str] | None
+    since: date
+
+
+class EtfHoldingsRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="etf_holdings"):
+    etfs: list[str]
+    since: date
+
+
 class CalendarRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="calendar"):
     start: date = msgspec.field(name="from")
     end: date = msgspec.field(name="to")
@@ -626,6 +717,9 @@ type Request = (
     | ShortInterestRequest
     | ShortVolumeRequest
     | BorrowRequest
+    | OptionChainsRequest
+    | TradingHaltsRequest
+    | EtfHoldingsRequest
     | CompletenessRequest
     | FactsRequest
 )

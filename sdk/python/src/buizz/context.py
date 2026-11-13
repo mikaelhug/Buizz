@@ -27,6 +27,8 @@ from buizz.wire import (
     CompletenessResult,
     EarningsRequest,
     EarningsResult,
+    EtfHoldingsRequest,
+    EtfHoldingsResult,
     Event,
     FactsRequest,
     FactsResult,
@@ -56,6 +58,9 @@ from buizz.wire import (
     Metric,
     NewsRequest,
     NewsResult,
+    OptionChainsRequest,
+    OptionChainsResult,
+    OptionRight,
     OrderRequest,
     OrderType,
     Position,
@@ -75,6 +80,8 @@ from buizz.wire import (
     Stop,
     Timeframe,
     TimeInForce,
+    TradingHaltsRequest,
+    TradingHaltsResult,
     TrailAmount,
     TrailingStop,
     TrailPercent,
@@ -379,6 +386,70 @@ class Borrow(msgspec.Struct, frozen=True):
     available: int
     available_or_more: bool
     available_at: datetime
+
+
+class OptionQuote(msgspec.Struct, frozen=True):
+    contract: str
+    underlying: str
+    expiration: date
+    right: OptionRight
+    strike: Decimal
+    at: datetime
+    bid: Decimal | None
+    ask: Decimal | None
+    bid_size: int | None
+    ask_size: int | None
+    quoted_at: datetime | None
+    last: Decimal | None
+    traded_at: datetime | None
+    volume: int
+    open_interest: int | None
+    open_interest_date: date | None
+    implied_volatility: Decimal | None
+    delta: Decimal | None
+    gamma: Decimal | None
+    theta: Decimal | None
+    vega: Decimal | None
+    rho: Decimal | None
+    available_at: datetime
+
+
+class TradingHalt(msgspec.Struct, frozen=True):
+    symbol: str
+    halted_at: datetime
+    name: str
+    market: str
+    reason: str
+    pause_threshold: Decimal | None
+    resumption_date: date | None
+    quotes_resume_at: datetime | None
+    trading_resumes_at: datetime | None
+    available_at: datetime
+
+
+class EtfHolding(msgspec.Struct, frozen=True):
+    etf: str
+    as_of: date
+    name: str
+    ticker: str | None
+    identifier: str | None
+    weight: Decimal
+    quantity: Decimal | None
+    available_at: datetime
+
+
+class EtfShares(msgspec.Struct, frozen=True):
+    etf: str
+    date: date
+    nav: Decimal
+    shares_outstanding: Decimal
+    net_assets: Decimal
+    available_at: datetime
+
+
+class EtfHoldings(msgspec.Struct, frozen=True):
+    holdings: list[EtfHolding]
+    shares: list[EtfShares]
 
 
 class MacroPoint(msgspec.Struct, frozen=True):
@@ -706,6 +777,80 @@ class Context(FactQueries):
             )
             for b in result.snapshots
         ]
+
+    def option_chains(self, underlyings: list[str], since: date) -> list[OptionQuote]:
+        self._current("ctx.option_chains")
+        result = self._query(OptionChainsRequest(texts("underlyings", underlyings), day("since", since)))
+        if not isinstance(result, OptionChainsResult):
+            raise ProtocolError(f"option chains query answered with {type(result).__name__}")
+        return [
+            OptionQuote(
+                q.contract,
+                q.underlying,
+                q.expiration,
+                q.right,
+                q.strike,
+                from_ns(q.at),
+                q.bid,
+                q.ask,
+                q.bid_size,
+                q.ask_size,
+                None if q.quoted_at is None else from_ns(q.quoted_at),
+                q.last,
+                None if q.traded_at is None else from_ns(q.traded_at),
+                q.volume,
+                q.open_interest,
+                q.open_interest_date,
+                q.implied_volatility,
+                q.delta,
+                q.gamma,
+                q.theta,
+                q.vega,
+                q.rho,
+                from_ns(q.available_at),
+            )
+            for q in result.quotes
+        ]
+
+    def trading_halts(self, since: date, symbols: list[str] | None = None) -> list[TradingHalt]:
+        self._current("ctx.trading_halts")
+        asked = None if symbols is None else texts("symbols", symbols)
+        result = self._query(TradingHaltsRequest(asked, day("since", since)))
+        if not isinstance(result, TradingHaltsResult):
+            raise ProtocolError(f"trading halts query answered with {type(result).__name__}")
+        return [
+            TradingHalt(
+                h.symbol,
+                from_ns(h.halted_at),
+                h.name,
+                h.market,
+                h.reason,
+                h.pause_threshold,
+                h.resumption_date,
+                None if h.quotes_resume_at is None else from_ns(h.quotes_resume_at),
+                None if h.trading_resumes_at is None else from_ns(h.trading_resumes_at),
+                from_ns(h.available_at),
+            )
+            for h in result.halts
+        ]
+
+    def etf_holdings(self, etfs: list[str], since: date) -> EtfHoldings:
+        self._current("ctx.etf_holdings")
+        result = self._query(EtfHoldingsRequest(texts("etfs", etfs), day("since", since)))
+        if not isinstance(result, EtfHoldingsResult):
+            raise ProtocolError(f"ETF holdings query answered with {type(result).__name__}")
+        return EtfHoldings(
+            [
+                EtfHolding(
+                    h.etf, h.as_of, h.name, h.ticker, h.identifier, h.weight, h.quantity, from_ns(h.available_at)
+                )
+                for h in result.holdings
+            ],
+            [
+                EtfShares(s.etf, s.date, s.nav, s.shares_outstanding, s.net_assets, from_ns(s.available_at))
+                for s in result.shares
+            ],
+        )
 
     def completeness(self, datasets: list[str], start: date, end: date) -> list[Completeness]:
         self._current("ctx.completeness")

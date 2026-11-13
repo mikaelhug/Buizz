@@ -55,6 +55,7 @@ async fn spine() -> Spine {
         fed: None,
         factset: None,
         finra: None,
+        ssga: None,
         anthropic: None,
     };
     let feed = FeedManager::new(

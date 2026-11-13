@@ -26,6 +26,9 @@ pub(crate) const NEWS: &str = "news";
 pub(crate) const INDEX_MEMBERSHIP: &str = "index_membership";
 pub(crate) const RATES: &str = "rates";
 pub(crate) const BORROW: &str = "borrow";
+pub(crate) const OPTION_CHAINS: &str = "option_chains";
+pub(crate) const TRADING_HALTS: &str = "trading_halts";
+pub(crate) const ETF_HOLDINGS: &str = "etf_holdings";
 pub(crate) const SHORT_INTEREST: &str = "short_interest";
 pub(crate) const SHORT_VOLUME: &str = "short_volume";
 pub(crate) const MACRO: &str = "macro";
@@ -37,6 +40,8 @@ pub(crate) const TIINGO_HISTORY: &str = "tiingo_history";
 pub(crate) const EARNINGS_INSIGHT: &str = "earnings_insight";
 pub(crate) const EARNINGS_INSIGHT_ARCHIVE: &str = "earnings_insight_archive";
 
+const FIVE_MINUTES: Duration = Duration::from_secs(5 * 60);
+const TEN_MINUTES: Duration = Duration::from_secs(10 * 60);
 const HOUR: Duration = Duration::from_secs(60 * 60);
 const DAY: Duration = Duration::from_secs(24 * 60 * 60);
 const SIX_HOURS: Duration = Duration::from_secs(6 * 60 * 60);
@@ -45,7 +50,7 @@ const SHORT_RETRY: Duration = HOUR;
 const FIRST_FAILURE_RETRY: Duration = Duration::from_secs(5 * 60);
 const STALE_AFTER_INTERVALS: i32 = 3;
 
-pub(crate) const JOBS: [JobSpec; 28] = [
+pub(crate) const JOBS: [JobSpec; 31] = [
     JobSpec {
         name: CALENDAR,
         source: Some(DataSource::Alpaca),
@@ -154,6 +159,24 @@ pub(crate) const JOBS: [JobSpec; 28] = [
         every: DAY,
     },
     JobSpec {
+        name: OPTION_CHAINS,
+        source: Some(DataSource::Alpaca),
+        datasets: &[Dataset::OptionChains],
+        every: TEN_MINUTES,
+    },
+    JobSpec {
+        name: TRADING_HALTS,
+        source: Some(DataSource::Nasdaq),
+        datasets: &[Dataset::TradingHalts],
+        every: FIVE_MINUTES,
+    },
+    JobSpec {
+        name: ETF_HOLDINGS,
+        source: Some(DataSource::StateStreet),
+        datasets: &[Dataset::EtfHoldings],
+        every: DAY,
+    },
+    JobSpec {
         name: SHORT_INTEREST,
         source: Some(DataSource::Finra),
         datasets: &[Dataset::ShortInterest],
@@ -227,18 +250,25 @@ fn delta(duration: Duration) -> TimeDelta {
 
 pub(crate) const FOUNDATION: [&str; 4] = [CALENDAR, INSTRUMENTS, INDEX_MEMBERSHIP, BARS_1D];
 
-fn reads_from(spec: &JobSpec) -> Option<DataSource> {
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Lane {
+    Source(Option<DataSource>),
+    Timed(&'static str),
+}
+
+fn lane(spec: &JobSpec) -> Lane {
     match spec.name {
-        TIINGO_HISTORY => Some(DataSource::Alpaca),
-        FILING_SECTIONS | RECIPE_FACTS => Some(DataSource::Edgar),
-        _ => spec.source,
+        TIINGO_HISTORY => Lane::Source(Some(DataSource::Alpaca)),
+        FILING_SECTIONS | RECIPE_FACTS => Lane::Source(Some(DataSource::Edgar)),
+        OPTION_CHAINS => Lane::Timed(spec.name),
+        _ => Lane::Source(spec.source),
     }
 }
 
 pub(crate) fn lanes() -> Vec<Vec<&'static JobSpec>> {
-    let mut lanes: Vec<(Option<DataSource>, Vec<&'static JobSpec>)> = Vec::new();
+    let mut lanes: Vec<(Lane, Vec<&'static JobSpec>)> = Vec::new();
     for spec in &JOBS {
-        let lane = reads_from(spec);
+        let lane = lane(spec);
         match lanes.iter_mut().find(|(source, _)| *source == lane) {
             Some((_, jobs)) => jobs.push(spec),
             None => lanes.push((lane, vec![spec])),

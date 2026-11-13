@@ -1,0 +1,11 @@
+{
+  "id": 19,
+  "request": {
+    "etfs": [
+      "SPY"
+    ],
+    "kind": "etf_holdings",
+    "since": "2024-11-20"
+  },
+  "type": "query"
+}

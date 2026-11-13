@@ -62,6 +62,9 @@ class RedGreen(Bot):
         observed["borrow"] = ctx.borrow(["AAA"], date(2024, 11, 20))
         observed["completeness"] = ctx.completeness(["news"], date(2019, 1, 1), date(2024, 11, 20))
         observed["facts"] = ctx.facts("listing_notice", ["BBB"], date(2024, 10, 1))
+        observed["option_chains"] = ctx.option_chains(["AAA"], date(2024, 11, 20))
+        observed["trading_halts"] = ctx.trading_halts(date(2024, 11, 20))
+        observed["etf_holdings"] = ctx.etf_holdings(["SPY"], date(2024, 11, 20))
         ctx.order_target_weight("AAA", ctx.params["weight"], reason="red day")
         ctx.order("BBB", -100, reason="take profit", limit_price=Decimal("49.60"), client_id="BBB-limit-1")
         ctx.cancel("BBB-limit-0")
@@ -125,6 +128,12 @@ def play_spine(connection: ServerConnection, received: list[bytes]) -> None:
     expect()
     connection.send(golden("data_facts"))
     expect()
+    connection.send(golden("data_option_chains"))
+    expect()
+    connection.send(golden("data_trading_halts"))
+    expect()
+    connection.send(golden("data_etf_holdings"))
+    expect()
     connection.send(golden("step_live"))
     expect()
     connection.send(golden("end_backtest"))
@@ -163,6 +172,22 @@ def play(
     return received
 
 
+def assert_recorded_feeds() -> None:
+    [snapshot] = observed["borrow"]
+    assert (snapshot.fee_rate, snapshot.available_or_more, snapshot.available_at.minute) == (Decimal("0.25"), True, 2)
+    [quote] = observed["option_chains"]
+    assert (quote.right, quote.strike, quote.open_interest, quote.quoted_at and quote.quoted_at.minute) == (
+        "call",
+        Decimal(105),
+        8310,
+        14,
+    )
+    [halt] = observed["trading_halts"]
+    assert (halt.reason, halt.halted_at.microsecond, halt.pause_threshold) == ("LUDP", 482000, None)
+    held = observed["etf_holdings"]
+    assert (held.holdings[0].ticker, held.shares[0].shares_outstanding) == ("AAA", Decimal(1012182116))
+
+
 def test_bot_replies_match_the_golden_frames(monkeypatch: pytest.MonkeyPatch) -> None:
     received = play(monkeypatch, play_spine, RedGreen)
 
@@ -188,6 +213,9 @@ def test_bot_replies_match_the_golden_frames(monkeypatch: pytest.MonkeyPatch) ->
         "borrow",
         "completeness",
         "facts",
+        "option_chains",
+        "trading_halts",
+        "etf_holdings",
     ]
     assert queries == [golden(f"query_{kind}") for kind in kinds]
     assert ack_first == golden("ack_backtest")
@@ -230,13 +258,12 @@ def test_bot_replies_match_the_golden_frames(monkeypatch: pytest.MonkeyPatch) ->
     assert position.available_at.day == 27
     [volume] = observed["short_volume"]
     assert (volume.short_volume, volume.total_volume) == (Decimal("812345.5"), Decimal(1650000))
-    [snapshot] = observed["borrow"]
-    assert (snapshot.fee_rate, snapshot.available_or_more, snapshot.available_at.minute) == (Decimal("0.25"), True, 2)
     [news] = observed["completeness"]
     assert (news.source, news.complete, news.complete_through) == ("alpaca", False, date(2020, 10, 31))
     notice, unstated = observed["facts"]
     assert (notice.exchange, notice.rule, notice.available_at.hour) == ("nasdaq", "5550(a)(2)", 13)
     assert (unstated.status, unstated.exchange, unstated.evidence) == ("not_stated", None, None)
+    assert_recorded_feeds()
     assert len(observed["live_bars"]) == 2
     assert observed["live_events"][0].symbol == "AAA"
 

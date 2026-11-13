@@ -125,6 +125,9 @@ Outside `on_step` only `params`, `universe`, `state`, `portfolio` and `position`
 | `ctx.short_interest(symbols, since)` | `list[ShortInterest]`: FINRA's twice-monthly short interest for settlement dates on or after `since`, as published by the clock, see below |
 | `ctx.short_volume(symbols, since)` | `list[ShortVolume]`: FINRA's daily off-exchange short sale volume for trade dates on or after `since`, see below |
 | `ctx.borrow(symbols, since)` | `list[Borrow]`: Interactive Brokers' short availability and borrow fee as the spine recorded it on or after `since`, see below |
+| `ctx.option_chains(underlyings, since)` | `list[OptionQuote]`: the option chain snapshots the spine recorded before each close on or after `since`, see below |
+| `ctx.trading_halts(since, symbols=None)` | `list[TradingHalt]`: every version of each Nasdaq trading halt since `since`, for all symbols or only `symbols`, see below |
+| `ctx.etf_holdings(etfs, since)` | `EtfHoldings`: SPDR ETF holdings and shares outstanding dated on or after `since`, see below |
 | `ctx.completeness(datasets, start, end)` | `list[Completeness]`: per dataset and source, whether the spine holds everything that dataset's scope expects for `start`–`end` (clipped to the clock), with `complete_through` and `state` (`complete`, `filling` or `stalled`) |
 | `ctx.universe_at(on, top_dollar_volume, *, asset_class=None, index=None)` | The symbols a `top_dollar_volume` universe of that size (optionally of one `asset_class`), or the `index` universe, held on the date `on`, see below |
 | `ctx.macro(series, start, end)` | The rate, macro and S&P 500 valuation observations dated `start` to `end` as known at the clock (`MacroPoint`: `series`, `date`, `value`, `published`, `available_at`), see below |
@@ -260,6 +263,20 @@ from datetime import timedelta
 since = ctx.session.date - timedelta(days=45)
 latest = {position.symbol: position for position in ctx.short_interest(ctx.universe, since)}
 crowded = {symbol for symbol, position in latest.items() if position.days_to_cover > 8}
+```
+
+**Recorded feeds.** Three more queries read data no free source keeps a history of, so the spine records it from the day it started (late 2026) and a backtest before that sees nothing. Each row is visible from `available_at`, the moment the spine stored it.
+
+`ctx.option_chains(underlyings, since)` gives one `OptionQuote` per contract and session from about 30 minutes before the close, for the S&P 500 members and the core ETFs: `contract` (the OCC symbol), `underlying`, `expiration`, `right` (`"call"` or `"put"`), `strike`, `at` (when the spine read the chain), `bid`, `ask`, `bid_size`, `ask_size`, `quoted_at`, `last`, `traded_at`, `volume` (this session's, 0 if it has not traded), `open_interest` with `open_interest_date` (the session it counts, usually the one before), `implied_volatility` and `delta`, `gamma`, `theta`, `vega`, `rho`. Quotes come from Alpaca's free indicative feed, a derivative of OPRA rather than the consolidated quote, and its trades are 15 minutes late, so treat bid and ask as indicative.
+
+`ctx.trading_halts(since, symbols=None)` gives the Nasdaq Trader halts with `halted_at` on or after `since`: a `TradingHalt` has `symbol`, `halted_at` (to the millisecond), `name`, `market`, `reason` (Nasdaq's code, such as `T1` news pending, `LUDP` a limit up-limit down pause or `H10` an SEC suspension), `pause_threshold`, `resumption_date`, `quotes_resume_at` and `trading_resumes_at`. A halt whose resumption was filled in later appears again as a new version with its own `available_at`; take the latest one visible.
+
+`ctx.etf_holdings(etfs, since)` reads State Street's daily files for SPY, DIA, MDY, BIL and the 11 sector SPDRs: `holdings` is a list of `EtfHolding` (`etf`, `as_of`, `name`, `ticker`, `identifier`, `weight` in percent, `quantity` in shares or par) and `shares` a list of `EtfShares` (`etf`, `date`, `nav`, `shares_outstanding`, `net_assets`). Creations and redemptions show as day-to-day changes in `shares_outstanding`.
+
+```python
+chain = ctx.option_chains(["SPY"], ctx.session.date)
+puts = [q for q in chain if q.right == "put" and q.implied_volatility is not None]
+halted = {halt.symbol for halt in ctx.trading_halts(ctx.session.date) if halt.trading_resumes_at is None}
 ```
 
 `to_ns(moment)` turns a timezone-aware `datetime` into the nanoseconds of `History.start`, for example `history.start >= to_ns(ctx.session.open)`.

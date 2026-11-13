@@ -946,6 +946,139 @@ pub struct ShortVolume {
     pub available_at: Timestamp,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OptionRight {
+    Call,
+    Put,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OptionQuoteRecord {
+    pub contract: Symbol,
+    pub underlying: Symbol,
+    pub expiration: NaiveDate,
+    pub right: OptionRight,
+    pub strike: Decimal,
+    pub at: Timestamp,
+    pub bid: Option<Decimal>,
+    pub ask: Option<Decimal>,
+    pub bid_size: Option<u64>,
+    pub ask_size: Option<u64>,
+    pub quoted_at: Option<Timestamp>,
+    pub last: Option<Decimal>,
+    pub traded_at: Option<Timestamp>,
+    pub volume: u64,
+    pub open_interest: Option<u64>,
+    pub open_interest_date: Option<NaiveDate>,
+    pub implied_volatility: Option<Decimal>,
+    pub delta: Option<Decimal>,
+    pub gamma: Option<Decimal>,
+    pub theta: Option<Decimal>,
+    pub vega: Option<Decimal>,
+    pub rho: Option<Decimal>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OptionQuote {
+    pub contract: Symbol,
+    pub underlying: Symbol,
+    pub expiration: NaiveDate,
+    pub right: OptionRight,
+    pub strike: Decimal,
+    pub at: Timestamp,
+    pub bid: Option<Decimal>,
+    pub ask: Option<Decimal>,
+    pub bid_size: Option<u64>,
+    pub ask_size: Option<u64>,
+    pub quoted_at: Option<Timestamp>,
+    pub last: Option<Decimal>,
+    pub traded_at: Option<Timestamp>,
+    pub volume: u64,
+    pub open_interest: Option<u64>,
+    pub open_interest_date: Option<NaiveDate>,
+    pub implied_volatility: Option<Decimal>,
+    pub delta: Option<Decimal>,
+    pub gamma: Option<Decimal>,
+    pub theta: Option<Decimal>,
+    pub vega: Option<Decimal>,
+    pub rho: Option<Decimal>,
+    pub available_at: Timestamp,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct TradingHaltRecord {
+    pub symbol: Symbol,
+    pub halted_at: Timestamp,
+    pub name: String,
+    pub market: String,
+    pub reason: String,
+    pub pause_threshold: Option<Decimal>,
+    pub resumption_date: Option<NaiveDate>,
+    pub quotes_resume_at: Option<Timestamp>,
+    pub trading_resumes_at: Option<Timestamp>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TradingHalt {
+    pub symbol: Symbol,
+    pub halted_at: Timestamp,
+    pub name: String,
+    pub market: String,
+    pub reason: String,
+    pub pause_threshold: Option<Decimal>,
+    pub resumption_date: Option<NaiveDate>,
+    pub quotes_resume_at: Option<Timestamp>,
+    pub trading_resumes_at: Option<Timestamp>,
+    pub available_at: Timestamp,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EtfHoldingRecord {
+    pub name: String,
+    pub ticker: Option<Symbol>,
+    pub identifier: Option<String>,
+    pub weight: Decimal,
+    pub quantity: Option<Decimal>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EtfHoldingsFile {
+    pub etf: Symbol,
+    pub as_of: NaiveDate,
+    pub holdings: Vec<EtfHoldingRecord>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EtfSharesRecord {
+    pub date: NaiveDate,
+    pub nav: Decimal,
+    pub shares_outstanding: Decimal,
+    pub net_assets: Decimal,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EtfHolding {
+    pub etf: Symbol,
+    pub as_of: NaiveDate,
+    pub name: String,
+    pub ticker: Option<Symbol>,
+    pub identifier: Option<String>,
+    pub weight: Decimal,
+    pub quantity: Option<Decimal>,
+    pub available_at: Timestamp,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EtfShares {
+    pub etf: Symbol,
+    pub date: NaiveDate,
+    pub nav: Decimal,
+    pub shares_outstanding: Decimal,
+    pub net_assets: Decimal,
+    pub available_at: Timestamp,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct RiskFreeRate {
     pub date: NaiveDate,
@@ -1307,6 +1440,7 @@ pub enum DataSource {
     FederalReserve,
     Factset,
     Finra,
+    StateStreet,
     Curated,
 }
 
@@ -1342,16 +1476,21 @@ pub enum Dataset {
     Delistings,
     ListingNotices,
     EarningsGuidance,
+    OptionChains,
+    TradingHalts,
+    EtfHoldings,
 }
 
 impl Dataset {
-    pub const ALL: [Self; 27] = [
+    pub const ALL: [Self; 30] = [
         Self::Bars1d,
         Self::Bars1m,
         Self::CorporateActions,
+        Self::OptionChains,
         Self::Instruments,
         Self::Calendar,
         Self::IndexMembership,
+        Self::EtfHoldings,
         Self::Delistings,
         Self::Companies,
         Self::Fundamentals,
@@ -1373,15 +1512,19 @@ impl Dataset {
         Self::Borrow,
         Self::ShortInterest,
         Self::ShortVolume,
+        Self::TradingHalts,
     ];
 
     pub fn domain(self) -> DataDomain {
         match self {
-            Self::Bars1d | Self::Bars1m | Self::CorporateActions => DataDomain::Prices,
+            Self::Bars1d | Self::Bars1m | Self::CorporateActions | Self::OptionChains => {
+                DataDomain::Prices
+            }
             Self::Instruments
             | Self::Calendar
             | Self::IndexMembership
             | Self::Delistings
+            | Self::EtfHoldings
             | Self::Companies => DataDomain::Reference,
             Self::Fundamentals
             | Self::SecFilings
@@ -1396,9 +1539,11 @@ impl Dataset {
             | Self::InsiderTrades
             | Self::Estimates => DataDomain::Filings,
             Self::Rates | Self::Macro | Self::Fomc => DataDomain::Macro,
-            Self::News | Self::Borrow | Self::ShortInterest | Self::ShortVolume => {
-                DataDomain::Alternative
-            }
+            Self::News
+            | Self::Borrow
+            | Self::ShortInterest
+            | Self::ShortVolume
+            | Self::TradingHalts => DataDomain::Alternative,
         }
     }
 }

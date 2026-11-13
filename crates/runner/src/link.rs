@@ -338,6 +338,9 @@ fn read_from(request: &QueryRequest, today: NaiveDate) -> Option<(Dataset, Naive
         QueryRequest::ShortInterest { since, .. } => Some((Dataset::ShortInterest, *since)),
         QueryRequest::ShortVolume { since, .. } => Some((Dataset::ShortVolume, *since)),
         QueryRequest::Borrow { since, .. } => Some((Dataset::Borrow, *since)),
+        QueryRequest::OptionChains { since, .. } => Some((Dataset::OptionChains, *since)),
+        QueryRequest::TradingHalts { since, .. } => Some((Dataset::TradingHalts, *since)),
+        QueryRequest::EtfHoldings { since, .. } => Some((Dataset::EtfHoldings, *since)),
         QueryRequest::Facts { recipe, since, .. } => RECIPES
             .iter()
             .find(|known| known.name == recipe)
@@ -579,6 +582,27 @@ async fn answer(
                 .await
                 .map_err(|error| error.to_string())?;
             Ok(DataResult::Borrow { snapshots })
+        }
+        QueryRequest::OptionChains { underlyings, since } => {
+            let quotes = market
+                .option_quotes(underlyings, since, clock)
+                .await
+                .map_err(|error| error.to_string())?;
+            Ok(DataResult::OptionChains { quotes })
+        }
+        QueryRequest::TradingHalts { symbols, since } => {
+            let halts = market
+                .trading_halts(symbols, since, clock)
+                .await
+                .map_err(|error| error.to_string())?;
+            Ok(DataResult::TradingHalts { halts })
+        }
+        QueryRequest::EtfHoldings { etfs, since } => {
+            let (holdings, shares) = market
+                .etf_holdings(etfs, since, clock)
+                .await
+                .map_err(|error| error.to_string())?;
+            Ok(DataResult::EtfHoldings { holdings, shares })
         }
         QueryRequest::Completeness { datasets, from, to } => {
             if from > to {

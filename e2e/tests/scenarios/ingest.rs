@@ -62,6 +62,9 @@ async fn an_empty_spine_backfills_backs_off_rejects_a_bad_tiingo_tail_and_restar
             ("recipe_facts", Some(JobOutcome::Noop)),
             ("rates", ok),
             ("borrow", ok),
+            ("option_chains", Some(JobOutcome::Noop)),
+            ("trading_halts", ok),
+            ("etf_holdings", ok),
             ("short_interest", Some(JobOutcome::Noop)),
             ("short_volume", Some(JobOutcome::Noop)),
             ("macro", ok),
@@ -102,6 +105,19 @@ async fn an_empty_spine_backfills_backs_off_rejects_a_bad_tiingo_tail_and_restar
     assert_eq!(
         message(&jobs, "borrow"),
         "borrow: 6 tickers as of 2026-11-11T20:10:41Z"
+    );
+    assert_eq!(
+        message(&jobs, "option_chains"),
+        "option chains: no session today"
+    );
+    assert_eq!(
+        message(&jobs, "trading_halts"),
+        "trading halts: 2 new or changed"
+    );
+    assert_eq!(
+        message(&jobs, "etf_holdings"),
+        "ETF holdings: 60 rows",
+        "two holdings and two days of shares outstanding for each of the 15 SPDR ETFs"
     );
     let rejected = message(&jobs, "tiingo_history");
     assert!(

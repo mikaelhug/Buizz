@@ -724,6 +724,24 @@ impl Ingest {
                 ScopeUnit::Sessions,
                 "every session since borrow recording began",
             ),
+            (
+                Dataset::OptionChains,
+                DataSource::Alpaca,
+                ScopeUnit::Sessions,
+                "every session since option chain recording began",
+            ),
+            (
+                Dataset::TradingHalts,
+                DataSource::Nasdaq,
+                ScopeUnit::Days,
+                "every day since the Nasdaq halt feed began recording",
+            ),
+            (
+                Dataset::EtfHoldings,
+                DataSource::StateStreet,
+                ScopeUnit::Sessions,
+                "every session since SPDR holdings recording began",
+            ),
         ] {
             if let Some(row) = series(dataset, source) {
                 measures.push(

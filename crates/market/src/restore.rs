@@ -88,7 +88,7 @@ pub(crate) fn restore(connection: &mut Connection, parts: &[PathBuf]) -> Result<
             |row| row.get::<_, i64>(0),
         )?;
     }
-    cover_borrow(&transaction)?;
+    cover_recorders(&transaction)?;
     transaction.commit()?;
     Ok(Restored {
         parts: parts.len(),
@@ -97,32 +97,35 @@ pub(crate) fn restore(connection: &mut Connection, parts: &[PathBuf]) -> Result<
     })
 }
 
-fn cover_borrow(connection: &Connection) -> Result<()> {
-    let mut statement = connection.prepare(
-        "SELECT b.source, min(a.recorded_at), max(a.recorded_at) FROM borrow_availability a \
-         JOIN ingest_batch b ON b.id = a.batch_id GROUP BY b.source",
-    )?;
-    let ranges = statement
-        .query_map([], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, Ts>(1)?.0,
-                row.get::<_, Ts>(2)?.0,
-            ))
-        })?
-        .collect::<duckdb::Result<Vec<_>>>()?;
-    let dataset = wire_name(&Dataset::Borrow);
-    for (source, first, last) in ranges {
-        connection.execute(
-            "INSERT OR REPLACE INTO coverage VALUES (?, '', ?, ?, ?, ?)",
-            params![
-                dataset,
-                source,
-                first.exchange_date(),
-                last.exchange_date(),
-                Ts(Timestamp::now())
-            ],
-        )?;
+const RECORDED: [(Dataset, &str); 4] = [
+    (Dataset::Borrow, "borrow_availability"),
+    (Dataset::OptionChains, "option_quote"),
+    (Dataset::TradingHalts, "trading_halt"),
+    (Dataset::EtfHoldings, "etf_holding"),
+];
+
+fn cover_recorders(connection: &Connection) -> Result<()> {
+    for (dataset, table) in RECORDED {
+        let mut statement = connection.prepare(&format!(
+            "SELECT b.source, min(a.recorded_at), max(a.recorded_at) FROM {table} a \
+             JOIN ingest_batch b ON b.id = a.batch_id GROUP BY b.source"
+        ))?;
+        let ranges = statement
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, Ts>(1)?.0.exchange_date(),
+                    row.get::<_, Ts>(2)?.0.exchange_date(),
+                ))
+            })?
+            .collect::<duckdb::Result<Vec<_>>>()?;
+        let dataset = wire_name(&dataset);
+        for (source, first, last) in ranges {
+            connection.execute(
+                "INSERT OR REPLACE INTO coverage VALUES (?, '', ?, ?, ?, ?)",
+                params![dataset, source, first, last, Ts(Timestamp::now())],
+            )?;
+        }
     }
     Ok(())
 }

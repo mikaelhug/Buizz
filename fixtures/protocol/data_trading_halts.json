@@ -1,0 +1,21 @@
+{
+  "id": 18,
+  "result": {
+    "halts": [
+      {
+        "available_at": 1732115100000000000,
+        "halted_at": 1732114931482000000,
+        "market": "NASDAQ",
+        "name": "Beta Fixture Inc",
+        "pause_threshold": null,
+        "quotes_resume_at": 1732114931000000000,
+        "reason": "LUDP",
+        "resumption_date": "2024-11-20",
+        "symbol": "BBB",
+        "trading_resumes_at": 1732115231000000000
+      }
+    ],
+    "kind": "trading_halts"
+  },
+  "type": "data"
+}

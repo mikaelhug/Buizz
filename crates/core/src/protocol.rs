@@ -10,10 +10,10 @@ use serde_json::{Map, Value};
 use crate::api::ContractState;
 use crate::ledger::Portfolio;
 use crate::market::{
-    Adjustment, Borrow, CorporateAction, DataSource, Dataset, EarningsRelease, FactStatus, Filing,
-    FomcAnnouncement, FundamentalMetric, FundamentalPoint, InsiderTrade, InstrumentProfile,
-    MacroPoint, MacroSeries, NewsArticle, PressRelease, Session, ShortInterest, ShortVolume,
-    Symbol, Timeframe,
+    Adjustment, Borrow, CorporateAction, DataSource, Dataset, EarningsRelease, EtfHolding,
+    EtfShares, FactStatus, Filing, FomcAnnouncement, FundamentalMetric, FundamentalPoint,
+    InsiderTrade, InstrumentProfile, MacroPoint, MacroSeries, NewsArticle, OptionQuote,
+    PressRelease, Session, ShortInterest, ShortVolume, Symbol, Timeframe, TradingHalt,
 };
 use crate::order::{Fill, Order, OrderId, OrderRequest, OrderType, OrderUpdate, Side};
 use crate::run::{LogLevel, Mode, RunId, UniverseSpec, Wake};
@@ -161,6 +161,18 @@ pub enum QueryRequest {
         symbols: Vec<Symbol>,
         since: NaiveDate,
     },
+    OptionChains {
+        underlyings: Vec<Symbol>,
+        since: NaiveDate,
+    },
+    TradingHalts {
+        symbols: Option<Vec<Symbol>>,
+        since: NaiveDate,
+    },
+    EtfHoldings {
+        etfs: Vec<Symbol>,
+        since: NaiveDate,
+    },
     Completeness {
         datasets: Vec<Dataset>,
         from: NaiveDate,
@@ -228,6 +240,16 @@ pub enum DataResult {
     },
     Borrow {
         snapshots: Vec<Borrow>,
+    },
+    OptionChains {
+        quotes: Vec<OptionQuote>,
+    },
+    TradingHalts {
+        halts: Vec<TradingHalt>,
+    },
+    EtfHoldings {
+        holdings: Vec<EtfHolding>,
+        shares: Vec<EtfShares>,
     },
     Completeness {
         series: Vec<SeriesCompleteness>,

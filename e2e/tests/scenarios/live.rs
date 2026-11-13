@@ -115,7 +115,17 @@ async fn live_pause_resume_and_stop_in_the_browser_while_an_unpaused_twin_matche
         },
     )
     .await;
-    spine.ingested().await;
+    let options = spine
+        .ingested()
+        .await
+        .into_iter()
+        .find(|job| job.name == "option_chains")
+        .and_then(|job| job.last_message);
+    assert_eq!(
+        options.as_deref(),
+        Some("option chains: 2 rows"),
+        "the session closes within half an hour, so SPY's chain is recorded"
+    );
 
     let seen = browser::drive("live", &spine, &[]).await;
 

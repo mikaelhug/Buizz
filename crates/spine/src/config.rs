@@ -15,6 +15,7 @@ use buizz_sources::finra::{self, FinraConfig};
 use buizz_sources::fred::{self, FredConfig};
 use buizz_sources::ibkr::{self, IbkrConfig};
 use buizz_sources::nasdaq::{self, NasdaqConfig};
+use buizz_sources::ssga::{self, SsgaConfig};
 use buizz_sources::tiingo::{self, TiingoConfig};
 use buizz_sources::treasury::{self, TreasuryConfig};
 use buizz_sources::wikipedia::{self, WikipediaConfig};
@@ -46,6 +47,7 @@ pub struct Config {
     pub fed: FedConfig,
     pub factset: Option<FactsetConfig>,
     pub finra: FinraConfig,
+    pub ssga: SsgaConfig,
     pub anthropic: Option<AnthropicConfig>,
     pub ingest_symbols: Option<BTreeSet<Symbol>>,
     pub duckdb_memory: String,
@@ -193,6 +195,9 @@ impl Config {
             },
             fed: FedConfig {
                 base_url: var_or(fed::URL_ENV, fed::BASE_URL),
+            },
+            ssga: SsgaConfig {
+                base_url: var_or(ssga::URL_ENV, ssga::BASE_URL),
             },
             finra: FinraConfig {
                 api_url: var_or(finra::API_URL_ENV, finra::API_URL),

@@ -24,6 +24,7 @@ tempfile.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tokio-tungstenite.workspace = true
+zip.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]

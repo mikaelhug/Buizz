@@ -810,7 +810,7 @@ export interface components {
             ingest_enabled: boolean;
         };
         /** @enum {string} */
-        DataSource: "alpaca" | "alpaca_stream" | "tiingo" | "edgar" | "treasury" | "fred" | "fixture" | "wikipedia" | "interactive_brokers" | "nasdaq" | "cboe" | "federal_reserve" | "factset" | "finra" | "curated";
+        DataSource: "alpaca" | "alpaca_stream" | "tiingo" | "edgar" | "treasury" | "fred" | "fixture" | "wikipedia" | "interactive_brokers" | "nasdaq" | "cboe" | "federal_reserve" | "factset" | "finra" | "state_street" | "curated";
         DataSpine: {
             markets: components["schemas"]["Market"][];
             datasets: components["schemas"]["DatasetSpine"][];
@@ -854,7 +854,7 @@ export interface components {
             type: "survivorship_gap";
         };
         /** @enum {string} */
-        Dataset: "instruments" | "calendar" | "bars1d" | "bars1m" | "corporate_actions" | "fundamentals" | "rates" | "companies" | "earnings_releases" | "sec_filings" | "index_membership" | "borrow" | "macro" | "insider_trades" | "news" | "fomc" | "estimates" | "current_reports" | "periodic_reports" | "press_releases" | "filing_documents" | "filing_sections" | "short_interest" | "short_volume" | "delistings" | "listing_notices" | "earnings_guidance";
+        Dataset: "instruments" | "calendar" | "bars1d" | "bars1m" | "corporate_actions" | "fundamentals" | "rates" | "companies" | "earnings_releases" | "sec_filings" | "index_membership" | "borrow" | "macro" | "insider_trades" | "news" | "fomc" | "estimates" | "current_reports" | "periodic_reports" | "press_releases" | "filing_documents" | "filing_sections" | "short_interest" | "short_volume" | "delistings" | "listing_notices" | "earnings_guidance" | "option_chains" | "trading_halts" | "etf_holdings";
         DatasetSpine: {
             dataset: components["schemas"]["Dataset"];
             domain: components["schemas"]["DataDomain"];

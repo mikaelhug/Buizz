@@ -347,6 +347,14 @@ async fn serve_fakes(fake: Arc<Fake>) -> String {
         .route("/v2/assets", get(assets))
         .route("/v2/stocks/bars", get(bars))
         .route("/v1/corporate-actions", get(actions))
+        .route(
+            "/v2/options/contracts",
+            get(|| async { json(r#"{"option_contracts":[],"next_page_token":null}"#.to_owned()) }),
+        )
+        .route(
+            "/v1beta1/options/snapshots/{underlying}",
+            get(|| async { json(r#"{"snapshots":{},"next_page_token":null}"#.to_owned()) }),
+        )
         .route("/tiingo/daily/{symbol}/prices", get(tiingo))
         .route("/files/company_tickers.json", get(tickers))
         .route(
@@ -446,6 +454,7 @@ fn sources(url: &str) -> Sources {
         fed: None,
         factset: None,
         finra: None,
+        ssga: None,
         anthropic: None,
     }
 }
@@ -998,6 +1007,9 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
             ("recipe_facts", JobOutcome::Noop),
             ("rates", JobOutcome::Ok),
             ("borrow", JobOutcome::Noop),
+            ("option_chains", JobOutcome::Noop),
+            ("trading_halts", JobOutcome::Noop),
+            ("etf_holdings", JobOutcome::Noop),
             ("short_interest", JobOutcome::Noop),
             ("short_volume", JobOutcome::Noop),
             ("macro", JobOutcome::Noop),
@@ -1119,6 +1131,9 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
             ("recipe_facts", JobOutcome::Noop),
             ("rates", JobOutcome::Noop),
             ("borrow", JobOutcome::Noop),
+            ("option_chains", JobOutcome::Noop),
+            ("trading_halts", JobOutcome::Noop),
+            ("etf_holdings", JobOutcome::Noop),
             ("short_interest", JobOutcome::Noop),
             ("short_volume", JobOutcome::Noop),
             ("macro", JobOutcome::Noop),
@@ -1204,7 +1219,13 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
         .tick(failed_at + TimeDelta::minutes(6))
         .await
         .unwrap();
-    assert_eq!(recovered.ran, vec![("bars_1d", JobOutcome::Ok)]);
+    assert_eq!(
+        recovered.ran,
+        vec![
+            ("bars_1d", JobOutcome::Ok),
+            ("trading_halts", JobOutcome::Noop)
+        ]
+    );
 
     fake.rate_limit_bars.store(true, Ordering::SeqCst);
     let limited_at = failed_at + TimeDelta::hours(6) + TimeDelta::minutes(10);
