@@ -169,6 +169,17 @@ impl Listings {
         (!arrives_later || held_before).then_some(ticker)
     }
 
+    pub fn renamed_away(&self, ticker: &Symbol, on: NaiveDate) -> bool {
+        let last = |changes: &Changes| {
+            changes
+                .get(ticker)
+                .and_then(|changes| changes.iter().rfind(|(date, _)| *date <= on))
+                .map(|(date, _)| *date)
+        };
+        last(&self.renamed_to)
+            .is_some_and(|left| last(&self.renamed_from).is_none_or(|came| came <= left))
+    }
+
     pub fn renamed_into(&self, ticker: &Symbol, since: NaiveDate) -> bool {
         self.renamed_from
             .get(ticker)
@@ -424,5 +435,41 @@ mod tests {
             listings.ticker(&sym("SKYD"), date("2025-09-02"), None, None),
             sym("PSKY")
         );
+    }
+
+    #[test]
+    fn a_rename_into_a_ticker_an_ended_company_held_is_followed_from_the_rename() {
+        let coresite = sym("COR@2021-12-28");
+        let listings = Listings::new(
+            &[
+                renamed("ABC", "COR", "2023-08-30"),
+                renamed("PIC", "XL", "2020-12-24"),
+                renamed("XL", "SPRU", "2022-11-14"),
+            ],
+            [],
+            [&coresite],
+        );
+        assert_eq!(
+            listings.segments(&sym("ABC"), date("2016-01-04"), date("2025-11-12")),
+            vec![
+                (date("2016-01-04"), date("2023-08-29"), sym("COR")),
+                (date("2023-08-30"), date("2025-11-12"), sym("ABC")),
+            ]
+        );
+        assert_eq!(
+            listings.segments(&sym("COR"), date("2016-01-04"), date("2025-11-12")),
+            vec![
+                (date("2016-01-04"), date("2021-12-28"), coresite),
+                (date("2023-08-30"), date("2025-11-12"), sym("COR")),
+            ]
+        );
+        assert!(!listings.renamed_away(&sym("ABC"), date("2023-08-29")));
+        assert!(
+            listings.renamed_away(&sym("ABC"), date("2023-08-30")),
+            "nobody trades as ABC once AmerisourceBergen became Cencora's COR"
+        );
+        assert!(!listings.renamed_away(&sym("COR"), date("2024-01-02")));
+        assert!(!listings.renamed_away(&sym("XL"), date("2021-06-01")));
+        assert!(listings.renamed_away(&sym("XL"), date("2023-01-03")));
     }
 }

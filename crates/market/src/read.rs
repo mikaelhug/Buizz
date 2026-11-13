@@ -1732,8 +1732,24 @@ pub(crate) fn coverage_gaps(
         })?
         .collect::<duckdb::Result<BTreeSet<_>>>()?;
     let bounds = listing_bounds(connection, calendar, &keys)?;
+    let mut traded_again = connection.prepare_cached(
+        "SELECT min(date) FROM (SELECT date FROM bar_1d WHERE symbol = ? AND date >= ? \
+         UNION ALL SELECT date FROM quiet_session WHERE symbol = ? AND date >= ?)",
+    )?;
     let mut gaps = Vec::new();
     for (ticker, lo, hi, key) in spans {
+        let lo = if key == ticker && listings.renamed_away(&ticker, lo) {
+            let next: Option<NaiveDate> = traded_again
+                .query_row(params![key.as_str(), lo, key.as_str(), lo], |row| {
+                    row.get(0)
+                })?;
+            match next {
+                Some(next) if next <= hi => next,
+                _ => continue,
+            }
+        } else {
+            lo
+        };
         let (listed, delisted) = bounds.get(&key).copied().unwrap_or_default();
         let mut open_gap: Option<(NaiveDate, NaiveDate)> = None;
         let listed_sessions = sessions.iter().filter(|session| {
