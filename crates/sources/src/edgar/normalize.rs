@@ -315,8 +315,7 @@ struct ReportedCount<'a> {
 struct Evidence<'a> {
     count: ReportedCount<'a>,
     first_filed: NaiveDate,
-    reported: f64,
-    whole: f64,
+    magnitude: f64,
 }
 
 struct ShareCounts<'a>(BTreeMap<ReportedCount<'a>, i32>);
@@ -338,26 +337,22 @@ impl<'a> ShareCounts<'a> {
                 *first = (*first).min(observation.filed);
             }
         }
-        let mut evidence: Vec<Evidence<'a>> = first_filed
+        let evidence: Vec<Evidence<'a>> = first_filed
             .into_iter()
             .filter_map(|(count, first_filed)| {
-                let reported = magnitude(count.value)?;
                 Some(Evidence {
                     count,
                     first_filed,
-                    reported,
-                    whole: reported,
+                    magnitude: magnitude(count.value)?,
                 })
             })
             .collect();
-        evidence.sort_by_key(|item| item.first_filed);
-        let mut shifts = BTreeMap::new();
-        for index in 0..evidence.len() {
-            let shift = scale_shift(&evidence, index);
-            evidence[index].whole += f64::from(3 * shift);
-            shifts.insert(evidence[index].count, shift);
-        }
-        Self(shifts)
+        Self(
+            evidence
+                .iter()
+                .map(|own| (own.count, scale_shift(&evidence, own)))
+                .collect(),
+        )
     }
 
     fn whole(&self, reported: ReportedCount<'_>) -> Decimal {
@@ -375,26 +370,17 @@ impl<'a> ShareCounts<'a> {
     }
 }
 
-fn scale_shift(evidence: &[Evidence], index: usize) -> i32 {
-    let own = &evidence[index];
+fn scale_shift(evidence: &[Evidence], own: &Evidence) -> i32 {
     let window = TimeDelta::days(SHARE_SCALE_REFERENCE_DAYS);
-    let known: Vec<(ConceptKey, f64)> = evidence
+    let known: Vec<&Evidence> = evidence
         .iter()
-        .enumerate()
-        .filter(|(other, item)| {
-            *other != index
+        .filter(|item| {
+            item.count != own.count
                 && item.first_filed <= own.first_filed
                 && (item.count.period.1 - own.count.period.1).abs() <= window
         })
-        .map(|(other, item)| {
-            let settled = other < index && item.first_filed < own.first_filed;
-            (
-                item.count.concept,
-                if settled { item.whole } else { item.reported },
-            )
-        })
         .collect();
-    let concepts: BTreeSet<ConceptKey> = known.iter().map(|(concept, _)| *concept).collect();
+    let concepts: BTreeSet<ConceptKey> = known.iter().map(|item| item.count.concept).collect();
     if concepts.len() < MIN_EVIDENCE_CONCEPTS {
         return 0;
     }
@@ -403,9 +389,9 @@ fn scale_shift(evidence: &[Evidence], index: usize) -> i32 {
         let support = SCALE_SHIFTS.map(|shift| {
             known
                 .iter()
-                .filter(|(other, magnitude)| {
-                    *other == concept
-                        && (magnitude - own.reported - f64::from(3 * shift)).abs()
+                .filter(|item| {
+                    item.count.concept == concept
+                        && (item.magnitude - own.magnitude - f64::from(3 * shift)).abs()
                             <= SAME_SCALE_ORDERS
                 })
                 .count() as f64
