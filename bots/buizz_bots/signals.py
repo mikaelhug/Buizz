@@ -23,6 +23,11 @@ SAHM_AVERAGE_MONTHS = 3
 EXPENSIVE_QUANTILE = 0.2
 VALUATION_MIN_YEARS = 3.0
 VALUATION_FROM = date(2000, 1, 1)
+OVERLAYS = ("votes", "breadth")
+CLAIMS_RECENT_WEEKS = 4
+CLAIMS_TREND_WEEKS = 52
+CLAIMS_SLACK_WEEKS = 8
+ACTIVITY_MONTHS = 12
 
 Closes = tuple[int, npt.NDArray[np.float64]]
 
@@ -149,6 +154,63 @@ def labour(ctx: Context, months: int = UNRATE_MONTHS) -> Signal | None:
     )
 
 
+def claims(ctx: Context) -> Signal | None:
+    today = ctx.session.date
+    since = today - timedelta(weeks=CLAIMS_TREND_WEEKS + CLAIMS_SLACK_WEEKS)
+    points = ctx.macro(["icsa"], since, today)[-CLAIMS_TREND_WEEKS:]
+    if len(points) < CLAIMS_TREND_WEEKS:
+        return None
+    recent = sum(float(point.value) for point in points[-CLAIMS_RECENT_WEEKS:]) / CLAIMS_RECENT_WEEKS
+    average = sum(float(point.value) for point in points) / CLAIMS_TREND_WEEKS
+    return Signal(
+        recent <= average,
+        f"initial claims {CLAIMS_RECENT_WEEKS}-week average {recent:,.0f} (to {points[-1].date}) "
+        f"vs its {CLAIMS_TREND_WEEKS}-week average {average:,.0f}",
+    )
+
+
+def production(ctx: Context) -> Signal | None:
+    points = latest_monthly(ctx, "indpro", ACTIVITY_MONTHS)
+    if len(points) < ACTIVITY_MONTHS:
+        return None
+    latest = float(points[-1].value)
+    average = sum(float(point.value) for point in points) / ACTIVITY_MONTHS
+    return Signal(
+        latest >= average,
+        f"industrial production {latest:.1f} ({points[-1].date:%Y-%m}) vs its {ACTIVITY_MONTHS}-month average "
+        f"{average:.1f}",
+    )
+
+
+def real_sales(ctx: Context) -> Signal | None:
+    count = ACTIVITY_MONTHS + RELEASE_LAG_MONTHS
+    prices = {point.date: float(point.value) for point in latest_monthly(ctx, "cpiaucns", count)}
+    sales = [
+        (point.date, float(point.value) / prices[point.date])
+        for point in latest_monthly(ctx, "rsafs", count)
+        if point.date in prices
+    ][-ACTIVITY_MONTHS:]
+    if len(sales) < ACTIVITY_MONTHS:
+        return None
+    month, latest = sales[-1]
+    average = sum(value for _, value in sales) / ACTIVITY_MONTHS
+    return Signal(
+        latest >= average,
+        f"retail sales over CPI {latest:,.0f} ({month:%Y-%m}) vs its {ACTIVITY_MONTHS}-month average {average:,.0f}",
+    )
+
+
+def growth(ctx: Context) -> Signal | None:
+    found = [signal for signal in (claims(ctx), production(ctx), real_sales(ctx)) if signal is not None]
+    if not found:
+        return None
+    bullish = sum(signal.bullish for signal in found)
+    return Signal(
+        2 * bullish >= len(found),
+        f"{bullish} of {len(found)} growth indicators expanding: " + "; ".join(signal.why for signal in found),
+    )
+
+
 def curve_inversions(ctx: Context, days: int) -> tuple[int, list[date]] | None:
     today = ctx.session.date
     points = ctx.macro(["dgs10", "treasury_3m"], today - timedelta(days=days), today)
@@ -214,3 +276,26 @@ def valuation(
         f"earnings yield minus 10-year yield {spread:.2f} pp on {latest}, "
         f"percentile {rank:.0%} of {len(history)} since {first}, bearish at or below {quantile:.0%}",
     )
+
+
+def vote_share(votes: dict[str, Signal | None]) -> tuple[float, str] | None:
+    available = {name: vote for name, vote in votes.items() if vote is not None}
+    if not available:
+        return None
+    bullish = sum(vote.bullish for vote in available.values())
+    missing = ", ".join(name for name, vote in votes.items() if vote is None) or "none"
+    tally = "; ".join(f"{name} {'+' if vote.bullish else '-'} ({vote.why})" for name, vote in available.items())
+    return bullish / len(available), f"{bullish} of {len(available)} votes bullish (missing {missing}): {tally}"
+
+
+def breadth_or_trend(ctx: Context, cache: SmaCache, market: str) -> tuple[float, str] | None:
+    if (wide := breadth(ctx, cache)) is None or (own := trend(ctx, market)) is None:
+        return None
+    risk_on = wide.bullish or own.bullish
+    return float(risk_on), f"{'risk-on' if risk_on else 'risk-off'}: {wide.why}; {own.why}"
+
+
+def overlay_share(ctx: Context, overlay: str, cache: SmaCache, market: str) -> tuple[float, str] | None:
+    if overlay == "breadth":
+        return breadth_or_trend(ctx, cache, market)
+    return vote_share({"trend": trend(ctx, market), "vix": vix_term(ctx), "credit": credit(ctx), "growth": growth(ctx)})

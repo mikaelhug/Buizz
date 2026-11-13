@@ -1,5 +1,10 @@
-use buizz_core::market::{Bar, CorporateAction, DataSource, Dataset, Symbol, Timeframe};
+use std::collections::BTreeSet;
+
+use buizz_core::market::{
+    Bar, CorporateAction, DataSource, Dataset, StockIndex, Symbol, Timeframe,
+};
 use buizz_core::ops::FetchStatus;
+use buizz_core::run::PeriodPreset;
 use buizz_core::time::Timestamp;
 use buizz_market::ActionWindow;
 use buizz_sources::tiingo::{
@@ -15,6 +20,7 @@ const OVERLAP_WINDOW_DAYS: i64 = 45;
 const SYMBOLS_PER_RUN: u64 = 3;
 const MONTH: TimeDelta = TimeDelta::days(30);
 const DAY: TimeDelta = TimeDelta::days(1);
+const LOOKBACK: TimeDelta = TimeDelta::days(365);
 const REJECTION_RETRY: TimeDelta = TimeDelta::days(365);
 
 enum Candidate {
@@ -58,11 +64,36 @@ impl Ingest {
             ));
         };
         let room = usize::try_from(room).unwrap_or(usize::MAX);
+        let screened_from = PeriodPreset::TenYears.resolve(today).from;
+        let listings = self.market.listings();
+        let lookback: Vec<Symbol> = self
+            .market
+            .unpriced_members(
+                StockIndex::Sp500,
+                screened_from - LOOKBACK,
+                screened_from.min(alpaca_floor) - DAY,
+            )
+            .await?
+            .into_iter()
+            .map(|gap| {
+                listings
+                    .listing(&gap.symbol, gap.from)
+                    .unwrap_or(gap.symbol)
+            })
+            .collect();
+        let priced = self.priced_symbols().await?;
+        let mut seen = BTreeSet::new();
         let mut untried = Vec::new();
         let mut rejected = Vec::new();
-        for Priced { symbol, .. } in self.priced_symbols().await? {
+        for symbol in lookback
+            .into_iter()
+            .chain(priced.into_iter().map(|Priced { symbol, .. }| symbol))
+        {
             if untried.len() == room {
                 break;
+            }
+            if !seen.insert(symbol.clone()) {
+                continue;
             }
             let Some(first) = alpaca.get(&symbol).map(|coverage| coverage.first) else {
                 continue;
@@ -81,6 +112,9 @@ impl Ingest {
             if self.stopping() {
                 break;
             }
+            let ticker = symbol
+                .ended_listing()
+                .map_or_else(|| symbol.clone(), |(ticker, _)| ticker);
             let gap_end = first - DAY;
             let key = FetchKey::new(
                 DataSource::Tiingo,
@@ -89,7 +123,7 @@ impl Ingest {
                 Some((history_start, gap_end)),
             );
             let window_end = first + TimeDelta::days(OVERLAP_WINDOW_DAYS);
-            let rows = match tiingo.daily(&symbol, history_start, today).await {
+            let rows = match tiingo.daily(&ticker, history_start, today).await {
                 Ok(rows) => rows,
                 Err(error) => {
                     self.record_failure(now, &key, &error).await?;

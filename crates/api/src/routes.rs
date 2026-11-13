@@ -11,6 +11,7 @@ pub(crate) fn protected_routes() -> OpenApiRouter<Api> {
         .routes(routes!(bots::start_sweep))
         .routes(routes!(bots::cancel_backtests))
         .routes(routes!(bots::research))
+        .routes(routes!(bots::periods))
         .routes(routes!(bots::go_live))
         .routes(routes!(bots::league))
         .routes(routes!(runs::list_runs))

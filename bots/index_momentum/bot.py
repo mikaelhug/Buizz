@@ -1,12 +1,10 @@
 from buizz_bots.monthly import MAX_SESSIONS_PER_MONTH, month_end_closes
 from buizz_bots.ranks import highest_first
 from buizz_bots.sessions import last_session_of_month
-from buizz_bots.signals import Signal, SmaCache, breadth, credit, trend, vix_term
+from buizz_bots.signals import OVERLAYS, SmaCache, overlay_share
 from buizz_bots.switch import drifted
 
 from buizz import Bot, Context, run
-
-OVERLAYS = ("none", "votes", "breadth")
 
 
 def trailing_returns(ctx: Context, symbols: list[str], months: int) -> dict[str, float]:
@@ -34,30 +32,13 @@ def select(ctx: Context, assets: list[str], cash: str, months: int, top: int) ->
     return picks
 
 
-def votes(ctx: Context, market: str) -> tuple[float, str] | None:
-    found: dict[str, Signal | None] = {"trend": trend(ctx, market), "vix": vix_term(ctx), "credit": credit(ctx)}
-    available = {name: vote for name, vote in found.items() if vote is not None}
-    if not available:
-        return None
-    share = sum(vote.bullish for vote in available.values()) / len(available)
-    tally = "; ".join(f"{name} {'+' if vote.bullish else '-'} ({vote.why})" for name, vote in available.items())
-    return share, f"{share:.0%} of {len(available)} votes bullish: {tally}"
-
-
-def breadth_or_trend(ctx: Context, cache: SmaCache, market: str) -> tuple[float, str] | None:
-    if (wide := breadth(ctx, cache)) is None or (own := trend(ctx, market)) is None:
-        return None
-    risk_on = wide.bullish or own.bullish
-    return float(risk_on), f"{'risk-on' if risk_on else 'risk-off'}: {wide.why}; {own.why}"
-
-
 class IndexMomentum(Bot):
     def __init__(self) -> None:
         self.cache = SmaCache()
 
     def on_start(self, ctx: Context) -> None:
-        if ctx.params["overlay"] not in OVERLAYS:
-            raise ValueError(f"overlay must be one of {', '.join(OVERLAYS)}")
+        if ctx.params["overlay"] not in ("none", *OVERLAYS):
+            raise ValueError(f"overlay must be one of none, {', '.join(OVERLAYS)}")
 
     def on_step(self, ctx: Context) -> None:
         assets: list[str] = ctx.params["assets"]
@@ -75,10 +56,7 @@ class IndexMomentum(Bot):
         scale, overlay = l_max, f"fixed exposure {l_max:.2f}"
         market: str = ctx.params["market"]
         if ctx.params["overlay"] != "none":
-            found = (
-                votes(ctx, market) if ctx.params["overlay"] == "votes" else breadth_or_trend(ctx, self.cache, market)
-            )
-            if found is None:
+            if (found := overlay_share(ctx, ctx.params["overlay"], self.cache, market)) is None:
                 ctx.log(f"the {ctx.params['overlay']} overlay has no data yet, no decision", level="warn")
                 return
             share, overlay = found

@@ -110,23 +110,46 @@ fn wikitext(page: &str) -> String {
 }
 
 #[test]
-fn same_day_changes_apply_additions_first_and_unreadable_rows_are_counted() {
+fn a_removal_keeps_the_ticker_the_change_log_names_and_unreadable_rows_are_counted() {
     let log = "{| class=\"wikitable\" id=\"changes\"\n\
-        |-\n|March 1, 2024\n|\n|\n|MMMX\n|[[3M]]\n|Ticker change.\n\
-        |-\n|March 1, 2024\n|MMM\n|[[3M]]\n|\n|\n|Ticker change.\n\
+        |-\n|February 9, 2026\n|\n|\n|DAY\n|[[Dayforce]]\n|Acquired.\n\
+        |-\n|February 1, 2024\n|DAY\n|[[Dayforce]]\n|CDAY\n|[[Dayforce|Ceridian]]\n|Ticker change.\n\
+        |-\n|September 20, 2021\n|CDAY\n|[[Ceridian]]\n|\n|\n|Added.\n\
+        |-\n|December 19, 2022\n|\n|\n|FBHS\n|[[Fortune Brands Home & Security]]\n|Removed.\n\
+        |-\n|December 19, 2022\n|\n|\n|MBC\n|[[Fortune Brands Home & Security|MasterBrand]]\n|Removed.\n\
+        |-\n|December 15, 2022\n|MBC\n|[[Fortune Brands Home & Security|MasterBrand]]\n|\n|\n|Spun off.\n\
+        |-\n|June 22, 2016\n|FBHS\n|[[Fortune Brands Home & Security]]\n|\n|\n|Added.\n\
         |-\n|Sometime in 2023\n|AOS\n|[[A. O. Smith]]\n|\n|\n|Undated.\n|}";
 
     let parsed = normalize_sp500(&wikitext(CONSTITUENTS), log, date("2026-11-11")).unwrap();
 
     assert_eq!(parsed.unparsed_rows, 1);
-    assert!(
+    let spans = |symbol: &str| -> Vec<(Option<NaiveDate>, Option<NaiveDate>)> {
         parsed
             .history
             .members
             .iter()
-            .any(|member| member.symbol == Symbol::new("MMM")
-                && member.member_on(date("2024-02-01"))),
-        "3M stays a member across its same-day removal and addition"
+            .filter(|member| member.symbol == Symbol::new(symbol))
+            .map(|member| (member.start, member.end))
+            .collect()
+    };
+    assert_eq!(
+        spans("CDAY"),
+        [(Some(date("2021-09-20")), Some(date("2024-02-01")))],
+        "Ceridian joined as CDAY and left that ticker for DAY"
+    );
+    assert_eq!(
+        spans("DAY"),
+        [(Some(date("2024-02-01")), Some(date("2026-02-09")))]
+    );
+    assert_eq!(
+        spans("FBHS"),
+        [(Some(date("2016-06-22")), Some(date("2022-12-19")))],
+        "a spin-off linked to its parent's article does not take the parent's years"
+    );
+    assert_eq!(
+        spans("MBC"),
+        [(Some(date("2022-12-15")), Some(date("2022-12-19")))]
     );
 }
 

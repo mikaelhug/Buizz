@@ -2,6 +2,7 @@ import { useState } from "react";
 import { api, errorMessage, must, type Schemas } from "../api/client";
 import { Modal } from "../ui/Dialog";
 import { Info } from "../ui/Popover";
+import { PresetDates } from "../ui/PresetDates";
 import { notify } from "../ui/Toaster";
 
 export type Preset = Exclude<Schemas["PeriodPreset"], "holdout">;
@@ -75,6 +76,7 @@ export function SweepDialog({ name, defaults, preset: initial, onStarted, onClos
           </button>
         ))}
       </div>
+      <PresetDates preset={preset} className="dialog-message muted" />
       {Object.keys(defaults).length === 0 ? (
         <p className="dialog-message">{name} has no params; the sweep is one backtest of its defaults.</p>
       ) : (
