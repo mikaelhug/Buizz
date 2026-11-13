@@ -1,0 +1,9 @@
+description = "Leverage for the Long Run (Gayed & Bilello 2016): after each close, hold leveraged S&P 500 exposure while SPY's total-return close is above its 200-day SMA (buizz_bots.signals.trend, Faber 2007), else T-bills (BIL), trading at the next open. The paper shows that the S&P 500's volatility clusters below its 200-day average, so holding 2x or 3x daily-rebalanced leverage only above it kept most of the leveraged upside and stepped aside before most of the volatility decay and the deep drawdowns. asset SSO (ProShares Ultra S&P 500, 2x daily) or UPRO (UltraPro S&P 500, 3x daily) are the funds a reader can buy, so their expense ratios, swap financing and daily-reset decay are in their prices; asset SPY at risk_on_weight 2.0 is the same 2x exposure through engine margin, borrowed at the T-bill rate plus the financing spread, as a check on what the fund's wrapper costs. The held leg is resized at the next open only once it drifts more than 0.10 from its weight. Unlike trend_leverage_spy this decides on the official close and fills at the next open, so it needs no minute bars and runs from the start of the daily history. Sweep grid, fixed before any test: asset SPY, SSO, UPRO at risk_on_weight 1.0, plus asset SPY at risk_on_weight 2.0 (4 variants). Expected against total-return SPY: SPY at 1.0 is the plain 200-day trend filter, trailing SPY in a decade of shallow whipsaws (2016, 2018, 2020's V); SSO and UPRO well ahead in the long uptrends (2017, 2019, 2021, 2023-2024), losing several points in each whipsaw and in 2020's crash before the exit, with drawdowns near or above SPY's at 3x."
+command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
+timeframe = "1d"
+wake = "bar"
+universe = { symbols = ["SPY", "SSO", "UPRO", "BIL"] }
+params = { market = "SPY", asset = "SSO", cash = "BIL", risk_on_weight = 1.0 }
+
+[risk]
+max_gross_exposure = 2.0

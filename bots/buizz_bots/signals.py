@@ -23,7 +23,7 @@ SAHM_AVERAGE_MONTHS = 3
 EXPENSIVE_QUANTILE = 0.2
 VALUATION_MIN_YEARS = 3.0
 VALUATION_FROM = date(2000, 1, 1)
-OVERLAYS = ("votes", "breadth")
+OVERLAYS = ("votes", "breadth", "ensemble")
 CLAIMS_RECENT_WEEKS = 4
 CLAIMS_TREND_WEEKS = 52
 CLAIMS_SLACK_WEEKS = 8
@@ -295,7 +295,16 @@ def breadth_or_trend(ctx: Context, cache: SmaCache, market: str) -> tuple[float,
     return float(risk_on), f"{'risk-on' if risk_on else 'risk-off'}: {wide.why}; {own.why}"
 
 
+def votes(ctx: Context, market: str) -> tuple[float, str] | None:
+    return vote_share({"trend": trend(ctx, market), "vix": vix_term(ctx), "credit": credit(ctx), "growth": growth(ctx)})
+
+
 def overlay_share(ctx: Context, overlay: str, cache: SmaCache, market: str) -> tuple[float, str] | None:
     if overlay == "breadth":
         return breadth_or_trend(ctx, cache, market)
-    return vote_share({"trend": trend(ctx, market), "vix": vix_term(ctx), "credit": credit(ctx), "growth": growth(ctx)})
+    if overlay == "votes":
+        return votes(ctx, market)
+    if (wide := breadth_or_trend(ctx, cache, market)) is None or (vote := votes(ctx, market)) is None:
+        return None
+    share = (wide[0] + vote[0]) / 2
+    return share, f"ensemble {share:.2f}, the mean of breadth {wide[1]} and votes {vote[1]}"
