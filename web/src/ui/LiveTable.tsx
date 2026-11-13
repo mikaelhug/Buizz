@@ -134,6 +134,9 @@ export function verdictLabel(live: Live): string {
     return VERDICT_LABEL[verdict];
   }
   const sessions = sessionsOf(live);
+  if (sessions === 0 && live.run.status === "paused") {
+    return "Paused before its first close";
+  }
   const starts = firstClose(live);
   return sessions === 0 ? (starts ? `Starts ${starts}` : "Starting") : `Day ${sessions} of ${JUDGED_FROM_SESSION}`;
 }
@@ -141,6 +144,9 @@ export function verdictLabel(live: Live): string {
 export function verdictAbout(live: Live): string {
   const verdict = live.run.live_stats?.verdict ?? "incubating";
   const starts = firstClose(live, true);
+  if (verdict === "incubating" && sessionsOf(live) === 0 && live.run.status === "paused") {
+    return `Live paper since ${live.run.config.start}, paused before its first close, so it has not traded yet. Resume it to trade from the next close. ${VERDICT_ABOUT.incubating}`;
+  }
   if (verdict === "incubating" && sessionsOf(live) === 0) {
     return `Live paper since ${live.run.config.start}. It trades for the first time at the close of ${starts ?? "the next session"}; after every close its equity is marked against SPY. ${VERDICT_ABOUT.incubating}`;
   }

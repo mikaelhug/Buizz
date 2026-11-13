@@ -593,6 +593,18 @@ function FillMeter({ fill, empty, gaps, stop }: { fill: Fill | undefined; empty:
 }
 
 const SPARK_HEIGHT = 20;
+const YEAR_GAP = 0.6;
+const TAIL_HEIGHT = 4;
+
+function pieces(columns: { index: number; height: number }[], january: number): string {
+  return columns
+    .filter((column) => column.height > 0)
+    .map((column) => {
+      const gap = (column.index - january) % 12 === 0 ? YEAR_GAP : 0;
+      return `M${column.index + gap},${(SPARK_HEIGHT - column.height).toFixed(2)}h${1 - gap}v${column.height.toFixed(2)}h-${1 - gap}z`;
+    })
+    .join("");
+}
 
 function Spark({ name, coverage, start, peak: scale, stop }: { name: string; coverage: Coverage; start: string; peak: number; stop: string | undefined }) {
   const { monthly, first, last, symbols } = coverage;
@@ -602,28 +614,23 @@ function Spark({ name, coverage, start, peak: scale, stop }: { name: string; cov
   const lastIndex = monthly.findLastIndex((count) => count > 0);
   const gaps = gapMonths(monthly);
   const series = symbols === 0;
-  const height = (count: number) => (count <= 0 ? 0 : series ? SPARK_HEIGHT : Math.max(2, (Math.log1p(count) / Math.log1p(scale)) * SPARK_HEIGHT));
-  const area =
-    firstIndex < 0
-      ? ""
-      : `M${firstIndex},${SPARK_HEIGHT} ` +
-        monthly
-          .slice(firstIndex, lastIndex + 1)
-          .map((count, offset) => `L${firstIndex + offset},${SPARK_HEIGHT - height(count)} L${firstIndex + offset + 1},${SPARK_HEIGHT - height(count)}`)
-          .join(" ") +
-        ` L${lastIndex + 1},${SPARK_HEIGHT} Z`;
+  const january = (12 - new Date(start).getUTCMonth()) % 12;
+  const height = (count: number) => (count <= 0 ? 0 : series ? SPARK_HEIGHT : Math.max(3, (Math.log1p(count) / Math.log1p(scale)) * SPARK_HEIGHT));
+  const every = monthly.map((_, index) => index);
+  const bed = pieces(every.map((index) => ({ index, height: SPARK_HEIGHT })), january);
+  const filled = pieces(monthly.map((count, index) => ({ index, height: height(count) })), january);
+  const holes = pieces(gaps.map((index) => ({ index, height: SPARK_HEIGHT })), january);
+  const tail = stop && lastIndex >= 0 ? pieces(every.filter((index) => index > lastIndex).map((index) => ({ index, height: TAIL_HEIGHT })), january) : "";
   const summary = first
     ? `${name}, ${MARKETS[coverage.market].name}: ${monthAt(start, Math.max(0, firstIndex))} to ${last ?? "now"}${symbols > 0 ? `, up to ${fmt.integer(peak)} symbols in a month` : ", one series"}${gaps.length > 0 ? `, ${gaps.length} months without data` : ""}${stop ? `, nothing since ${monthOf(stop)}` : ""}`
     : `${name}, ${MARKETS[coverage.market].name}: no dated coverage stored`;
   return (
     <svg className="spark" viewBox={`0 0 ${months} ${SPARK_HEIGHT}`} preserveAspectRatio="none" role="img" aria-label={summary}>
       <title>{summary}</title>
-      <line className="spark-base" x1={0} x2={months} y1={SPARK_HEIGHT - 0.5} y2={SPARK_HEIGHT - 0.5} />
-      {area && <path className={series ? "spark-area series" : "spark-area"} d={area} />}
-      {stop && lastIndex >= 0 && <rect className="spark-tail" x={lastIndex + 1} y={SPARK_HEIGHT - 4} width={Math.max(0, months - lastIndex - 1)} height={4} />}
-      {gaps.map((index) => (
-        <rect key={index} className="spark-gap" x={index} y={0} width={1} height={SPARK_HEIGHT} />
-      ))}
+      <path className="spark-bed" d={bed} />
+      {filled && <path className={series ? "spark-piece series" : "spark-piece"} d={filled} />}
+      {tail && <path className="spark-tail" d={tail} />}
+      {holes && <path className="spark-gap" d={holes} />}
     </svg>
   );
 }

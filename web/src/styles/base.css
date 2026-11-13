@@ -66,6 +66,12 @@ h3 {
   font-variant-numeric: tabular-nums;
 }
 
+.num {
+  font-family: var(--mono);
+  font-feature-settings: "zero";
+  letter-spacing: -0.02em;
+}
+
 .display {
   font-size: var(--fs-3xl);
   font-weight: var(--fw-semibold);

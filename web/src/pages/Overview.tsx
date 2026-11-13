@@ -5,9 +5,8 @@ import { fmt, tone } from "../lib/format";
 import { href, navigate } from "../lib/route";
 import { CHECKS } from "../ui/Gate";
 import { Icon } from "../ui/Icon";
-import { Annualized, firstClose, JUDGED_FROM_SESSION, type Live, sessionsOf, Verdict } from "../ui/LiveTable";
+import { Annualized, firstClose, JUDGED_FROM_SESSION, type Live, LiveStatus, sessionsOf, Verdict } from "../ui/LiveTable";
 import { type Mark, Sparkline } from "../ui/Sparkline";
-import { sourceSentence } from "../ui/Source";
 import { SubPeriods } from "../ui/SubPeriods";
 import { notify } from "../ui/Toaster";
 import { goLive } from "./BotActions";
@@ -15,7 +14,7 @@ import { launchBacktest, launchSweep } from "./Launch";
 
 type Job = Schemas["JobView"];
 
-const SHOWN = 4;
+const SHOWN = 5;
 
 export function GoLiveButton({ bot, glance, primary = true }: { bot: Entry["bot"]; glance: Glance; primary?: boolean }) {
   const [busy, setBusy] = useState(false);
@@ -39,10 +38,12 @@ export function GoLiveButton({ bot, glance, primary = true }: { bot: Entry["bot"
 
 export function Overview({ entries, jobs, marks }: { entries: Entry[]; jobs: Job[] | undefined; marks: Record<number, Mark> }) {
   return (
-    <section className="overview-cards" aria-label="Overview">
-      <LiveCard entries={entries} marks={marks} />
-      <NextCard entries={entries} />
-      <AttentionCard entries={entries} jobs={jobs} />
+    <section className="desk" aria-label="Overview">
+      <LiveDesk entries={entries} marks={marks} />
+      <div className="desk-rail">
+        <AttentionPanel entries={entries} jobs={jobs} />
+        <NextPanel entries={entries} />
+      </div>
     </section>
   );
 }
@@ -57,88 +58,109 @@ function sharedSince(lives: Live[]): { since: string; spy: number } | undefined 
   return { since: first.run.config.start, spy: stats.benchmark_return };
 }
 
-function OverviewCard({ title, count, aside, label, children }: { title: string; count?: number | undefined; aside?: ReactNode; label: string; children: ReactNode }) {
+function PanelHead({ title, count, children }: { title: string; count?: number | undefined; children?: ReactNode }) {
   return (
-    <section className="ov-card" aria-label={label}>
-      <header className="ov-head">
-        <h2>
-          {title}
-          {count !== undefined && <span className="ov-count num">{count}</span>}
-        </h2>
-        {aside && <span className="ov-aside">{aside}</span>}
-      </header>
-      {children}
-    </section>
+    <header className="desk-head">
+      <h2>
+        {title}
+        {count !== undefined && <span className="desk-count num">{count}</span>}
+      </h2>
+      {children && <span className="desk-aside">{children}</span>}
+    </header>
   );
 }
 
-function LiveCard({ entries, marks }: { entries: Entry[]; marks: Record<number, Mark> }) {
+function LiveDesk({ entries, marks }: { entries: Entry[]; marks: Record<number, Mark> }) {
   const lives = entries.flatMap((entry) => (entry.live ? [entry.live] : []));
   const ordered = lives.toSorted((a, b) => (b.run.live_stats?.excess_cagr ?? -Infinity) - (a.run.live_stats?.excess_cagr ?? -Infinity));
   const shared = sharedSince(lives);
   const best = entries.filter((entry) => entry.group === "ready").toSorted((a, b) => (headline(b) ?? -Infinity) - (headline(a) ?? -Infinity))[0];
-  const pending = lives.filter((live) => sessionsOf(live) === 0);
+  const pending = lives.filter((live) => sessionsOf(live) === 0 && live.run.status === "running");
   const starts = pending[0] && firstClose(pending[0], true);
 
   return (
-    <OverviewCard
-      title="Live paper"
-      count={lives.length}
-      label="Live paper"
-      aside={shared && <span className="num">{BENCHMARK} {fmt.change(shared.spy)} since {fmt.date(shared.since)}</span>}
-    >
+    <section className="desk-live" aria-label="Live paper">
+      <PanelHead title="Live paper" count={lives.length}>
+        {shared ? (
+          <span className="num">
+            {BENCHMARK} {fmt.change(shared.spy)} since {fmt.date(shared.since)}
+          </span>
+        ) : (
+          starts && (
+            <>
+              First close <strong>{starts}</strong>; judged against its backtest from session {JUDGED_FROM_SESSION}, then ranked in the <a href={href({ page: "league" })}>League</a>
+            </>
+          )
+        )}
+      </PanelHead>
       {lives.length === 0 ? (
-        <div className="ov-empty">
+        <div className="desk-empty">
           <p>Nothing is live yet. Only live paper results can show a bot beats {BENCHMARK}.</p>
           {best?.bot.backtest && <GoLiveButton bot={best.bot} glance={best.bot.backtest} />}
         </div>
       ) : (
-        <>
-          {pending.length === lives.length && (
-            <p className="ov-lede">
-              {lives.length === 1 ? "It trades" : "They trade"} for the first time at the close of <strong>{starts ?? "the next session"}</strong>. Each close marks equity against total-return{" "}
-              {BENCHMARK}; from session {JUDGED_FROM_SESSION} each run is judged against the backtest it came from and ranked in the <a href={href({ page: "league" })}>League</a>.
-            </p>
-          )}
-          <ul className="ov-list">
-            {ordered.slice(0, SHOWN).map((live) => (
-              <LiveLine key={live.run.id} live={live} defaults={entries.find((entry) => entry.live === live)?.bot.params ?? {}} mark={marks[live.run.id]} />
-            ))}
-          </ul>
-          {ordered.length > SHOWN && <p className="ov-more muted">and {ordered.length - SHOWN} more in the list below</p>}
-        </>
+        <ul className="tiles">
+          {ordered.map((live) => (
+            <LiveTile key={live.run.id} live={live} defaults={entries.find((entry) => entry.live === live)?.bot.params ?? {}} mark={marks[live.run.id]} />
+          ))}
+        </ul>
       )}
-    </OverviewCard>
+    </section>
   );
 }
 
-function LiveLine({ live, defaults, mark }: { live: Live; defaults: Record<string, unknown>; mark: Mark | undefined }) {
-  const stats = live.run.live_stats;
-  const started = stats && stats.sessions > 0;
-  const variant = variantOf(live.run.config.params as Record<string, unknown>, defaults);
+function SessionTrack({ sessions }: { sessions: number }) {
+  const filled = Math.min(sessions, JUDGED_FROM_SESSION);
   return (
-    <li className="ov-line">
-      <div className="ov-who">
-        <a className="ov-name" href={href({ page: "bot", name: live.run.bot, run: live.run.id })}>
+    <span className="track" role="img" aria-label={`${fmt.integer(sessions)} of the ${JUDGED_FROM_SESSION} sessions before it is judged`}>
+      {Array.from({ length: JUDGED_FROM_SESSION }, (_, index) => (
+        <span key={index} className={index < filled ? "track-on" : undefined} />
+      ))}
+    </span>
+  );
+}
+
+function LiveTile({ live, defaults, mark }: { live: Live; defaults: Record<string, unknown>; mark: Mark | undefined }) {
+  const stats = live.run.live_stats;
+  const started = stats !== null && stats !== undefined && stats.sessions > 0;
+  const source = live.source;
+  const variant = variantOf(live.run.config.params as Record<string, unknown>, defaults);
+  const backtestExcess = excessCagr(source);
+  return (
+    <li className="tile">
+      <div className="tile-top">
+        <a className="tile-name" href={href({ page: "bot", name: live.run.bot, run: live.run.id })}>
           {live.run.bot}
         </a>
-        {variant && <span className="ov-variant mono">{variant}</span>}
+        {started && live.run.status !== "running" && <LiveStatus live={live} />}
       </div>
-      <div className="ov-figure">
-        {started && (
-          <span className="ov-number">
-            <Annualized value={stats.excess_cagr} sessions={stats.sessions} />
-            <span className="ov-unit">/yr vs {BENCHMARK}</span>
-          </span>
+      {variant && <span className="tile-variant mono">{variant}</span>}
+      <div className="tile-figure">
+        {started ? (
+          <>
+            <span className="tile-number">
+              <Annualized value={stats.excess_cagr} sessions={stats.sessions} />
+            </span>
+            <span className="tile-unit">/yr vs {BENCHMARK} live</span>
+          </>
+        ) : (
+          <>
+            <span className={`tile-number num ${tone(backtestExcess) ?? ""}`}>{fmt.change(backtestExcess)}</span>
+            <span className="tile-unit">/yr vs {source?.benchmark_symbol ?? BENCHMARK} in {source ? windowOf(source) : "no backtest"}</span>
+          </>
         )}
+      </div>
+      <div className={started ? "tile-chart" : "tile-chart tile-chart-backtest"}>
+        {started ? (
+          <Sparkline curve={stats.curve} mark={mark} benchmark={`total-return ${BENCHMARK}`} />
+        ) : (
+          source && <Sparkline curve={source.curve} mark={undefined} benchmark={`total-return ${source.benchmark_symbol}`} />
+        )}
+      </div>
+      <div className="tile-foot">
+        <SessionTrack sessions={sessionsOf(live)} />
         <Verdict live={live} />
       </div>
-      <p className="ov-sub">{sourceSentence(live)}</p>
-      {started && (
-        <div className="ov-spark">
-          <Sparkline curve={stats.curve} mark={mark} benchmark={`total-return ${BENCHMARK}`} />
-        </div>
-      )}
     </li>
   );
 }
@@ -147,16 +169,17 @@ function checksText(glance: Glance): string {
   return glance.failed_checks.map((check) => CHECKS[check]).join("; ");
 }
 
-function NextCard({ entries }: { entries: Entry[] }) {
+function NextPanel({ entries }: { entries: Entry[] }) {
   const ready = entries.filter((entry) => entry.group === "ready").toSorted((a, b) => (headline(b) ?? -Infinity) - (headline(a) ?? -Infinity));
   const closest = entries.filter((entry) => entry.group === "failing").toSorted((a, b) => closeness(a.bot.backtest) - closeness(b.bot.backtest));
   const untested = entries.filter((entry) => entry.group === "untested" && entry.bot.status !== "backtesting");
   const shown = ready.length > 0 ? ready : closest;
 
   return (
-    <OverviewCard title={ready.length > 0 ? "Ready to go live" : "Closest to passing"} count={ready.length > 0 ? ready.length : undefined} label="Next up">
+    <section className="desk-panel" aria-label="Next up">
+      <PanelHead title={ready.length > 0 ? "Ready to go live" : "Closest to passing"} count={ready.length > 0 ? ready.length : undefined} />
       {shown.length === 0 ? (
-        <div className="ov-empty">
+        <div className="desk-empty">
           <p>Nothing is backtested on the current code yet. Backtest a bot on a 1y–10y preset to screen it against total-return {BENCHMARK}.</p>
           {untested[0] && (
             <button type="button" className="btn btn-sm" onClick={() => launchBacktest(untested[0]?.bot.name ?? "")}>
@@ -165,112 +188,142 @@ function NextCard({ entries }: { entries: Entry[] }) {
           )}
         </div>
       ) : (
-        <>
-          <p className="ov-lede">
-            {ready.length > 0
-              ? "These passed the backtest gate. Going live is the only way to learn whether the edge is real."
-              : "No bot passes the backtest gate yet. These fail the fewest checks; a sweep may find a variant that passes."}
-          </p>
-          <ul className="ov-list">
-            {shown.slice(0, SHOWN - 1).map((entry) => {
-              const glance = entry.bot.backtest;
-              if (!glance) {
-                return null;
-              }
-              const excess = excessCagr(glance);
-              return (
-                <li key={entry.key} className="ov-line">
-                  <div className="ov-who">
-                    <a className="ov-name" href={href({ page: "bot", name: entry.bot.name, run: glance.run_id })}>
-                      {entry.bot.name}
-                    </a>
-                    <span className="ov-variant muted">{windowOf(glance)}</span>
-                  </div>
-                  <div className="ov-figure">
-                    <span className={`ov-number num ${tone(excess) ?? ""}`}>
-                      {fmt.change(excess)}
-                      <span className="ov-unit">/yr vs {glance.benchmark_symbol}</span>
-                    </span>
-                    <SubPeriods edges={glance.sub_periods} />
-                  </div>
-                  <p className="ov-sub">{glance.failed_checks.length === 0 ? "Passes every check of the gate." : `Fails: ${checksText(glance)}.`}</p>
-                  <div className="ov-action">
-                    {glance.failed_checks.length === 0 ? (
-                      <GoLiveButton bot={entry.bot} glance={glance} />
-                    ) : (
-                      <button type="button" className="btn btn-sm" onClick={() => launchSweep(entry.bot.name)}>
-                        Sweep…
-                      </button>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </>
+        <ul className="desk-rows">
+          {shown.slice(0, SHOWN).map((entry) => {
+            const glance = entry.bot.backtest;
+            if (!glance) {
+              return null;
+            }
+            const excess = excessCagr(glance);
+            const passes = glance.failed_checks.length === 0;
+            return (
+              <li key={entry.key} className="desk-row">
+                <a className="desk-row-name" href={href({ page: "bot", name: entry.bot.name, run: glance.run_id })}>
+                  {entry.bot.name}
+                </a>
+                <span className={`num ${tone(excess) ?? ""}`}>{fmt.change(excess)}</span>
+                <SubPeriods edges={glance.sub_periods} count={false} />
+                <span className="desk-row-action">
+                  {passes ? (
+                    <GoLiveButton bot={entry.bot} glance={glance} />
+                  ) : (
+                    <button type="button" className="btn btn-xs" onClick={() => launchSweep(entry.bot.name)}>
+                      Sweep…
+                    </button>
+                  )}
+                </span>
+                <span className="desk-row-detail">
+                  {windowOf(glance)} · {passes ? "passes every check" : `fails ${checksText(glance)}`}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
       )}
-    </OverviewCard>
+    </section>
   );
 }
 
-type Alert = { key: string; tone: "down" | "warn"; text: string; detail: string; to: string };
+type Alert = { key: string; tone: "down" | "warn"; subject: string; what: string; detail: string; to: string };
 
 function alertsOf(entries: Entry[], jobs: Job[] | undefined): Alert[] {
   const runs = entries.flatMap((entry): Alert[] => {
     const live = entry.live;
+    const subject = entry.bot.name;
     if (live?.run.live_stats?.verdict === "falsified") {
-      return [{ key: entry.key, tone: "down", text: `${entry.bot.name} is off track`, detail: "Live results left the range its backtest predicts; retiring it is your call.", to: href({ page: "bot", name: entry.bot.name, run: live.run.id }) }];
+      return [{ key: entry.key, tone: "down", subject, what: "off track", detail: "Live results left the range its backtest predicts; retiring it is your call.", to: href({ page: "bot", name: subject, run: live.run.id }) }];
     }
     if (live?.run.status === "paused" && live.run.message) {
-      return [{ key: entry.key, tone: "warn", text: `${entry.bot.name} paused`, detail: live.run.message, to: href({ page: "bot", name: entry.bot.name, run: live.run.id }) }];
+      return [{ key: entry.key, tone: "warn", subject, what: "paused", detail: live.run.message, to: href({ page: "bot", name: subject, run: live.run.id }) }];
     }
     if (!live && entry.bot.status === "error") {
-      return [{ key: entry.key, tone: "down", text: `${entry.bot.name}: last run failed`, detail: "Its latest run stopped with an error; open it from History for the bot's output.", to: href({ page: "bot", name: entry.bot.name, tab: "runs" }) }];
+      return [{ key: entry.key, tone: "down", subject, what: "last run failed", detail: "Its latest run stopped with an error; open it from History for the bot's output.", to: href({ page: "bot", name: subject, tab: "runs" }) }];
     }
     if (!live && entry.bot.status === "stopped") {
-      return [{ key: entry.key, tone: "warn", text: `${entry.bot.name} hit its drawdown stop`, detail: "Its latest run fell by its drawdown limit, closed every position and ended.", to: href({ page: "bot", name: entry.bot.name }) }];
+      return [{ key: entry.key, tone: "warn", subject, what: "hit its drawdown stop", detail: "Its latest run fell by its drawdown limit, closed every position and ended.", to: href({ page: "bot", name: subject }) }];
     }
     return [];
   });
   const data = (jobs ?? []).flatMap((job): Alert[] =>
     job.last_outcome === "failed"
-      ? [{ key: `job-${job.name}`, tone: "down", text: `Data job ${job.name} failed`, detail: job.last_message ?? "Its last run failed.", to: href({ page: "data" }) }]
+      ? [{ key: `job-${job.name}`, tone: "down", subject: `job ${job.name}`, what: "failed", detail: job.last_message ?? "Its last run failed.", to: href({ page: "data" }) }]
       : job.stale
-        ? [{ key: `job-${job.name}`, tone: "warn", text: `Data job ${job.name} is late`, detail: "It has not finished on schedule, so its data may be stale.", to: href({ page: "data" }) }]
+        ? [{ key: `job-${job.name}`, tone: "warn", subject: `job ${job.name}`, what: "is late", detail: "It has not finished on schedule, so its data may be stale.", to: href({ page: "data" }) }]
         : [],
   );
   return [...runs, ...data];
 }
 
-function AttentionCard({ entries, jobs }: { entries: Entry[]; jobs: Job[] | undefined }) {
+type AlertGroup = { key: string; tone: Alert["tone"]; what: string; detail: string; alerts: Alert[] };
+
+function grouped(alerts: Alert[]): AlertGroup[] {
+  const groups = new Map<string, AlertGroup>();
+  for (const alert of alerts) {
+    const key = `${alert.tone}|${alert.what}|${alert.detail}`;
+    const group = groups.get(key);
+    if (group) {
+      group.alerts.push(alert);
+    } else {
+      groups.set(key, { key, tone: alert.tone, what: alert.what, detail: alert.detail, alerts: [alert] });
+    }
+  }
+  return [...groups.values()].toSorted((a, b) => Number(b.tone === "down") - Number(a.tone === "down"));
+}
+
+function Subjects({ alerts }: { alerts: Alert[] }) {
+  const names = [...new Set(alerts.map((alert) => alert.subject))];
+  const [only] = names;
+  if (names.length === 1 && only !== undefined && alerts[0]) {
+    return (
+      <a href={alerts[0].to}>
+        {only}
+        {alerts.length > 1 && <span className="desk-times num"> ×{alerts.length}</span>}
+      </a>
+    );
+  }
+  return (
+    <span>
+      {alerts.map((alert, index) => (
+        <span key={alert.key}>
+          {index > 0 && ", "}
+          <a href={alert.to}>{alert.subject}</a>
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function AttentionPanel({ entries, jobs }: { entries: Entry[]; jobs: Job[] | undefined }) {
   const [all, setAll] = useState(false);
   const alerts = alertsOf(entries, jobs);
-  const shown = all ? alerts : alerts.slice(0, SHOWN);
+  const groups = grouped(alerts);
+  const shown = all ? groups : groups.slice(0, SHOWN);
   return (
-    <OverviewCard title="Needs attention" count={alerts.length} label="Needs attention">
+    <section className="desk-panel" aria-label="Needs attention">
+      <PanelHead title="Needs attention" count={alerts.length} />
       {alerts.length === 0 ? (
-        <div className="ov-empty ov-clear">
-          <p>
-            <strong>All clear.</strong> No live run is off track, no latest run failed and every data job is on schedule.
-          </p>
-        </div>
+        <p className="desk-empty desk-clear">
+          <strong>All clear.</strong> No live run is off track, no latest run failed and every data job is on schedule.
+        </p>
       ) : (
         <>
-          <ul className="ov-alerts">
-            {shown.map((alert) => (
-              <li key={alert.key} className={`ov-alert ${alert.tone}`}>
-                <a href={alert.to}>{alert.text}</a>
-                <span className="ov-alert-detail">{alert.detail}</span>
+          <ul className="desk-rows">
+            {shown.map((group) => (
+              <li key={group.key} className={`desk-alert ${group.tone}`}>
+                <span className="desk-alert-what">
+                  <Subjects alerts={group.alerts} /> {group.what}
+                </span>
+                <span className="desk-row-detail">{group.detail}</span>
               </li>
             ))}
           </ul>
-          {alerts.length > SHOWN && (
-            <button type="button" className="btn btn-xs btn-ghost ov-toggle" aria-expanded={all} onClick={() => setAll(!all)}>
-              {all ? "Show fewer" : `Show all ${alerts.length}`}
+          {groups.length > SHOWN && (
+            <button type="button" className="btn btn-xs btn-ghost desk-toggle" aria-expanded={all} onClick={() => setAll(!all)}>
+              {all ? "Show fewer" : `Show all ${groups.length}`}
             </button>
           )}
         </>
       )}
-    </OverviewCard>
+    </section>
   );
 }

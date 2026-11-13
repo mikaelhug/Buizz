@@ -89,12 +89,12 @@
 .btn-danger {
   border-color: var(--down);
   background: var(--down);
-  color: #fff;
+  color: var(--accent-text);
 }
 
 .btn-danger:hover:not(:disabled) {
   border-color: var(--down);
-  background: color-mix(in srgb, var(--down) 88%, #000);
+  background: color-mix(in srgb, var(--down) 88%, var(--text));
 }
 
 .btn-icon {

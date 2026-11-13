@@ -457,14 +457,12 @@ span.health-key {
   overflow: visible;
 }
 
-.spark-base {
-  stroke: var(--border);
-  stroke-width: 1;
-  vector-effect: non-scaling-stroke;
+.spark-bed {
+  fill: var(--grid);
 }
 
-.spark-area {
-  fill: color-mix(in srgb, var(--accent) 70%, transparent);
+.spark-piece {
+  fill: color-mix(in srgb, var(--accent) 78%, var(--surface));
 }
 
 .spark-gap {
@@ -787,8 +785,8 @@ span.health-key {
   }
 }
 
-.spark-area.series {
-  fill: color-mix(in srgb, var(--accent) 30%, transparent);
+.spark-piece.series {
+  fill: color-mix(in srgb, var(--accent) 45%, var(--surface));
 }
 
 .spark-tail {
