@@ -6,8 +6,9 @@ use buizz_core::market::{
     CorporateActionKind, Coverage, DataSource, Dataset, EarningsInsight, EarningsRelease,
     EstimateFact, EstimateMetric, EstimateScope, FomcAnnouncement, FomcMeeting, FundamentalMetric,
     FundamentalPoint, HISTORY_FLOORS, HISTORY_START, IndexHistory, IndexMember, InsiderOwner,
-    InsiderTrade, InsiderTransaction, Instrument, InstrumentProfile, MacroObservation, MacroPoint,
-    MacroSeries, NewsArticle, RiskFreeRate, SIP_DELAY, Session, StockIndex, Symbol, Timeframe,
+    InsiderTrade, InsiderTransaction, Instrument, InstrumentProfile, Liquidity, MacroObservation,
+    MacroPoint, MacroSeries, NewsArticle, RiskFreeRate, SIP_DELAY, Session, StockIndex, Symbol,
+    Timeframe,
 };
 use buizz_core::ops::{ActionDisagreement, CoverageGap, DataWarning, UNEXPLAINED_MOVE_THRESHOLD};
 use buizz_core::protocol::BarRow;
@@ -930,7 +931,7 @@ fn sessions_before(calendar: &Calendar, before: NaiveDate, count: u32) -> &[Sess
     &sessions[end.saturating_sub(count as usize)..end]
 }
 
-pub(crate) fn average_daily_volume(
+pub(crate) fn liquidity(
     connection: &Connection,
     calendar: &Calendar,
     listings: &Listings,
@@ -938,7 +939,7 @@ pub(crate) fn average_daily_volume(
     symbols: &[Symbol],
     before: NaiveDate,
     sessions: u32,
-) -> Result<BTreeMap<Symbol, u64>> {
+) -> Result<BTreeMap<Symbol, Liquidity>> {
     let resolved = resolve(listings, &unique(symbols), before);
     let keys = keys(&resolved);
     let Some(first) = sessions_before(calendar, before, sessions).first() else {
@@ -967,22 +968,21 @@ pub(crate) fn average_daily_volume(
         first.date,
         as_of,
     )?;
-    let mut totals: BTreeMap<Symbol, (Decimal, u32)> = BTreeMap::new();
+    let mut windows: BTreeMap<Symbol, Vec<Bar>> = BTreeMap::new();
     for bar in daily {
-        let symbol_factors = factors.get(&bar.symbol).map_or(&[][..], Vec::as_slice);
-        let (_, volume) = AdjustmentFactor::cumulative(bar.start.exchange_date(), symbol_factors);
-        let total = totals.entry(bar.symbol).or_default();
-        total.0 += Decimal::from(bar.volume) * volume;
-        total.1 += 1;
+        windows.entry(bar.symbol.clone()).or_default().push(bar);
+    }
+    for window in windows.values_mut() {
+        window.sort_by_key(|bar| bar.start);
     }
     Ok(resolved
         .into_iter()
         .filter_map(|(ticker, key)| {
-            let (sum, days) = totals.get(&key)?;
-            (sum / Decimal::from(*days))
-                .round()
-                .to_u64()
-                .map(|average| (ticker, average))
+            let symbol_factors = factors.get(&key).map_or(&[][..], Vec::as_slice);
+            Some((
+                ticker,
+                Liquidity::estimate(windows.get(&key)?, symbol_factors)?,
+            ))
         })
         .collect())
 }

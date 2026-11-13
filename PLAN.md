@@ -114,7 +114,7 @@ Approved design. A backtest is a pass/fail screen, never a scoreboard; only live
 
 In v1:
 1. Benchmark (SPY buy & hold) and metrics per run: CAGR, volatility, Sharpe, Sortino, max drawdown, Calmar, win rate, profit factor, exposure, turnover, alpha/beta.
-2. Cost model: commission (with optional monthly volume tiers), slippage in bps and per share, ADV participation cap, borrow rate, financing spread over the T-bill rate.
+2. Cost model: commission (with optional monthly volume tiers), slippage as the larger of a bps floor and each stock's estimated half-spread plus square-root market impact, slippage per share, ADV participation cap, borrow rate, financing spread over the T-bill rate.
 3. Risk limits per run: max position weight, max gross exposure, drawdown stop-loss (closes every position and ends the run).
 4. Overfitting guard: the last 12 months are a locked holdout; running on it is explicit and counted per bot.
 5. Bad-data gate: refuse runs with coverage gaps; flag >40% overnight moves with no corporate action.

@@ -624,6 +624,10 @@ export interface components {
             slippage_bps: string;
             /** @default 0 */
             slippage_per_share: string;
+            /** @default 1 */
+            spread_scale: string;
+            /** @default 1 */
+            impact_coefficient: string;
             /** @default 0.05 */
             adv_participation: string;
             /**

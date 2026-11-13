@@ -114,6 +114,8 @@ COST_FIELDS: dict[str, Callable[[str], Any]] = {
     "commission_tiers": commission_tiers,
     "slippage_bps": decimal_text,
     "slippage_per_share": decimal_text,
+    "spread_scale": decimal_text,
+    "impact_coefficient": decimal_text,
     "adv_participation": decimal_text,
     "adv_sessions": whole_number,
     "borrow_rate": decimal_text,

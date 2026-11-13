@@ -102,7 +102,7 @@
         "order_id": 3,
         "symbol": "BBB",
         "qty": -510,
-        "price": "48.4758",
+        "price": "48.4662",
         "commission": "2.55",
         "feed": "sip"
       }
@@ -115,7 +115,7 @@
         "order_id": 4,
         "symbol": "AAA",
         "qty": -250,
-        "price": "99.4502",
+        "price": "99.4395",
         "commission": "1.25",
         "feed": "sip"
       }
@@ -128,7 +128,7 @@
         "order_id": 5,
         "symbol": "AAA",
         "qty": 251,
-        "price": "99.0495",
+        "price": "99.0597",
         "commission": "1.26",
         "feed": "sip"
       }
@@ -141,7 +141,7 @@
         "order_id": 6,
         "symbol": "AAA",
         "qty": -251,
-        "price": "101.4492",
+        "price": "101.4384",
         "commission": "1.26",
         "feed": "sip"
       }
@@ -154,7 +154,7 @@
         "order_id": 7,
         "symbol": "BBB",
         "qty": 511,
-        "price": "49.0245",
+        "price": "49.0336",
         "commission": "2.56",
         "feed": "sip"
       }
@@ -209,7 +209,7 @@
       "reason": "green day",
       "decided_at": "2024-11-26T21:00:00Z",
       "status": "filled",
-      "fill_price": "48.4758",
+      "fill_price": "48.4662",
       "filled_at": "2024-11-27T14:30:00Z"
     },
     {
@@ -226,7 +226,7 @@
       "reason": "green day",
       "decided_at": "2024-11-27T21:00:00Z",
       "status": "filled",
-      "fill_price": "99.4502",
+      "fill_price": "99.4395",
       "filled_at": "2024-11-29T14:30:00Z"
     },
     {
@@ -243,7 +243,7 @@
       "reason": "red day",
       "decided_at": "2024-12-02T21:00:00Z",
       "status": "filled",
-      "fill_price": "99.0495",
+      "fill_price": "99.0597",
       "filled_at": "2024-12-03T14:30:00Z"
     },
     {
@@ -260,7 +260,7 @@
       "reason": "green day",
       "decided_at": "2024-12-03T21:00:00Z",
       "status": "filled",
-      "fill_price": "101.4492",
+      "fill_price": "101.4384",
       "filled_at": "2024-12-04T14:30:00Z"
     },
     {
@@ -277,7 +277,7 @@
       "reason": "red day",
       "decided_at": "2024-12-03T21:00:00Z",
       "status": "filled",
-      "fill_price": "49.0245",
+      "fill_price": "49.0336",
       "filled_at": "2024-12-04T14:30:00Z"
     }
   ],
@@ -314,32 +314,32 @@
     },
     {
       "at": "2024-11-27T21:00:00Z",
-      "equity": "99854.63",
-      "cash": "75104.63",
+      "equity": "99849.73",
+      "cash": "75099.73",
       "gross_exposure": "24750.00"
     },
     {
       "at": "2024-11-29T18:00:00Z",
-      "equity": "99965.93",
-      "cash": "99965.93",
-      "gross_exposure": "0.00"
+      "equity": "99958.36",
+      "cash": "99958.36",
+      "gross_exposure": "0"
     },
     {
       "at": "2024-12-02T21:00:00Z",
-      "equity": "99965.93",
-      "cash": "99965.93",
+      "equity": "99958.36",
+      "cash": "99958.36",
       "gross_exposure": "0"
     },
     {
       "at": "2024-12-03T21:00:00Z",
-      "equity": "100454.25",
-      "cash": "75103.25",
+      "equity": "100444.12",
+      "cash": "75093.12",
       "gross_exposure": "25351.00"
     },
     {
       "at": "2024-12-04T21:00:00Z",
-      "equity": "100448.46",
-      "cash": "75511.66",
+      "equity": "100430.97",
+      "cash": "75494.17",
       "gross_exposure": "24936.80"
     }
   ],
@@ -386,8 +386,8 @@
     }
   ],
   "final": {
-    "cash": "75511.66",
-    "equity": "100448.46",
+    "cash": "75494.17",
+    "equity": "100430.97",
     "positions": [
       {
         "symbol": "BBB",
@@ -399,31 +399,31 @@
   "round_trips": [
     {
       "symbol": "BBB",
-      "pnl": "-131.99"
+      "pnl": "-136.89"
     },
     {
       "symbol": "AAA",
-      "pnl": "97.92"
+      "pnl": "95.25"
     },
     {
       "symbol": "AAA",
-      "pnl": "599.81"
+      "pnl": "594.54"
     }
   ],
   "metrics": {
-    "total_return": 0.0044846,
+    "total_return": 0.0043097,
     "cagr": null,
-    "volatility": 0.03876698657298389,
-    "sharpe": 1.7659256047389904,
-    "sortino": 3.6645904078409144,
+    "volatility": 0.038562476758589176,
+    "sharpe": 1.6612628714169904,
+    "sortino": 3.4242712509223385,
     "max_drawdown": 0.0058448,
     "calmar": null,
     "win_rate": 0.6666666666666666,
-    "profit_factor": 5.2862338055913325,
-    "exposure": 0.2480964546315431,
-    "turnover": 1.7502176349076641,
-    "alpha": 0.6382208737705412,
-    "beta": -0.6170728795411791,
+    "profit_factor": 5.039009423624808,
+    "exposure": 0.24810453945705663,
+    "turnover": 1.7502704109726186,
+    "alpha": 0.6325256237997401,
+    "beta": -0.6160975861182147,
     "trades": 3,
     "sessions": 10
   },

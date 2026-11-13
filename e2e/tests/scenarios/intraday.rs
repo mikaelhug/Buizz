@@ -90,8 +90,8 @@ async fn a_half_hourly_minute_bot_fills_limits_on_touch_expires_day_orders_at_th
     assert_eq!(on_close.order.updated_at, stamp("2024-12-02T21:00:00Z"));
     assert_eq!(
         on_close.avg_fill_price,
-        Some(decimal("99.4502")),
-        "the official close of 99.50 less 5 bps, not the last minute's {}",
+        Some(decimal("99.4480")),
+        "the official close of 99.50 less 5 bps and 0.23 bps of impact, not the last minute's {}",
         tape.last().expect("a tape").close
     );
 }

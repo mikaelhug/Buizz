@@ -199,7 +199,7 @@ impl World {
         let mut daily = Vec::new();
         for (index, symbol) in LIVE_SYMBOLS.iter().enumerate() {
             for (day, session) in sessions.iter().enumerate() {
-                let base = Decimal::from(100 + 50 * index) + Decimal::new(day as i64 % 5, 1);
+                let base = Decimal::from(100 + 50 * index) + Decimal::new(day as i64 % 2, 1);
                 daily.push(bar(
                     symbol,
                     session.open,

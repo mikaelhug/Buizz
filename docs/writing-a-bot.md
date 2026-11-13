@@ -317,11 +317,28 @@ The spine starts every run with 100,000 start cash and this cost model, whose fi
 |---|---|---|
 | `commission_per_share`, `commission_min` | `0.005`, `1.00` | Commission per share, at least the minimum per fill |
 | `commission_tiers` | none | Volume tiers, e.g. `[{"above": 300000, "per_share": "0.002"}]`: a fill pays the rate of the highest tier whose `above` the run's shares traded so far this calendar month have reached, like IBKR's tiered pricing |
-| `slippage_bps` | `5` | Basis points against you on market, stop and auction fills and on limit orders already marketable at the open |
+| `slippage_bps` | `5` | Basis points against you on market, stop and auction fills and on limit orders already marketable at the open: the floor of the spread charged |
+| `spread_scale` | `1` | The spread charged is the larger of `slippage_bps` and this times the stock's estimated half-spread (below); `0` charges the floor alone |
+| `impact_coefficient` | `1` | Market impact added on the same fills: this × the stock's daily volatility × √(shares / average daily volume); `0` switches it off |
 | `slippage_per_share` | `0` | A further amount per share against you on the same fills, e.g. `0.001` |
 | `adv_participation`, `adv_sessions` | `0.05`, `20` | Volume cap: that fraction of the average daily volume of the last `adv_sessions` sessions, per symbol and session (universes always rank over 20 sessions, whatever this is); the rest of the order stays working. A symbol with no average daily volume fills uncapped and the run gets one data warning event for it |
 | `borrow_rate` | `0.02` | Per year on short positions, charged at each session close |
 | `financing_spread` | `0.015` | Added to the T-bill rate for the financing of negative cash: the US Treasury 3-month rate last published before the session (within 31 days). Without one the spread alone is charged and the run gets a data warning |
+
+**Spread and impact.** When a run enters a session it reads, per symbol, the split-adjusted daily bars of the `adv_sessions` sessions before it, the window behind the volume cap, and takes from them the average daily volume in shares (`ADV`), the average daily dollar volume (`DV`, close × volume) and the daily volatility `σ`, the sample standard deviation of the close-to-close returns (zero with fewer than two returns, which leaves the floor and no impact). A fill of `q` shares is then moved against you by the fraction
+
+`max(slippage_bps / 10,000, spread_scale × half-spread) + impact_coefficient × σ × √(q / ADV)`
+
+plus `slippage_per_share`, rounded as before.
+
+- The half-spread is the bid-ask cost of microstructure invariance (Kyle and Obizhaeva 2016, *Econometrica*): `8.21 bps × (σ / 0.02) × (W / W*)^(-1/3)` with trading activity `W = σ × DV` and the benchmark stock's `W* = 0.02 × $40 million`, calibrated on 439,765 portfolio-transition orders of 2001 to 2005. It reduces to `8.21 bps × ∛((σ / 0.02)² × $40,000,000 / DV)`: 8.21 bps for a stock trading $40 million a day at 2% volatility, under 1 bp for SPY, so liquid names pay the `slippage_bps` floor.
+- The impact is the square-root law of Tóth et al. (2011, *Physical Review X*), whose prefactor they find "of order unity": trading 1% of a day's volume moves the price by a tenth of its daily volatility. The default of 1 is that peak impact charged on the whole fill, which is conservative: the cost actually paid is lower, about 0.6 in Kyle and Obizhaeva's square-root fit and about 0.56 at 2% volatility in Frazzini, Israel and Moskowitz (2018, "Trading Costs"). Earlier fills in the same symbol and session count toward the quantity: a fill of `q` after `u` shares pays `σ × ((u + q)^1.5 − u^1.5) / (q × √ADV)`, so splitting an order does not lower its impact.
+
+Range-based estimators that read the spread from each day's high, low and close (Abdi and Ranaldo 2017, Corwin and Schultz 2012) were tried first and rejected: on real daily bars they put SPY, AAPL and IWM at 16 to 25 bps over any window from 20 to 250 sessions, barely below a $10 million-a-day small cap, because their bias grows with volatility and swamps spreads that are small beside it, as Jahan-Parvar and Zikes (2023, *Review of Financial Studies*) document.
+
+σ and the cube root are computed in floating point with only exactly rounded operations and the pure-Rust `libm`, which give the same bits on every platform, and rounded to 8 decimals before they touch a price; the ledger stays in decimals.
+
+A $3,000 buy of a $20 stock trading $20 million a day (1,000,000 shares) at 3% daily volatility pays a half-spread of 8.21 × ∛(1.5² × 2) = 13.55 bps and an impact of 3% × √(150 / 1,000,000) = 3.67 bps, 17.2 bps in all: $5.17 plus commission. The same buy of SPY ($600, 70 million shares a day, 1% volatility) pays the 5 bps floor, as its half-spread estimate is 0.5 bps, and 1% × √(5 / 70,000,000) = 0.03 bps of impact: $1.51.
 
 A cost model with a negative cost or tier price, an `adv_participation` outside 0 (excluded) to 1, or `adv_sessions` below 1 is refused, and slippage never moves a fill price below 0.0001. Shorting is allowed for instruments flagged shortable.
 
