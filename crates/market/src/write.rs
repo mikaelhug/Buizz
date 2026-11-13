@@ -702,13 +702,26 @@ pub(crate) fn fundamental_facts(
                     ])
                 },
             )?;
-            let inserted = transaction.execute(
-                "INSERT INTO main.fundamental_fact SELECT s.* FROM stage_fundamental_fact s \
-                 WHERE NOT EXISTS (SELECT 1 FROM main.fundamental_fact f \
-                 WHERE f.symbol = s.symbol AND f.cik = s.cik AND f.taxonomy = s.taxonomy \
+            let same_fact = "f.symbol = s.symbol AND f.cik = s.cik AND f.taxonomy = s.taxonomy \
                  AND f.concept = s.concept AND f.unit = s.unit \
                  AND f.period_start IS NOT DISTINCT FROM s.period_start \
-                 AND f.period_end = s.period_end AND f.accession = s.accession)",
+                 AND f.period_end = s.period_end AND f.accession = s.accession";
+            transaction.execute(
+                &format!(
+                    "DELETE FROM main.fundamental_fact f WHERE EXISTS (SELECT 1 \
+                     FROM stage_fundamental_fact s WHERE f.symbol = s.symbol AND f.cik = s.cik \
+                     AND f.accession = s.accession) \
+                     AND NOT EXISTS (SELECT 1 FROM stage_fundamental_fact s WHERE {same_fact} \
+                     AND f.value = s.value AND f.metric IS NOT DISTINCT FROM s.metric \
+                     AND f.period_type IS NOT DISTINCT FROM s.period_type)"
+                ),
+                [],
+            )?;
+            let inserted = transaction.execute(
+                &format!(
+                    "INSERT INTO main.fundamental_fact SELECT s.* FROM stage_fundamental_fact s \
+                     WHERE NOT EXISTS (SELECT 1 FROM main.fundamental_fact f WHERE {same_fact})"
+                ),
                 [],
             )?;
             transaction.execute("DELETE FROM stage_fundamental_fact", [])?;

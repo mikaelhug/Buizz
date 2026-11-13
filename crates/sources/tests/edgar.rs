@@ -220,6 +220,92 @@ fn a_filer_with_one_earnings_per_share_tag_and_a_padded_cik_has_diluted_eps_in_i
     assert_eq!(eps[0].unit, "JPY/shares");
 }
 
+fn share_count(end: &str, val: &str, form: &str, fp: &str, filed: &str, accn: &str) -> String {
+    format!(
+        r#"{{"end":"{end}","val":{val},"fy":2016,"fp":"{fp}","form":"{form}","filed":"{filed}","accn":"{accn}"}}"#
+    )
+}
+
+fn instant_counts(payload: &str, year: i32) -> Vec<(NaiveDate, &'static str, Decimal)> {
+    let facts = normalize_company_facts(
+        &Symbol::new("XYZ"),
+        3,
+        payload.as_bytes(),
+        &weekday_calendar(year - 1, year + 1),
+    )
+    .unwrap();
+    let mut counts: Vec<_> = facts
+        .into_iter()
+        .filter(|fact| {
+            fact.metric == Some(FundamentalMetric::SharesOutstanding)
+                && fact.period_start.is_none()
+        })
+        .map(|fact| {
+            let source = if fact.taxonomy == "dei" {
+                "cover"
+            } else {
+                "balance sheet"
+            };
+            (fact.period_end, source, fact.value)
+        })
+        .collect();
+    counts.sort();
+    counts
+}
+
+#[test]
+fn a_share_count_tagged_a_thousand_or_a_million_times_off_takes_the_scale_the_other_filings_agree_on()
+ {
+    let annual = "0000000003-16-000001";
+    let (q1, q2) = ("0000000003-16-000002", "0000000003-16-000003");
+    let payload = format!(
+        r#"{{"cik":3,"facts":{{"dei":{{"EntityCommonStockSharesOutstanding":{{"units":{{"shares":[{},{},{}]}}}}}},
+        "us-gaap":{{"CommonStockSharesOutstanding":{{"units":{{"shares":[{},{},{},{}]}}}}}}}}}}"#,
+        share_count("2016-02-12", "208077418", "10-K", "FY", "2016-02-17", annual),
+        share_count("2016-04-25", "208077418000", "10-Q", "Q1", "2016-04-27", q1),
+        share_count("2016-07-25", "208077418000", "10-Q", "Q2", "2016-07-27", q2),
+        share_count("2015-12-26", "189722", "10-K", "FY", "2016-02-17", annual),
+        share_count("2016-03-26", "189193000", "10-Q", "Q1", "2016-04-27", q1),
+        share_count("2016-06-25", "188877000000000", "10-Q", "Q2", "2016-07-27", q2),
+        share_count("2016-09-24", "188446000", "10-Q", "Q3", "2016-10-26", "0000000003-16-000004"),
+    );
+    let whole = |value: i64| Decimal::from(value);
+    assert_eq!(
+        instant_counts(&payload, 2016),
+        vec![
+            (date(2015, 12, 26), "balance sheet", whole(189_722_000)),
+            (date(2016, 3, 26), "balance sheet", whole(189_193_000)),
+            (date(2016, 6, 25), "balance sheet", whole(188_877_000)),
+            (date(2016, 9, 24), "balance sheet", whole(188_446_000)),
+        ]
+    );
+}
+
+#[test]
+fn a_filer_that_tags_only_weighted_averages_keeps_its_cover_page_share_counts() {
+    let average = |start: &str, end: &str, val: u64, fp: &str, filed: &str, accn: &str| {
+        format!(
+            r#"{{"start":"{start}","end":"{end}","val":{val},"fy":2025,"fp":"{fp}","form":"10-Q","filed":"{filed}","accn":"{accn}"}}"#
+        )
+    };
+    let (q1, q2) = ("0000000003-25-000001", "0000000003-25-000002");
+    let payload = format!(
+        r#"{{"cik":3,"facts":{{"dei":{{"EntityCommonStockSharesOutstanding":{{"units":{{"shares":[{},{}]}}}}}},
+        "us-gaap":{{"WeightedAverageNumberOfSharesOutstandingBasic":{{"units":{{"shares":[{},{}]}}}}}}}}}}"#,
+        share_count("2025-04-25", "896000000", "10-Q", "Q1", "2025-05-01", q1),
+        share_count("2025-07-25", "897000000", "10-Q", "Q2", "2025-08-07", q2),
+        average("2025-01-01", "2025-03-31", 898_000_000, "Q1", "2025-05-01", q1),
+        average("2025-04-01", "2025-06-30", 896_500_000, "Q2", "2025-08-07", q2),
+    );
+    assert_eq!(
+        instant_counts(&payload, 2025),
+        vec![
+            (date(2025, 4, 25), "cover", Decimal::from(896_000_000)),
+            (date(2025, 7, 25), "cover", Decimal::from(897_000_000)),
+        ]
+    );
+}
+
 #[tokio::test]
 async fn submissions_give_the_sic_code_and_every_results_announcement() {
     let url = serve_sec().await;
