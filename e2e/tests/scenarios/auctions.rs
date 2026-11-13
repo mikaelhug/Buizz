@@ -55,8 +55,8 @@ async fn a_daily_bot_trades_the_official_close_and_open_on_margin_and_a_stop_fil
     assert_eq!(on_close.order.updated_at, stamp("2024-11-29T18:00:00Z"));
     assert_eq!(
         on_close.avg_fill_price,
-        Some(decimal("100.0500")),
-        "the official half-day close of 100.00 plus 5 bps"
+        Some(decimal("100.0522")),
+        "the official half-day close of 100.00 plus 5 bps and 0.22 bps of impact"
     );
 
     assert_eq!(on_open.order.order_type, OrderType::MarketOnOpen);
@@ -65,8 +65,8 @@ async fn a_daily_bot_trades_the_official_close_and_open_on_margin_and_a_stop_fil
     assert_eq!(on_open.order.updated_at, stamp("2024-12-02T14:30:00Z"));
     assert_eq!(
         on_open.avg_fill_price,
-        Some(decimal("100.4498")),
-        "the official open of 100.50 less 5 bps"
+        Some(decimal("100.4475")),
+        "the official open of 100.50 less 5 bps and 0.22 bps of impact"
     );
 
     assert_eq!(
@@ -79,8 +79,8 @@ async fn a_daily_bot_trades_the_official_close_and_open_on_margin_and_a_stop_fil
     assert_eq!(breakout.order.status, OrderStatus::Filled);
     assert_eq!(
         breakout.avg_fill_price,
-        Some(decimal("49.5248")),
-        "BBB opened at 49.00 and touched 49.60, so the stop fills at 49.50 plus 5 bps"
+        Some(decimal("49.5260")),
+        "BBB opened at 49.00 and touched 49.60, so the stop fills at 49.50 plus 5 bps and 0.25 bps of impact"
     );
 
     let positions: Vec<PositionView> = spine.get(&format!("/api/runs/{}/positions", run.id)).await;
@@ -89,9 +89,9 @@ async fn a_daily_bot_trades_the_official_close_and_open_on_margin_and_a_stop_fil
     assert_eq!(positions[0].qty, 10);
     assert_eq!(
         run.equity,
-        Some(decimal("499.63")),
-        "500 - 1001.50 for the close - 0.12 to finance the 501.50 overdraft overnight at 4.5% + 1.5% / 252 \
-         + 1003.50 for the open - 496.25 for the stop + 494.00 of BBB"
+        Some(decimal("499.58")),
+        "500 - 1001.52 for the close - 0.12 to finance the 501.52 overdraft overnight at 4.5% + 1.5% / 252 \
+         + 1003.48 for the open - 496.26 for the stop + 494.00 of BBB"
     );
 
     let queued: RunSummary = spine

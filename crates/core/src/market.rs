@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use chrono::{NaiveDate, TimeDelta};
 use rust_decimal::Decimal;
+use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -132,6 +133,50 @@ pub struct Bar {
     pub close: Decimal,
     pub volume: u64,
     pub feed: Feed,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Liquidity {
+    pub average_daily_volume: u64,
+    pub dollar_volume: Decimal,
+    pub volatility: Decimal,
+}
+
+impl Liquidity {
+    pub const VOLATILITY_DECIMALS: u32 = 8;
+
+    pub fn estimate(window: &[Bar], factors: &[AdjustmentFactor]) -> Option<Self> {
+        let days = Decimal::from(window.len());
+        let mut shares = Decimal::ZERO;
+        let mut dollars = Decimal::ZERO;
+        let mut closes = Vec::with_capacity(window.len());
+        for bar in window {
+            let (price, volume) = AdjustmentFactor::cumulative(bar.start.exchange_date(), factors);
+            shares += Decimal::from(bar.volume) * volume;
+            dollars += Decimal::from(bar.volume) * bar.close;
+            closes.extend((bar.close * price).to_f64().filter(|close| *close > 0.0));
+        }
+        let returns: Vec<f64> = closes
+            .windows(2)
+            .map(|pair| pair[1] / pair[0] - 1.0)
+            .collect();
+        let count = returns.len() as f64;
+        let mean = returns.iter().sum::<f64>() / count;
+        let squares: f64 = returns
+            .iter()
+            .map(|value| (value - mean) * (value - mean))
+            .sum();
+        let volatility = match returns.len() > 1 {
+            true => Decimal::from_f64((squares / (count - 1.0)).sqrt())?
+                .round_dp(Self::VOLATILITY_DECIMALS),
+            false => Decimal::ZERO,
+        };
+        Some(Self {
+            average_daily_volume: shares.checked_div(days)?.round().to_u64()?,
+            dollar_volume: dollars.checked_div(days)?.round_dp(2),
+            volatility,
+        })
+    }
 }
 
 #[derive(
@@ -506,6 +551,60 @@ pub struct EarningsRelease {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Filing {
+    pub symbol: Symbol,
+    pub cik: u32,
+    pub accession: String,
+    pub form: String,
+    pub filed: NaiveDate,
+    pub report_date: Option<NaiveDate>,
+    pub items: Vec<String>,
+    pub accepted_at: Timestamp,
+    pub available_at: Timestamp,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PressExhibit {
+    pub cik: u32,
+    pub accession: String,
+    pub accepted_at: Timestamp,
+    pub exhibit: Option<Exhibit>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Exhibit {
+    pub document: String,
+    pub kind: String,
+    pub text: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PressRelease {
+    pub symbol: Symbol,
+    pub accession: String,
+    pub accepted_at: Timestamp,
+    pub available_at: Timestamp,
+    pub exhibit: String,
+    pub text: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PressCandidate {
+    pub symbol: Symbol,
+    pub cik: u32,
+    pub accession: String,
+    pub accepted_at: Timestamp,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct InsiderPlan {
+    pub symbol: Symbol,
+    pub accession: String,
+    pub filed: NaiveDate,
+    pub plan_10b5_1: Option<bool>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InsiderOwner {
     pub cik: u32,
     pub name: String,
@@ -536,6 +635,7 @@ pub struct InsiderFiling {
     pub form: String,
     pub filed: NaiveDate,
     pub accepted_at: Timestamp,
+    pub plan_10b5_1: Option<bool>,
     pub owners: Vec<InsiderOwner>,
     pub transactions: Vec<InsiderTransaction>,
 }
@@ -548,6 +648,7 @@ pub struct InsiderTrade {
     pub filed: NaiveDate,
     pub accepted_at: Timestamp,
     pub available_at: Timestamp,
+    pub plan_10b5_1: Option<bool>,
     pub owners: Vec<InsiderOwner>,
     pub transaction: InsiderTransaction,
 }
@@ -1048,8 +1149,76 @@ pub enum Dataset {
     News,
     Fomc,
     Estimates,
+    CurrentReports,
+    PressReleases,
     ShortInterest,
     ShortVolume,
+}
+
+impl Dataset {
+    pub const ALL: [Self; 21] = [
+        Self::Bars1d,
+        Self::Bars1m,
+        Self::CorporateActions,
+        Self::Instruments,
+        Self::Calendar,
+        Self::IndexMembership,
+        Self::Companies,
+        Self::Fundamentals,
+        Self::SecFilings,
+        Self::EarningsReleases,
+        Self::CurrentReports,
+        Self::PressReleases,
+        Self::InsiderTrades,
+        Self::Estimates,
+        Self::Rates,
+        Self::Macro,
+        Self::Fomc,
+        Self::News,
+        Self::Borrow,
+        Self::ShortInterest,
+        Self::ShortVolume,
+    ];
+
+    pub fn domain(self) -> DataDomain {
+        match self {
+            Self::Bars1d | Self::Bars1m | Self::CorporateActions => DataDomain::Prices,
+            Self::Instruments | Self::Calendar | Self::IndexMembership | Self::Companies => {
+                DataDomain::Reference
+            }
+            Self::Fundamentals
+            | Self::SecFilings
+            | Self::EarningsReleases
+            | Self::CurrentReports
+            | Self::PressReleases
+            | Self::InsiderTrades
+            | Self::Estimates => DataDomain::Filings,
+            Self::Rates | Self::Macro | Self::Fomc => DataDomain::Macro,
+            Self::News | Self::Borrow | Self::ShortInterest | Self::ShortVolume => {
+                DataDomain::Alternative
+            }
+        }
+    }
+}
+
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, ToSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum DataDomain {
+    Prices,
+    Reference,
+    Filings,
+    Macro,
+    Alternative,
+}
+
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, ToSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum Market {
+    Us,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]

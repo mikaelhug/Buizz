@@ -22,6 +22,8 @@ const SUBMISSIONS: &str = include_str!("../fixtures/edgar/submissions_sample.jso
 const SUBMISSIONS_PAGE: &str = include_str!("../fixtures/edgar/submissions_page_sample.json");
 const DAILY_INDEX: &str = include_str!("../fixtures/edgar/master_sample.idx");
 const FORM_4: &str = include_str!("../fixtures/edgar/form4_sample.xml");
+const FILING_INDEX: &str = include_str!("../fixtures/edgar/filing_index_sample.htm");
+const EX_99: &str = include_str!("../fixtures/edgar/ex99_sample.htm");
 const DAILY_INDEX_LISTING: &str = r#"{"directory":{"item":[{"last-modified":"11/09/2026 10:02:13 PM","name":"master.20261109.idx","type":"file","href":"master.20261109.idx","size":"1 KB"}],"name":"daily-index/2026/QTR4/","parent-dir":"../"}}"#;
 
 fn date(year: i32, month: u32, day: u32) -> NaiveDate {
@@ -90,6 +92,14 @@ async fn serve_sec() -> String {
         .route(
             "/Archives/edgar/data/320193/000114036126042149/form4.xml",
             get(guarded(FORM_4)),
+        )
+        .route(
+            "/Archives/edgar/data/320193/000032019326000024/0000320193-26-000024-index.htm",
+            get(guarded(FILING_INDEX)),
+        )
+        .route(
+            "/Archives/edgar/data/320193/000032019326000024/a8-kex991q4202609262026.htm",
+            get(guarded(EX_99)),
         );
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}", listener.local_addr().unwrap());
@@ -375,6 +385,48 @@ async fn submissions_give_the_sic_code_and_every_results_announcement() {
         Some(date(2026, 11, 2))
     );
 
+    let reports: Vec<(&str, &str, Vec<String>)> = submissions
+        .filings
+        .reports
+        .iter()
+        .map(|report| {
+            (
+                report.accession.as_str(),
+                report.form.as_str(),
+                report.items.clone(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        reports,
+        [
+            (
+                "0001140361-26-042798",
+                "8-K",
+                vec!["8.01".to_owned(), "9.01".to_owned()]
+            ),
+            (
+                "0000320193-26-000024",
+                "8-K",
+                vec!["2.02".to_owned(), "9.01".to_owned()]
+            ),
+            ("0001140361-26-035325", "8-K/A", vec!["5.02".to_owned()]),
+            (
+                "0000320193-26-000018",
+                "8-K",
+                vec!["2.02".to_owned(), "9.01".to_owned()]
+            ),
+        ],
+        "every 8-K and 8-K/A with its items"
+    );
+    assert!(
+        submissions
+            .filings
+            .reports
+            .iter()
+            .all(|report| report.available_at == report.accepted_at)
+    );
+
     let page = &submissions.older_pages[0];
     assert_eq!(page.filing_to, date(2015, 10, 5));
     let older = client.filings_page(&apple, 320193, page).await.unwrap();
@@ -459,6 +511,8 @@ async fn a_form_4_gives_each_trade_with_its_insider_and_only_for_its_issuer() {
         }]
     );
 
+    assert_eq!(filing.plan_10b5_1, Some(true));
+
     let about_another_issuer =
         normalize_ownership(&Symbol::new("BRK.B"), 1067983, listed, FORM_4.as_bytes()).unwrap();
     assert_eq!(about_another_issuer.issuer_cik, 320193);
@@ -512,5 +566,51 @@ fn the_daily_index_keeps_periodic_reports_8ks_and_form_4s_only() {
             (789019, "10-Q/A", "0000950170-26-000500", date(2026, 11, 9)),
             (789019, "4", "0000950170-26-000501", date(2026, 11, 9)),
         ]
+    );
+}
+
+#[tokio::test]
+async fn an_earnings_release_is_the_text_of_the_first_press_release_exhibit_in_its_filing_index() {
+    let url = serve_sec().await;
+    let client = EdgarClient::new(EdgarConfig {
+        user_agent: USER_AGENT_VALUE.to_owned(),
+        data_url: url.clone(),
+        www_url: url,
+    })
+    .unwrap();
+    let accepted_at: Timestamp = "2026-11-02T21:30:23Z".parse().unwrap();
+
+    let release = client
+        .press_release(320193, "0000320193-26-000024", accepted_at)
+        .await
+        .unwrap();
+    assert_eq!(release.accepted_at, accepted_at);
+    let exhibit = release.exhibit.expect("an EX-99.1 exhibit");
+    assert_eq!(exhibit.document, "a8-kex991q4202609262026.htm");
+    assert_eq!(exhibit.kind, "EX-99.1");
+    let lines: Vec<&str> = exhibit.text.lines().collect();
+    assert_eq!(
+        lines[..4],
+        [
+            "Exhibit 99.1",
+            "",
+            "Apple reports fourth quarter results",
+            ""
+        ],
+        "the SGML envelope EDGAR serves around the document is not part of it"
+    );
+    assert!(lines.contains(&"Services revenue reaches new all-time high"));
+    assert!(
+        lines[8].starts_with("CUPERTINO, CALIFORNIA — Apple® today announced"),
+        "{lines:#?}"
+    );
+    assert_eq!(
+        lines[lines.len() - 3..],
+        [
+            "Three Months Ended\tTwelve Months Ended",
+            "Net sales:",
+            "Products\t$\t82,904\t$\t73,716\t$\t355,533\t$\t307,003",
+        ],
+        "a table keeps one line per row with its non-empty cells tab-separated"
     );
 }

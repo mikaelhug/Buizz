@@ -1,0 +1,23 @@
+{
+  "id": 10,
+  "result": {
+    "filings": [
+      {
+        "accepted_at": 1732136712000000000,
+        "accession": "0009999001-24-000050",
+        "available_at": 1732136712000000000,
+        "cik": 9999001,
+        "filed": "2024-11-20",
+        "form": "8-K",
+        "items": [
+          "2.02",
+          "9.01"
+        ],
+        "report_date": "2024-11-20",
+        "symbol": "BBB"
+      }
+    ],
+    "kind": "filings"
+  },
+  "type": "data"
+}

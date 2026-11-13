@@ -54,6 +54,7 @@ async fn an_empty_spine_backfills_backs_off_rejects_a_bad_tiingo_tail_and_restar
             ("fundamentals", ok),
             ("filings", ok),
             ("insider_trades", ok),
+            ("press_releases", ok),
             ("rates", ok),
             ("borrow", ok),
             ("short_interest", Some(JobOutcome::Noop)),
@@ -77,7 +78,12 @@ async fn an_empty_spine_backfills_backs_off_rejects_a_bad_tiingo_tail_and_restar
         "{}",
         message(&jobs, "index_membership")
     );
-    assert_eq!(message(&jobs, "filings"), "filings: 5 rows");
+    assert_eq!(
+        message(&jobs, "filings"),
+        "filings: 12 rows",
+        "the company, its 4 earnings releases and its 7 8-Ks"
+    );
+    assert_eq!(message(&jobs, "press_releases"), "press releases: 4 rows");
     assert_eq!(message(&jobs, "vix"), "vix: 8 rows");
     assert!(
         message(&jobs, "fomc").starts_with("fomc: 16 rows, 1 failed: 2000"),

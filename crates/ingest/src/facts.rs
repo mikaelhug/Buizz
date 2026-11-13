@@ -27,7 +27,13 @@ impl Ingest {
             Err(error) => return self.source_failure(now, &map_key, &error).await,
         };
         let (due, more) = self
-            .companies_due(now, Dataset::Fundamentals, &tickers, &ACCEPTED_FORMS)
+            .companies_due(
+                now,
+                Dataset::Fundamentals,
+                &tickers,
+                &ACCEPTED_FORMS,
+                &BTreeSet::new(),
+            )
             .await?;
         if due.is_empty() {
             return Ok(Work::noop("no company has a new filing"));
@@ -89,6 +95,7 @@ impl Ingest {
         dataset: Dataset,
         tickers: &BTreeMap<Symbol, u32>,
         forms: &'static [&'static str],
+        pending: &BTreeSet<Symbol>,
     ) -> Result<(Vec<Symbol>, bool), IngestError> {
         let stocks: BTreeSet<Symbol> = self
             .market
@@ -108,7 +115,11 @@ impl Ingest {
                 return Ok((due, true));
             }
             let last_filed = tickers.get(&symbol).and_then(|cik| filed.get(cik)).copied();
-            if self.company_due(now, dataset, &symbol, last_filed).await? {
+            let unread = pending.contains(&symbol);
+            if self
+                .company_due(now, dataset, &symbol, last_filed, unread)
+                .await?
+            {
                 due.push(symbol);
             }
         }
@@ -121,12 +132,14 @@ impl Ingest {
         dataset: Dataset,
         symbol: &Symbol,
         last_filed: Option<NaiveDate>,
+        unread: bool,
     ) -> Result<bool, IngestError> {
         let latest = self
             .latest_fetch(DataSource::Edgar, dataset, symbol)
             .await?;
         Ok(latest.is_none_or(|fetch| {
             let fresh = read(&fetch)
+                && !unread
                 && fetch.at + SAFETY_REFRESH > now
                 && last_filed.is_none_or(|filed| filed < fetch.at.exchange_date());
             !waiting(&fetch, now) && !fresh

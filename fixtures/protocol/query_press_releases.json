@@ -1,0 +1,12 @@
+{
+  "id": 11,
+  "request": {
+    "accessions": null,
+    "kind": "press_releases",
+    "since": "2024-11-01",
+    "symbols": [
+      "BBB"
+    ]
+  },
+  "type": "query"
+}

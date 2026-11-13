@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import csv
 import json
 import os
 import sys
 import time
 from collections import Counter
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from http.cookiejar import CookieJar
 from pathlib import Path
@@ -114,6 +116,8 @@ COST_FIELDS: dict[str, Callable[[str], Any]] = {
     "commission_tiers": commission_tiers,
     "slippage_bps": decimal_text,
     "slippage_per_share": decimal_text,
+    "spread_scale": decimal_text,
+    "impact_coefficient": decimal_text,
     "adv_participation": decimal_text,
     "adv_sessions": whole_number,
     "borrow_rate": decimal_text,
@@ -188,9 +192,12 @@ def backtest(api: Api, args: argparse.Namespace) -> int:
             print(f"  {run['status']} {last_clock} equity {run['equity']}")
     completed = run["status"] == "completed"
     if completed or run["metrics"] is not None:
-        metrics: dict[str, Any] = run["metrics"] or {}
+        hedged = run["config"].get("hedge_benchmark") is not None
+        reported: dict[str, Any] = run["metrics"] or {}
+        metrics = {name: value for name, value in reported.items() if hedged or not name.startswith("hedge_")}
+        width = max(map(len, metrics), default=0)
         for name, value in metrics.items():
-            print(f"{name:<16} {format_value(value)}")
+            print(f"{name:<{width}} {format_value(value)}")
         print("\n".join(trade_summary(api, run["id"])))
     if not completed:
         print(f"run {run['id']} {run['status']}: {run['message'] or 'no message'}", file=sys.stderr)
@@ -208,6 +215,95 @@ def sweep(api: Api, args: argparse.Namespace) -> int:
         f"{started['skipped']} already run"
     )
     print(f"trials: {trials['variants']} variants, {trials['runs']} runs")
+    return 0
+
+
+def event_time(text: str, where: str) -> str:
+    try:
+        at = datetime.fromisoformat(text.strip())
+    except ValueError:
+        raise CliError(f"{where}: at must be an ISO 8601 timestamp, got {text!r}") from None
+    if at.tzinfo is None:
+        raise CliError(f"{where}: at {text!r} must name its time zone, such as 2024-11-21T15:00:00Z")
+    return at.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+def study_event(row: dict[str, Any], where: str) -> dict[str, str]:
+    symbol, at = row.get("symbol"), row.get("at")
+    if not isinstance(symbol, str) or not symbol.strip() or not isinstance(at, str):
+        raise CliError(f"{where}: an event needs a symbol and an at timestamp")
+    return {"symbol": symbol.strip(), "at": event_time(at, where)}
+
+
+def read_events(path: Path) -> list[dict[str, str]]:
+    try:
+        text = path.read_text()
+    except OSError as exc:
+        raise CliError(f"cannot read {path}: {exc}") from exc
+    if path.suffix == ".jsonl":
+        rows: list[tuple[int, Any]] = []
+        for number, line in enumerate(text.splitlines(), 1):
+            if line.strip():
+                try:
+                    rows.append((number, json.loads(line)))
+                except ValueError:
+                    raise CliError(f"{path}:{number}: not a JSON object") from None
+        return [
+            study_event(cast("dict[str, Any]", row) if isinstance(row, dict) else {}, f"{path}:{number}")
+            for number, row in rows
+        ]
+    reader = csv.DictReader(text.splitlines())
+    return [study_event(row, f"{path}:{reader.line_num}") for row in reader]
+
+
+def percent(value: float | None) -> str:
+    return "-" if value is None else f"{value * 100:+.2f}%"
+
+
+def ratio(value: float | None) -> str:
+    return "-" if value is None else f"{value:.2f}"
+
+
+def event_study(api: Api, args: argparse.Namespace) -> int:
+    path = Path(args.events)
+    body: dict[str, Any] = {"label": args.label or path.stem, "events": read_events(path)}
+    if args.benchmark:
+        body["benchmark"] = args.benchmark
+    if args.cost:
+        body["cost"] = dict(args.cost)
+    study = api.call("POST", "/api/studies", body)
+    events: list[dict[str, Any]] = study["events"]
+    skipped = Counter(event["skipped"] for event in events if event["skipped"])
+    measured = [event for event in events if event["returns"][0] is not None]
+    benchmarks = Counter(event["benchmark"] for event in measured)
+    costs = [event["round_trip_cost"] for event in measured]
+    print(
+        f"study {study['label']}: {len(events)} events, {len(measured)} measured, "
+        f"{sum(skipped.values())} skipped" + "".join(f", {n} {reason}" for reason, n in sorted(skipped.items()))
+    )
+    print(
+        f"data through {study['data_through'] or '-'}; benchmarks "
+        + (", ".join(f"{symbol} {n}" for symbol, n in sorted(benchmarks.items())) or "-")
+        + f"; mean round trip cost {f'{sum(costs) / len(costs):.2%}' if costs else '-'} "
+        f"at {study['position']} a position"
+    )
+    print(f"trials {study['trials']}, luck line t {ratio(study['luck_t'])}")
+    print(
+        f"{'sessions':>8} {'count':>6} {'months':>6} {'delisted':>8} {'mean':>8} {'median':>8} {'hit':>6} "
+        f"{'t':>6} {'net mean':>9} {'net med':>8} {'net hit':>7} {'net t':>6}"
+    )
+    for horizon in study["horizons"]:
+        gross, net = horizon["gross"], horizon["net"]
+        hit = "-" if gross["hit_rate"] is None else f"{gross['hit_rate']:.0%}"
+        net_hit = "-" if net["hit_rate"] is None else f"{net['hit_rate']:.0%}"
+        print(
+            f"{horizon['sessions']:>8} {horizon['count']:>6} {horizon['months']:>6} {horizon['delisted']:>8} "
+            f"{percent(gross['mean']):>8} {percent(gross['median']):>8} {hit:>6} {ratio(gross['t_stat']):>6} "
+            f"{percent(net['mean']):>9} {percent(net['median']):>8} {net_hit:>7} {ratio(net['t_stat']):>6}"
+        )
+    print(f"{'session':>8} {'count':>6} {'CAR':>8} {'net CAR':>8}")
+    for point in study["curve"]:
+        print(f"{point['session']:>8} {point['count']:>6} {percent(point['gross']):>8} {percent(point['net']):>8}")
     return 0
 
 
@@ -249,6 +345,22 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="KEY=V1,V2,...",
         help="the values to try for one param; the others keep their defaults",
     )
+    study = commands.add_parser(
+        "event-study", help="measure abnormal returns after dated events, from a CSV or JSONL file of symbol,at"
+    )
+    study.add_argument("events", help="a .csv with symbol and at columns, or a .jsonl of {symbol, at} objects")
+    study.add_argument(
+        "--label", help="the study's name, counted as one trial per distinct event list; default the file name"
+    )
+    study.add_argument("--benchmark", help="one benchmark for every event instead of SPY for S&P 500 members, else IWM")
+    study.add_argument(
+        "--cost",
+        action="append",
+        default=[],
+        type=parse_cost,
+        metavar="FIELD=VALUE",
+        help="set one field of the cost model; the others keep their defaults",
+    )
     return parser
 
 
@@ -265,6 +377,8 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.command == "sweep":
             return sweep(api, args)
+        if args.command == "event-study":
+            return event_study(api, args)
         return backtest(api, args)
     except CliError as exc:
         print(f"buizz: {exc}", file=sys.stderr)

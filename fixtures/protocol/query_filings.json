@@ -1,0 +1,15 @@
+{
+  "id": 10,
+  "request": {
+    "items": [
+      "2.02",
+      "4.02"
+    ],
+    "kind": "filings",
+    "since": "2024-11-01",
+    "symbols": [
+      "BBB"
+    ]
+  },
+  "type": "query"
+}

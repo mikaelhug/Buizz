@@ -3,9 +3,10 @@ use std::ops::RangeInclusive;
 
 use buizz_core::market::{
     Bar, BorrowAvailability, Company, CorporateAction, CorporateActionKind, DataSource, Dataset,
-    EarningsInsight, EarningsRelease, EstimateFact, FomcMeeting, FundamentalFact, IndexHistory,
-    InsiderFiling, Instrument, MacroObservation, NewsArticle, RiskFreeRate, SecFiling, Session,
-    ShortInterestRecord, ShortVolumeRecord, Symbol, split_rates,
+    EarningsInsight, EarningsRelease, EstimateFact, Filing, FomcMeeting, FundamentalFact,
+    IndexHistory, InsiderFiling, InsiderPlan, Instrument, MacroObservation, NewsArticle,
+    PressExhibit, RiskFreeRate, SecFiling, Session, ShortInterestRecord, ShortVolumeRecord, Symbol,
+    split_rates,
 };
 use buizz_core::ops::ActionDisagreement;
 use buizz_core::time::Timestamp;
@@ -1298,6 +1299,7 @@ pub(crate) fn insider_filings(
                 "SELECT count(*) > 0 FROM main.insider_filing WHERE symbol = ? AND accession = ?",
             )?;
             let mut filed = transaction.appender("insider_filing")?;
+            let mut plans = transaction.appender("insider_plan")?;
             let mut owners = transaction.appender("insider_owner")?;
             let mut trades = transaction.appender("insider_transaction")?;
             let mut rows = 0;
@@ -1316,6 +1318,12 @@ pub(crate) fn insider_filings(
                     filing.filed,
                     Ts(filing.accepted_at),
                     batch_id,
+                ])?;
+                plans.append_row(params![
+                    symbol,
+                    filing.accession,
+                    filing.plan_10b5_1,
+                    batch_id
                 ])?;
                 for owner in &filing.owners {
                     owners.append_row(params![
@@ -1350,8 +1358,114 @@ pub(crate) fn insider_filings(
                 rows += 1;
             }
             filed.flush()?;
+            plans.flush()?;
             owners.flush()?;
             trades.flush()?;
+            Ok(rows)
+        },
+    )
+}
+
+pub(crate) fn insider_plans(
+    connection: &mut Connection,
+    source: DataSource,
+    plans: Vec<InsiderPlan>,
+) -> Result<WriteSummary> {
+    let mut coverage = Coverage::new();
+    for plan in &plans {
+        cover(&mut coverage, Some(&plan.symbol), plan.filed);
+    }
+    write_batch(
+        connection,
+        source,
+        Dataset::InsiderTrades,
+        coverage,
+        |transaction, batch_id| {
+            let mut statement = transaction
+                .prepare_cached("INSERT OR IGNORE INTO main.insider_plan VALUES (?, ?, ?, ?)")?;
+            let mut rows = 0;
+            for plan in &plans {
+                rows += statement.execute(params![
+                    plan.symbol.as_str(),
+                    plan.accession,
+                    plan.plan_10b5_1,
+                    batch_id,
+                ])? as u64;
+            }
+            Ok(rows)
+        },
+    )
+}
+
+pub(crate) fn current_reports(
+    connection: &mut Connection,
+    source: DataSource,
+    reports: Vec<Filing>,
+) -> Result<WriteSummary> {
+    let mut coverage = Coverage::new();
+    for report in &reports {
+        cover(&mut coverage, Some(&report.symbol), report.filed);
+    }
+    write_batch(
+        connection,
+        source,
+        Dataset::CurrentReports,
+        coverage,
+        |transaction, batch_id| {
+            let mut statement = transaction.prepare_cached(
+                "INSERT OR IGNORE INTO main.current_report VALUES (?, ?, ?, ?, ?, ?, \
+                 list_filter(string_split(?, ','), lambda item: item <> ''), ?, ?)",
+            )?;
+            let mut rows = 0;
+            for report in &reports {
+                rows += statement.execute(params![
+                    report.symbol.as_str(),
+                    report.cik,
+                    report.accession,
+                    report.form,
+                    report.filed,
+                    report.report_date,
+                    report.items.join(","),
+                    Ts(report.accepted_at),
+                    batch_id,
+                ])? as u64;
+            }
+            Ok(rows)
+        },
+    )
+}
+
+pub(crate) fn press_releases(
+    connection: &mut Connection,
+    source: DataSource,
+    releases: Vec<PressExhibit>,
+) -> Result<WriteSummary> {
+    let mut coverage = Coverage::new();
+    for release in &releases {
+        cover(&mut coverage, None, release.accepted_at.exchange_date());
+    }
+    write_batch(
+        connection,
+        source,
+        Dataset::PressReleases,
+        coverage,
+        |transaction, batch_id| {
+            let mut statement = transaction.prepare_cached(
+                "INSERT OR IGNORE INTO main.press_release VALUES (?, ?, ?, ?, ?, ?, ?)",
+            )?;
+            let mut rows = 0;
+            for release in &releases {
+                let exhibit = release.exhibit.as_ref();
+                rows += statement.execute(params![
+                    release.accession,
+                    release.cik,
+                    Ts(release.accepted_at),
+                    exhibit.map(|exhibit| exhibit.document.as_str()),
+                    exhibit.map(|exhibit| exhibit.kind.as_str()),
+                    exhibit.map(|exhibit| exhibit.text.as_str()),
+                    batch_id,
+                ])? as u64;
+            }
             Ok(rows)
         },
     )

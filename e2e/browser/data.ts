@@ -3,6 +3,8 @@ import { panel, pill, signedIn } from "./session.ts";
 
 async function dataHealth(page: Page): Promise<{ warnings: string[] }> {
   await page.getByRole("link", { name: "Data", exact: true }).click();
+  await page.getByRole("region", { name: "Spine health" }).waitFor();
+  await page.getByRole("group", { name: "Data view" }).getByRole("button", { name: "Details" }).click();
   const jobs = panel(page, "Jobs");
   await pill(jobs.getByRole("row", { name: /corporate_actions/ }), "backoff").waitFor();
   await pill(jobs.getByRole("row", { name: /tiingo_history/ }), "failed").waitFor();

@@ -228,6 +228,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/data/spine": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["data_spine"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/events": {
         parameters: {
             query?: never;
@@ -468,6 +484,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/studies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["event_study"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/healthz": {
         parameters: {
             query?: never;
@@ -488,6 +520,16 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AbnormalStats: {
+            /** Format: double */
+            mean?: number | null;
+            /** Format: double */
+            median?: number | null;
+            /** Format: double */
+            hit_rate?: number | null;
+            /** Format: double */
+            t_stat?: number | null;
+        };
         ActionDisagreement: {
             symbol: components["schemas"]["Symbol"];
             /** Format: date */
@@ -522,11 +564,11 @@ export interface components {
             params: Record<string, never>;
             metrics: components["schemas"]["Metrics"];
             benchmark: components["schemas"]["Metrics"];
+            benchmark_symbol: components["schemas"]["Symbol"];
             curve: components["schemas"]["LivePoint"][];
         };
         BotDetail: {
             summary: components["schemas"]["BotSummary"];
-            status: components["schemas"]["BotStatus"];
             /** Format: int32 */
             holdout_runs: number;
             manifest: components["schemas"]["BotManifest"];
@@ -549,6 +591,7 @@ export interface components {
             universe: components["schemas"]["UniverseSpec"];
             params?: Record<string, never>;
             benchmark?: components["schemas"]["Symbol"];
+            hedge_benchmark?: components["schemas"]["Symbol"] | null;
             risk?: components["schemas"]["RiskLimits"];
             /** Format: int32 */
             step_timeout?: number;
@@ -567,6 +610,7 @@ export interface components {
             timeframe: components["schemas"]["Timeframe"];
             params: Record<string, never>;
             stage: components["schemas"]["BotStage"];
+            status: components["schemas"]["BotStatus"];
             screening?: components["schemas"]["Screening"] | null;
             backtest?: components["schemas"]["BacktestGlance"] | null;
             live: components["schemas"]["LiveSummary"][];
@@ -624,6 +668,10 @@ export interface components {
             slippage_bps: string;
             /** @default 0 */
             slippage_per_share: string;
+            /** @default 1 */
+            spread_scale: string;
+            /** @default 1 */
+            impact_coefficient: string;
             /** @default 0.05 */
             adv_participation: string;
             /**
@@ -654,6 +702,18 @@ export interface components {
             /** Format: date */
             to: string;
         };
+        CurvePoint: {
+            /** Format: int32 */
+            session: number;
+            /** Format: int32 */
+            count: number;
+            /** Format: double */
+            gross: number;
+            /** Format: double */
+            net: number;
+        };
+        /** @enum {string} */
+        DataDomain: "prices" | "reference" | "filings" | "macro" | "alternative";
         DataHealth: {
             watermarks: components["schemas"]["Watermarks"];
             backfill: components["schemas"]["BackfillProgress"][];
@@ -665,6 +725,16 @@ export interface components {
         };
         /** @enum {string} */
         DataSource: "alpaca" | "alpaca_stream" | "tiingo" | "edgar" | "treasury" | "fred" | "fixture" | "wikipedia" | "interactive_brokers" | "nasdaq" | "cboe" | "federal_reserve" | "factset" | "finra";
+        DataSpine: {
+            markets: components["schemas"]["Market"][];
+            datasets: components["schemas"]["DatasetSpine"][];
+            watermarks: components["schemas"]["Watermarks"];
+            ingest_enabled: boolean;
+            /** Format: date */
+            history_start: string;
+            /** Format: date */
+            today: string;
+        };
         DataWarning: (components["schemas"]["CoverageGap"] & {
             /** @enum {string} */
             type: "coverage_gap";
@@ -687,7 +757,12 @@ export interface components {
             type: "action_disagreement";
         });
         /** @enum {string} */
-        Dataset: "instruments" | "calendar" | "bars1d" | "bars1m" | "corporate_actions" | "fundamentals" | "rates" | "companies" | "earnings_releases" | "sec_filings" | "index_membership" | "borrow" | "macro" | "insider_trades" | "news" | "fomc" | "estimates" | "short_interest" | "short_volume";
+        Dataset: "instruments" | "calendar" | "bars1d" | "bars1m" | "corporate_actions" | "fundamentals" | "rates" | "companies" | "earnings_releases" | "sec_filings" | "index_membership" | "borrow" | "macro" | "insider_trades" | "news" | "fomc" | "estimates" | "current_reports" | "press_releases" | "short_interest" | "short_volume";
+        DatasetSpine: {
+            dataset: components["schemas"]["Dataset"];
+            domain: components["schemas"]["DataDomain"];
+            markets: components["schemas"]["MarketCoverage"][];
+        };
         /** @enum {string} */
         DesiredState: "running" | "paused" | "stopped";
         Envelope: {
@@ -718,6 +793,33 @@ export interface components {
             benchmark: components["schemas"]["SparkPoint"][];
             benchmark_metrics: components["schemas"]["Metrics"];
             interim_metrics?: components["schemas"]["Metrics"] | null;
+        };
+        EventOutcome: {
+            symbol: components["schemas"]["Symbol"];
+            at: components["schemas"]["Timestamp"];
+            /** Format: date */
+            entry?: string | null;
+            benchmark?: components["schemas"]["Symbol"] | null;
+            /** Format: double */
+            round_trip_cost?: number | null;
+            /** Format: date */
+            last_session?: string | null;
+            skipped?: components["schemas"]["StudySkip"] | null;
+            returns: (components["schemas"]["HorizonReturn"] | null)[];
+        };
+        EventStudy: {
+            label: string;
+            hash: string;
+            /** Format: int32 */
+            trials: number;
+            /** Format: double */
+            luck_t: number;
+            data_through?: components["schemas"]["Timestamp"] | null;
+            cost: components["schemas"]["CostModel"];
+            position: string;
+            horizons: components["schemas"]["HorizonStats"][];
+            curve: components["schemas"]["CurvePoint"][];
+            events: components["schemas"]["EventOutcome"][];
         };
         EventsPage: {
             items: components["schemas"]["RunEvent"][];
@@ -764,10 +866,30 @@ export interface components {
         GoLive: {
             from_run?: components["schemas"]["RunId"] | null;
         };
+        HorizonReturn: {
+            /** Format: double */
+            stock: number;
+            /** Format: double */
+            benchmark: number;
+        };
+        HorizonStats: {
+            /** Format: int32 */
+            sessions: number;
+            /** Format: int32 */
+            count: number;
+            /** Format: int32 */
+            delisted: number;
+            /** Format: int32 */
+            months: number;
+            gross: components["schemas"]["AbnormalStats"];
+            net: components["schemas"]["AbnormalStats"];
+        };
         /** @enum {string} */
         JobOutcome: "ok" | "partial" | "noop" | "waiting" | "backoff" | "failed";
         JobView: {
             name: string;
+            source?: components["schemas"]["DataSource"] | null;
+            datasets: components["schemas"]["Dataset"][];
             every: string;
             last_started?: components["schemas"]["Timestamp"] | null;
             last_finished?: components["schemas"]["Timestamp"] | null;
@@ -828,6 +950,8 @@ export interface components {
             run: components["schemas"]["RunSummary"];
             /** Format: int32 */
             sessions_needed?: number | null;
+            source?: components["schemas"]["BacktestGlance"] | null;
+            first_session?: components["schemas"]["Session"] | null;
         };
         /** @enum {string} */
         LiveVerdict: "incubating" | "tracking" | "no_backtest" | "falsified" | "proven";
@@ -836,6 +960,21 @@ export interface components {
         LoginRequest: {
             username: string;
             password: string;
+        };
+        /** @enum {string} */
+        Market: "us";
+        MarketCoverage: {
+            market: components["schemas"]["Market"];
+            sources: components["schemas"]["SourceCoverage"][];
+            /** Format: int32 */
+            symbols: number;
+            /** Format: date */
+            first?: string | null;
+            /** Format: date */
+            last?: string | null;
+            updated_at?: components["schemas"]["Timestamp"] | null;
+            monthly: number[];
+            backfill: components["schemas"]["BackfillProgress"][];
         };
         Metrics: {
             /** Format: double */
@@ -864,6 +1003,24 @@ export interface components {
             alpha?: number | null;
             /** Format: double */
             beta?: number | null;
+            /** Format: double */
+            residual_volatility?: number | null;
+            /** Format: double */
+            appraisal_ratio?: number | null;
+            /** Format: double */
+            alpha_t?: number | null;
+            /** Format: double */
+            overlay_sharpe?: number | null;
+            /** Format: double */
+            hedge_alpha?: number | null;
+            /** Format: double */
+            hedge_beta?: number | null;
+            /** Format: double */
+            hedge_residual_volatility?: number | null;
+            /** Format: double */
+            hedge_appraisal_ratio?: number | null;
+            /** Format: double */
+            hedge_alpha_t?: number | null;
             /** Format: int32 */
             trades: number;
             /** Format: int32 */
@@ -1060,6 +1217,7 @@ export interface components {
             /** Format: int64 */
             seed: number;
             benchmark: components["schemas"]["Symbol"];
+            hedge_benchmark?: components["schemas"]["Symbol"] | null;
             holdout: boolean;
         };
         RunEvent: {
@@ -1133,6 +1291,12 @@ export interface components {
             /** Format: int32 */
             passing: number;
         };
+        Session: {
+            /** Format: date */
+            date: string;
+            open: components["schemas"]["Timestamp"];
+            close: components["schemas"]["Timestamp"];
+        };
         SessionInfo: {
             authenticated: boolean;
         };
@@ -1148,6 +1312,16 @@ export interface components {
         };
         /** @enum {string} */
         Side: "buy" | "sell";
+        SourceCoverage: {
+            source: components["schemas"]["DataSource"];
+            /** Format: int32 */
+            symbols: number;
+            /** Format: date */
+            first: string;
+            /** Format: date */
+            last: string;
+            updated_at: components["schemas"]["Timestamp"];
+        };
         SparkPoint: {
             at: components["schemas"]["Timestamp"];
             equity: string;
@@ -1220,6 +1394,18 @@ export interface components {
         };
         /** @enum {string} */
         StockIndex: "sp500";
+        StudyEvent: {
+            symbol: components["schemas"]["Symbol"];
+            at: components["schemas"]["Timestamp"];
+        };
+        StudyRequest: {
+            label: string;
+            events: components["schemas"]["StudyEvent"][];
+            benchmark?: components["schemas"]["Symbol"] | null;
+            cost?: components["schemas"]["CostModel"] | null;
+        };
+        /** @enum {string} */
+        StudySkip: "no_session" | "unknown_symbol" | "not_traded" | "benchmark_not_traded";
         SweepStarted: {
             period: components["schemas"]["Period"];
             queued: components["schemas"]["RunId"][];
@@ -1712,6 +1898,25 @@ export interface operations {
             };
         };
     };
+    data_spine: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataSpine"];
+                };
+            };
+        };
+    };
     events: {
         parameters: {
             query?: never;
@@ -2137,6 +2342,37 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    event_study: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudyRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventStudy"];
+                };
+            };
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };

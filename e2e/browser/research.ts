@@ -4,7 +4,7 @@ import { pill, signedIn } from "./session.ts";
 async function twoVariantsLive(page: Page): Promise<{ params: string[] }> {
   const list = page.getByRole("region", { name: "Bot list", exact: true });
   const screened = list.locator("tbody tr").filter({ has: page.getByRole("link", { name: "sma_cross", exact: true }) });
-  await screened.getByText(/^backtest 1y/).waitFor();
+  await screened.getByText(/^1y backtest/).waitFor();
   await screened.getByRole("img", { name: /^Since / }).waitFor();
   await page.keyboard.press("ControlOrMeta+k");
   await page.getByRole("combobox", { name: /^Search pages/ }).fill("Research sma_cross");

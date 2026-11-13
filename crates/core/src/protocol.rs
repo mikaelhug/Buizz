@@ -9,9 +9,9 @@ use serde_json::{Map, Value};
 
 use crate::ledger::Portfolio;
 use crate::market::{
-    Adjustment, Borrow, CorporateAction, EarningsRelease, FomcAnnouncement, FundamentalMetric,
-    FundamentalPoint, InsiderTrade, InstrumentProfile, MacroPoint, MacroSeries, NewsArticle,
-    Session, ShortInterest, ShortVolume, Symbol, Timeframe,
+    Adjustment, Borrow, CorporateAction, EarningsRelease, Filing, FomcAnnouncement,
+    FundamentalMetric, FundamentalPoint, InsiderTrade, InstrumentProfile, MacroPoint, MacroSeries,
+    NewsArticle, PressRelease, Session, ShortInterest, ShortVolume, Symbol, Timeframe,
 };
 use crate::order::{Fill, Order, OrderId, OrderRequest, OrderType, OrderUpdate, Side};
 use crate::run::{LogLevel, Mode, RunId, UniverseSpec, Wake};
@@ -112,6 +112,16 @@ pub enum QueryRequest {
     Earnings {
         symbols: Vec<Symbol>,
     },
+    Filings {
+        symbols: Vec<Symbol>,
+        since: NaiveDate,
+        items: Option<Vec<String>>,
+    },
+    PressReleases {
+        symbols: Vec<Symbol>,
+        since: NaiveDate,
+        accessions: Option<Vec<String>>,
+    },
     Calendar {
         from: NaiveDate,
         to: NaiveDate,
@@ -171,6 +181,12 @@ pub enum DataResult {
     },
     Earnings {
         releases: Vec<EarningsRelease>,
+    },
+    Filings {
+        filings: Vec<Filing>,
+    },
+    PressReleases {
+        releases: Vec<PressRelease>,
     },
     Calendar {
         sessions: Vec<Session>,

@@ -8,6 +8,7 @@ pub mod order;
 pub mod performance;
 pub mod protocol;
 pub mod run;
+pub mod study;
 pub mod time;
 pub mod visibility;
 pub mod wire;

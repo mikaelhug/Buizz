@@ -13,13 +13,16 @@ import { Failure, LoadMore, Loading, StaleFailure } from "../ui/Feedback";
 import { METRICS, MetricGroups, MetricValue } from "../ui/Metrics";
 import { monthlyCalendar, MonthlyReturns } from "../ui/MonthlyReturns";
 import { Info, Popover } from "../ui/Popover";
+import { firstClose, JUDGED_FROM_SESSION, type Live, verdictLabel, YEAR_SESSIONS } from "../ui/LiveTable";
+import { sourceSentence } from "../ui/Source";
+import { Sparkline } from "../ui/Sparkline";
 import { RunBadges, StatusPill } from "../ui/Status";
 import { SymbolChart, SymbolLink } from "../ui/SymbolChart";
 import { matches, moveBetweenRows, openRow, SortHeader, type SortColumns, TableFilter, useFlash, useSort } from "../ui/Table";
 import { Icon } from "../ui/Icon";
 import { notify } from "../ui/Toaster";
+import { CHECKS } from "../ui/Gate";
 import { goLive } from "./BotActions";
-import { CHECKS } from "./Research";
 import { Trades } from "./Trades";
 
 type Run = Schemas["RunSummary"];
@@ -51,10 +54,11 @@ type Props = {
   recent: Run[];
   liveParams: ReadonlySet<string>;
   gate: Schemas["GateCheck"][] | undefined;
+  live: Live | undefined;
   runs: ReactNode;
 };
 
-export function RunView({ name, runId, pinned, tab, symbol, botHash, behaviourHash, recent, liveParams, gate, runs }: Props) {
+export function RunView({ name, runId, pinned, tab, symbol, botHash, behaviourHash, recent, liveParams, gate, live, runs }: Props) {
   const run = useResource(() => must(api.GET("/api/runs/{id}", { params: { path: { id: runId } } })), [runId]);
   const tabRoute = (target: BotTab): Route => ({ page: "bot", name, ...(pinned ? { run: runId } : {}), tab: target });
   const tabHref = (target: BotTab) => href(tabRoute(target));
@@ -91,7 +95,7 @@ export function RunView({ name, runId, pinned, tab, symbol, botHash, behaviourHa
       <RunBar run={run.data} name={name} tab={tab} botHash={botHash} behaviourHash={behaviourHash} recent={recent} liveParams={liveParams} gate={gate} logsHref={tabHref("logs")} runsHref={tabHref("runs")} />
       <Tabs tab={tab} routeFor={tabRoute} />
       <div className="tab-panel" role="tabpanel" id="run-tabpanel" aria-labelledby={`tab-${tab}`}>
-        {tab === "overview" && <Overview run={run.data} symbol={symbol} gate={gate} closeHref={tabHref("overview")} />}
+        {tab === "overview" && <Overview run={run.data} live={live} symbol={symbol} gate={gate} closeHref={tabHref("overview")} />}
         {tab === "trades" && <Trades runId={runId} positionsHref={tabHref("events")} symbolHref={symbolHref} />}
         {tab === "orders" && <Orders runId={runId} active={!run.data.finished_at} symbolHref={symbolHref} />}
         {tab === "events" && (
@@ -172,10 +176,25 @@ function dollars(value: string): string {
   return `$${fmt.price(value)}`;
 }
 
+function spreadText(cost: Schemas["CostModel"]): string {
+  const scale = Number(cost.spread_scale ?? 1);
+  if (!scale) return `${cost.slippage_bps} bps of price`;
+  const estimate = scale === 1 ? "the estimated half-spread" : `${cost.spread_scale} × the estimated half-spread`;
+  return `${cost.slippage_bps} bps of price, or ${estimate} if wider`;
+}
+
+function costSummary(cost: Schemas["CostModel"]): string {
+  const floor = Number(cost.spread_scale ?? 1) ? `≥ ${cost.slippage_bps}` : cost.slippage_bps;
+  const impact = Number(cost.impact_coefficient ?? 1) ? " + impact" : "";
+  return `${floor} bps${impact} · ${dollars(cost.commission_per_share)}/sh`;
+}
+
 function costRows(cost: Schemas["CostModel"]): Row[] {
   const perShare = Number(cost.slippage_per_share ?? 0);
+  const impact = Number(cost.impact_coefficient ?? 1);
   return [
-    ["Slippage", perShare ? `${cost.slippage_bps} bps + ${dollars(cost.slippage_per_share)} a share` : `${cost.slippage_bps} bps of price`],
+    ["Slippage", perShare ? `${spreadText(cost)} + ${dollars(cost.slippage_per_share)} a share` : spreadText(cost)],
+    ["Impact", impact ? `${cost.impact_coefficient} × daily volatility × √(shares / average volume)` : "off"],
     ["Commission", `${dollars(cost.commission_per_share)} a share, min ${dollars(cost.commission_min)}`],
     ...(cost.commission_tiers ?? []).map((tier): Row => [`Above ${fmt.integer(tier.above)} sh/mo`, `${dollars(tier.per_share)} a share`]),
     ["Volume cap", `${fmt.percent(cost.adv_participation)} of ${cost.adv_sessions}-session average volume`],
@@ -301,6 +320,14 @@ function RunBar({ run, name, tab, botHash, behaviourHash, recent, liveParams, ga
           <dt>Period</dt>
           <dd>{period(run)}</dd>
         </div>
+        {run.mode === "live" && run.source_run !== null && run.source_run !== undefined && (
+          <div>
+            <dt>From backtest</dt>
+            <dd>
+              <a href={href({ page: "bot", name, run: run.source_run })}>#{run.source_run}</a>
+            </dd>
+          </div>
+        )}
         <div>
           <dt>Clock</dt>
           <dd>{awaitingData(run) ? <span className="muted">waiting for market data since {fmt.market(run.started_at ?? run.created_at)}</span> : fmt.market(run.clock)}</dd>
@@ -322,7 +349,7 @@ function RunBar({ run, name, tab, botHash, behaviourHash, recent, liveParams, ga
         <div>
           <dt>Costs</dt>
           <dd>
-            {run.config.cost.slippage_bps} bps · {dollars(run.config.cost.commission_per_share)}/sh
+            {costSummary(run.config.cost)}
             <Info label="Cost model">
               <KeyValues rows={costRows(run.config.cost)} />
             </Info>
@@ -417,21 +444,37 @@ function signedYearly(value: number): string {
   return `${fmt.change(Math.abs(value))}/yr`.replace(/^[+-]/, "");
 }
 
-type HeadlineProps = { run: Run; metrics: Schemas["Metrics"] | null | undefined; benchmark: Schemas["Metrics"] | undefined; pending: boolean; gate: Schemas["GateCheck"][] | undefined };
+type HeadlineProps = {
+  run: Run;
+  live: Live | undefined;
+  metrics: Schemas["Metrics"] | null | undefined;
+  benchmark: Schemas["Metrics"] | undefined;
+  pending: boolean;
+  gate: Schemas["GateCheck"][] | undefined;
+};
 
-function Headline({ run, metrics, benchmark, pending, gate }: HeadlineProps) {
+function Headline({ run, live, metrics, benchmark, pending, gate }: HeadlineProps) {
   const stats = run.live_stats;
   if (run.mode === "live") {
+    const current = live && { ...live, run };
     if (!stats || stats.sessions === 0) {
-      return <p className="run-headline">Live since {run.config.start}; its first session close shows how it compares with total-return SPY.</p>;
+      const starts = current && firstClose(current, true);
+      return (
+        <p className="run-headline">
+          Live paper since {run.config.start}.{" "}
+          <strong>{starts ? `It trades for the first time at the close of ${starts}` : "It trades for the first time at the next session close"}</strong>; each close marks its
+          equity against total-return {run.config.benchmark}. From session {JUDGED_FROM_SESSION} it is judged against the backtest it came from and ranked in the League.
+        </p>
+      );
     }
     return (
       <p className="run-headline">
         Live for {fmt.integer(stats.sessions)} {stats.sessions === 1 ? "session" : "sessions"} since {run.config.start}:{" "}
         <strong className={tone(stats.excess_cagr)}>
-          {stats.excess_cagr >= 0 ? "beats" : "trails"} total-return SPY by {signedYearly(stats.excess_cagr)}
+          {stats.excess_cagr >= 0 ? "beats" : "trails"} total-return {run.config.benchmark} by {signedYearly(stats.excess_cagr)}
         </strong>
-        {stats.sessions < 252 && ` (annualized from ${fmt.integer(stats.sessions)} sessions)`}, verdict {label(stats.verdict)}.
+        {stats.sessions < YEAR_SESSIONS && ` (annualized from ${fmt.integer(stats.sessions)} sessions)`}
+        {current && `, ${verdictLabel(current).toLowerCase()}`}.
       </p>
     );
   }
@@ -498,11 +541,11 @@ function GateLine({ gate }: { gate: Schemas["GateCheck"][] }) {
   );
 }
 
-function Overview({ run, symbol, gate, closeHref }: { run: Run; symbol: string | undefined; gate: Schemas["GateCheck"][] | undefined; closeHref: string }) {
+function Overview({ run, live, symbol, gate, closeHref }: { run: Run; live: Live | undefined; symbol: string | undefined; gate: Schemas["GateCheck"][] | undefined; closeHref: string }) {
   const path = { params: { path: { id: run.id } } };
   const curve = useResource<Curve>(() => must(api.GET("/api/runs/{id}/equity", path)), [run.id]);
   const marks = useResource(() => markEvents(run.id), [run.id]);
-  const live = run.mode === "live" && !run.finished_at;
+  const ongoing = run.mode === "live" && !run.finished_at;
   const sync = useMemo(chartSync, []);
   const pricePanel = useRef<HTMLElement>(null);
 
@@ -517,7 +560,7 @@ function Overview({ run, symbol, gate, closeHref }: { run: Run; symbol: string |
 
   useSpineEvents((event) => {
     if (event.type === "job") {
-      if (event.job.name === DAILY_BARS_JOB && event.job.last_outcome === "ok" && live) {
+      if (event.job.name === DAILY_BARS_JOB && event.job.last_outcome === "ok" && ongoing) {
         curve.reload();
       }
       return;
@@ -544,7 +587,7 @@ function Overview({ run, symbol, gate, closeHref }: { run: Run; symbol: string |
 
   return (
     <div className="overview">
-      <Headline run={run} metrics={metrics} benchmark={curve.data?.benchmark_metrics} pending={curve.data === undefined && curve.error === undefined} gate={gate} />
+      <Headline run={run} live={live} metrics={metrics} benchmark={curve.data?.benchmark_metrics} pending={curve.data === undefined && curve.error === undefined} gate={gate} />
       <section className="panel chart-panel" aria-label="Equity">
         <StaleFailure resource={curve} />
         {curve.data ? (
@@ -559,6 +602,8 @@ function Overview({ run, symbol, gate, closeHref }: { run: Run; symbol: string |
               sync={sync}
               envelope={run.live_stats?.curve}
             />
+          ) : live ? (
+            <LiveStart live={{ ...live, run }} />
           ) : (
             <p className="empty chart-empty">
               {awaitingData(run) ? "Waiting for market data. Equity is marked once the first bar arrives." : run.finished_at ? "This run recorded no equity." : "No equity yet. The curve draws as the run marks each session."}
@@ -589,11 +634,38 @@ function Overview({ run, symbol, gate, closeHref }: { run: Run; symbol: string |
       {metrics && metrics.sessions > 0 && (
         <section className="panel metrics-panel">
           <h2 className="visually-hidden">Metrics</h2>
-          <MetricGroups metrics={metrics} benchmark={benchmark} months={calendar?.range} />
+          <MetricGroups metrics={metrics} benchmark={benchmark} hedge={run.config.hedge_benchmark} months={calendar?.range} />
         </section>
       )}
       {calendar && <MonthlyReturns calendar={calendar} benchmarkSymbol={run.config.benchmark} />}
       <Setup run={run} />
+    </div>
+  );
+}
+
+function LiveStart({ live }: { live: Live }) {
+  const source = live.source;
+  return (
+    <div className="live-start">
+      <div className="live-start-text">
+        <h2>No session close yet</h2>
+        <p>
+          The equity curve starts at the close of {firstClose(live, true) ?? "the next session"}. {sourceSentence(live)}
+        </p>
+        {source && (
+          <a className="btn btn-sm" href={href({ page: "bot", name: live.run.bot, run: source.run_id })}>
+            Open backtest #{source.run_id}
+          </a>
+        )}
+      </div>
+      {source && (
+        <figure className="live-start-chart">
+          <Sparkline curve={source.curve} mark={undefined} benchmark={`total-return ${source.benchmark_symbol}`} />
+          <figcaption className="muted">
+            Backtest #{source.run_id}, {source.period.from} → {source.period.to}, against total-return {source.benchmark_symbol}
+          </figcaption>
+        </figure>
+      )}
     </div>
   );
 }
@@ -627,6 +699,7 @@ function Setup({ run }: { run: Run }) {
               ["Timeframe", run.config.timeframe],
               ["Wakes", run.config.wake],
               ["Benchmark", run.config.benchmark],
+              ...(run.config.hedge_benchmark ? [["Hedge benchmark", run.config.hedge_benchmark] satisfies Row] : []),
               ["Start cash", fmt.money(run.config.start_cash)],
             ]}
           />

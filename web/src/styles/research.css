@@ -268,3 +268,15 @@
   display: inline-flex;
   align-items: center;
 }
+
+.research-window {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2) var(--sp-5);
+}
+
+.research-window .research-period {
+  margin: 0;
+}

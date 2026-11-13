@@ -38,6 +38,8 @@ const FUND_TICKERS: &str = include_str!("../../sources/fixtures/edgar/company_ti
 const SUBMISSIONS: &str = include_str!("../../sources/fixtures/edgar/submissions_sample.json");
 const COMPANY_FACTS: &str = include_str!("../../sources/fixtures/edgar/companyfacts_sample.json");
 const FORM_4: &str = include_str!("../../sources/fixtures/edgar/form4_sample.xml");
+const FILING_INDEX: &str = include_str!("../../sources/fixtures/edgar/filing_index_sample.htm");
+const EX_99: &str = include_str!("../../sources/fixtures/edgar/ex99_sample.htm");
 const NO_NEWS: &str = r#"{"news":[],"next_page_token":null}"#;
 const YIELDS: &str = include_str!("../../sources/fixtures/treasury/par_yield_2025.csv");
 const VIX: &str = include_str!("../../sources/fixtures/cboe/VIX_History.csv");
@@ -327,6 +329,14 @@ async fn serve_fakes(fake: Arc<Fake>) -> String {
                 fake.hit("form4");
                 FORM_4.into_response()
             }),
+        )
+        .route(
+            "/Archives/edgar/data/320193/000032019326000024/0000320193-26-000024-index.htm",
+            get(|| async { FILING_INDEX }),
+        )
+        .route(
+            "/Archives/edgar/data/320193/000032019326000024/a8-kex991q4202609262026.htm",
+            get(|| async { EX_99 }),
         )
         .route(
             "/v1beta1/news",
@@ -861,6 +871,7 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
             ("fundamentals", JobOutcome::Ok),
             ("filings", JobOutcome::Ok),
             ("insider_trades", JobOutcome::Ok),
+            ("press_releases", JobOutcome::Ok),
             ("rates", JobOutcome::Ok),
             ("borrow", JobOutcome::Noop),
             ("short_interest", JobOutcome::Noop),
@@ -976,6 +987,7 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
             ("fundamentals", JobOutcome::Noop),
             ("filings", JobOutcome::Noop),
             ("insider_trades", JobOutcome::Noop),
+            ("press_releases", JobOutcome::Noop),
             ("rates", JobOutcome::Noop),
             ("borrow", JobOutcome::Noop),
             ("short_interest", JobOutcome::Noop),

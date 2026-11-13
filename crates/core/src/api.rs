@@ -6,7 +6,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use utoipa::{IntoParams, ToSchema};
 
-use crate::market::{Coverage, DataSource, Dataset, Symbol, Timeframe, Watermarks};
+use crate::market::{
+    Coverage, DataDomain, DataSource, Dataset, Market, Session, Symbol, Timeframe, Watermarks,
+};
 use crate::ops::{DataWarning, JobOutcome};
 use crate::order::{Fill, Order, OrderId, OrderUpdate};
 use crate::performance::{LivePoint, LiveStats, Metrics, RoundTrip};
@@ -44,6 +46,7 @@ pub struct BotSummary {
     #[schema(value_type = Object)]
     pub params: Map<String, Value>,
     pub stage: BotStage,
+    pub status: BotStatus,
     pub screening: Option<Screening>,
     pub backtest: Option<BacktestGlance>,
     pub live: Vec<LiveSummary>,
@@ -62,6 +65,7 @@ pub struct BacktestGlance {
     pub params: Map<String, Value>,
     pub metrics: Metrics,
     pub benchmark: Metrics,
+    pub benchmark_symbol: Symbol,
     pub curve: Vec<LivePoint>,
 }
 
@@ -170,6 +174,8 @@ pub enum BotStage {
 pub struct LiveSummary {
     pub run: RunSummary,
     pub sessions_needed: Option<u32>,
+    pub source: Option<BacktestGlance>,
+    pub first_session: Option<Session>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -182,7 +188,6 @@ pub struct League {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct BotDetail {
     pub summary: BotSummary,
-    pub status: BotStatus,
     pub holdout_runs: u32,
     pub manifest: BotManifest,
     pub bot_hash: String,
@@ -375,8 +380,48 @@ pub struct DataHealth {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct DataSpine {
+    pub markets: Vec<Market>,
+    pub datasets: Vec<DatasetSpine>,
+    pub watermarks: Watermarks,
+    pub ingest_enabled: bool,
+    pub history_start: NaiveDate,
+    pub today: NaiveDate,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct DatasetSpine {
+    pub dataset: Dataset,
+    pub domain: DataDomain,
+    pub markets: Vec<MarketCoverage>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct MarketCoverage {
+    pub market: Market,
+    pub sources: Vec<SourceCoverage>,
+    pub symbols: u32,
+    pub first: Option<NaiveDate>,
+    pub last: Option<NaiveDate>,
+    pub updated_at: Option<Timestamp>,
+    pub monthly: Vec<u32>,
+    pub backfill: Vec<BackfillProgress>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct SourceCoverage {
+    pub source: DataSource,
+    pub symbols: u32,
+    pub first: NaiveDate,
+    pub last: NaiveDate,
+    pub updated_at: Timestamp,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct JobView {
     pub name: String,
+    pub source: Option<DataSource>,
+    pub datasets: Vec<Dataset>,
     pub every: String,
     pub last_started: Option<Timestamp>,
     pub last_finished: Option<Timestamp>,

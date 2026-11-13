@@ -516,6 +516,25 @@
         }
       }
     },
+    "/api/data/spine": {
+      "get": {
+        "tags": [
+          "data"
+        ],
+        "operationId": "data_spine",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataSpine"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/events": {
       "get": {
         "tags": [
@@ -1172,6 +1191,44 @@
         }
       }
     },
+    "/api/studies": {
+      "post": {
+        "tags": [
+          "research"
+        ],
+        "operationId": "event_study",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventStudy"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/healthz": {
       "get": {
         "tags": [
@@ -1188,6 +1245,39 @@
   },
   "components": {
     "schemas": {
+      "AbnormalStats": {
+        "type": "object",
+        "properties": {
+          "mean": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "median": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "hit_rate": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "t_stat": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          }
+        }
+      },
       "ActionDisagreement": {
         "type": "object",
         "required": [
@@ -1288,6 +1378,7 @@
           "params",
           "metrics",
           "benchmark",
+          "benchmark_symbol",
           "curve"
         ],
         "properties": {
@@ -1332,6 +1423,9 @@
           "benchmark": {
             "$ref": "#/components/schemas/Metrics"
           },
+          "benchmark_symbol": {
+            "$ref": "#/components/schemas/Symbol"
+          },
           "curve": {
             "type": "array",
             "items": {
@@ -1344,7 +1438,6 @@
         "type": "object",
         "required": [
           "summary",
-          "status",
           "holdout_runs",
           "manifest",
           "bot_hash",
@@ -1354,9 +1447,6 @@
         "properties": {
           "summary": {
             "$ref": "#/components/schemas/BotSummary"
-          },
-          "status": {
-            "$ref": "#/components/schemas/BotStatus"
           },
           "holdout_runs": {
             "type": "integer",
@@ -1437,6 +1527,16 @@
           "benchmark": {
             "$ref": "#/components/schemas/Symbol"
           },
+          "hedge_benchmark": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Symbol"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "risk": {
             "$ref": "#/components/schemas/RiskLimits"
           },
@@ -1492,6 +1592,7 @@
           "timeframe",
           "params",
           "stage",
+          "status",
           "live"
         ],
         "properties": {
@@ -1509,6 +1610,9 @@
           },
           "stage": {
             "$ref": "#/components/schemas/BotStage"
+          },
+          "status": {
+            "$ref": "#/components/schemas/BotStatus"
           },
           "screening": {
             "oneOf": [
@@ -1711,6 +1815,14 @@
             "type": "string",
             "default": "0"
           },
+          "spread_scale": {
+            "type": "string",
+            "default": "1"
+          },
+          "impact_coefficient": {
+            "type": "string",
+            "default": "1"
+          },
           "adv_participation": {
             "type": "string",
             "default": "0.05"
@@ -1796,6 +1908,45 @@
           }
         }
       },
+      "CurvePoint": {
+        "type": "object",
+        "required": [
+          "session",
+          "count",
+          "gross",
+          "net"
+        ],
+        "properties": {
+          "session": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "count": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "gross": {
+            "type": "number",
+            "format": "double"
+          },
+          "net": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "DataDomain": {
+        "type": "string",
+        "enum": [
+          "prices",
+          "reference",
+          "filings",
+          "macro",
+          "alternative"
+        ]
+      },
       "DataHealth": {
         "type": "object",
         "required": [
@@ -1856,6 +2007,45 @@
           "factset",
           "finra"
         ]
+      },
+      "DataSpine": {
+        "type": "object",
+        "required": [
+          "markets",
+          "datasets",
+          "watermarks",
+          "ingest_enabled",
+          "history_start",
+          "today"
+        ],
+        "properties": {
+          "markets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Market"
+            }
+          },
+          "datasets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DatasetSpine"
+            }
+          },
+          "watermarks": {
+            "$ref": "#/components/schemas/Watermarks"
+          },
+          "ingest_enabled": {
+            "type": "boolean"
+          },
+          "history_start": {
+            "type": "string",
+            "format": "date"
+          },
+          "today": {
+            "type": "string",
+            "format": "date"
+          }
+        }
       },
       "DataWarning": {
         "oneOf": [
@@ -1977,9 +2167,33 @@
           "news",
           "fomc",
           "estimates",
+          "current_reports",
+          "press_releases",
           "short_interest",
           "short_volume"
         ]
+      },
+      "DatasetSpine": {
+        "type": "object",
+        "required": [
+          "dataset",
+          "domain",
+          "markets"
+        ],
+        "properties": {
+          "dataset": {
+            "$ref": "#/components/schemas/Dataset"
+          },
+          "domain": {
+            "$ref": "#/components/schemas/DataDomain"
+          },
+          "markets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MarketCoverage"
+            }
+          }
+        }
       },
       "DesiredState": {
         "type": "string",
@@ -2107,6 +2321,141 @@
                 "type": "null"
               }
             ]
+          }
+        }
+      },
+      "EventOutcome": {
+        "type": "object",
+        "required": [
+          "symbol",
+          "at",
+          "returns"
+        ],
+        "properties": {
+          "symbol": {
+            "$ref": "#/components/schemas/Symbol"
+          },
+          "at": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "entry": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "benchmark": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Symbol"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "round_trip_cost": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "last_session": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "skipped": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/StudySkip"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "returns": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/HorizonReturn"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "EventStudy": {
+        "type": "object",
+        "required": [
+          "label",
+          "hash",
+          "trials",
+          "luck_t",
+          "cost",
+          "position",
+          "horizons",
+          "curve",
+          "events"
+        ],
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "hash": {
+            "type": "string"
+          },
+          "trials": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "luck_t": {
+            "type": "number",
+            "format": "double"
+          },
+          "data_through": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cost": {
+            "$ref": "#/components/schemas/CostModel"
+          },
+          "position": {
+            "type": "string"
+          },
+          "horizons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HorizonStats"
+            }
+          },
+          "curve": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CurvePoint"
+            }
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventOutcome"
+            }
           }
         }
       },
@@ -2298,6 +2647,62 @@
         },
         "additionalProperties": false
       },
+      "HorizonReturn": {
+        "type": "object",
+        "required": [
+          "stock",
+          "benchmark"
+        ],
+        "properties": {
+          "stock": {
+            "type": "number",
+            "format": "double"
+          },
+          "benchmark": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "HorizonStats": {
+        "type": "object",
+        "required": [
+          "sessions",
+          "count",
+          "delisted",
+          "months",
+          "gross",
+          "net"
+        ],
+        "properties": {
+          "sessions": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "count": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "delisted": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "months": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "gross": {
+            "$ref": "#/components/schemas/AbnormalStats"
+          },
+          "net": {
+            "$ref": "#/components/schemas/AbnormalStats"
+          }
+        }
+      },
       "JobOutcome": {
         "type": "string",
         "enum": [
@@ -2313,12 +2718,29 @@
         "type": "object",
         "required": [
           "name",
+          "datasets",
           "every",
           "stale"
         ],
         "properties": {
           "name": {
             "type": "string"
+          },
+          "source": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DataSource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "datasets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Dataset"
+            }
           },
           "every": {
             "type": "string"
@@ -2567,6 +2989,26 @@
             ],
             "format": "int32",
             "minimum": 0
+          },
+          "source": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/BacktestGlance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "first_session": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Session"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         }
       },
@@ -2601,6 +3043,76 @@
           },
           "password": {
             "type": "string"
+          }
+        }
+      },
+      "Market": {
+        "type": "string",
+        "enum": [
+          "us"
+        ]
+      },
+      "MarketCoverage": {
+        "type": "object",
+        "required": [
+          "market",
+          "sources",
+          "symbols",
+          "monthly",
+          "backfill"
+        ],
+        "properties": {
+          "market": {
+            "$ref": "#/components/schemas/Market"
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SourceCoverage"
+            }
+          },
+          "symbols": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "first": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "last": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "updated_at": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "monthly": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          "backfill": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BackfillProgress"
+            }
           }
         }
       },
@@ -2696,6 +3208,69 @@
             "format": "double"
           },
           "beta": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "residual_volatility": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "appraisal_ratio": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "alpha_t": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "overlay_sharpe": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "hedge_alpha": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "hedge_beta": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "hedge_residual_volatility": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "hedge_appraisal_ratio": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "hedge_alpha_t": {
             "type": [
               "number",
               "null"
@@ -3524,6 +4099,16 @@
           "benchmark": {
             "$ref": "#/components/schemas/Symbol"
           },
+          "hedge_benchmark": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Symbol"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "holdout": {
             "type": "boolean"
           }
@@ -3874,6 +4459,26 @@
           }
         }
       },
+      "Session": {
+        "type": "object",
+        "required": [
+          "date",
+          "open",
+          "close"
+        ],
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "open": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "close": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        }
+      },
       "SessionInfo": {
         "type": "object",
         "required": [
@@ -3919,6 +4524,37 @@
           "buy",
           "sell"
         ]
+      },
+      "SourceCoverage": {
+        "type": "object",
+        "required": [
+          "source",
+          "symbols",
+          "first",
+          "last",
+          "updated_at"
+        ],
+        "properties": {
+          "source": {
+            "$ref": "#/components/schemas/DataSource"
+          },
+          "symbols": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "first": {
+            "type": "string",
+            "format": "date"
+          },
+          "last": {
+            "type": "string",
+            "format": "date"
+          },
+          "updated_at": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        }
       },
       "SparkPoint": {
         "type": "object",
@@ -4247,6 +4883,70 @@
           "sp500"
         ]
       },
+      "StudyEvent": {
+        "type": "object",
+        "required": [
+          "symbol",
+          "at"
+        ],
+        "properties": {
+          "symbol": {
+            "$ref": "#/components/schemas/Symbol"
+          },
+          "at": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        },
+        "additionalProperties": false
+      },
+      "StudyRequest": {
+        "type": "object",
+        "required": [
+          "label",
+          "events"
+        ],
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StudyEvent"
+            }
+          },
+          "benchmark": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Symbol"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cost": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CostModel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "StudySkip": {
+        "type": "string",
+        "enum": [
+          "no_session",
+          "unknown_symbol",
+          "not_traded",
+          "benchmark_not_traded"
+        ]
+      },
       "SweepStarted": {
         "type": "object",
         "required": [
@@ -4566,6 +5266,9 @@
     },
     {
       "name": "league"
+    },
+    {
+      "name": "research"
     },
     {
       "name": "data"

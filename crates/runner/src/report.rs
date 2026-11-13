@@ -1,5 +1,5 @@
 use buizz_core::api::{RunSummary, SparkPoint, SpineEvent};
-use buizz_core::market::{Bar, RiskFreeRate, Session, Timeframe};
+use buizz_core::market::{Bar, RiskFreeRate, Session, Symbol, Timeframe};
 use buizz_core::performance::{LiveStats, Metrics};
 use buizz_core::run::{
     EquityPoint, Mode, Reproducibility, RunEventKind, RunEventType, RunId, RunStatus,
@@ -20,6 +20,15 @@ pub(crate) async fn benchmark(
     run: &RunSummary,
     through: NaiveDate,
 ) -> Result<Vec<SparkPoint>, RunnerError> {
+    held(market, run, &run.config.benchmark, through).await
+}
+
+async fn held(
+    market: &MarketStore,
+    run: &RunSummary,
+    symbol: &Symbol,
+    through: NaiveDate,
+) -> Result<Vec<SparkPoint>, RunnerError> {
     let config = &run.config;
     let calendar = market
         .calendar(NaiveDate::MIN, config.end.unwrap_or(through).min(through))
@@ -30,12 +39,7 @@ pub(crate) async fn benchmark(
     };
     let from = calendar.previous_before(first.date).unwrap_or(first);
     let bars = market
-        .bars_between(
-            Timeframe::Day,
-            vec![config.benchmark.clone()],
-            from.open,
-            last.close,
-        )
+        .bars_between(Timeframe::Day, vec![symbol.clone()], from.open, last.close)
         .await?;
     let bars: Vec<(Session, Bar)> = bars
         .into_iter()
@@ -45,7 +49,7 @@ pub(crate) async fn benchmark(
         return Ok(Vec::new());
     };
     let actions = market
-        .corporate_actions(vec![config.benchmark.clone()], base.date, last.date)
+        .corporate_actions(vec![symbol.clone()], base.date, last.date)
         .await?;
     Ok(buizz_metrics::buy_and_hold(
         config.start_cash,
@@ -64,6 +68,10 @@ pub(crate) async fn metrics(
         .last()
         .map_or(run.config.start, |point| point.at.exchange_date());
     let benchmark = benchmark(market, run, through).await?;
+    let hedge = match &run.config.hedge_benchmark {
+        Some(symbol) => held(market, run, symbol, through).await?,
+        None => Vec::new(),
+    };
     let ledger = state.ledger(run.id).await?;
     let risk_free = market
         .risk_free_rates(
@@ -75,6 +83,7 @@ pub(crate) async fn metrics(
         start_cash: run.config.start_cash,
         equity: &equity,
         benchmark: &benchmark,
+        hedge: &hedge,
         ledger: &ledger,
         risk_free: &risk_free,
     }))
@@ -105,6 +114,7 @@ pub(crate) async fn benchmark_metrics(
         start_cash: run.config.start_cash,
         equity: &held,
         benchmark,
+        hedge: &[],
         ledger: &[],
         risk_free: &risk_free,
     });
@@ -229,13 +239,17 @@ async fn record_live_session(inner: &Inner, run_id: RunId) -> Result<(), RunnerE
     inner.broadcast(SpineEvent::LiveSession {
         run_id,
         bot: run.bot.clone(),
-        summary: Box::new(buizz_metrics::live_summary(
-            RunSummary {
-                live_stats: Some(stats),
-                ..run
-            },
-            started,
-        )),
+        summary: Box::new(
+            inner
+                .live_summary(
+                    RunSummary {
+                        live_stats: Some(stats),
+                        ..run
+                    },
+                    started,
+                )
+                .await?,
+        ),
     });
     Ok(())
 }

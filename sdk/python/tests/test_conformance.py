@@ -55,6 +55,8 @@ class RedGreen(Bot):
         observed["insider_trades"] = ctx.insider_trades(["BBB"], date(2024, 10, 1))
         observed["news"] = ctx.news(["BBB"], date(2024, 11, 20))
         observed["fomc"] = ctx.fomc(date(2024, 11, 21), date(2024, 12, 31))
+        observed["filings"] = ctx.filings(["BBB"], date(2024, 11, 1), ["2.02", "4.02"])
+        observed["press_releases"] = ctx.press_releases(["BBB"], date(2024, 11, 1))
         observed["short_interest"] = ctx.short_interest(["AAA"], date(2024, 11, 1))
         observed["short_volume"] = ctx.short_volume(["AAA"], date(2024, 11, 20))
         observed["borrow"] = ctx.borrow(["AAA"], date(2024, 11, 20))
@@ -107,6 +109,10 @@ def play_spine(connection: ServerConnection, received: list[bytes]) -> None:
     expect()
     connection.send(golden("data_fomc"))
     expect()
+    connection.send(golden("data_filings"))
+    expect()
+    connection.send(golden("data_press_releases"))
+    expect()
     connection.send(golden("data_short_interest"))
     expect()
     connection.send(golden("data_short_volume"))
@@ -154,23 +160,7 @@ def play(
 def test_bot_replies_match_the_golden_frames(monkeypatch: pytest.MonkeyPatch) -> None:
     received = play(monkeypatch, play_spine, RedGreen)
 
-    (
-        hello,
-        query_history,
-        query_fundamentals,
-        failing_query,
-        query_calendar,
-        query_universe,
-        query_macro,
-        query_insider_trades,
-        query_news,
-        query_fomc,
-        query_short_interest,
-        query_short_volume,
-        query_borrow,
-        ack_first,
-        ack_second,
-    ) = received
+    hello, query_history, query_fundamentals, failing_query, *queries, ack_first, ack_second = received
     sent_hello = msgspec.msgpack.decode(hello)
     expected_hello = msgspec.msgpack.decode(golden("hello"))
     assert sent_hello["protocol"] == expected_hello["protocol"]
@@ -178,15 +168,20 @@ def test_bot_replies_match_the_golden_frames(monkeypatch: pytest.MonkeyPatch) ->
     assert query_history == golden("query_history")
     assert query_fundamentals == golden("query_fundamentals")
     assert msgspec.msgpack.decode(failing_query)["request"]["symbols"] == ["ZZZ"]
-    assert query_calendar == golden("query_calendar")
-    assert query_universe == golden("query_universe")
-    assert query_macro == golden("query_macro")
-    assert query_insider_trades == golden("query_insider_trades")
-    assert query_news == golden("query_news")
-    assert query_fomc == golden("query_fomc")
-    assert query_short_interest == golden("query_short_interest")
-    assert query_short_volume == golden("query_short_volume")
-    assert query_borrow == golden("query_borrow")
+    kinds = [
+        "calendar",
+        "universe",
+        "macro",
+        "insider_trades",
+        "news",
+        "fomc",
+        "filings",
+        "press_releases",
+        "short_interest",
+        "short_volume",
+        "borrow",
+    ]
+    assert queries == [golden(f"query_{kind}") for kind in kinds]
     assert ack_first == golden("ack_backtest")
     assert ack_second == golden("ack_live")
 
@@ -208,6 +203,11 @@ def test_bot_replies_match_the_golden_frames(monkeypatch: pytest.MonkeyPatch) ->
     [trade] = observed["insider_trades"]
     assert (trade.code, trade.acquired, trade.shares, trade.price) == ("P", True, Decimal(1000), Decimal("49.1250"))
     assert (trade.owners[0].officer_title, trade.available_at.hour) == ("Chief Executive Officer", 14)
+    assert trade.plan_10b5_1 is False
+    [filing] = observed["filings"]
+    assert (filing.items, filing.available_at.minute) == (["2.02", "9.01"], 5)
+    [release] = observed["press_releases"]
+    assert (release.exhibit, release.text.splitlines()[0]) == ("EX-99.1", "Beta Fixture reports third quarter results")
     [article] = observed["news"]
     assert (article.headline, article.backfilled, article.received_at.second) == ("BBB CEO Buys Shares", False, 11)
     assert [(a.date, a.scheduled, a.statement_at and a.statement_at.hour) for a in observed["fomc"]] == [

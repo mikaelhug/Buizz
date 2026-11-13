@@ -1,0 +1,263 @@
+{
+  "request": {
+    "label": "insider_buys",
+    "benchmark": "SPY",
+    "events": [
+      {
+        "symbol": "AAA",
+        "at": "2024-11-21T15:00:00Z"
+      },
+      {
+        "symbol": "BBB",
+        "at": "2024-11-21T14:00:00Z"
+      },
+      {
+        "symbol": "AAA",
+        "at": "2024-12-02T14:30:00Z"
+      },
+      {
+        "symbol": "ZZZ",
+        "at": "2024-11-22T15:00:00Z"
+      },
+      {
+        "symbol": "BBB",
+        "at": "2024-11-25T15:00:00Z"
+      }
+    ]
+  },
+  "study": {
+    "label": "insider_buys",
+    "trials": 1,
+    "luck_t": 0.0,
+    "data_through": "2024-12-06T21:00:00Z",
+    "position": "10000",
+    "horizons": [
+      {
+        "sessions": 1,
+        "count": 4,
+        "delisted": 0,
+        "months": 2,
+        "gross": {
+          "mean": 0.00042283755767205666,
+          "median": -0.002574451343373363,
+          "hit_rate": 0.5,
+          "t_stat": 0.7544391358323973
+        },
+        "net": {
+          "mean": -0.0008497154064846205,
+          "median": -0.00385227694493382,
+          "hit_rate": 0.5,
+          "t_stat": 0.6116990341357144
+        }
+      },
+      {
+        "sessions": 5,
+        "count": 3,
+        "delisted": 1,
+        "months": 1,
+        "gross": {
+          "mean": -0.009262651771145936,
+          "median": -0.005919225986679599,
+          "hit_rate": 0.0,
+          "t_stat": null
+        },
+        "net": {
+          "mean": -0.010515953263539518,
+          "median": -0.007121246188699802,
+          "hit_rate": 0.0,
+          "t_stat": null
+        }
+      },
+      {
+        "sessions": 21,
+        "count": 0,
+        "delisted": 0,
+        "months": 0,
+        "gross": {
+          "mean": null,
+          "median": null,
+          "hit_rate": null,
+          "t_stat": null
+        },
+        "net": {
+          "mean": null,
+          "median": null,
+          "hit_rate": null,
+          "t_stat": null
+        }
+      },
+      {
+        "sessions": 63,
+        "count": 0,
+        "delisted": 0,
+        "months": 0,
+        "gross": {
+          "mean": null,
+          "median": null,
+          "hit_rate": null,
+          "t_stat": null
+        },
+        "net": {
+          "mean": null,
+          "median": null,
+          "hit_rate": null,
+          "t_stat": null
+        }
+      }
+    ],
+    "curve": [
+      {
+        "session": 1,
+        "count": 4,
+        "gross": 0.00042283755767205666,
+        "net": -0.0008497154064846207
+      },
+      {
+        "session": 2,
+        "count": 4,
+        "gross": -0.0021481588294314236,
+        "net": -0.003420711793588101
+      },
+      {
+        "session": 3,
+        "count": 3,
+        "gross": -0.019463461236292907,
+        "net": -0.02071676272868649
+      },
+      {
+        "session": 4,
+        "count": 3,
+        "gross": -0.01060123749952413,
+        "net": -0.011854538991917712
+      },
+      {
+        "session": 5,
+        "count": 3,
+        "gross": -0.009262651771145936,
+        "net": -0.010515953263539518
+      },
+      {
+        "session": 6,
+        "count": 3,
+        "gross": -0.01577162976687163,
+        "net": -0.017024931259265214
+      },
+      {
+        "session": 7,
+        "count": 2,
+        "gross": -0.012182735028534453,
+        "net": -0.013385871766574471
+      },
+      {
+        "session": 8,
+        "count": 2,
+        "gross": -0.010590299210808729,
+        "net": -0.011793435948848748
+      },
+      {
+        "session": 9,
+        "count": 1,
+        "gross": -0.033129645690862186,
+        "net": -0.03433389896492202
+      }
+    ],
+    "events": [
+      {
+        "symbol": "AAA",
+        "at": "2024-11-21T15:00:00Z",
+        "entry": "2024-11-22",
+        "benchmark": "SPY",
+        "round_trip_cost": 0.001202020202020202,
+        "last_session": null,
+        "skipped": null,
+        "returns": [
+          {
+            "stock": -0.005050505050505083,
+            "benchmark": 0.004215851602023646
+          },
+          {
+            "stock": 0.010101010101010166,
+            "benchmark": 0.016020236087689765
+          },
+          null,
+          null
+        ]
+      },
+      {
+        "symbol": "BBB",
+        "at": "2024-11-21T14:00:00Z",
+        "entry": "2024-11-21",
+        "benchmark": "SPY",
+        "round_trip_cost": 0.0012042532740598343,
+        "last_session": "2024-11-27",
+        "skipped": null,
+        "returns": [
+          {
+            "stock": -0.008130081300813163,
+            "benchmark": 0.004403048264183029
+          },
+          {
+            "stock": -0.004001787943190727,
+            "benchmark": 0.014055884843352962
+          },
+          null,
+          null
+        ]
+      },
+      {
+        "symbol": "AAA",
+        "at": "2024-12-02T14:30:00Z",
+        "entry": "2024-12-03",
+        "benchmark": "SPY",
+        "round_trip_cost": 0.0013303073794459616,
+        "last_session": null,
+        "skipped": null,
+        "returns": [
+          {
+            "stock": 0.02020202020202011,
+            "benchmark": 0.0008286377195889649
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "symbol": "ZZZ",
+        "at": "2024-11-22T15:00:00Z",
+        "entry": "2024-11-25",
+        "benchmark": "SPY",
+        "round_trip_cost": null,
+        "last_session": null,
+        "skipped": "not_traded",
+        "returns": [
+          null,
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "symbol": "BBB",
+        "at": "2024-11-25T15:00:00Z",
+        "entry": "2024-11-26",
+        "benchmark": "SPY",
+        "round_trip_cost": 0.0013536310011007116,
+        "last_session": "2024-11-27",
+        "skipped": null,
+        "returns": [
+          {
+            "stock": 0.008298755186721962,
+            "benchmark": 0.004181301220939959
+          },
+          {
+            "stock": 0.006224066390041472,
+            "benchmark": 0.01003512293025599
+          },
+          null,
+          null
+        ]
+      }
+    ]
+  }
+}

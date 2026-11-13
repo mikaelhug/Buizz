@@ -339,6 +339,28 @@ async fn answer(
                 .map_err(|error| error.to_string())?;
             Ok(DataResult::Earnings { releases })
         }
+        QueryRequest::Filings {
+            symbols,
+            since,
+            items,
+        } => {
+            let filings = market
+                .filings(symbols, since, items, clock)
+                .await
+                .map_err(|error| error.to_string())?;
+            Ok(DataResult::Filings { filings })
+        }
+        QueryRequest::PressReleases {
+            symbols,
+            since,
+            accessions,
+        } => {
+            let releases = market
+                .press_releases(symbols, since, accessions, clock)
+                .await
+                .map_err(|error| error.to_string())?;
+            Ok(DataResult::PressReleases { releases })
+        }
         QueryRequest::Macro { series, from, to } => {
             if from > to {
                 return Err(format!("macro from {from} is after to {to}"));

@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use buizz_core::api::JobView;
-use buizz_core::market::DataSource;
+use buizz_core::market::{DataSource, Dataset};
 use buizz_core::ops::{JobOutcome, JobRun};
 use buizz_core::time::Timestamp;
 use chrono::TimeDelta;
@@ -16,6 +16,7 @@ pub(crate) const SEC_INDEX: &str = "sec_index";
 pub(crate) const FUNDAMENTALS: &str = "fundamentals";
 pub(crate) const FILINGS: &str = "filings";
 pub(crate) const INSIDER_TRADES: &str = "insider_trades";
+pub(crate) const PRESS_RELEASES: &str = "press_releases";
 pub(crate) const NEWS: &str = "news";
 pub(crate) const INDEX_MEMBERSHIP: &str = "index_membership";
 pub(crate) const RATES: &str = "rates";
@@ -39,115 +40,147 @@ const SHORT_RETRY: Duration = HOUR;
 const FIRST_FAILURE_RETRY: Duration = Duration::from_secs(5 * 60);
 const STALE_AFTER_INTERVALS: i32 = 3;
 
-pub(crate) const JOBS: [JobSpec; 22] = [
+pub(crate) const JOBS: [JobSpec; 23] = [
     JobSpec {
         name: CALENDAR,
         source: Some(DataSource::Alpaca),
+        datasets: &[Dataset::Calendar],
         every: DAY,
     },
     JobSpec {
         name: INSTRUMENTS,
         source: Some(DataSource::Alpaca),
+        datasets: &[Dataset::Instruments],
         every: DAY,
     },
     JobSpec {
         name: INDEX_MEMBERSHIP,
         source: Some(DataSource::Wikipedia),
+        datasets: &[Dataset::IndexMembership],
         every: DAY,
     },
     JobSpec {
         name: BARS_1D,
         source: Some(DataSource::Alpaca),
+        datasets: &[Dataset::Bars1d],
         every: SIX_HOURS,
     },
     JobSpec {
         name: CORPORATE_ACTIONS,
         source: Some(DataSource::Alpaca),
+        datasets: &[Dataset::CorporateActions],
         every: DAY,
     },
     JobSpec {
         name: SEC_INDEX,
         source: Some(DataSource::Edgar),
+        datasets: &[Dataset::SecFilings],
         every: SIX_HOURS,
     },
     JobSpec {
         name: FUNDAMENTALS,
         source: Some(DataSource::Edgar),
+        datasets: &[Dataset::Fundamentals],
         every: SIX_HOURS,
     },
     JobSpec {
         name: FILINGS,
         source: Some(DataSource::Edgar),
+        datasets: &[
+            Dataset::Companies,
+            Dataset::EarningsReleases,
+            Dataset::CurrentReports,
+        ],
         every: SIX_HOURS,
     },
     JobSpec {
         name: INSIDER_TRADES,
         source: Some(DataSource::Edgar),
+        datasets: &[Dataset::InsiderTrades],
+        every: SIX_HOURS,
+    },
+    JobSpec {
+        name: PRESS_RELEASES,
+        source: Some(DataSource::Edgar),
+        datasets: &[Dataset::PressReleases],
         every: SIX_HOURS,
     },
     JobSpec {
         name: RATES,
         source: Some(DataSource::Treasury),
+        datasets: &[Dataset::Rates],
         every: DAY,
     },
     JobSpec {
         name: BORROW,
         source: Some(DataSource::InteractiveBrokers),
+        datasets: &[Dataset::Borrow],
         every: DAY,
     },
     JobSpec {
         name: SHORT_INTEREST,
         source: Some(DataSource::Finra),
+        datasets: &[Dataset::ShortInterest],
         every: DAY,
     },
     JobSpec {
         name: SHORT_VOLUME,
         source: Some(DataSource::Finra),
+        datasets: &[Dataset::ShortVolume],
         every: DAY,
     },
     JobSpec {
         name: MACRO,
         source: Some(DataSource::Fred),
+        datasets: &[Dataset::Macro],
         every: DAY,
     },
     JobSpec {
         name: NEWS,
         source: Some(DataSource::Alpaca),
+        datasets: &[Dataset::News],
         every: SIX_HOURS,
     },
     JobSpec {
         name: VIX,
         source: Some(DataSource::Cboe),
+        datasets: &[Dataset::Macro],
         every: DAY,
     },
     JobSpec {
         name: FOMC,
         source: Some(DataSource::FederalReserve),
+        datasets: &[Dataset::Fomc],
         every: DAY,
     },
     JobSpec {
         name: EARNINGS_INSIGHT,
         source: Some(DataSource::Factset),
+        datasets: &[Dataset::Estimates],
         every: DAY,
     },
     JobSpec {
         name: EARNINGS_INSIGHT_ARCHIVE,
         source: Some(DataSource::Factset),
+        datasets: &[Dataset::Estimates],
         every: WEEK,
     },
     JobSpec {
         name: STATE_SNAPSHOT,
         source: None,
+        datasets: &[],
         every: DAY,
     },
     JobSpec {
         name: MARKET_SNAPSHOT,
         source: None,
+        datasets: &[],
         every: DAY,
     },
     JobSpec {
         name: TIINGO_HISTORY,
         source: Some(DataSource::Tiingo),
+        datasets: &[Dataset::Bars1d, Dataset::CorporateActions],
         every: HOUR,
     },
 ];
@@ -192,6 +225,8 @@ pub(crate) fn view(
     let stale_after = delta(spec.every) * STALE_AFTER_INTERVALS;
     JobView {
         name: spec.name.to_owned(),
+        source: spec.source,
+        datasets: spec.datasets.to_vec(),
         every: describe(spec.every),
         last_started: latest.map(|run| run.started_at),
         last_finished: latest.and_then(|run| run.finished_at),

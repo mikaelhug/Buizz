@@ -5,7 +5,7 @@ import { href, useQueryParam } from "../lib/route";
 import { useResource } from "../lib/useResource";
 import { Failure, Loading, StaleFailure } from "../ui/Feedback";
 import { Card, EmptyState } from "../ui/Kit";
-import { LIVE_COLUMNS, type Live, type LiveKey, LiveHeader, liveSortColumns, retired } from "../ui/LiveTable";
+import { firstClose, JUDGED_FROM_SESSION, LIVE_COLUMNS, type Live, type LiveKey, LiveHeader, liveSortColumns, retired } from "../ui/LiveTable";
 import { Info } from "../ui/Popover";
 import { matches, PageSearch, type Sorting, useSort } from "../ui/Table";
 import { notify } from "../ui/Toaster";
@@ -13,14 +13,14 @@ import "../styles/board.css";
 
 type League = Schemas["League"];
 
-const TRACKING_SESSIONS = 20;
+const TRACKING_SESSIONS = JUDGED_FROM_SESSION;
 
 const SHOWN = [
   "excess_cagr",
   "confidence",
   "sessions",
   "total_return",
-  "benchmark_return",
+  "excess_return",
   "max_drawdown",
   "verdict",
   "sessions_needed",
@@ -47,7 +47,47 @@ function patchStatus(league: League, id: number, status: Schemas["RunStatus"]): 
   return { ...league, ranked: patch(league.ranked), too_early: patch(league.too_early) };
 }
 
-function Board({ label, rows, sorting, ranked }: { label: string; rows: Live[]; sorting: Sorting<Live, Key>; ranked: boolean }) {
+type Window = { key: string; symbol: string; since: string; through: string; spy: number };
+
+function windowOf(live: Live): Window | undefined {
+  const stats = live.run.live_stats;
+  return stats && stats.sessions > 0
+    ? { key: `${live.run.config.benchmark} ${live.run.config.start} ${stats.through}`, symbol: live.run.config.benchmark, since: live.run.config.start, through: stats.through, spy: stats.benchmark_return }
+    : undefined;
+}
+
+function sharedWindow(rows: Live[]): Window | undefined {
+  const counts = new Map<string, { window: Window; count: number }>();
+  for (const window of rows.flatMap((row) => windowOf(row) ?? [])) {
+    const known = counts.get(window.key);
+    counts.set(window.key, { window, count: (known?.count ?? 0) + 1 });
+  }
+  return [...counts.values()].toSorted((a, b) => b.count - a.count)[0]?.window;
+}
+
+function firstOf(rows: Live[]): string {
+  const waiting = rows.find((row) => (row.run.live_stats?.sessions ?? 0) === 0 && row.first_session);
+  const starts = waiting && firstClose(waiting, true);
+  return starts && rows.every((row) => (row.run.live_stats?.sessions ?? 0) === 0) ? ` None has had a session close yet; the first is ${starts}.` : "";
+}
+
+function BenchmarkLine({ window }: { window: Window | undefined }) {
+  return window ? (
+    <p className="benchmark-strip">
+      <span className="benchmark-title">Benchmark</span>
+      <span className="benchmark-chip">
+        <span className="benchmark-name">
+          {window.symbol} since {window.since}
+        </span>
+        <span className="num">{fmt.change(window.spy)}</span>
+        <span className="muted">through {window.through}</span>
+      </span>
+      <span className="muted">Every excess figure is measured against it; a run over another window states its own benchmark under its excess.</span>
+    </p>
+  ) : null;
+}
+
+function Board({ label, rows, sorting, ranked, shared }: { label: string; rows: Live[]; sorting: Sorting<Live, Key>; ranked: boolean; shared: Window | undefined }) {
   return (
     <div className="card table-wrap board-wrap">
       <table className="table board league-board" aria-label={label}>
@@ -71,6 +111,11 @@ function Board({ label, rows, sorting, ranked }: { label: string; rows: Live[]; 
               {SHOWN.map((key) => (
                 <td key={key} className={[LIVE_COLUMNS[key].numeric ? "r" : "", key === "excess_cagr" ? "league-headline" : ""].join(" ").trim() || undefined}>
                   {LIVE_COLUMNS[key].cell(live)}
+                  {key === "excess_return" && windowOf(live) && windowOf(live)?.key !== shared?.key && (
+                    <span className="cell-sub">
+                      {live.run.config.benchmark} {fmt.change(live.run.live_stats?.benchmark_return)}
+                    </span>
+                  )}
                 </td>
               ))}
             </tr>
@@ -108,6 +153,7 @@ export function League() {
   }
   const { started, ranked, too_early: early } = league.data;
   const shown = (rows: Live[]) => rows.filter((row) => matches(filter, row.run.bot));
+  const shared = sharedWindow([...ranked, ...early]);
   return (
     <div className="page-stack league">
       <header className="page-head">
@@ -130,7 +176,7 @@ export function League() {
           <EmptyState
             title="No live runs yet"
             action={
-              <a className="btn btn-primary btn-sm" href={`${href({ page: "bots" })}?stage=screened`}>
+              <a className="btn btn-primary btn-sm" href={`${href({ page: "bots" })}?stage=ready`}>
                 See screened bots
               </a>
             }
@@ -144,14 +190,15 @@ export function League() {
             {fmt.integer(started)} live {started === 1 ? "run has" : "runs have"} been started. With that many tries, roughly 1 in 20 would look like a winner by luck alone,
             so a run counts as proven only at confidence 1 − 0.05 ÷ {fmt.integer(started)}.
           </p>
+          <BenchmarkLine window={shared} />
           <section className="league-group" aria-label="Ranked">
             {shown(ranked).length > 0 ? (
-              <Board label="Ranked" rows={shown(ranked)} sorting={sorting} ranked />
+              <Board label="Ranked" rows={shown(ranked)} sorting={sorting} ranked shared={shared} />
             ) : (
               <Card>
                 <EmptyState title={`No live run has ${TRACKING_SESSIONS} sessions yet`}>
                   {early.length > 0
-                    ? `${early.length} ${early.length === 1 ? "run is" : "runs are"} incubating; each joins the ranking at session ${TRACKING_SESSIONS}.`
+                    ? `${early.length} ${early.length === 1 ? "run has" : "runs have"} fewer than ${TRACKING_SESSIONS} sessions; each joins the ranking at session ${TRACKING_SESSIONS}.${firstOf(early)}`
                     : "Nothing matches the search."}
                 </EmptyState>
               </Card>
@@ -163,7 +210,7 @@ export function League() {
                 Too early <span className="count">{shown(early).length}</span>
                 <span className="muted">fewer than {TRACKING_SESSIONS} sessions; their numbers say little yet</span>
               </summary>
-              <Board label="Too early" rows={shown(early)} sorting={sorting} ranked={false} />
+              <Board label="Too early" rows={shown(early)} sorting={sorting} ranked={false} shared={shared} />
             </details>
           )}
         </>

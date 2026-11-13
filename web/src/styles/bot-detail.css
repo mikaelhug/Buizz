@@ -811,3 +811,38 @@
 .setup-panel[open] > summary {
   margin-bottom: var(--sp-4);
 }
+
+.live-start {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+  align-items: center;
+  gap: var(--sp-6);
+  padding: var(--sp-6);
+}
+
+.live-start-text {
+  display: grid;
+  gap: var(--sp-3);
+  justify-items: start;
+}
+
+.live-start-text p {
+  max-width: 64ch;
+  margin: 0;
+  color: var(--text-2);
+  line-height: 1.55;
+}
+
+.live-start-chart {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+}
+
+.live-start-chart .sparkline svg {
+  height: 120px;
+}
+
+.live-start-chart figcaption {
+  font-size: var(--fs-sm);
+}

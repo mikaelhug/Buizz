@@ -6,10 +6,11 @@ use std::sync::{Arc, PoisonError, RwLock};
 use buizz_core::listing::Listings;
 use buizz_core::market::{
     Adjustment, AdjustmentFactor, Bar, Borrow, BorrowAvailability, Calendar, Company,
-    CorporateAction, Coverage, DataSource, EarningsInsight, EarningsRelease, EstimateFact,
+    CorporateAction, Coverage, DataSource, EarningsInsight, EarningsRelease, EstimateFact, Filing,
     FomcAnnouncement, FomcMeeting, FundamentalFact, FundamentalMetric, FundamentalPoint,
-    IndexHistory, InsiderFiling, InsiderTrade, Instrument, InstrumentProfile, MacroObservation,
-    MacroPoint, MacroSeries, NewsArticle, RiskFreeRate, SecFiling, Session, ShortInterest,
+    IndexHistory, InsiderFiling, InsiderPlan, InsiderTrade, Instrument, InstrumentProfile,
+    Liquidity, MacroObservation, MacroPoint, MacroSeries, NewsArticle, PressCandidate,
+    PressExhibit, PressRelease, RiskFreeRate, SecFiling, Session, ShortInterest,
     ShortInterestRecord, ShortVolume, ShortVolumeRecord, StockIndex, Symbol, Timeframe, Watermarks,
 };
 use buizz_core::ops::{ActionDisagreement, CoverageGap, DataWarning};
@@ -38,7 +39,7 @@ pub use restore::Restored;
 
 pub(crate) const SCHEMA: &str = include_str!("../schema.sql");
 pub const FILE_NAME: &str = "market.duckdb";
-const APPENDED: [(&str, &str); 18] = [
+const APPENDED: [(&str, &str); 19] = [
     ("ingest_batch", "id"),
     ("borrow_availability", "batch_id"),
     ("short_interest", "batch_id"),
@@ -57,6 +58,7 @@ const APPENDED: [(&str, &str); 18] = [
     ("index_history_revision", "superseded_by"),
     ("earnings_insight", "batch_id"),
     ("earnings_insight_fact_revision", "superseded_by"),
+    ("press_release", "batch_id"),
 ];
 const REPLACED: [&str; 2] = ["index_member", "index_history"];
 pub const TIMESTAMP_RESOLUTION: TimeDelta = TimeDelta::microseconds(1);
@@ -659,6 +661,36 @@ impl MarketStore {
             .await
     }
 
+    pub async fn append_current_reports(
+        &self,
+        source: DataSource,
+        reports: Vec<Filing>,
+    ) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| write::current_reports(connection, source, reports))
+            .await
+    }
+
+    pub async fn append_press_releases(
+        &self,
+        source: DataSource,
+        releases: Vec<PressExhibit>,
+    ) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| write::press_releases(connection, source, releases))
+            .await
+    }
+
+    pub async fn append_insider_plans(
+        &self,
+        source: DataSource,
+        plans: Vec<InsiderPlan>,
+    ) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| write::insider_plans(connection, source, plans))
+            .await
+    }
+
     pub async fn append_insider_filings(
         &self,
         source: DataSource,
@@ -930,12 +962,12 @@ impl MarketStore {
         ))
     }
 
-    pub async fn average_daily_volume(
+    pub async fn liquidity(
         &self,
         symbols: Vec<Symbol>,
         before: NaiveDate,
         sessions: u32,
-    ) -> Result<BTreeMap<Symbol, u64>> {
+    ) -> Result<BTreeMap<Symbol, Liquidity>> {
         let (calendar, listings, actions) = (
             self.shared.calendar(),
             self.shared.listings(),
@@ -943,7 +975,7 @@ impl MarketStore {
         );
         self.readers
             .run(move |connection| {
-                read::average_daily_volume(
+                read::liquidity(
                     connection, &calendar, &listings, &actions, &symbols, before, sessions,
                 )
             })
@@ -1040,14 +1072,75 @@ impl MarketStore {
     }
 
     pub async fn earnings_accessions(&self, symbol: Symbol) -> Result<BTreeSet<String>> {
-        self.readers
-            .run(move |connection| read::earnings_accessions(connection, &symbol))
-            .await
+        self.accessions("earnings_release", symbol).await
+    }
+
+    pub async fn current_report_accessions(&self, symbol: Symbol) -> Result<BTreeSet<String>> {
+        self.accessions("current_report", symbol).await
     }
 
     pub async fn insider_accessions(&self, symbol: Symbol) -> Result<BTreeSet<String>> {
+        self.accessions("insider_filing", symbol).await
+    }
+
+    async fn accessions(&self, table: &'static str, symbol: Symbol) -> Result<BTreeSet<String>> {
         self.readers
-            .run(move |connection| read::insider_accessions(connection, &symbol))
+            .run(move |connection| read::accessions(connection, table, &symbol))
+            .await
+    }
+
+    pub async fn filings(
+        &self,
+        symbols: Vec<Symbol>,
+        since: NaiveDate,
+        items: Option<Vec<String>>,
+        as_of: Timestamp,
+    ) -> Result<Vec<Filing>> {
+        let (calendar, listings) = (self.shared.calendar(), self.shared.listings());
+        self.readers
+            .run(move |connection| {
+                let resolved =
+                    read::resolve(&listings, &symbols, read::listed_on(&calendar, as_of));
+                let keys = read::keys(&resolved);
+                let filings = read::filings(connection, &keys, since, items.as_deref(), as_of)?;
+                Ok(read::relabel(&resolved, filings, |filing| {
+                    &mut filing.symbol
+                }))
+            })
+            .await
+    }
+
+    pub async fn press_releases(
+        &self,
+        symbols: Vec<Symbol>,
+        since: NaiveDate,
+        accessions: Option<Vec<String>>,
+        as_of: Timestamp,
+    ) -> Result<Vec<PressRelease>> {
+        let (calendar, listings) = (self.shared.calendar(), self.shared.listings());
+        self.readers
+            .run(move |connection| {
+                let resolved =
+                    read::resolve(&listings, &symbols, read::listed_on(&calendar, as_of));
+                let keys = read::keys(&resolved);
+                let releases =
+                    read::press_releases(connection, &keys, since, accessions.as_deref(), as_of)?;
+                Ok(read::relabel(&resolved, releases, |release| {
+                    &mut release.symbol
+                }))
+            })
+            .await
+    }
+
+    pub async fn press_candidates(&self) -> Result<Vec<PressCandidate>> {
+        self.readers
+            .run(|connection| read::press_candidates(connection))
+            .await
+    }
+
+    pub async fn unread_plans(&self, from: Timestamp) -> Result<Vec<InsiderPlan>> {
+        self.readers
+            .run(move |connection| read::unread_plans(connection, from))
             .await
     }
 

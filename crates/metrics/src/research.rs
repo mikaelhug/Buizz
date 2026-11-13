@@ -7,7 +7,7 @@ use rust_decimal::prelude::ToPrimitive;
 use serde_json::{Map, Value};
 
 use crate::{
-    MIN_DAILY_VOLATILITY, TRADING_DAYS, benchmark_returns, daily_risk_free, max_drawdown,
+    MIN_DAILY_VOLATILITY, TRADING_DAYS, benchmark_returns, daily_risk_free, luck_t, max_drawdown,
     sample_stdev, simple_returns,
 };
 
@@ -144,12 +144,11 @@ pub fn screen(run: &RunSummary, screened: Option<&Screened<'_>>) -> Screen {
 }
 
 pub fn luck_sharpe(sessions: u32, trials: u32) -> Option<f64> {
-    (sessions >= 2 && trials >= 1).then(|| {
-        (TRADING_DAYS / f64::from(sessions)).sqrt() * (2.0 * f64::from(trials).ln()).sqrt()
-    })
+    (sessions >= 2 && trials >= 1)
+        .then(|| (TRADING_DAYS / f64::from(sessions)).sqrt() * luck_t(trials))
 }
 
-fn median(mut values: Vec<f64>) -> Option<f64> {
+pub(crate) fn median(mut values: Vec<f64>) -> Option<f64> {
     values.sort_by(f64::total_cmp);
     let middle = values.len() / 2;
     match values.len() {
