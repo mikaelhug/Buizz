@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, HashSet};
 
 use buizz_core::market::{DataSource, Dataset, MacroObservation, MacroSeries, Symbol};
 use buizz_core::time::Timestamp;
-use chrono::{NaiveDate, TimeDelta};
+use chrono::NaiveDate;
 
 use crate::fetch::{Batch, FetchKey, Work, read};
 use crate::{Ingest, IngestError, schedule};
@@ -47,11 +47,8 @@ impl Ingest {
                 .into_iter()
                 .collect();
             if let Some(last) = stored.iter().map(|observation| observation.published).max() {
-                match fred
-                    .vintage_dates_since(series, last + TimeDelta::days(1))
-                    .await
-                {
-                    Ok(dates) if dates.is_empty() => {
+                match fred.vintage_dates_since(series, last).await {
+                    Ok(dates) if dates.iter().all(|date| *date <= last) => {
                         self.record_fetched(now, &key, 0).await?;
                         batch.success(0);
                         continue;
