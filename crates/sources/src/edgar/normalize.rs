@@ -18,6 +18,7 @@ const SHARES_GAP_DAYS: i64 = 90;
 const SHARE_SCALE_REFERENCE_DAYS: i64 = 400;
 const SCALE_SHIFTS: [i32; 5] = [-2, -1, 0, 1, 2];
 const SAME_SCALE_ORDERS: f64 = 0.5;
+const MIN_EVIDENCE_CONCEPTS: usize = 2;
 
 #[derive(Deserialize)]
 struct CompanyFacts {
@@ -304,94 +305,63 @@ fn period_type(observation: &Observation) -> Option<PeriodType> {
 type ConceptKey<'a> = (&'a str, &'a str);
 type Period = (Option<NaiveDate>, NaiveDate);
 
-#[derive(PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct ReportedCount<'a> {
     period: Period,
     concept: ConceptKey<'a>,
     value: Decimal,
 }
 
-struct ShareCounts<'a>(Vec<(ReportedCount<'a>, f64)>);
+struct Evidence<'a> {
+    count: ReportedCount<'a>,
+    first_filed: NaiveDate,
+    reported: f64,
+    whole: f64,
+}
+
+struct ShareCounts<'a>(BTreeMap<ReportedCount<'a>, i32>);
 
 impl<'a> ShareCounts<'a> {
     fn new(concepts: impl Iterator<Item = (&'a str, &'a str, &'a Concept)>) -> Self {
-        let distinct: BTreeSet<ReportedCount<'a>> = concepts
-            .filter_map(|(taxonomy, concept, node)| {
-                Some(
-                    node.units
-                        .get("shares")?
-                        .iter()
-                        .filter_map(move |observation| {
-                            Some(ReportedCount {
-                                period: (observation.start, observation.end),
-                                concept: (taxonomy, concept),
-                                value: json_decimal(&observation.val)?,
-                            })
-                        }),
-                )
-            })
-            .flatten()
-            .collect();
-        let mut counts: Vec<_> = distinct
+        let mut first_filed: BTreeMap<ReportedCount<'a>, NaiveDate> = BTreeMap::new();
+        for (taxonomy, concept, node) in concepts {
+            for observation in node.units.get("shares").into_iter().flatten() {
+                let Some(value) = json_decimal(&observation.val) else {
+                    continue;
+                };
+                let count = ReportedCount {
+                    period: (observation.start, observation.end),
+                    concept: (taxonomy, concept),
+                    value,
+                };
+                let first = first_filed.entry(count).or_insert(observation.filed);
+                *first = (*first).min(observation.filed);
+            }
+        }
+        let mut evidence: Vec<Evidence<'a>> = first_filed
             .into_iter()
-            .filter_map(|count| {
-                let magnitude = magnitude(count.value)?;
-                Some((count, magnitude))
+            .filter_map(|(count, first_filed)| {
+                let reported = magnitude(count.value)?;
+                Some(Evidence {
+                    count,
+                    first_filed,
+                    reported,
+                    whole: reported,
+                })
             })
             .collect();
-        counts.sort_by_key(|(count, _)| count.period.1);
-        Self(counts)
+        evidence.sort_by_key(|item| item.first_filed);
+        let mut shifts = BTreeMap::new();
+        for index in 0..evidence.len() {
+            let shift = scale_shift(&evidence, index);
+            evidence[index].whole += f64::from(3 * shift);
+            shifts.insert(evidence[index].count, shift);
+        }
+        Self(shifts)
     }
 
     fn whole(&self, reported: ReportedCount<'_>) -> Decimal {
-        let Some(magnitude) = magnitude(reported.value) else {
-            return reported.value;
-        };
-        let end = reported.period.1;
-        let window = TimeDelta::days(SHARE_SCALE_REFERENCE_DAYS);
-        let from = self
-            .0
-            .partition_point(|(count, _)| count.period.1 < end - window);
-        let to = self
-            .0
-            .partition_point(|(count, _)| count.period.1 <= end + window);
-        let others: Vec<&(ReportedCount, f64)> = self.0[from..to]
-            .iter()
-            .filter(|(count, _)| {
-                (count.period, count.concept, count.value)
-                    != (reported.period, reported.concept, reported.value)
-            })
-            .collect();
-        let concepts: BTreeSet<ConceptKey> =
-            others.iter().map(|(count, _)| count.concept).collect();
-        let mut scores = [0.0; SCALE_SHIFTS.len()];
-        for concept in concepts {
-            let support = SCALE_SHIFTS.map(|shift| {
-                others
-                    .iter()
-                    .filter(|(count, other)| {
-                        count.concept == concept
-                            && (other - magnitude - f64::from(3 * shift)).abs() <= SAME_SCALE_ORDERS
-                    })
-                    .count() as f64
-            });
-            let total: f64 = support.iter().sum();
-            if total > 0.0 {
-                for (score, agreeing) in scores.iter_mut().zip(support) {
-                    *score += agreeing / total;
-                }
-            }
-        }
-        let best = scores.iter().copied().fold(0.0, f64::max);
-        let leaders: Vec<i32> = SCALE_SHIFTS
-            .into_iter()
-            .zip(scores)
-            .filter(|(_, score)| *score == best)
-            .map(|(shift, _)| shift)
-            .collect();
-        let [shift] = leaders[..] else {
-            return reported.value;
-        };
+        let shift = self.0.get(&reported).copied().unwrap_or(0);
         if shift == 0 {
             return reported.value;
         }
@@ -402,6 +372,61 @@ impl<'a> ShareCounts<'a> {
             reported.value * factor
         };
         whole.normalize()
+    }
+}
+
+fn scale_shift(evidence: &[Evidence], index: usize) -> i32 {
+    let own = &evidence[index];
+    let window = TimeDelta::days(SHARE_SCALE_REFERENCE_DAYS);
+    let known: Vec<(ConceptKey, f64)> = evidence
+        .iter()
+        .enumerate()
+        .filter(|(other, item)| {
+            *other != index
+                && item.first_filed <= own.first_filed
+                && (item.count.period.1 - own.count.period.1).abs() <= window
+        })
+        .map(|(other, item)| {
+            let settled = other < index && item.first_filed < own.first_filed;
+            (
+                item.count.concept,
+                if settled { item.whole } else { item.reported },
+            )
+        })
+        .collect();
+    let concepts: BTreeSet<ConceptKey> = known.iter().map(|(concept, _)| *concept).collect();
+    if concepts.len() < MIN_EVIDENCE_CONCEPTS {
+        return 0;
+    }
+    let mut scores = [0.0; SCALE_SHIFTS.len()];
+    for concept in concepts {
+        let support = SCALE_SHIFTS.map(|shift| {
+            known
+                .iter()
+                .filter(|(other, magnitude)| {
+                    *other == concept
+                        && (magnitude - own.reported - f64::from(3 * shift)).abs()
+                            <= SAME_SCALE_ORDERS
+                })
+                .count() as f64
+        });
+        let total: f64 = support.iter().sum();
+        if total > 0.0 {
+            for (score, agreeing) in scores.iter_mut().zip(support) {
+                *score += agreeing / total;
+            }
+        }
+    }
+    let best = scores.iter().copied().fold(0.0, f64::max);
+    let leaders: Vec<i32> = SCALE_SHIFTS
+        .into_iter()
+        .zip(scores)
+        .filter(|(_, score)| *score == best)
+        .map(|(shift, _)| shift)
+        .collect();
+    match leaders[..] {
+        [shift] => shift,
+        _ => 0,
     }
 }
 
