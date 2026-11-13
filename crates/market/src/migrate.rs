@@ -2,7 +2,7 @@ use duckdb::{Connection, params};
 
 use crate::{MarketError, Result, SCHEMA};
 
-const MIGRATIONS: [&str; 9] = [
+const MIGRATIONS: [&str; 10] = [
     include_str!("../migrations/2_revisions.sql"),
     include_str!("../migrations/3_sec_filings.sql"),
     include_str!("../migrations/4_daily_watermark.sql"),
@@ -12,6 +12,7 @@ const MIGRATIONS: [&str; 9] = [
     include_str!("../migrations/8_corporate_action_kinds.sql"),
     include_str!("../migrations/9_quiet_sessions.sql"),
     include_str!("../migrations/10_rebackfill_corporate_actions.sql"),
+    include_str!("../migrations/11_current_reports.sql"),
 ];
 
 pub(crate) const LATEST: i64 = MIGRATIONS.len() as i64 + 1;
@@ -111,7 +112,7 @@ mod tests {
                  ('corporate_actions', 'DD', 'alpaca', '2016-01-04', '2026-11-12', now()), \
                  ('corporate_actions', '', 'alpaca', '2016-01-04', '2026-11-12', now()), \
                  ('bars1d', 'DD', 'alpaca', '2016-01-04', '2026-11-12', now())",
-                LATEST - 1
+                9
             ))
             .unwrap();
         migrate(&mut connection).unwrap();

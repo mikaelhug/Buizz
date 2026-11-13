@@ -296,6 +296,35 @@ class EarningsResult(msgspec.Struct, frozen=True, tag_field="kind", tag="earning
     releases: list[EarningsReleaseFrame]
 
 
+class FilingFrame(msgspec.Struct, frozen=True):
+    symbol: str
+    cik: int
+    accession: str
+    form: str
+    filed: date
+    report_date: date | None
+    items: list[str]
+    accepted_at: int
+    available_at: int
+
+
+class FilingsResult(msgspec.Struct, frozen=True, tag_field="kind", tag="filings"):
+    filings: list[FilingFrame]
+
+
+class PressReleaseFrame(msgspec.Struct, frozen=True):
+    symbol: str
+    accession: str
+    accepted_at: int
+    available_at: int
+    exhibit: str
+    text: str
+
+
+class PressReleasesResult(msgspec.Struct, frozen=True, tag_field="kind", tag="press_releases"):
+    releases: list[PressReleaseFrame]
+
+
 class CalendarResult(msgspec.Struct, frozen=True, tag_field="kind", tag="calendar"):
     sessions: list[SessionFrame]
 
@@ -344,6 +373,7 @@ class InsiderTradeFrame(msgspec.Struct, frozen=True):
     filed: date
     accepted_at: int
     available_at: int
+    plan_10b5_1: bool | None
     owners: list[InsiderOwner]
     transaction: InsiderTransactionFrame
 
@@ -388,6 +418,8 @@ type Result = (
     | FomcResult
     | InstrumentsResult
     | EarningsResult
+    | FilingsResult
+    | PressReleasesResult
     | InsiderTradesResult
     | NewsResult
 )
@@ -434,6 +466,18 @@ class EarningsRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="earnin
     symbols: list[str]
 
 
+class FilingsRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="filings"):
+    symbols: list[str]
+    since: date
+    items: list[str] | None
+
+
+class PressReleasesRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="press_releases"):
+    symbols: list[str]
+    since: date
+    accessions: list[str] | None
+
+
 class InsiderTradesRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="insider_trades"):
     symbols: list[str]
     since: date
@@ -474,6 +518,8 @@ type Request = (
     | FomcRequest
     | InstrumentsRequest
     | EarningsRequest
+    | FilingsRequest
+    | PressReleasesRequest
     | InsiderTradesRequest
     | NewsRequest
 )

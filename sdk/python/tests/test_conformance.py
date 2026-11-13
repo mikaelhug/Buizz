@@ -55,6 +55,8 @@ class RedGreen(Bot):
         observed["insider_trades"] = ctx.insider_trades(["BBB"], date(2024, 10, 1))
         observed["news"] = ctx.news(["BBB"], date(2024, 11, 20))
         observed["fomc"] = ctx.fomc(date(2024, 11, 21), date(2024, 12, 31))
+        observed["filings"] = ctx.filings(["BBB"], date(2024, 11, 1), ["2.02", "4.02"])
+        observed["press_releases"] = ctx.press_releases(["BBB"], date(2024, 11, 1))
         ctx.order_target_weight("AAA", ctx.params["weight"], reason="red day")
         ctx.order("BBB", -100, reason="take profit", limit_price=Decimal("49.60"), client_id="BBB-limit-1")
         ctx.cancel("BBB-limit-0")
@@ -103,6 +105,10 @@ def play_spine(connection: ServerConnection, received: list[bytes]) -> None:
     connection.send(golden("data_news"))
     expect()
     connection.send(golden("data_fomc"))
+    expect()
+    connection.send(golden("data_filings"))
+    expect()
+    connection.send(golden("data_press_releases"))
     expect()
     connection.send(golden("step_live"))
     expect()
@@ -156,6 +162,8 @@ def test_bot_replies_match_the_golden_frames(monkeypatch: pytest.MonkeyPatch) ->
         query_insider_trades,
         query_news,
         query_fomc,
+        query_filings,
+        query_press_releases,
         ack_first,
         ack_second,
     ) = received
@@ -172,6 +180,8 @@ def test_bot_replies_match_the_golden_frames(monkeypatch: pytest.MonkeyPatch) ->
     assert query_insider_trades == golden("query_insider_trades")
     assert query_news == golden("query_news")
     assert query_fomc == golden("query_fomc")
+    assert query_filings == golden("query_filings")
+    assert query_press_releases == golden("query_press_releases")
     assert ack_first == golden("ack_backtest")
     assert ack_second == golden("ack_live")
 
@@ -193,6 +203,11 @@ def test_bot_replies_match_the_golden_frames(monkeypatch: pytest.MonkeyPatch) ->
     [trade] = observed["insider_trades"]
     assert (trade.code, trade.acquired, trade.shares, trade.price) == ("P", True, Decimal(1000), Decimal("49.1250"))
     assert (trade.owners[0].officer_title, trade.available_at.hour) == ("Chief Executive Officer", 14)
+    assert trade.plan_10b5_1 is False
+    [filing] = observed["filings"]
+    assert (filing.items, filing.available_at.minute) == (["2.02", "9.01"], 5)
+    [release] = observed["press_releases"]
+    assert (release.exhibit, release.text.splitlines()[0]) == ("EX-99.1", "Beta Fixture reports third quarter results")
     [article] = observed["news"]
     assert (article.headline, article.backfilled, article.received_at.second) == ("BBB CEO Buys Shares", False, 11)
     assert [(a.date, a.scheduled, a.statement_at and a.statement_at.hour) for a in observed["fomc"]] == [

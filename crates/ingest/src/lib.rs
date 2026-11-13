@@ -12,6 +12,7 @@ mod insiders;
 mod macros;
 mod minute;
 mod news;
+mod press;
 mod reference;
 mod schedule;
 mod sec_index;
@@ -257,6 +258,7 @@ impl Ingest {
             schedule::FUNDAMENTALS => self.fundamentals(now).await,
             schedule::FILINGS => self.filings(now).await,
             schedule::INSIDER_TRADES => self.insider_trades(now).await,
+            schedule::PRESS_RELEASES => self.press_releases(now).await,
             schedule::NEWS => self.news(now).await,
             schedule::INDEX_MEMBERSHIP => self.index_membership(now).await,
             schedule::RATES => self.rates(now).await,
@@ -335,7 +337,7 @@ impl Ingest {
             .map(|instrument| instrument.symbol)
             .filter(|symbol| priced_set.contains(symbol))
             .collect();
-        for dataset in [Dataset::Fundamentals, Dataset::Companies] {
+        for dataset in [Dataset::Fundamentals, Dataset::CurrentReports] {
             let read = self
                 .state
                 .settled_symbols(DataSource::Edgar, dataset)

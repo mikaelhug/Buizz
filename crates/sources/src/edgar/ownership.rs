@@ -37,6 +37,7 @@ pub fn normalize_ownership(
         form: filing.form.clone(),
         filed: filing.filed,
         accepted_at: filing.accepted_at,
+        plan_10b5_1: text_of(root, "aff10b5One").map(|text| truthy(&text)),
         owners: root
             .children()
             .filter(|node| node.has_tag_name("reportingOwner"))
@@ -62,8 +63,12 @@ fn value_at(node: Node<'_, '_>, path: &[&str]) -> Option<String> {
     text_of(found, "value")
 }
 
+fn truthy(text: &str) -> bool {
+    text == "1" || text.eq_ignore_ascii_case("true")
+}
+
 fn flag(node: Node<'_, '_>, name: &str) -> bool {
-    text_of(node, name).is_some_and(|text| text == "1" || text.eq_ignore_ascii_case("true"))
+    text_of(node, name).is_some_and(|text| truthy(&text))
 }
 
 fn amount(text: Option<String>) -> Option<Decimal> {

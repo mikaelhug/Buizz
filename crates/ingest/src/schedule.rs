@@ -16,6 +16,7 @@ pub(crate) const SEC_INDEX: &str = "sec_index";
 pub(crate) const FUNDAMENTALS: &str = "fundamentals";
 pub(crate) const FILINGS: &str = "filings";
 pub(crate) const INSIDER_TRADES: &str = "insider_trades";
+pub(crate) const PRESS_RELEASES: &str = "press_releases";
 pub(crate) const NEWS: &str = "news";
 pub(crate) const INDEX_MEMBERSHIP: &str = "index_membership";
 pub(crate) const RATES: &str = "rates";
@@ -37,7 +38,7 @@ const SHORT_RETRY: Duration = HOUR;
 const FIRST_FAILURE_RETRY: Duration = Duration::from_secs(5 * 60);
 const STALE_AFTER_INTERVALS: i32 = 3;
 
-pub(crate) const JOBS: [JobSpec; 20] = [
+pub(crate) const JOBS: [JobSpec; 21] = [
     JobSpec {
         name: CALENDAR,
         source: Some(DataSource::Alpaca),
@@ -80,6 +81,11 @@ pub(crate) const JOBS: [JobSpec; 20] = [
     },
     JobSpec {
         name: INSIDER_TRADES,
+        source: Some(DataSource::Edgar),
+        every: SIX_HOURS,
+    },
+    JobSpec {
+        name: PRESS_RELEASES,
         source: Some(DataSource::Edgar),
         every: SIX_HOURS,
     },

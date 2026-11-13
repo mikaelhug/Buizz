@@ -1,17 +1,22 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
 
-use buizz_core::market::{Calendar, FundamentalFact, InsiderFiling, SecFiling, Symbol};
+use buizz_core::market::{
+    Calendar, Exhibit, FundamentalFact, InsiderFiling, PressExhibit, SecFiling, Symbol,
+};
+use buizz_core::time::Timestamp;
 use chrono::{Datelike, NaiveDate};
 use serde::Deserialize;
 
 use crate::http::{HttpClient, RateLimit, SourceError};
 
 mod concepts;
+mod exhibit;
 mod filings;
 mod normalize;
 mod ownership;
 
+pub use exhibit::{IndexedDocument, exhibit_text, press_release_document};
 pub use filings::{
     Filings, FilingsPage, OwnershipFiling, Submissions, normalize_filings_page,
     normalize_submissions,
@@ -172,6 +177,41 @@ impl EdgarClient {
             filing.accession.replace('-', "")
         );
         normalize_ownership(symbol, cik, filing, &self.fetch(url).await?)
+    }
+
+    pub async fn press_release(
+        &self,
+        cik: u32,
+        accession: &str,
+        accepted_at: Timestamp,
+    ) -> Result<PressExhibit, SourceError> {
+        let folder = format!(
+            "{}/Archives/edgar/data/{cik}/{}",
+            self.www_url,
+            accession.replace('-', "")
+        );
+        let index = self
+            .fetch(format!("{folder}/{accession}-index.htm"))
+            .await?;
+        let listed = press_release_document(&String::from_utf8_lossy(&index));
+        let exhibit = match listed {
+            Some(IndexedDocument { document, kind }) => {
+                let payload = self.fetch(format!("{folder}/{document}")).await?;
+                let text = exhibit_text(&document, &payload);
+                (!text.is_empty()).then_some(Exhibit {
+                    document,
+                    kind,
+                    text,
+                })
+            }
+            None => None,
+        };
+        Ok(PressExhibit {
+            cik,
+            accession: accession.to_owned(),
+            accepted_at,
+            exhibit,
+        })
     }
 
     pub async fn daily_index(&self, day: NaiveDate) -> Result<Option<Vec<SecFiling>>, SourceError> {

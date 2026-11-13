@@ -506,6 +506,7 @@ fn insider_filing(accession: &str, form: &str, accepted_at: &str, price: i64) ->
         form: form.to_owned(),
         filed: accepted_at.exchange_date(),
         accepted_at,
+        plan_10b5_1: (form == "4").then_some(true),
         owners: vec![InsiderOwner {
             cik: 1780525,
             name: "Newstead Jennifer".to_owned(),
@@ -558,6 +559,7 @@ async fn an_insider_trade_is_seen_from_the_next_open_and_its_amendment_is_a_late
                         trade.form,
                         trade.transaction.price.unwrap(),
                         trade.available_at.to_string(),
+                        trade.plan_10b5_1,
                     )
                 })
                 .collect::<Vec<_>>()
@@ -569,6 +571,7 @@ async fn an_insider_trade_is_seen_from_the_next_open_and_its_amendment_is_a_late
         "4".to_owned(),
         Decimal::new(32575, 2),
         "2026-11-06T14:30:00Z".to_owned(),
+        Some(true),
     );
     assert_eq!(
         seen("2026-11-06T14:30:00Z").await,
@@ -585,7 +588,8 @@ async fn an_insider_trade_is_seen_from_the_next_open_and_its_amendment_is_a_late
             (
                 "4/A".to_owned(),
                 Decimal::new(32757, 2),
-                "2026-11-10T14:30:00Z".to_owned()
+                "2026-11-10T14:30:00Z".to_owned(),
+                None
             )
         ]
     );

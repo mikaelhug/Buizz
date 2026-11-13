@@ -23,6 +23,8 @@ from buizz.wire import (
     EarningsRequest,
     EarningsResult,
     Event,
+    FilingsRequest,
+    FilingsResult,
     FomcRequest,
     FomcResult,
     FundamentalsRequest,
@@ -50,6 +52,8 @@ from buizz.wire import (
     OrderRequest,
     OrderType,
     Position,
+    PressReleasesRequest,
+    PressReleasesResult,
     QtySize,
     Ready,
     Request,
@@ -282,6 +286,27 @@ class EarningsRelease(msgspec.Struct, frozen=True):
     accepted_at: datetime
 
 
+class Filing(msgspec.Struct, frozen=True):
+    symbol: str
+    cik: int
+    accession: str
+    form: str
+    filed: date
+    report_date: date | None
+    items: list[str]
+    accepted_at: datetime
+    available_at: datetime
+
+
+class PressRelease(msgspec.Struct, frozen=True):
+    symbol: str
+    accession: str
+    accepted_at: datetime
+    available_at: datetime
+    exhibit: str
+    text: str
+
+
 class InsiderTrade(msgspec.Struct, frozen=True):
     symbol: str
     accession: str
@@ -298,6 +323,7 @@ class InsiderTrade(msgspec.Struct, frozen=True):
     price: Decimal | None
     shares_after: Decimal | None
     direct: bool
+    plan_10b5_1: bool | None
 
 
 class NewsArticle(msgspec.Struct, frozen=True):
@@ -493,6 +519,40 @@ class Context:
             for r in result.releases
         ]
 
+    def filings(self, symbols: list[str], since: date, items: list[str] | None = None) -> list[Filing]:
+        self._current("ctx.filings")
+        wanted = None if items is None else texts("items", items)
+        result = self._query(FilingsRequest(texts("symbols", symbols), day("since", since), wanted))
+        if not isinstance(result, FilingsResult):
+            raise ProtocolError(f"filings query answered with {type(result).__name__}")
+        return [
+            Filing(
+                f.symbol,
+                f.cik,
+                f.accession,
+                f.form,
+                f.filed,
+                f.report_date,
+                f.items,
+                from_ns(f.accepted_at),
+                from_ns(f.available_at),
+            )
+            for f in result.filings
+        ]
+
+    def press_releases(
+        self, symbols: list[str], since: date, accessions: list[str] | None = None
+    ) -> list[PressRelease]:
+        self._current("ctx.press_releases")
+        wanted = None if accessions is None else texts("accessions", accessions)
+        result = self._query(PressReleasesRequest(texts("symbols", symbols), day("since", since), wanted))
+        if not isinstance(result, PressReleasesResult):
+            raise ProtocolError(f"press releases query answered with {type(result).__name__}")
+        return [
+            PressRelease(r.symbol, r.accession, from_ns(r.accepted_at), from_ns(r.available_at), r.exhibit, r.text)
+            for r in result.releases
+        ]
+
     def insider_trades(self, symbols: list[str], since: date) -> list[InsiderTrade]:
         self._current("ctx.insider_trades")
         result = self._query(InsiderTradesRequest(texts("symbols", symbols), day("since", since)))
@@ -515,6 +575,7 @@ class Context:
                 t.transaction.price,
                 t.transaction.shares_after,
                 t.transaction.direct,
+                t.plan_10b5_1,
             )
             for t in result.trades
         ]

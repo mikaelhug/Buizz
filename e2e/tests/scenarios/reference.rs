@@ -80,6 +80,24 @@ fn world(mut world: World) -> World {
             },
         ],
     );
+    let folder = format!("{}/{}", beta.cik, RESULTS.replace('-', ""));
+    world.archives.extend([
+        (
+            format!("{folder}/{RESULTS}-index.htm"),
+            r#"<table class="tableFile" summary="Document Format Files">
+<tr><th>Seq</th><th>Description</th><th>Document</th><th>Type</th><th>Size</th></tr>
+<tr><td>1</td><td>8-K</td><td><a href="bbb-8k.htm">bbb-8k.htm</a></td><td>8-K</td><td>900</td></tr>
+<tr><td>2</td><td>PRESS RELEASE</td><td><a href="bbb-ex991.htm">bbb-ex991.htm</a></td><td>EX-99.1</td><td>700</td></tr>
+</table>"#
+                .to_owned(),
+        ),
+        (
+            format!("{folder}/bbb-ex991.htm"),
+            "<html><body><p>Beta Fixture reports third quarter results</p>\
+             <table><tr><td>Revenue</td><td>$</td><td>1,250</td></tr></table></body></html>"
+                .to_owned(),
+        ),
+    ]);
     world.companies.push(Company {
         cik: 9_999_002,
         ticker: "AAA".into(),
@@ -114,7 +132,7 @@ async fn backtest(spine: &Spine, bot: &str) -> (RunSummary, BTreeMap<Timestamp, 
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn bots_see_index_membership_profiles_and_earnings_as_of_their_clock() {
+async fn bots_see_index_membership_profiles_earnings_and_8k_events_as_of_their_clock() {
     let world = world(World::fixture_market().await);
     let spine = Spine::start(
         FakeProviders::serve(world).await,
@@ -162,6 +180,40 @@ async fn bots_see_index_membership_profiles_and_earnings_as_of_their_clock() {
         at("2024-12-02T21:00:00Z")["earnings"],
         json!([RESULTS]),
         "an 8-K/A amending the release is not a second earnings event"
+    );
+    let other_event = json!(["0009999001-24-000049", ["8.01"]]);
+    assert_eq!(at("2024-11-22T21:00:00Z")["filings"], json!([other_event]));
+    assert_eq!(
+        at("2024-11-26T21:00:00Z")["filings"],
+        json!([other_event]),
+        "an 8-K accepted after the close is not seen at that close"
+    );
+    assert_eq!(at("2024-11-26T21:00:00Z")["press"], json!([]));
+    assert_eq!(
+        at("2024-11-27T21:00:00Z")["filings"],
+        json!([other_event, [RESULTS, ["2.02", "9.01"]]])
+    );
+    assert_eq!(
+        at("2024-11-27T21:00:00Z")["press"],
+        json!([[
+            RESULTS,
+            "Beta Fixture reports third quarter results\n\nRevenue\t$\t1,250"
+        ]]),
+        "the press release exhibit is plain text, its table one tab-separated line per row"
+    );
+    assert_eq!(
+        at("2024-12-02T21:00:00Z")["filings"],
+        json!([
+            other_event,
+            [RESULTS, ["2.02", "9.01"]],
+            ["0009999001-24-000051", ["2.02", "9.01"]]
+        ]),
+        "every 8-K/A is a filing of its own"
+    );
+    assert_eq!(
+        at("2024-12-02T21:00:00Z")["press"],
+        at("2024-11-27T21:00:00Z")["press"],
+        "an amendment whose filing index cannot be read has no press release"
     );
     for badge in [
         RunBadge::ThinIndexHistory,

@@ -1,20 +1,29 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
-use buizz_core::market::{DataSource, Dataset, InsiderFiling, Symbol};
+use buizz_core::market::{DataSource, Dataset, InsiderFiling, InsiderPlan, Symbol};
 use buizz_core::time::Timestamp;
 use buizz_sources::edgar::{EdgarClient, INSIDER_FORMS, OwnershipFiling};
 use buizz_sources::http::SourceError;
+use chrono::NaiveDate;
 
 use crate::facts::NO_CIK;
 use crate::fetch::{Batch, FetchKey, Work, read};
-use crate::{Ingest, IngestError};
+use crate::{Ingest, IngestError, day_start};
 
 const DOCUMENTS_PER_RUN: usize = 3000;
 const NOT_FOUND: u16 = 404;
+const PLAN_CHECKBOX_FROM: NaiveDate = NaiveDate::from_ymd_opt(2023, 4, 1).expect("a valid date");
 
+#[derive(Default)]
 struct Collected {
     filings: Vec<InsiderFiling>,
-    outcome: Result<bool, SourceError>,
+    plans: Vec<InsiderPlan>,
+}
+
+enum Reading {
+    Read(InsiderFiling),
+    Unreadable,
+    Failed(SourceError),
 }
 
 impl Ingest {
@@ -30,8 +39,23 @@ impl Ingest {
             Ok(tickers) => tickers,
             Err(error) => return self.source_failure(now, &map_key, &error).await,
         };
+        let mut unread: BTreeMap<Symbol, Vec<InsiderPlan>> = BTreeMap::new();
+        for plan in self
+            .market
+            .unread_plans(day_start(PLAN_CHECKBOX_FROM))
+            .await?
+        {
+            unread.entry(plan.symbol.clone()).or_default().push(plan);
+        }
+        let pending: BTreeSet<Symbol> = unread.keys().cloned().collect();
         let (due, mut more) = self
-            .companies_due(now, Dataset::InsiderTrades, &tickers, &INSIDER_FORMS)
+            .companies_due(
+                now,
+                Dataset::InsiderTrades,
+                &tickers,
+                &INSIDER_FORMS,
+                &pending,
+            )
             .await?;
         if due.is_empty() {
             return Ok(Work::noop("no company has a new insider filing"));
@@ -60,19 +84,40 @@ impl Ingest {
                 .await?
                 .is_some_and(|fetch| read(&fetch));
             let stored = self.market.insider_accessions(symbol.clone()).await?;
-            let collected = self
-                .collect_insider_filings(edgar, &symbol, cik, !backfilled, &stored, &mut budget)
+            let unread = unread.remove(&symbol).unwrap_or_default();
+            let since = unread
+                .iter()
+                .map(|plan| plan.filed)
+                .chain((!backfilled).then_some(self.config.history_start))
+                .min();
+            let mut collected = Collected::default();
+            let outcome = self
+                .collect_insider_filings(
+                    edgar,
+                    (&symbol, cik),
+                    since,
+                    (&stored, unread),
+                    &mut budget,
+                    &mut collected,
+                )
                 .await;
-            let fetched = collected.filings.len();
-            let rows = if collected.filings.is_empty() {
-                0
-            } else {
-                self.market
+            let fetched = collected.filings.len() + collected.plans.len();
+            let mut rows = 0;
+            if !collected.filings.is_empty() {
+                rows += self
+                    .market
                     .append_insider_filings(DataSource::Edgar, collected.filings)
                     .await?
-                    .rows
-            };
-            match collected.outcome {
+                    .rows;
+            }
+            if !collected.plans.is_empty() {
+                rows += self
+                    .market
+                    .append_insider_plans(DataSource::Edgar, collected.plans)
+                    .await?
+                    .rows;
+            }
+            match outcome {
                 Ok(true) => {
                     self.record_fetched(now, &key, fetched).await?;
                     batch.success(rows);
@@ -104,59 +149,82 @@ impl Ingest {
     async fn collect_insider_filings(
         &self,
         edgar: &EdgarClient,
-        symbol: &Symbol,
-        cik: u32,
-        backfill: bool,
-        stored: &BTreeSet<String>,
+        (symbol, cik): (&Symbol, u32),
+        since: Option<NaiveDate>,
+        (stored, unread): (&BTreeSet<String>, Vec<InsiderPlan>),
         budget: &mut usize,
-    ) -> Collected {
-        let mut filings = Vec::new();
-        let listed = match self.ownership_filings(edgar, symbol, cik, backfill).await {
-            Ok(listed) => listed,
-            Err(error) => {
-                return Collected {
-                    filings,
-                    outcome: Err(error),
-                };
-            }
-        };
-        let fresh = listed.into_iter().filter(|filing| {
+        collected: &mut Collected,
+    ) -> Result<bool, SourceError> {
+        let listed = self.ownership_filings(edgar, symbol, cik, since).await?;
+        let fresh = listed.iter().filter(|filing| {
             filing.filed >= self.config.history_start && !stored.contains(&filing.accession)
         });
         for filing in fresh {
             if self.stopping() || *budget == 0 {
-                return Collected {
-                    filings,
-                    outcome: Ok(false),
-                };
+                return Ok(false);
             }
-            if !filing.is_xml() {
-                filings.push(without_document(symbol, cik, &filing));
-                continue;
-            }
-            *budget -= 1;
-            match edgar.ownership(symbol, cik, &filing).await {
-                Ok(parsed) => filings.push(parsed),
-                Err(
-                    error @ (SourceError::Decode(_)
-                    | SourceError::Status {
-                        status: NOT_FOUND, ..
-                    }),
-                ) => {
-                    tracing::warn!(%error, accession = filing.accession, "unreadable ownership document");
-                    filings.push(without_document(symbol, cik, &filing));
-                }
-                Err(error) => {
-                    return Collected {
-                        filings,
-                        outcome: Err(error),
-                    };
-                }
+            match self
+                .read_ownership(edgar, symbol, cik, filing, budget)
+                .await
+            {
+                Reading::Read(parsed) => collected.filings.push(parsed),
+                Reading::Unreadable => collected
+                    .filings
+                    .push(without_document(symbol, cik, filing)),
+                Reading::Failed(error) => return Err(error),
             }
         }
-        Collected {
-            filings,
-            outcome: Ok(true),
+        let by_accession: BTreeMap<&str, &OwnershipFiling> = listed
+            .iter()
+            .map(|filing| (filing.accession.as_str(), filing))
+            .collect();
+        for plan in unread {
+            if self.stopping() || *budget == 0 {
+                return Ok(false);
+            }
+            let plan_10b5_1 = match by_accession.get(plan.accession.as_str()) {
+                Some(filing) => match self
+                    .read_ownership(edgar, symbol, cik, filing, budget)
+                    .await
+                {
+                    Reading::Read(parsed) => parsed.plan_10b5_1,
+                    Reading::Unreadable => None,
+                    Reading::Failed(error) => return Err(error),
+                },
+                None => None,
+            };
+            collected.plans.push(InsiderPlan {
+                plan_10b5_1,
+                ..plan
+            });
+        }
+        Ok(true)
+    }
+
+    async fn read_ownership(
+        &self,
+        edgar: &EdgarClient,
+        symbol: &Symbol,
+        cik: u32,
+        filing: &OwnershipFiling,
+        budget: &mut usize,
+    ) -> Reading {
+        if !filing.is_xml() {
+            return Reading::Unreadable;
+        }
+        *budget -= 1;
+        match edgar.ownership(symbol, cik, filing).await {
+            Ok(parsed) => Reading::Read(parsed),
+            Err(
+                error @ (SourceError::Decode(_)
+                | SourceError::Status {
+                    status: NOT_FOUND, ..
+                }),
+            ) => {
+                tracing::warn!(%error, accession = filing.accession, "unreadable ownership document");
+                Reading::Unreadable
+            }
+            Err(error) => Reading::Failed(error),
         }
     }
 
@@ -165,15 +233,15 @@ impl Ingest {
         edgar: &EdgarClient,
         symbol: &Symbol,
         cik: u32,
-        backfill: bool,
+        since: Option<NaiveDate>,
     ) -> Result<Vec<OwnershipFiling>, SourceError> {
         let submissions = edgar.submissions(symbol, cik).await?;
         let mut listed = submissions.filings.ownership;
-        if backfill {
+        if let Some(since) = since {
             let older = submissions
                 .older_pages
                 .iter()
-                .filter(|page| page.filing_to >= self.config.history_start);
+                .filter(|page| page.filing_to >= since);
             for page in older {
                 listed.extend(edgar.filings_page(symbol, cik, page).await?.ownership);
             }
@@ -190,6 +258,7 @@ fn without_document(symbol: &Symbol, cik: u32, filing: &OwnershipFiling) -> Insi
         form: filing.form.clone(),
         filed: filing.filed,
         accepted_at: filing.accepted_at,
+        plan_10b5_1: None,
         owners: Vec::new(),
         transactions: Vec::new(),
     }

@@ -506,6 +506,60 @@ pub struct EarningsRelease {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Filing {
+    pub symbol: Symbol,
+    pub cik: u32,
+    pub accession: String,
+    pub form: String,
+    pub filed: NaiveDate,
+    pub report_date: Option<NaiveDate>,
+    pub items: Vec<String>,
+    pub accepted_at: Timestamp,
+    pub available_at: Timestamp,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PressExhibit {
+    pub cik: u32,
+    pub accession: String,
+    pub accepted_at: Timestamp,
+    pub exhibit: Option<Exhibit>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Exhibit {
+    pub document: String,
+    pub kind: String,
+    pub text: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PressRelease {
+    pub symbol: Symbol,
+    pub accession: String,
+    pub accepted_at: Timestamp,
+    pub available_at: Timestamp,
+    pub exhibit: String,
+    pub text: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PressCandidate {
+    pub symbol: Symbol,
+    pub cik: u32,
+    pub accession: String,
+    pub accepted_at: Timestamp,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct InsiderPlan {
+    pub symbol: Symbol,
+    pub accession: String,
+    pub filed: NaiveDate,
+    pub plan_10b5_1: Option<bool>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InsiderOwner {
     pub cik: u32,
     pub name: String,
@@ -536,6 +590,7 @@ pub struct InsiderFiling {
     pub form: String,
     pub filed: NaiveDate,
     pub accepted_at: Timestamp,
+    pub plan_10b5_1: Option<bool>,
     pub owners: Vec<InsiderOwner>,
     pub transactions: Vec<InsiderTransaction>,
 }
@@ -548,6 +603,7 @@ pub struct InsiderTrade {
     pub filed: NaiveDate,
     pub accepted_at: Timestamp,
     pub available_at: Timestamp,
+    pub plan_10b5_1: Option<bool>,
     pub owners: Vec<InsiderOwner>,
     pub transaction: InsiderTransaction,
 }
@@ -990,6 +1046,8 @@ pub enum Dataset {
     News,
     Fomc,
     Estimates,
+    CurrentReports,
+    PressReleases,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
