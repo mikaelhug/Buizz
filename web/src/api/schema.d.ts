@@ -840,9 +840,20 @@ export interface components {
         } | (components["schemas"]["ActionDisagreement"] & {
             /** @enum {string} */
             type: "action_disagreement";
-        });
+        }) | {
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            /** Format: int32 */
+            delistings: number;
+            /** Format: int32 */
+            unpriced: number;
+            /** @enum {string} */
+            type: "survivorship_gap";
+        };
         /** @enum {string} */
-        Dataset: "instruments" | "calendar" | "bars1d" | "bars1m" | "corporate_actions" | "fundamentals" | "rates" | "companies" | "earnings_releases" | "sec_filings" | "index_membership" | "borrow" | "macro" | "insider_trades" | "news" | "fomc" | "estimates" | "current_reports" | "periodic_reports" | "press_releases" | "filing_documents" | "filing_sections" | "short_interest" | "short_volume";
+        Dataset: "instruments" | "calendar" | "bars1d" | "bars1m" | "corporate_actions" | "fundamentals" | "rates" | "companies" | "earnings_releases" | "sec_filings" | "index_membership" | "borrow" | "macro" | "insider_trades" | "news" | "fomc" | "estimates" | "current_reports" | "periodic_reports" | "press_releases" | "filing_documents" | "filing_sections" | "short_interest" | "short_volume" | "delistings";
         DatasetSpine: {
             dataset: components["schemas"]["Dataset"];
             domain: components["schemas"]["DataDomain"];
