@@ -619,7 +619,7 @@ function Overview({ run, live, symbol, gate, closeHref }: { run: Run; live: Live
       {metrics && metrics.sessions > 0 && (
         <section className="panel metrics-panel">
           <h2 className="visually-hidden">Metrics</h2>
-          <MetricGroups metrics={metrics} benchmark={benchmark} months={calendar?.range} />
+          <MetricGroups metrics={metrics} benchmark={benchmark} hedge={run.config.hedge_benchmark} months={calendar?.range} />
         </section>
       )}
       {calendar && <MonthlyReturns calendar={calendar} benchmarkSymbol={run.config.benchmark} />}
@@ -684,6 +684,7 @@ function Setup({ run }: { run: Run }) {
               ["Timeframe", run.config.timeframe],
               ["Wakes", run.config.wake],
               ["Benchmark", run.config.benchmark],
+              ...(run.config.hedge_benchmark ? [["Hedge benchmark", run.config.hedge_benchmark] satisfies Row] : []),
               ["Start cash", fmt.money(run.config.start_cash)],
             ]}
           />

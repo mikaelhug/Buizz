@@ -11,11 +11,13 @@ use buizz_core::time::Timestamp;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
 
+use crate::active::Active;
 pub use crate::benchmark::buy_and_hold;
 pub use crate::live::{LiveInput, Source, backtest_curve, live, live_summary};
 pub use crate::research::{Screen, Screened, luck_sharpe, neighbourhood_sharpes, screen};
 pub use crate::study::{abnormal_stats, luck_t};
 
+mod active;
 mod benchmark;
 mod envelope;
 mod live;
@@ -30,6 +32,7 @@ pub struct MetricsInput<'a> {
     pub start_cash: Decimal,
     pub equity: &'a [EquityPoint],
     pub benchmark: &'a [SparkPoint],
+    pub hedge: &'a [SparkPoint],
     pub ledger: &'a [LedgerEntry],
     pub risk_free: &'a [RiskFreeRate],
 }
@@ -55,10 +58,12 @@ pub fn compute(input: &MetricsInput<'_>) -> Metrics {
     let cagr = cagr(input.start_cash, input.equity);
     let max_drawdown = max_drawdown(&values);
     let trips = round_trips(input.ledger);
-    let (alpha, beta) = returns
-        .as_deref()
-        .and_then(|returns| alpha_beta(input, returns))
-        .unzip();
+    let fit = |curve| {
+        returns
+            .as_deref()
+            .and_then(|returns| active(input, returns, curve))
+    };
+    let (main, hedge) = (fit(input.benchmark), fit(input.hedge));
 
     Metrics {
         total_return: final_ratio(input.start_cash, input.equity).map(|ratio| ratio - 1.0),
@@ -75,8 +80,17 @@ pub fn compute(input: &MetricsInput<'_>) -> Metrics {
         profit_factor: profit_factor(&trips),
         exposure: exposure(input.equity),
         turnover: turnover(input.ledger, &closes),
-        alpha,
-        beta,
+        alpha: main.as_ref().map(|fit| fit.alpha),
+        beta: main.as_ref().map(|fit| fit.beta),
+        residual_volatility: main.as_ref().and_then(|fit| fit.residual_volatility),
+        appraisal_ratio: main.as_ref().and_then(|fit| fit.appraisal_ratio),
+        alpha_t: main.as_ref().and_then(|fit| fit.alpha_t),
+        overlay_sharpe: main.as_ref().and_then(|fit| fit.overlay_sharpe),
+        hedge_alpha: hedge.as_ref().map(|fit| fit.alpha),
+        hedge_beta: hedge.as_ref().map(|fit| fit.beta),
+        hedge_residual_volatility: hedge.as_ref().and_then(|fit| fit.residual_volatility),
+        hedge_appraisal_ratio: hedge.as_ref().and_then(|fit| fit.appraisal_ratio),
+        hedge_alpha_t: hedge.as_ref().and_then(|fit| fit.alpha_t),
         trades: u32::try_from(trips.len()).unwrap_or(u32::MAX),
         sessions: u32::try_from(input.equity.len()).unwrap_or(u32::MAX),
     }
@@ -343,12 +357,20 @@ fn beta(returns: &[f64], benchmark: &[f64]) -> Option<f64> {
     Some(sample_covariance(returns, benchmark)? / variance)
 }
 
-fn alpha_beta(input: &MetricsInput<'_>, returns: &[f64]) -> Option<(f64, f64)> {
-    let benchmark = benchmark_returns(input.benchmark, input.equity)?;
-    let returns = returns.get(returns.len().checked_sub(benchmark.len())?..)?;
-    let beta = beta(returns, &benchmark)?;
-    let alpha = (mean(returns) - beta * mean(&benchmark)) * TRADING_DAYS;
-    Some((alpha, beta))
+fn active(input: &MetricsInput<'_>, returns: &[f64], curve: &[SparkPoint]) -> Option<Active> {
+    let benchmark = benchmark_returns(curve, input.equity)?;
+    let skipped = returns.len().checked_sub(benchmark.len())?;
+    let (own, theirs): (Vec<f64>, Vec<f64>) = input.equity[skipped..]
+        .iter()
+        .zip(&returns[skipped..])
+        .zip(&benchmark)
+        .map(|((point, own), theirs)| {
+            daily_risk_free(input.risk_free, point).map(|rate| (own - rate, theirs - rate))
+        })
+        .collect::<Option<Vec<_>>>()?
+        .into_iter()
+        .unzip();
+    Active::regress(&own, &theirs)
 }
 
 fn benchmark_returns(benchmark: &[SparkPoint], equity: &[EquityPoint]) -> Option<Vec<f64>> {
@@ -417,6 +439,7 @@ mod tests {
             start_cash,
             equity: &equity,
             benchmark: &benchmark,
+            hedge: &[],
             ledger: &ledger,
             risk_free: &risk_free,
         });
@@ -451,6 +474,99 @@ mod tests {
     }
 
     #[test]
+    fn the_residual_regression_matches_four_hand_computed_sessions() {
+        let first = NaiveDate::from_ymd_opt(2025, 3, 3).unwrap();
+        let close = |day: u64| {
+            Timestamp::at_exchange_time(
+                first + chrono::Days::new(day),
+                chrono::NaiveTime::from_hms_opt(16, 0, 0).unwrap(),
+            )
+            .unwrap()
+        };
+        let curve = |values: &[&str]| -> Vec<SparkPoint> {
+            values
+                .iter()
+                .zip(0..)
+                .map(|(value, day)| SparkPoint {
+                    at: close(day),
+                    equity: value.parse().unwrap(),
+                })
+                .collect()
+        };
+        let benchmark = curve(&["1000", "1030", "1019.7", "1050.291", "1039.78809"]);
+        let equity: Vec<EquityPoint> =
+            curve(&["1048", "1035.424", "1083.053504", "1067.890754944"])
+                .into_iter()
+                .zip(1..)
+                .map(|(point, day)| EquityPoint {
+                    at: close(day),
+                    equity: point.equity,
+                    cash: point.equity,
+                    gross_exposure: Decimal::ZERO,
+                })
+                .collect();
+        let risk_free = [RiskFreeRate {
+            date: first,
+            percent: Decimal::ZERO,
+        }];
+
+        let metrics = compute(&MetricsInput {
+            start_cash: Decimal::from(1000),
+            equity: &equity,
+            benchmark: &benchmark,
+            hedge: &benchmark,
+            ledger: &[],
+            risk_free: &risk_free,
+        });
+
+        let close = |name: &str, actual: Option<f64>, expected: f64| {
+            let actual = actual.unwrap();
+            assert!(
+                (actual - expected).abs() < 1e-9,
+                "{name}: {actual} vs {expected}"
+            );
+        };
+        let residual = 0.001 * 2.0_f64.sqrt();
+        let benchmark_sharpe = 0.01 / (0.02 * (4.0_f64 / 3.0).sqrt()) * TRADING_DAYS.sqrt();
+        close("alpha", metrics.alpha, 0.002 * 252.0);
+        close("beta", metrics.beta, 1.5);
+        close(
+            "residual_volatility",
+            metrics.residual_volatility,
+            residual * TRADING_DAYS.sqrt(),
+        );
+        close(
+            "appraisal_ratio",
+            metrics.appraisal_ratio,
+            0.002 / residual * TRADING_DAYS.sqrt(),
+        );
+        close(
+            "alpha_t",
+            metrics.alpha_t,
+            0.002 / (0.001 * (23.0_f64 / 32.0).sqrt()),
+        );
+        close(
+            "overlay_sharpe",
+            metrics.overlay_sharpe,
+            (benchmark_sharpe.powi(2) + 504.0).sqrt(),
+        );
+        assert_eq!(
+            (
+                metrics.hedge_alpha,
+                metrics.hedge_beta,
+                metrics.hedge_appraisal_ratio,
+                metrics.hedge_alpha_t
+            ),
+            (
+                metrics.alpha,
+                metrics.beta,
+                metrics.appraisal_ratio,
+                metrics.alpha_t
+            )
+        );
+    }
+
+    #[test]
     fn a_run_left_in_cash_has_no_sharpe_sortino_or_calmar() {
         let first = NaiveDate::from_ymd_opt(2024, 1, 2).unwrap();
         let days: Vec<NaiveDate> = first.iter_days().take(300).collect();
@@ -476,6 +592,7 @@ mod tests {
             start_cash: Decimal::from(100_000),
             equity: &equity,
             benchmark: &[],
+            hedge: &[],
             ledger: &[],
             risk_free: &risk_free,
         });
@@ -492,6 +609,7 @@ mod tests {
             start_cash: Decimal::from(1000),
             equity: &[],
             benchmark: &[],
+            hedge: &[],
             ledger: &[],
             risk_free: &[],
         });

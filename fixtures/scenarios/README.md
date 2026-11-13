@@ -46,8 +46,8 @@ Equity points `E_1..E_n` are the session closes (n = 10) and `E_0` is the start 
 | profit_factor | Σ wins / Σ |losses| = 697.73 / 131.99 | 5.286233… |
 | exposure | mean of `gross_exposure / equity` over equity points | 0.248096… |
 | turnover | Σ |round2(qty × price)| / mean equity = 174,828.83 / 99,889.766 | 1.750217… |
-| beta | `cov(r_2..r_n, b) / var(b)`, ddof=1 | −0.617072… |
-| alpha | `(mean(r_2..r_n) − beta × mean(b)) × 252` | 0.638220… |
+| beta | `cov(r_2..r_n − rf, b − rf) / var(b − rf)`, ddof=1 (a constant rf leaves it equal to `cov(r, b) / var(b)`) | −0.617072… |
+| alpha | `(mean(r_2..r_n − rf) − beta × mean(b − rf)) × 252` = `(mean(r_2..r_n) − beta × mean(b)) × 252 − (1 − beta) × 0.045` | 0.565452… |
 
 ## Event study
 

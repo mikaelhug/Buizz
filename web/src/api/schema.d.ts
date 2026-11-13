@@ -591,6 +591,7 @@ export interface components {
             universe: components["schemas"]["UniverseSpec"];
             params?: Record<string, never>;
             benchmark?: components["schemas"]["Symbol"];
+            hedge_benchmark?: components["schemas"]["Symbol"] | null;
             risk?: components["schemas"]["RiskLimits"];
             /** Format: int32 */
             step_timeout?: number;
@@ -998,6 +999,24 @@ export interface components {
             alpha?: number | null;
             /** Format: double */
             beta?: number | null;
+            /** Format: double */
+            residual_volatility?: number | null;
+            /** Format: double */
+            appraisal_ratio?: number | null;
+            /** Format: double */
+            alpha_t?: number | null;
+            /** Format: double */
+            overlay_sharpe?: number | null;
+            /** Format: double */
+            hedge_alpha?: number | null;
+            /** Format: double */
+            hedge_beta?: number | null;
+            /** Format: double */
+            hedge_residual_volatility?: number | null;
+            /** Format: double */
+            hedge_appraisal_ratio?: number | null;
+            /** Format: double */
+            hedge_alpha_t?: number | null;
             /** Format: int32 */
             trades: number;
             /** Format: int32 */
@@ -1194,6 +1213,7 @@ export interface components {
             /** Format: int64 */
             seed: number;
             benchmark: components["schemas"]["Symbol"];
+            hedge_benchmark?: components["schemas"]["Symbol"] | null;
             holdout: boolean;
         };
         RunEvent: {
