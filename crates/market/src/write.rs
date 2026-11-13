@@ -5,7 +5,7 @@ use buizz_core::market::{
     Bar, BorrowAvailability, Company, CorporateAction, CorporateActionKind, DataSource, Dataset,
     EarningsInsight, EarningsRelease, EstimateFact, FomcMeeting, FundamentalFact, IndexHistory,
     InsiderFiling, Instrument, MacroObservation, NewsArticle, RiskFreeRate, SecFiling, Session,
-    Symbol, split_rates,
+    ShortInterestRecord, ShortVolumeRecord, Symbol, split_rates,
 };
 use buizz_core::ops::ActionDisagreement;
 use buizz_core::time::Timestamp;
@@ -1205,6 +1205,72 @@ pub(crate) fn borrow_availability(
             }
             appender.flush()?;
             Ok(unique.len() as u64)
+        },
+    )
+}
+
+pub(crate) fn short_interest(
+    connection: &mut Connection,
+    source: DataSource,
+    settlement: NaiveDate,
+    records: Vec<ShortInterestRecord>,
+) -> Result<WriteSummary> {
+    let mut coverage = Coverage::new();
+    cover(&mut coverage, None, settlement);
+    write_batch(
+        connection,
+        source,
+        Dataset::ShortInterest,
+        coverage,
+        |transaction, batch_id| {
+            let mut appender = transaction.appender("short_interest")?;
+            for record in &records {
+                appender.append_row(params![
+                    record.symbol.as_str(),
+                    record.settlement,
+                    record.shares,
+                    record.previous_shares,
+                    record.average_daily_volume,
+                    Dec(record.days_to_cover),
+                    record.split,
+                    record.revised,
+                    record.published,
+                    batch_id,
+                ])?;
+            }
+            appender.flush()?;
+            Ok(records.len() as u64)
+        },
+    )
+}
+
+pub(crate) fn short_volume(
+    connection: &mut Connection,
+    source: DataSource,
+    date: NaiveDate,
+    records: Vec<ShortVolumeRecord>,
+) -> Result<WriteSummary> {
+    let mut coverage = Coverage::new();
+    cover(&mut coverage, None, date);
+    write_batch(
+        connection,
+        source,
+        Dataset::ShortVolume,
+        coverage,
+        |transaction, batch_id| {
+            let mut appender = transaction.appender("short_volume")?;
+            for record in &records {
+                appender.append_row(params![
+                    record.symbol.as_str(),
+                    record.date,
+                    Dec(record.short_volume),
+                    Dec(record.short_exempt_volume),
+                    Dec(record.total_volume),
+                    batch_id,
+                ])?;
+            }
+            appender.flush()?;
+            Ok(records.len() as u64)
         },
     )
 }

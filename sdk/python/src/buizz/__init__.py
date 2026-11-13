@@ -1,6 +1,7 @@
 from buizz.bot import Bot
 from buizz.context import (
     Bar,
+    Borrow,
     Context,
     EarningsRelease,
     FomcAnnouncement,
@@ -11,6 +12,8 @@ from buizz.context import (
     NewsArticle,
     Portfolio,
     Session,
+    ShortInterest,
+    ShortVolume,
     split_ratio,
     to_ns,
 )
@@ -41,6 +44,7 @@ from buizz.wire import (
 
 __all__ = [
     "Bar",
+    "Borrow",
     "Bot",
     "BuizzError",
     "Context",
@@ -69,6 +73,8 @@ __all__ = [
     "Position",
     "ProtocolError",
     "Session",
+    "ShortInterest",
+    "ShortVolume",
     "SpineError",
     "StateTooLarge",
     "Stop",

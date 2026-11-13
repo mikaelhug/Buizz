@@ -1853,7 +1853,8 @@
           "nasdaq",
           "cboe",
           "federal_reserve",
-          "factset"
+          "factset",
+          "finra"
         ]
       },
       "DataWarning": {
@@ -1975,7 +1976,9 @@
           "insider_trades",
           "news",
           "fomc",
-          "estimates"
+          "estimates",
+          "short_interest",
+          "short_volume"
         ]
       },
       "DesiredState": {

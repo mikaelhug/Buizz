@@ -20,4 +20,6 @@ universe_top = 3
 macro = ["treasury_3m", "cpiaucns", "gs10", "vix", "icsa"]
 macro_from = "2024-10-01"
 macro_to = "2024-12-31"
+short = ["AAA", "BBB"]
+short_since = "2024-10-01"
 order_at = ["2024-11-20T21:00:00Z", "2024-11-27T21:00:00Z"]

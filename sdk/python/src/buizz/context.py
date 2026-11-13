@@ -18,6 +18,8 @@ from buizz.wire import (
     AssetClass,
     Auction,
     BarBuffer,
+    BorrowRequest,
+    BorrowResult,
     CalendarRequest,
     CalendarResult,
     EarningsRequest,
@@ -55,6 +57,10 @@ from buizz.wire import (
     Request,
     Result,
     SessionFrame,
+    ShortInterestRequest,
+    ShortInterestResult,
+    ShortVolumeRequest,
+    ShortVolumeResult,
     Step,
     StockIndex,
     Stop,
@@ -312,6 +318,38 @@ class NewsArticle(msgspec.Struct, frozen=True):
     backfilled: bool
 
 
+class ShortInterest(msgspec.Struct, frozen=True):
+    symbol: str
+    settlement: date
+    shares: int
+    previous_shares: int
+    average_daily_volume: int
+    days_to_cover: Decimal
+    split: bool
+    revised: bool
+    published: date
+    available_at: datetime
+
+
+class ShortVolume(msgspec.Struct, frozen=True):
+    symbol: str
+    date: date
+    short_volume: Decimal
+    short_exempt_volume: Decimal
+    total_volume: Decimal
+    available_at: datetime
+
+
+class Borrow(msgspec.Struct, frozen=True):
+    symbol: str
+    at: datetime
+    rebate_rate: Decimal | None
+    fee_rate: Decimal | None
+    available: int
+    available_or_more: bool
+    available_at: datetime
+
+
 class MacroPoint(msgspec.Struct, frozen=True):
     series: MacroSeries
     date: date
@@ -537,6 +575,62 @@ class Context:
                 a.backfilled,
             )
             for a in result.articles
+        ]
+
+    def short_interest(self, symbols: list[str], since: date) -> list[ShortInterest]:
+        self._current("ctx.short_interest")
+        result = self._query(ShortInterestRequest(texts("symbols", symbols), day("since", since)))
+        if not isinstance(result, ShortInterestResult):
+            raise ProtocolError(f"short interest query answered with {type(result).__name__}")
+        return [
+            ShortInterest(
+                p.symbol,
+                p.settlement,
+                p.shares,
+                p.previous_shares,
+                p.average_daily_volume,
+                p.days_to_cover,
+                p.split,
+                p.revised,
+                p.published,
+                from_ns(p.available_at),
+            )
+            for p in result.positions
+        ]
+
+    def short_volume(self, symbols: list[str], since: date) -> list[ShortVolume]:
+        self._current("ctx.short_volume")
+        result = self._query(ShortVolumeRequest(texts("symbols", symbols), day("since", since)))
+        if not isinstance(result, ShortVolumeResult):
+            raise ProtocolError(f"short volume query answered with {type(result).__name__}")
+        return [
+            ShortVolume(
+                v.symbol,
+                v.date,
+                v.short_volume,
+                v.short_exempt_volume,
+                v.total_volume,
+                from_ns(v.available_at),
+            )
+            for v in result.volumes
+        ]
+
+    def borrow(self, symbols: list[str], since: date) -> list[Borrow]:
+        self._current("ctx.borrow")
+        result = self._query(BorrowRequest(texts("symbols", symbols), day("since", since)))
+        if not isinstance(result, BorrowResult):
+            raise ProtocolError(f"borrow query answered with {type(result).__name__}")
+        return [
+            Borrow(
+                b.symbol,
+                from_ns(b.at),
+                b.rebate_rate,
+                b.fee_rate,
+                b.available,
+                b.available_or_more,
+                from_ns(b.available_at),
+            )
+            for b in result.snapshots
         ]
 
     def calendar(self, start: date, end: date) -> list[Session]:

@@ -5,11 +5,12 @@ use std::sync::{Arc, PoisonError, RwLock};
 
 use buizz_core::listing::Listings;
 use buizz_core::market::{
-    Adjustment, AdjustmentFactor, Bar, BorrowAvailability, Calendar, Company, CorporateAction,
-    Coverage, DataSource, EarningsInsight, EarningsRelease, EstimateFact, FomcAnnouncement,
-    FomcMeeting, FundamentalFact, FundamentalMetric, FundamentalPoint, IndexHistory, InsiderFiling,
-    InsiderTrade, Instrument, InstrumentProfile, MacroObservation, MacroPoint, MacroSeries,
-    NewsArticle, RiskFreeRate, SecFiling, Session, StockIndex, Symbol, Timeframe, Watermarks,
+    Adjustment, AdjustmentFactor, Bar, Borrow, BorrowAvailability, Calendar, Company,
+    CorporateAction, Coverage, DataSource, EarningsInsight, EarningsRelease, EstimateFact,
+    FomcAnnouncement, FomcMeeting, FundamentalFact, FundamentalMetric, FundamentalPoint,
+    IndexHistory, InsiderFiling, InsiderTrade, Instrument, InstrumentProfile, MacroObservation,
+    MacroPoint, MacroSeries, NewsArticle, RiskFreeRate, SecFiling, Session, ShortInterest,
+    ShortInterestRecord, ShortVolume, ShortVolumeRecord, StockIndex, Symbol, Timeframe, Watermarks,
 };
 use buizz_core::ops::{ActionDisagreement, CoverageGap, DataWarning};
 use buizz_core::protocol::BarRow;
@@ -37,9 +38,10 @@ pub use restore::Restored;
 
 pub(crate) const SCHEMA: &str = include_str!("../schema.sql");
 pub const FILE_NAME: &str = "market.duckdb";
-const APPENDED: [(&str, &str); 17] = [
+const APPENDED: [(&str, &str); 18] = [
     ("ingest_batch", "id"),
     ("borrow_availability", "batch_id"),
+    ("short_interest", "batch_id"),
     ("news_article", "batch_id"),
     ("instrument_revision", "superseded_by"),
     ("calendar_revision", "superseded_by"),
@@ -667,6 +669,28 @@ impl MarketStore {
             .await
     }
 
+    pub async fn append_short_interest(
+        &self,
+        source: DataSource,
+        settlement: NaiveDate,
+        records: Vec<ShortInterestRecord>,
+    ) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| write::short_interest(connection, source, settlement, records))
+            .await
+    }
+
+    pub async fn append_short_volume(
+        &self,
+        source: DataSource,
+        date: NaiveDate,
+        records: Vec<ShortVolumeRecord>,
+    ) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| write::short_volume(connection, source, date, records))
+            .await
+    }
+
     pub async fn append_news(
         &self,
         source: DataSource,
@@ -1053,6 +1077,69 @@ impl MarketStore {
     ) -> Result<Vec<NewsArticle>> {
         self.readers
             .run(move |connection| read::news(connection, &symbols, since, as_of))
+            .await
+    }
+
+    pub async fn short_interest(
+        &self,
+        symbols: Vec<Symbol>,
+        since: NaiveDate,
+        as_of: Timestamp,
+    ) -> Result<Vec<ShortInterest>> {
+        let (calendar, listings) = (self.shared.calendar(), self.shared.listings());
+        self.readers
+            .run(move |connection| {
+                let on = read::listed_on(&calendar, as_of);
+                let spans = read::spans(&listings, &symbols, on, since, as_of.exchange_date());
+                read::short_interest(connection, &calendar, &spans, since, as_of)
+            })
+            .await
+    }
+
+    pub async fn short_interest_records(
+        &self,
+        settlement: NaiveDate,
+    ) -> Result<Vec<ShortInterestRecord>> {
+        self.readers
+            .run(move |connection| read::short_interest_records(connection, settlement))
+            .await
+    }
+
+    pub async fn short_interest_settlements(&self) -> Result<BTreeSet<NaiveDate>> {
+        self.readers
+            .run(|connection| read::short_interest_settlements(connection))
+            .await
+    }
+
+    pub async fn short_volume(
+        &self,
+        symbols: Vec<Symbol>,
+        since: NaiveDate,
+        as_of: Timestamp,
+    ) -> Result<Vec<ShortVolume>> {
+        let (calendar, listings) = (self.shared.calendar(), self.shared.listings());
+        self.readers
+            .run(move |connection| {
+                let on = read::listed_on(&calendar, as_of);
+                let spans = read::spans(&listings, &symbols, on, since, as_of.exchange_date());
+                read::short_volume(connection, &calendar, &spans, since, as_of)
+            })
+            .await
+    }
+
+    pub async fn borrow(
+        &self,
+        symbols: Vec<Symbol>,
+        since: NaiveDate,
+        as_of: Timestamp,
+    ) -> Result<Vec<Borrow>> {
+        let (calendar, listings) = (self.shared.calendar(), self.shared.listings());
+        self.readers
+            .run(move |connection| {
+                let on = read::listed_on(&calendar, as_of);
+                let spans = read::spans(&listings, &symbols, on, since, as_of.exchange_date());
+                read::borrow(connection, &spans, since, as_of)
+            })
             .await
     }
 

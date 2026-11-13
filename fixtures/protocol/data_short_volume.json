@@ -1,0 +1,17 @@
+{
+  "id": 11,
+  "result": {
+    "kind": "short_volume",
+    "volumes": [
+      {
+        "available_at": 1732199400000000000,
+        "date": "2024-11-20",
+        "short_exempt_volume": "1200",
+        "short_volume": "812345.5",
+        "symbol": "AAA",
+        "total_volume": "1650000"
+      }
+    ]
+  },
+  "type": "data"
+}

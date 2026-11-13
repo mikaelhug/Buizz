@@ -664,7 +664,7 @@ export interface components {
             ingest_enabled: boolean;
         };
         /** @enum {string} */
-        DataSource: "alpaca" | "alpaca_stream" | "tiingo" | "edgar" | "treasury" | "fred" | "fixture" | "wikipedia" | "interactive_brokers" | "nasdaq" | "cboe" | "federal_reserve" | "factset";
+        DataSource: "alpaca" | "alpaca_stream" | "tiingo" | "edgar" | "treasury" | "fred" | "fixture" | "wikipedia" | "interactive_brokers" | "nasdaq" | "cboe" | "federal_reserve" | "factset" | "finra";
         DataWarning: (components["schemas"]["CoverageGap"] & {
             /** @enum {string} */
             type: "coverage_gap";
@@ -687,7 +687,7 @@ export interface components {
             type: "action_disagreement";
         });
         /** @enum {string} */
-        Dataset: "instruments" | "calendar" | "bars1d" | "bars1m" | "corporate_actions" | "fundamentals" | "rates" | "companies" | "earnings_releases" | "sec_filings" | "index_membership" | "borrow" | "macro" | "insider_trades" | "news" | "fomc" | "estimates";
+        Dataset: "instruments" | "calendar" | "bars1d" | "bars1m" | "corporate_actions" | "fundamentals" | "rates" | "companies" | "earnings_releases" | "sec_filings" | "index_membership" | "borrow" | "macro" | "insider_trades" | "news" | "fomc" | "estimates" | "short_interest" | "short_volume";
         /** @enum {string} */
         DesiredState: "running" | "paused" | "stopped";
         Envelope: {

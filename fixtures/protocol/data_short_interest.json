@@ -1,0 +1,21 @@
+{
+  "id": 10,
+  "result": {
+    "kind": "short_interest",
+    "positions": [
+      {
+        "available_at": 1732717800000000000,
+        "average_daily_volume": 2350000,
+        "days_to_cover": "1.79",
+        "previous_shares": 3980500,
+        "published": "2024-11-26",
+        "revised": false,
+        "settlement": "2024-11-15",
+        "shares": 4210000,
+        "split": false,
+        "symbol": "AAA"
+      }
+    ]
+  },
+  "type": "data"
+}

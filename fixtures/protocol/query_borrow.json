@@ -1,0 +1,11 @@
+{
+  "id": 12,
+  "request": {
+    "kind": "borrow",
+    "since": "2024-11-20",
+    "symbols": [
+      "AAA"
+    ]
+  },
+  "type": "query"
+}

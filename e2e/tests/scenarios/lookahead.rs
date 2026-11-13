@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use buizz_core::api::{OrderView, RunSummary};
 use buizz_core::market::Session;
@@ -247,6 +247,61 @@ async fn a_probe_asking_for_everything_never_sees_past_the_clock() {
             );
         }
         assert_eq!(json!(latest), case["latest"], "{case}");
+    }
+    for step in probe {
+        for row in step.report["short_interest"]
+            .as_array()
+            .expect("short interest")
+            .iter()
+            .chain(
+                step.report["short_volume"]
+                    .as_array()
+                    .expect("short volume"),
+            )
+        {
+            let available = stamp(
+                row.as_array()
+                    .expect("a row")
+                    .last()
+                    .and_then(Value::as_str)
+                    .expect("available at"),
+            );
+            assert!(
+                available <= step.clock,
+                "short selling row {row} seen at {}",
+                step.clock
+            );
+        }
+    }
+    for case in daily["short_interest"]
+        .as_array()
+        .expect("short interest cases")
+    {
+        let step = at(probe, &case["clock"]);
+        let mut settlements: BTreeMap<&str, Vec<Value>> = BTreeMap::new();
+        for row in step.report["short_interest"]
+            .as_array()
+            .expect("short interest")
+        {
+            settlements
+                .entry(row[0].as_str().expect("symbol"))
+                .or_default()
+                .push(row[1].clone());
+        }
+        assert_eq!(json!(settlements), case["settlements"], "{case}");
+    }
+    for case in daily["short_volume"]
+        .as_array()
+        .expect("short volume cases")
+    {
+        let step = at(probe, &case["clock"]);
+        let dates: BTreeSet<&str> = step.report["short_volume"]
+            .as_array()
+            .expect("short volume")
+            .iter()
+            .map(|row| row[1].as_str().expect("trade date"))
+            .collect();
+        assert_eq!(json!(dates), case["dates"], "{case}");
     }
     let unpublished: Vec<String> = spine
         .events(runs["probe"].id)

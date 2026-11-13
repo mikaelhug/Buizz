@@ -55,6 +55,9 @@ class RedGreen(Bot):
         observed["insider_trades"] = ctx.insider_trades(["BBB"], date(2024, 10, 1))
         observed["news"] = ctx.news(["BBB"], date(2024, 11, 20))
         observed["fomc"] = ctx.fomc(date(2024, 11, 21), date(2024, 12, 31))
+        observed["short_interest"] = ctx.short_interest(["AAA"], date(2024, 11, 1))
+        observed["short_volume"] = ctx.short_volume(["AAA"], date(2024, 11, 20))
+        observed["borrow"] = ctx.borrow(["AAA"], date(2024, 11, 20))
         ctx.order_target_weight("AAA", ctx.params["weight"], reason="red day")
         ctx.order("BBB", -100, reason="take profit", limit_price=Decimal("49.60"), client_id="BBB-limit-1")
         ctx.cancel("BBB-limit-0")
@@ -103,6 +106,12 @@ def play_spine(connection: ServerConnection, received: list[bytes]) -> None:
     connection.send(golden("data_news"))
     expect()
     connection.send(golden("data_fomc"))
+    expect()
+    connection.send(golden("data_short_interest"))
+    expect()
+    connection.send(golden("data_short_volume"))
+    expect()
+    connection.send(golden("data_borrow"))
     expect()
     connection.send(golden("step_live"))
     expect()
@@ -156,6 +165,9 @@ def test_bot_replies_match_the_golden_frames(monkeypatch: pytest.MonkeyPatch) ->
         query_insider_trades,
         query_news,
         query_fomc,
+        query_short_interest,
+        query_short_volume,
+        query_borrow,
         ack_first,
         ack_second,
     ) = received
@@ -172,6 +184,9 @@ def test_bot_replies_match_the_golden_frames(monkeypatch: pytest.MonkeyPatch) ->
     assert query_insider_trades == golden("query_insider_trades")
     assert query_news == golden("query_news")
     assert query_fomc == golden("query_fomc")
+    assert query_short_interest == golden("query_short_interest")
+    assert query_short_volume == golden("query_short_volume")
+    assert query_borrow == golden("query_borrow")
     assert ack_first == golden("ack_backtest")
     assert ack_second == golden("ack_live")
 
@@ -198,6 +213,17 @@ def test_bot_replies_match_the_golden_frames(monkeypatch: pytest.MonkeyPatch) ->
     assert [(a.date, a.scheduled, a.statement_at and a.statement_at.hour) for a in observed["fomc"]] == [
         (date(2024, 12, 18), True, 19),
     ]
+    [position] = observed["short_interest"]
+    assert (position.shares, position.days_to_cover, position.published) == (
+        4210000,
+        Decimal("1.79"),
+        date(2024, 11, 26),
+    )
+    assert position.available_at.day == 27
+    [volume] = observed["short_volume"]
+    assert (volume.short_volume, volume.total_volume) == (Decimal("812345.5"), Decimal(1650000))
+    [snapshot] = observed["borrow"]
+    assert (snapshot.fee_rate, snapshot.available_or_more, snapshot.available_at.minute) == (Decimal("0.25"), True, 2)
     assert len(observed["live_bars"]) == 2
     assert observed["live_events"][0].symbol == "AAA"
 

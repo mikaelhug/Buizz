@@ -95,6 +95,7 @@ pub struct World {
     pub tiingo: Vec<Bar>,
     pub wikipedia: BTreeMap<String, String>,
     pub borrow: Option<Vec<u8>>,
+    pub finra: BTreeMap<String, String>,
     pub earnings_insight: Option<(String, Vec<u8>)>,
     pub released: Option<Timestamp>,
     pub streamed_from: Option<Timestamp>,
@@ -151,6 +152,15 @@ impl World {
                 .expect("corporate actions"),
             rates: store.risk_free_rates(from, to).await.expect("rates"),
             macro_vintages: macro_vintages(&store).await,
+            finra: std::fs::read_dir(repository().join("fixtures/finra"))
+                .expect("the fake FINRA files")
+                .map(|entry| {
+                    let path = entry.expect("a fake FINRA file").path();
+                    let name = path.file_name().expect("a file name");
+                    let body = std::fs::read_to_string(&path).expect("a readable FINRA file");
+                    (name.to_string_lossy().into_owned(), body)
+                })
+                .collect(),
             companies: companies(&facts),
             instruments,
             ..Self::default()

@@ -606,6 +606,63 @@ pub struct BorrowAvailability {
     pub available_or_more: bool,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Borrow {
+    pub symbol: Symbol,
+    pub at: Timestamp,
+    pub rebate_rate: Option<Decimal>,
+    pub fee_rate: Option<Decimal>,
+    pub available: u64,
+    pub available_or_more: bool,
+    pub available_at: Timestamp,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ShortInterestRecord {
+    pub symbol: Symbol,
+    pub settlement: NaiveDate,
+    pub shares: u64,
+    pub previous_shares: u64,
+    pub average_daily_volume: u64,
+    pub days_to_cover: Decimal,
+    pub split: bool,
+    pub revised: bool,
+    pub published: NaiveDate,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ShortInterest {
+    pub symbol: Symbol,
+    pub settlement: NaiveDate,
+    pub shares: u64,
+    pub previous_shares: u64,
+    pub average_daily_volume: u64,
+    pub days_to_cover: Decimal,
+    pub split: bool,
+    pub revised: bool,
+    pub published: NaiveDate,
+    pub available_at: Timestamp,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ShortVolumeRecord {
+    pub symbol: Symbol,
+    pub date: NaiveDate,
+    pub short_volume: Decimal,
+    pub short_exempt_volume: Decimal,
+    pub total_volume: Decimal,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ShortVolume {
+    pub symbol: Symbol,
+    pub date: NaiveDate,
+    pub short_volume: Decimal,
+    pub short_exempt_volume: Decimal,
+    pub total_volume: Decimal,
+    pub available_at: Timestamp,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct RiskFreeRate {
     pub date: NaiveDate,
@@ -966,6 +1023,7 @@ pub enum DataSource {
     Cboe,
     FederalReserve,
     Factset,
+    Finra,
 }
 
 #[derive(
@@ -990,6 +1048,8 @@ pub enum Dataset {
     News,
     Fomc,
     Estimates,
+    ShortInterest,
+    ShortVolume,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]

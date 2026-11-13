@@ -9,9 +9,9 @@ use serde_json::{Map, Value};
 
 use crate::ledger::Portfolio;
 use crate::market::{
-    Adjustment, CorporateAction, EarningsRelease, FomcAnnouncement, FundamentalMetric,
+    Adjustment, Borrow, CorporateAction, EarningsRelease, FomcAnnouncement, FundamentalMetric,
     FundamentalPoint, InsiderTrade, InstrumentProfile, MacroPoint, MacroSeries, NewsArticle,
-    Session, Symbol, Timeframe,
+    Session, ShortInterest, ShortVolume, Symbol, Timeframe,
 };
 use crate::order::{Fill, Order, OrderId, OrderRequest, OrderType, OrderUpdate, Side};
 use crate::run::{LogLevel, Mode, RunId, UniverseSpec, Wake};
@@ -137,6 +137,18 @@ pub enum QueryRequest {
         from: NaiveDate,
         to: NaiveDate,
     },
+    ShortInterest {
+        symbols: Vec<Symbol>,
+        since: NaiveDate,
+    },
+    ShortVolume {
+        symbols: Vec<Symbol>,
+        since: NaiveDate,
+    },
+    Borrow {
+        symbols: Vec<Symbol>,
+        since: NaiveDate,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -179,6 +191,15 @@ pub enum DataResult {
     },
     Fomc {
         announcements: Vec<FomcAnnouncement>,
+    },
+    ShortInterest {
+        positions: Vec<ShortInterest>,
+    },
+    ShortVolume {
+        volumes: Vec<ShortVolume>,
+    },
+    Borrow {
+        snapshots: Vec<Borrow>,
     },
 }
 

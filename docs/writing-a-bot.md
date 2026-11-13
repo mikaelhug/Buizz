@@ -118,6 +118,9 @@ Outside `on_step` only `params`, `universe`, `state`, `portfolio` and `position`
 | `ctx.earnings(symbols)` | `list[EarningsRelease]` (`symbol`, `cik`, `accession`, `form`, `filed`, `report_date`, `accepted_at`): every earnings release accepted by EDGAR at or before the clock |
 | `ctx.insider_trades(symbols, since)` | `list[InsiderTrade]`: every insider transaction from a Form 4 or 4/A filed on or after `since` and visible at the clock, see below |
 | `ctx.news(symbols, since)` | Experimental. `list[NewsArticle]`: every recorded version of the news articles about any of `symbols` created on or after `since` and known at the clock, see below |
+| `ctx.short_interest(symbols, since)` | `list[ShortInterest]`: FINRA's twice-monthly short interest for settlement dates on or after `since`, as published by the clock, see below |
+| `ctx.short_volume(symbols, since)` | `list[ShortVolume]`: FINRA's daily off-exchange short sale volume for trade dates on or after `since`, see below |
+| `ctx.borrow(symbols, since)` | `list[Borrow]`: Interactive Brokers' short availability and borrow fee as the spine recorded it on or after `since`, see below |
 | `ctx.universe_at(on, top_dollar_volume, *, asset_class=None, index=None)` | The symbols a `top_dollar_volume` universe of that size (optionally of one `asset_class`), or the `index` universe, held on the date `on`, see below |
 | `ctx.macro(series, start, end)` | The rate, macro and S&P 500 valuation observations dated `start` to `end` as known at the clock (`MacroPoint`: `series`, `date`, `value`, `published`, `available_at`), see below |
 | `ctx.fomc(start, end)` | The FOMC announcements dated `start` to `end` known at the clock (`FomcAnnouncement`: `date`, `scheduled`, `statement_at`, `available_at`), see below |
@@ -213,6 +216,22 @@ from datetime import timedelta
 today = ctx.session.date
 tomorrow = ctx.calendar(today, today + timedelta(days=10))[1].date
 statement_tomorrow = any(meeting.scheduled for meeting in ctx.fomc(tomorrow, tomorrow))
+```
+
+**Short selling.** Three queries describe how heavily a stock is shorted and how hard it is to borrow, for signals such as keeping a long book out of crowded, expensive-to-borrow names. None of them affects the run's own costs (`borrow_rate` below stays one rate for every name). Rows come per symbol in date order. Each row carries the ticker as of its own date, and the spine follows a renamed company through its earlier tickers, as for prices: asking for META in 2023 returns Facebook's rows filed as FB, never those of the fund that traded as META before.
+
+`ctx.short_interest(symbols, since)` gives FINRA's consolidated short interest, the shares firms reported short at the close of each settlement date (the last session on or before the 15th and the last session of each month), for exchange-listed and OTC stocks since 2017-12-29. A `ShortInterest` carries `symbol`, `settlement`, `shares`, `previous_shares` (the prior settlement's position as FINRA states it now; `revised` is `True` when that prior figure was revised), `average_daily_volume`, `days_to_cover` (FINRA's shares over average daily volume, `Decimal`), `split` (a split in the cycle), `published` and `available_at`. FINRA publishes each settlement about seven sessions later; `published` is the publication date on FINRA's reporting schedule, and for settlements the schedule the spine read no longer lists (everything before late 2025 in a store filled now) the 8th session after settlement, one session later than every schedule FINRA published from 2018 to 2026. A row is visible from the open of the session after `published`, so the 2024-11-15 settlement, published 2024-11-26, is first seen at the 2024-11-27 open. A settlement FINRA later changes becomes a new row published on the day the spine saw the change; a backtest gets the latest version published before the clock. History before the spine recorded it is as FINRA serves it today.
+
+`ctx.short_volume(symbols, since)` gives FINRA's daily short sale volume (Reg SHO), the consolidated file of every trade reported to a FINRA trade reporting facility: off-exchange volume only (dark pools, wholesalers, internalized retail flow), not the short selling on the exchanges themselves, so `short_volume / total_volume` is the short share of off-exchange trading, not of the whole tape. A `ShortVolume` carries `symbol`, `date` (the trade date), `short_volume`, `short_exempt_volume`, `total_volume` (`Decimal`, fractional shares included since FINRA reports them) and `available_at`, the open of the next session (FINRA posts the file by 18:00 ET on the trade date). History starts on 2018-08-01, the first consolidated file; FINRA's per-facility files before it are not summed into one, so earlier dates have no rows.
+
+`ctx.borrow(symbols, since)` gives the snapshots of Interactive Brokers' short stock file the spine recorded once a day: a `Borrow` has `symbol`, `at` (the time IBKR stamped the file), `fee_rate` and `rebate_rate` (percent a year, `None` where IBKR gives none), `available` and `available_or_more` (`True` when IBKR lists the count as a floor, such as `>10000000`), and `available_at`, when the spine stored the snapshot. A snapshot is visible from that moment and never before, so history only reaches back to when the deployed spine started recording (late 2026) and a backtest before that sees nothing. A crowded-short screen:
+
+```python
+from datetime import timedelta
+
+since = ctx.session.date - timedelta(days=45)
+latest = {position.symbol: position for position in ctx.short_interest(ctx.universe, since)}
+crowded = {symbol for symbol, position in latest.items() if position.days_to_cover > 8}
 ```
 
 `to_ns(moment)` turns a timezone-aware `datetime` into the nanoseconds of `History.start`, for example `history.start >= to_ns(ctx.session.open)`.

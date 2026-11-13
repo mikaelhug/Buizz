@@ -4,6 +4,7 @@ pub mod cboe;
 pub mod edgar;
 pub mod factset;
 pub mod fed;
+pub mod finra;
 pub mod fred;
 pub mod http;
 pub mod ibkr;
@@ -17,6 +18,7 @@ use cboe::CboeClient;
 use edgar::EdgarClient;
 use factset::FactsetClient;
 use fed::FedClient;
+use finra::FinraClient;
 use fred::FredClient;
 use ibkr::IbkrClient;
 use nasdaq::NasdaqClient;
@@ -37,4 +39,5 @@ pub struct Sources {
     pub cboe: Option<CboeClient>,
     pub fed: Option<FedClient>,
     pub factset: Option<FactsetClient>,
+    pub finra: Option<FinraClient>,
 }

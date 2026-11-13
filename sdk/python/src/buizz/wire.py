@@ -379,6 +379,50 @@ class FomcResult(msgspec.Struct, frozen=True, tag_field="kind", tag="fomc"):
     announcements: list[FomcFrame]
 
 
+class ShortInterestFrame(msgspec.Struct, frozen=True):
+    symbol: str
+    settlement: date
+    shares: int
+    previous_shares: int
+    average_daily_volume: int
+    days_to_cover: Decimal
+    split: bool
+    revised: bool
+    published: date
+    available_at: int
+
+
+class ShortInterestResult(msgspec.Struct, frozen=True, tag_field="kind", tag="short_interest"):
+    positions: list[ShortInterestFrame]
+
+
+class ShortVolumeFrame(msgspec.Struct, frozen=True):
+    symbol: str
+    date: date
+    short_volume: Decimal
+    short_exempt_volume: Decimal
+    total_volume: Decimal
+    available_at: int
+
+
+class ShortVolumeResult(msgspec.Struct, frozen=True, tag_field="kind", tag="short_volume"):
+    volumes: list[ShortVolumeFrame]
+
+
+class BorrowFrame(msgspec.Struct, frozen=True):
+    symbol: str
+    at: int
+    rebate_rate: Decimal | None
+    fee_rate: Decimal | None
+    available: int
+    available_or_more: bool
+    available_at: int
+
+
+class BorrowResult(msgspec.Struct, frozen=True, tag_field="kind", tag="borrow"):
+    snapshots: list[BorrowFrame]
+
+
 type Result = (
     HistoryResult
     | FundamentalsResult
@@ -390,6 +434,9 @@ type Result = (
     | EarningsResult
     | InsiderTradesResult
     | NewsResult
+    | ShortInterestResult
+    | ShortVolumeResult
+    | BorrowResult
 )
 
 
@@ -444,6 +491,21 @@ class NewsRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="news"):
     since: date
 
 
+class ShortInterestRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="short_interest"):
+    symbols: list[str]
+    since: date
+
+
+class ShortVolumeRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="short_volume"):
+    symbols: list[str]
+    since: date
+
+
+class BorrowRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="borrow"):
+    symbols: list[str]
+    since: date
+
+
 class CalendarRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="calendar"):
     start: date = msgspec.field(name="from")
     end: date = msgspec.field(name="to")
@@ -476,6 +538,9 @@ type Request = (
     | EarningsRequest
     | InsiderTradesRequest
     | NewsRequest
+    | ShortInterestRequest
+    | ShortVolumeRequest
+    | BorrowRequest
 )
 
 

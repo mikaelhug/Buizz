@@ -1,0 +1,3 @@
+"accountingYearMonthNumber","symbolCode","issueName","issuerServicesGroupExchangeCode","marketClassCode","currentShortPositionQuantity","previousShortPositionQuantity","stockSplitFlag","averageDailyVolumeQuantity","daysToCoverQuantity","revisionFlag","changePercent","changePreviousNumber","settlementDate"
+"20241031","AAA","Alpha Fixture Corp","A","NYSE","3100000","2950000",,"2000000","1.55",,"5.08","150000","2024-10-31"
+"20241031","BBB","Beta Fixture Inc","R","NNM","820000","845000",,"1100000","1",,"-2.96","-25000","2024-10-31"

@@ -373,5 +373,26 @@ async fn answer(
                 .map_err(|error| error.to_string())?;
             Ok(DataResult::Fomc { announcements })
         }
+        QueryRequest::ShortInterest { symbols, since } => {
+            let positions = market
+                .short_interest(symbols, since, clock)
+                .await
+                .map_err(|error| error.to_string())?;
+            Ok(DataResult::ShortInterest { positions })
+        }
+        QueryRequest::ShortVolume { symbols, since } => {
+            let volumes = market
+                .short_volume(symbols, since, clock)
+                .await
+                .map_err(|error| error.to_string())?;
+            Ok(DataResult::ShortVolume { volumes })
+        }
+        QueryRequest::Borrow { symbols, since } => {
+            let snapshots = market
+                .borrow(symbols, since, clock)
+                .await
+                .map_err(|error| error.to_string())?;
+            Ok(DataResult::Borrow { snapshots })
+        }
     }
 }

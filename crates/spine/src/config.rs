@@ -10,6 +10,7 @@ use buizz_sources::cboe::{self, CboeConfig};
 use buizz_sources::edgar::{self, EdgarConfig};
 use buizz_sources::factset::{self, FactsetConfig};
 use buizz_sources::fed::{self, FedConfig};
+use buizz_sources::finra::{self, FinraConfig};
 use buizz_sources::fred::{self, FredConfig};
 use buizz_sources::ibkr::{self, IbkrConfig};
 use buizz_sources::nasdaq::{self, NasdaqConfig};
@@ -41,6 +42,7 @@ pub struct Config {
     pub cboe: CboeConfig,
     pub fed: FedConfig,
     pub factset: Option<FactsetConfig>,
+    pub finra: FinraConfig,
     pub ingest_symbols: Option<BTreeSet<Symbol>>,
     pub duckdb_memory: String,
     pub duckdb_threads: usize,
@@ -167,6 +169,11 @@ impl Config {
             },
             fed: FedConfig {
                 base_url: var_or(fed::URL_ENV, fed::BASE_URL),
+            },
+            finra: FinraConfig {
+                api_url: var_or(finra::API_URL_ENV, finra::API_URL),
+                cdn_url: var_or(finra::CDN_URL_ENV, finra::CDN_URL),
+                site_url: var_or(finra::SITE_URL_ENV, finra::SITE_URL),
             },
             ingest_symbols: var("BUIZZ_INGEST_SYMBOLS").map(|symbols| {
                 symbols

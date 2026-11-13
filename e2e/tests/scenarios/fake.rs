@@ -10,6 +10,7 @@ use axum::{Json, Router};
 use buizz_core::market::{AssetClass, Bar, CorporateActionKind, MacroSeries, Symbol};
 use buizz_core::time::Timestamp;
 use buizz_sources::alpaca_stream::SYMBOL_CAP;
+use buizz_sources::finra;
 use chrono::{Datelike, NaiveDate, NaiveTime, TimeDelta};
 use serde_json::{Number, Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -20,6 +21,8 @@ use crate::world::World;
 
 const PAGE_ROWS: usize = 1000;
 const FOMC_CALENDAR: &str = include_str!("../../../crates/sources/fixtures/fed/fomccalendars.htm");
+const FINRA_SCHEDULE: &str =
+    include_str!("../../../crates/sources/fixtures/finra/short-interest.htm");
 const RETRY_AFTER_SECONDS: &str = "3600";
 const SYMBOL_LIMIT_EXCEEDED: &str = r#"[{"T":"error","code":405,"msg":"symbol limit exceeded"}]"#;
 
@@ -119,6 +122,9 @@ impl FakeProviders {
             .route("/fred/series/vintagedates", get(fred_vintage_dates))
             .route("/api/global/us_indices/daily_prices/{file}", get(cboe))
             .route("/monetarypolicy/{page}", get(federal_reserve))
+            .route(finra::SCHEDULE_PATH, get(|| async { FINRA_SCHEDULE }))
+            .route(finra::SHORT_INTEREST_PATH, post(finra_short_interest))
+            .route("/equity/regsho/daily/{file}", get(finra_short_volume))
             .route("/earningsinsight", get(latest_earnings_insight))
             .route("/hubfs/{*file}", get(earnings_insight))
             .route("/cdx/search/cdx", get(|| async { "" }))
@@ -654,6 +660,24 @@ async fn cboe(State(fake): State<Arc<Fake>>, Path(file): Path<String>) -> Respon
         ));
     }
     csv.into_response()
+}
+
+async fn finra_short_interest(State(fake): State<Arc<Fake>>, Json(query): Json<Value>) -> Response {
+    let settlement = query["compareFilters"][0]["fieldValue"]
+        .as_str()
+        .unwrap_or_default();
+    let file = format!("consolidatedShortInterest_{settlement}.csv");
+    match fake.world().finra.get(&file) {
+        Some(page) if query["offset"] == 0 => page.clone().into_response(),
+        _ => StatusCode::NO_CONTENT.into_response(),
+    }
+}
+
+async fn finra_short_volume(State(fake): State<Arc<Fake>>, Path(file): Path<String>) -> Response {
+    fake.world().finra.get(&file).map_or_else(
+        || StatusCode::FORBIDDEN.into_response(),
+        |file| file.clone().into_response(),
+    )
 }
 
 async fn federal_reserve(Path(page): Path<String>) -> Response {

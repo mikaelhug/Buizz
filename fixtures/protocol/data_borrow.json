@@ -1,0 +1,18 @@
+{
+  "id": 12,
+  "result": {
+    "kind": "borrow",
+    "snapshots": [
+      {
+        "at": 1732135512000000000,
+        "available": 3500000,
+        "available_at": 1732136560000000000,
+        "available_or_more": true,
+        "fee_rate": "0.25",
+        "rebate_rate": "3.9188",
+        "symbol": "AAA"
+      }
+    ]
+  },
+  "type": "data"
+}

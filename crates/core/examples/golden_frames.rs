@@ -2,9 +2,10 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 use buizz_core::market::{
-    Adjustment, CorporateAction, CorporateActionKind, Feed, FomcAnnouncement, FundamentalMetric,
-    FundamentalPoint, InsiderOwner, InsiderTrade, InsiderTransaction, MacroPoint, MacroSeries,
-    NewsArticle, PeriodType, Session, Symbol, Timeframe,
+    Adjustment, Borrow, CorporateAction, CorporateActionKind, Feed, FomcAnnouncement,
+    FundamentalMetric, FundamentalPoint, InsiderOwner, InsiderTrade, InsiderTransaction,
+    MacroPoint, MacroSeries, NewsArticle, PeriodType, Session, ShortInterest, ShortVolume, Symbol,
+    Timeframe,
 };
 use buizz_core::order::{
     Fill, OrderId, OrderRequest, OrderSize, OrderStatus, OrderType, OrderUpdate, Side, TimeInForce,
@@ -554,6 +555,101 @@ fn main() {
                     scheduled: true,
                     statement_at: Some(at("2024-12-18T19:00:00Z")),
                     available_at: at("2024-01-01T05:00:00Z"),
+                }],
+            },
+        }),
+    );
+
+    write(
+        &dir,
+        "query_short_interest",
+        &BotMessage::Query(Query {
+            id: 10,
+            request: QueryRequest::ShortInterest {
+                symbols: vec![aaa.clone()],
+                since: date("2024-11-01"),
+            },
+        }),
+    );
+
+    write(
+        &dir,
+        "data_short_interest",
+        &SpineMessage::Data(Data {
+            id: 10,
+            result: DataResult::ShortInterest {
+                positions: vec![ShortInterest {
+                    symbol: aaa.clone(),
+                    settlement: date("2024-11-15"),
+                    shares: 4_210_000,
+                    previous_shares: 3_980_500,
+                    average_daily_volume: 2_350_000,
+                    days_to_cover: money("1.79"),
+                    split: false,
+                    revised: false,
+                    published: date("2024-11-26"),
+                    available_at: at("2024-11-27T14:30:00Z"),
+                }],
+            },
+        }),
+    );
+
+    write(
+        &dir,
+        "query_short_volume",
+        &BotMessage::Query(Query {
+            id: 11,
+            request: QueryRequest::ShortVolume {
+                symbols: vec![aaa.clone()],
+                since: date("2024-11-20"),
+            },
+        }),
+    );
+
+    write(
+        &dir,
+        "data_short_volume",
+        &SpineMessage::Data(Data {
+            id: 11,
+            result: DataResult::ShortVolume {
+                volumes: vec![ShortVolume {
+                    symbol: aaa.clone(),
+                    date: date("2024-11-20"),
+                    short_volume: money("812345.5"),
+                    short_exempt_volume: money("1200"),
+                    total_volume: money("1650000"),
+                    available_at: at("2024-11-21T14:30:00Z"),
+                }],
+            },
+        }),
+    );
+
+    write(
+        &dir,
+        "query_borrow",
+        &BotMessage::Query(Query {
+            id: 12,
+            request: QueryRequest::Borrow {
+                symbols: vec![aaa.clone()],
+                since: date("2024-11-20"),
+            },
+        }),
+    );
+
+    write(
+        &dir,
+        "data_borrow",
+        &SpineMessage::Data(Data {
+            id: 12,
+            result: DataResult::Borrow {
+                snapshots: vec![Borrow {
+                    symbol: aaa.clone(),
+                    at: at("2024-11-20T20:45:12Z"),
+                    rebate_rate: Some(money("3.9188")),
+                    fee_rate: Some(money("0.25")),
+                    available: 3_500_000,
+                    available_or_more: true,
+                    available_at: at("2024-11-20T21:02:40Z"),
                 }],
             },
         }),

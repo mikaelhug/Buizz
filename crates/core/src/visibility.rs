@@ -82,6 +82,16 @@ pub fn published_visible_at(published: NaiveDate, calendar: &Calendar) -> Option
     calendar.next_after(published).map(|session| session.open)
 }
 
+pub const SHORT_INTEREST_SESSIONS_TO_PUBLICATION: usize = 8;
+
+pub fn short_interest_published(settlement: NaiveDate, calendar: &Calendar) -> Option<NaiveDate> {
+    let sessions = calendar.sessions();
+    let after = sessions.partition_point(|session| session.date <= settlement);
+    sessions
+        .get(after + SHORT_INTEREST_SESSIONS_TO_PUBLICATION - 1)
+        .map(|session| session.date)
+}
+
 pub fn fomc_visible_at(meeting: &FomcMeeting, calendar: &Calendar) -> Option<Timestamp> {
     if meeting.scheduled {
         Timestamp::at_exchange_time(

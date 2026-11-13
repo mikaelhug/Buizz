@@ -2,12 +2,13 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use buizz_core::listing::Listings;
 use buizz_core::market::{
-    Adjustment, AdjustmentFactor, AssetClass, Bar, Calendar, Company, CorporateAction,
+    Adjustment, AdjustmentFactor, AssetClass, Bar, Borrow, Calendar, Company, CorporateAction,
     CorporateActionKind, Coverage, DataSource, Dataset, EarningsInsight, EarningsRelease,
     EstimateFact, EstimateMetric, EstimateScope, FomcAnnouncement, FomcMeeting, FundamentalMetric,
     FundamentalPoint, HISTORY_FLOORS, HISTORY_START, IndexHistory, IndexMember, InsiderOwner,
     InsiderTrade, InsiderTransaction, Instrument, InstrumentProfile, MacroObservation, MacroPoint,
-    MacroSeries, NewsArticle, RiskFreeRate, SIP_DELAY, Session, StockIndex, Symbol, Timeframe,
+    MacroSeries, NewsArticle, RiskFreeRate, SIP_DELAY, Session, ShortInterest, ShortInterestRecord,
+    ShortVolume, StockIndex, Symbol, Timeframe,
 };
 use buizz_core::ops::{ActionDisagreement, CoverageGap, DataWarning, UNEXPLAINED_MOVE_THRESHOLD};
 use buizz_core::protocol::BarRow;
@@ -132,6 +133,76 @@ pub(crate) fn relabel<T: Clone>(
     }
     relabeled.sort_by(|a, b| a.0.cmp(&b.0));
     relabeled.into_iter().map(|(_, row)| row).collect()
+}
+
+pub(crate) struct Span {
+    ticker: Symbol,
+    from: NaiveDate,
+    to: NaiveDate,
+    asked: Symbol,
+}
+
+pub(crate) fn spans(
+    listings: &Listings,
+    symbols: &[Symbol],
+    on: NaiveDate,
+    since: NaiveDate,
+    through: NaiveDate,
+) -> Vec<Span> {
+    let mut spans = Vec::new();
+    if since > through {
+        return spans;
+    }
+    for (asked, key) in resolve(listings, symbols, on) {
+        let base = key
+            .ended_listing()
+            .map_or_else(|| key.clone(), |(ticker, _)| ticker);
+        for ticker in listings.former(&[base]) {
+            for (from, to, listing) in listings.segments(&ticker, since, through) {
+                if listing == key {
+                    spans.push(Span {
+                        ticker: ticker.clone(),
+                        from,
+                        to,
+                        asked: asked.clone(),
+                    });
+                }
+            }
+        }
+    }
+    spans
+}
+
+fn span_tickers(spans: &[Span]) -> Vec<Symbol> {
+    unique(
+        &spans
+            .iter()
+            .map(|span| span.ticker.clone())
+            .collect::<Vec<_>>(),
+    )
+}
+
+fn within_spans<T: Clone>(
+    spans: &[Span],
+    rows: Vec<T>,
+    date: impl Fn(&T) -> NaiveDate,
+    symbol: impl Fn(&mut T) -> &mut Symbol,
+) -> Vec<T> {
+    let mut kept: Vec<(Symbol, T)> = Vec::new();
+    for mut row in rows {
+        let day = date(&row);
+        let ticker = symbol(&mut row).clone();
+        for span in spans
+            .iter()
+            .filter(|span| span.ticker == ticker && (span.from..=span.to).contains(&day))
+        {
+            let mut copy = row.clone();
+            *symbol(&mut copy) = span.asked.clone();
+            kept.push((span.asked.clone(), copy));
+        }
+    }
+    kept.sort_by(|a, b| a.0.cmp(&b.0));
+    kept.into_iter().map(|(_, row)| row).collect()
 }
 
 pub(crate) fn delisted_before(
@@ -1383,6 +1454,176 @@ pub(crate) fn daily_watermark(connection: &Connection) -> Result<Option<Timestam
     let mut statement = connection.prepare_cached("SELECT max(through) FROM daily_watermark")?;
     let through: Option<Ts> = statement.query_row([], |row| row.get(0))?;
     Ok(through.map(|at| at.0))
+}
+
+pub(crate) fn short_interest(
+    connection: &Connection,
+    calendar: &Calendar,
+    spans: &[Span],
+    since: NaiveDate,
+    as_of: Timestamp,
+) -> Result<Vec<ShortInterest>> {
+    let Some(cutoff) = published_before(as_of, calendar) else {
+        return Ok(Vec::new());
+    };
+    let tickers = span_tickers(spans);
+    if tickers.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut statement = connection.prepare_cached(&format!(
+        "SELECT symbol, settlement, shares, previous_shares, average_daily_volume, \
+         days_to_cover, split, revised, published FROM (SELECT *, row_number() OVER \
+         (PARTITION BY symbol, settlement ORDER BY published DESC, batch_id DESC) AS vintage \
+         FROM short_interest WHERE symbol {IN_SYMBOLS} AND settlement >= ? AND published < ?) \
+         WHERE vintage = 1 ORDER BY settlement, symbol"
+    ))?;
+    let params: Params = vec![symbol_list(&tickers), Box::new(since), Box::new(cutoff)];
+    let rows = statement
+        .query_map(params_from_iter(params.iter()), |row| {
+            let published: NaiveDate = row.get(8)?;
+            Ok(ShortInterest {
+                symbol: row.get::<_, Sym>(0)?.0,
+                settlement: row.get(1)?,
+                shares: row.get(2)?,
+                previous_shares: row.get(3)?,
+                average_daily_volume: row.get(4)?,
+                days_to_cover: row.get::<_, Dec>(5)?.0.normalize(),
+                split: row.get(6)?,
+                revised: row.get(7)?,
+                published,
+                available_at: published_visible_at(published, calendar).unwrap_or(as_of),
+            })
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    Ok(within_spans(
+        spans,
+        rows,
+        |row| row.settlement,
+        |row| &mut row.symbol,
+    ))
+}
+
+pub(crate) fn short_interest_records(
+    connection: &Connection,
+    settlement: NaiveDate,
+) -> Result<Vec<ShortInterestRecord>> {
+    let mut statement = connection.prepare_cached(
+        "SELECT symbol, settlement, shares, previous_shares, average_daily_volume, \
+         days_to_cover, split, revised, published FROM (SELECT *, row_number() OVER \
+         (PARTITION BY symbol ORDER BY published DESC, batch_id DESC) AS vintage \
+         FROM short_interest WHERE settlement = ?) WHERE vintage = 1 ORDER BY symbol",
+    )?;
+    let records = statement
+        .query_map(params![settlement], |row| {
+            Ok(ShortInterestRecord {
+                symbol: row.get::<_, Sym>(0)?.0,
+                settlement: row.get(1)?,
+                shares: row.get(2)?,
+                previous_shares: row.get(3)?,
+                average_daily_volume: row.get(4)?,
+                days_to_cover: row.get::<_, Dec>(5)?.0.normalize(),
+                split: row.get(6)?,
+                revised: row.get(7)?,
+                published: row.get(8)?,
+            })
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    Ok(records)
+}
+
+pub(crate) fn short_interest_settlements(connection: &Connection) -> Result<BTreeSet<NaiveDate>> {
+    let mut statement =
+        connection.prepare_cached("SELECT DISTINCT settlement FROM short_interest")?;
+    let settlements = statement
+        .query_map([], |row| row.get(0))?
+        .collect::<duckdb::Result<BTreeSet<_>>>()?;
+    Ok(settlements)
+}
+
+pub(crate) fn short_volume(
+    connection: &Connection,
+    calendar: &Calendar,
+    spans: &[Span],
+    since: NaiveDate,
+    as_of: Timestamp,
+) -> Result<Vec<ShortVolume>> {
+    let Some(cutoff) = published_before(as_of, calendar) else {
+        return Ok(Vec::new());
+    };
+    let tickers = span_tickers(spans);
+    if tickers.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut statement = connection.prepare_cached(&format!(
+        "SELECT symbol, date, short_volume, short_exempt_volume, total_volume FROM short_volume \
+         WHERE symbol {IN_SYMBOLS} AND date >= ? AND date < ? ORDER BY date, symbol"
+    ))?;
+    let params: Params = vec![symbol_list(&tickers), Box::new(since), Box::new(cutoff)];
+    let rows = statement
+        .query_map(params_from_iter(params.iter()), |row| {
+            let date: NaiveDate = row.get(1)?;
+            Ok(ShortVolume {
+                symbol: row.get::<_, Sym>(0)?.0,
+                date,
+                short_volume: row.get::<_, Dec>(2)?.0.normalize(),
+                short_exempt_volume: row.get::<_, Dec>(3)?.0.normalize(),
+                total_volume: row.get::<_, Dec>(4)?.0.normalize(),
+                available_at: published_visible_at(date, calendar).unwrap_or(as_of),
+            })
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    Ok(within_spans(
+        spans,
+        rows,
+        |row| row.date,
+        |row| &mut row.symbol,
+    ))
+}
+
+pub(crate) fn borrow(
+    connection: &Connection,
+    spans: &[Span],
+    since: NaiveDate,
+    as_of: Timestamp,
+) -> Result<Vec<Borrow>> {
+    let tickers = span_tickers(spans);
+    let Some(from) = Timestamp::at_exchange_time(since, NaiveTime::MIN) else {
+        return Ok(Vec::new());
+    };
+    if tickers.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut statement = connection.prepare_cached(&format!(
+        "SELECT a.symbol, a.recorded_at, a.rebate_rate, a.fee_rate, a.available, \
+         a.available_or_more, b.created_at FROM borrow_availability a \
+         JOIN ingest_batch b ON b.id = a.batch_id \
+         WHERE a.symbol {IN_SYMBOLS} AND a.recorded_at >= ? AND b.created_at <= ? \
+         ORDER BY a.recorded_at, a.symbol"
+    ))?;
+    let params: Params = vec![
+        symbol_list(&tickers),
+        Box::new(Ts(from)),
+        Box::new(Ts(as_of)),
+    ];
+    let rows = statement
+        .query_map(params_from_iter(params.iter()), |row| {
+            Ok(Borrow {
+                symbol: row.get::<_, Sym>(0)?.0,
+                at: row.get::<_, Ts>(1)?.0,
+                rebate_rate: row.get::<_, Option<Dec>>(2)?.map(|rate| rate.0.normalize()),
+                fee_rate: row.get::<_, Option<Dec>>(3)?.map(|rate| rate.0.normalize()),
+                available: row.get(4)?,
+                available_or_more: row.get(5)?,
+                available_at: row.get::<_, Ts>(6)?.0,
+            })
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    Ok(within_spans(
+        spans,
+        rows,
+        |row| row.at.exchange_date(),
+        |row| &mut row.symbol,
+    ))
 }
 
 pub(crate) fn latest_borrow(connection: &Connection) -> Result<Option<Timestamp>> {

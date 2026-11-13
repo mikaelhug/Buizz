@@ -48,6 +48,22 @@ class Probe(Bot):
             ]
             for point in (ctx.macro(series, start, end) if series else [])
         ]
+        short_symbols: list[str] = ctx.params.get("short", [])
+        short_since = date.fromisoformat(ctx.params.get("short_since", "2000-01-01"))
+        short_interest = [
+            [
+                position.symbol,
+                position.settlement.isoformat(),
+                position.shares,
+                position.published.isoformat(),
+                f"{position.available_at:{STAMP}}",
+            ]
+            for position in (ctx.short_interest(short_symbols, short_since) if short_symbols else [])
+        ]
+        short_volume = [
+            [volume.symbol, volume.date.isoformat(), f"{volume.available_at:{STAMP}}"]
+            for volume in (ctx.short_volume(short_symbols, short_since) if short_symbols else [])
+        ]
         report = {
             "clock": clock,
             "history": history,
@@ -55,6 +71,8 @@ class Probe(Bot):
             "calendar": calendar,
             "universe": universes,
             "macro": macro,
+            "short_interest": short_interest,
+            "short_volume": short_volume,
         }
         ctx.log(json.dumps(report))
         if clock in ctx.params.get("order_at", []):

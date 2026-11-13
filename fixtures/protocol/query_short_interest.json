@@ -1,0 +1,11 @@
+{
+  "id": 10,
+  "request": {
+    "kind": "short_interest",
+    "since": "2024-11-01",
+    "symbols": [
+      "AAA"
+    ]
+  },
+  "type": "query"
+}

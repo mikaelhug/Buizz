@@ -19,6 +19,7 @@ use buizz_sources::cboe::CboeClient;
 use buizz_sources::edgar::EdgarClient;
 use buizz_sources::factset::FactsetClient;
 use buizz_sources::fed::FedClient;
+use buizz_sources::finra::FinraClient;
 use buizz_sources::fred::FredClient;
 use buizz_sources::ibkr::IbkrClient;
 use buizz_sources::nasdaq::NasdaqClient;
@@ -131,6 +132,7 @@ async fn serve() -> Result<()> {
         cboe: Some(CboeClient::new(config.cboe.clone())?),
         fed: Some(FedClient::new(config.fed.clone())?),
         factset: config.factset.clone().map(FactsetClient::new).transpose()?,
+        finra: Some(FinraClient::new(config.finra.clone())?),
     };
     let feed = FeedManager::new(
         FeedConfig {

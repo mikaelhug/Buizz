@@ -376,6 +376,7 @@ fn sources(url: &str) -> Sources {
         ),
         fed: None,
         factset: None,
+        finra: None,
     }
 }
 
@@ -862,6 +863,8 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
             ("insider_trades", JobOutcome::Ok),
             ("rates", JobOutcome::Ok),
             ("borrow", JobOutcome::Noop),
+            ("short_interest", JobOutcome::Noop),
+            ("short_volume", JobOutcome::Noop),
             ("macro", JobOutcome::Noop),
             ("news", JobOutcome::Noop),
             ("vix", JobOutcome::Ok),
@@ -975,6 +978,8 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
             ("insider_trades", JobOutcome::Noop),
             ("rates", JobOutcome::Noop),
             ("borrow", JobOutcome::Noop),
+            ("short_interest", JobOutcome::Noop),
+            ("short_volume", JobOutcome::Noop),
             ("macro", JobOutcome::Noop),
             ("news", JobOutcome::Noop),
             ("vix", JobOutcome::Ok),

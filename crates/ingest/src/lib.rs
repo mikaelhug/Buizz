@@ -6,6 +6,7 @@ mod estimates;
 mod facts;
 mod fetch;
 mod filings;
+mod finra;
 mod fomc;
 mod index;
 mod insiders;
@@ -261,6 +262,8 @@ impl Ingest {
             schedule::INDEX_MEMBERSHIP => self.index_membership(now).await,
             schedule::RATES => self.rates(now).await,
             schedule::BORROW => self.borrow(now).await,
+            schedule::SHORT_INTEREST => self.short_interest(now).await,
+            schedule::SHORT_VOLUME => self.short_volume(now).await,
             schedule::MACRO => self.macro_series(now).await,
             schedule::VIX => self.vix(now).await,
             schedule::FOMC => self.fomc(now).await,
