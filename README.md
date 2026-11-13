@@ -82,6 +82,7 @@ The spine (`cargo run -p buizz-spine`) reads these environment variables. Empty 
 | `FINRA_URL`, `FINRA_API_URL`, `FINRA_CDN_URL` | `https://www.finra.org`, `https://api.finra.org`, `https://cdn.finra.org` | FINRA's site (the short interest publication schedule), its public Query API (short interest) and its file server (daily short sale volume); free, no key or account, so the `short_interest` and `short_volume` jobs always run |
 | `BUIZZ_DUCKDB_MEMORY` | `1GB` | Memory the market store may use for queries and writes before it spills to `market.duckdb.tmp/` in the data directory |
 | `BUIZZ_DUCKDB_THREADS` | `2` | Threads the market store uses |
+| `BUIZZ_TEXT_DIRS` | unset | Comma-separated directories, usually one per disk, where filings are kept as filed and as text (see `docs/architecture.md`, Where state lives); unset, documents are not harvested |
 | `BUIZZ_LIVE_SLOTS` | `2` | Live bot processes that may start and take their first step of a session at once; backtests run on one fewer than the CPUs |
 | `RUST_LOG` | `info` | Log filter |
 

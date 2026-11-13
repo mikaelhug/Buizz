@@ -134,6 +134,10 @@ impl Spine {
             .expect("the spine log");
         let launched_at = log.metadata().expect("the spine log size").len();
         let url = &self.fake.url;
+        let text_dirs = self.text_dirs();
+        for dir in &text_dirs {
+            std::fs::create_dir_all(dir).expect("a text directory");
+        }
         let mut command = Command::new(binary());
         command
             .current_dir(self.dir.path())
@@ -170,6 +174,14 @@ impl Spine {
             .env("FRED_URL", url)
             .env("CBOE_URL", url)
             .env("FED_URL", url)
+            .env(
+                "BUIZZ_TEXT_DIRS",
+                text_dirs
+                    .iter()
+                    .map(|dir| dir.to_string_lossy().into_owned())
+                    .collect::<Vec<_>>()
+                    .join(","),
+            )
             .env("FINRA_URL", url)
             .env("FINRA_API_URL", url)
             .env("FINRA_CDN_URL", url)
@@ -323,6 +335,10 @@ impl Spine {
         let (status, text) = self.request(reqwest::Method::POST, path, Some(body)).await;
         assert!(status.is_success(), "POST {path}: {status} {text}");
         serde_json::from_str(&text).unwrap_or_else(|error| panic!("POST {path}: {error}: {text}"))
+    }
+
+    pub fn text_dirs(&self) -> [std::path::PathBuf; 2] {
+        ["text-a", "text-b"].map(|name| self.dir.path().join(name))
     }
 
     pub async fn ingested(&self) -> Vec<JobView> {

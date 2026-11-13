@@ -2,7 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
 
 use buizz_core::market::{
-    Calendar, Exhibit, FundamentalFact, InsiderFiling, PressExhibit, SecFiling, Symbol,
+    Calendar, Exhibit, FilingDocument, FundamentalFact, InsiderFiling, PressExhibit, SecFiling,
+    Symbol,
 };
 use buizz_core::time::Timestamp;
 use chrono::{Datelike, NaiveDate};
@@ -16,7 +17,9 @@ mod filings;
 mod normalize;
 mod ownership;
 
-pub use exhibit::{IndexedDocument, exhibit_text, press_release_document};
+pub use exhibit::{
+    IndexedDocument, exhibit_text, indexed_documents, is_text_document, press_release_document,
+};
 pub use filings::{
     Filings, FilingsPage, OwnershipFiling, Submissions, normalize_filings_page,
     normalize_submissions,
@@ -37,6 +40,7 @@ pub const ACCEPTED_FORMS: [&str; 8] = [
 pub const EARNINGS_FORMS: [&str; 2] = ["8-K", "8-K/A"];
 pub const INSIDER_FORMS: [&str; 2] = ["4", "4/A"];
 const NOT_FOUND: u16 = 404;
+const SKIPPED_KINDS: [&str; 4] = ["GRAPHIC", "ZIP", "EX-101", "JSON"];
 const REFUSED: u16 = 403;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -195,7 +199,7 @@ impl EdgarClient {
             .await?;
         let listed = press_release_document(&String::from_utf8_lossy(&index));
         let exhibit = match listed {
-            Some(IndexedDocument { document, kind }) => {
+            Some(IndexedDocument { document, kind, .. }) => {
                 let payload = self.fetch(format!("{folder}/{document}")).await?;
                 let text = exhibit_text(&document, &payload);
                 (!text.is_empty()).then_some(Exhibit {
@@ -212,6 +216,43 @@ impl EdgarClient {
             accepted_at,
             exhibit,
         })
+    }
+
+    pub async fn filing_documents(
+        &self,
+        cik: u32,
+        accession: &str,
+    ) -> Result<Vec<FilingDocument>, SourceError> {
+        let folder = format!(
+            "{}/Archives/edgar/data/{cik}/{}",
+            self.www_url,
+            accession.replace('-', "")
+        );
+        let index = self
+            .fetch(format!("{folder}/{accession}-index.htm"))
+            .await?;
+        let mut documents = Vec::new();
+        for listed in indexed_documents(&String::from_utf8_lossy(&index)) {
+            if SKIPPED_KINDS
+                .iter()
+                .any(|kind| listed.kind.to_ascii_uppercase().starts_with(kind))
+            {
+                continue;
+            }
+            let raw = self.fetch(format!("{folder}/{}", listed.document)).await?;
+            let text = is_text_document(&listed.document)
+                .then(|| exhibit_text(&listed.document, &raw))
+                .filter(|text| !text.is_empty());
+            documents.push(FilingDocument {
+                sequence: listed.sequence,
+                document: listed.document,
+                kind: listed.kind,
+                description: listed.description,
+                raw,
+                text,
+            });
+        }
+        Ok(documents)
     }
 
     pub async fn daily_index(&self, day: NaiveDate) -> Result<Option<Vec<SecFiling>>, SourceError> {

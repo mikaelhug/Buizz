@@ -22,6 +22,7 @@ use chrono::TimeDelta;
 pub struct Config {
     pub bind: SocketAddr,
     pub data_dir: PathBuf,
+    pub text_dirs: Vec<PathBuf>,
     pub bots_dir: PathBuf,
     pub web_dir: Option<PathBuf>,
     pub fixture_dir: Option<PathBuf>,
@@ -123,6 +124,15 @@ impl Config {
         Ok(Self {
             bind,
             data_dir: data_dir(),
+            text_dirs: var("BUIZZ_TEXT_DIRS")
+                .map(|dirs| {
+                    dirs.split(',')
+                        .map(str::trim)
+                        .filter(|dir| !dir.is_empty())
+                        .map(PathBuf::from)
+                        .collect()
+                })
+                .unwrap_or_default(),
             bots_dir: var_or("BUIZZ_BOTS_DIR", "bots").into(),
             web_dir: var("BUIZZ_WEB_DIR").map(PathBuf::from),
             fixture_dir: var("BUIZZ_FIXTURE_DIR").map(PathBuf::from),

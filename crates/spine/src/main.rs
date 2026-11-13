@@ -94,6 +94,8 @@ async fn serve() -> Result<()> {
         &config.data_dir.join(buizz_market::FILE_NAME),
         MARKET_READERS,
     )
+    .await?
+    .with_text(config.text_dirs.clone())
     .await?;
     market
         .limit(config.duckdb_memory.clone(), config.duckdb_threads)

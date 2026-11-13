@@ -37,25 +37,49 @@ const WINDOWS_1252: [char; 32] = [
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IndexedDocument {
+    pub sequence: u32,
+    pub description: Option<String>,
     pub document: String,
     pub kind: String,
 }
 
-pub fn press_release_document(index: &str) -> Option<IndexedDocument> {
+pub fn indexed_documents(index: &str) -> Vec<IndexedDocument> {
     let html = Html::parse_document(index);
-    let rows = Selector::parse(r#"table[summary="Document Format Files"] tr"#).ok()?;
-    let cells = Selector::parse("td").ok()?;
-    html.select(&rows).find_map(|row| {
-        let cells: Vec<String> = row
-            .select(&cells)
-            .map(|cell| cell.text().collect::<String>())
-            .collect();
-        let document = cells.get(2)?.split_whitespace().next()?.to_owned();
-        let kind = cells.get(3)?.trim().to_owned();
-        kind.to_ascii_uppercase()
-            .starts_with(PRESS_RELEASE)
-            .then_some(IndexedDocument { document, kind })
-    })
+    let (Ok(rows), Ok(cells)) = (
+        Selector::parse(r#"table[summary="Document Format Files"] tr"#),
+        Selector::parse("td"),
+    ) else {
+        return Vec::new();
+    };
+    html.select(&rows)
+        .filter_map(|row| {
+            let cells: Vec<String> = row
+                .select(&cells)
+                .map(|cell| cell.text().collect::<String>().trim().to_owned())
+                .collect();
+            let document = cells.get(2)?.split_whitespace().next()?.to_owned();
+            let kind = cells.get(3)?.clone();
+            Some(IndexedDocument {
+                sequence: cells.first()?.parse().unwrap_or(0),
+                description: cells.get(1).filter(|text| !text.is_empty()).cloned(),
+                document,
+                kind,
+            })
+        })
+        .collect()
+}
+
+pub fn press_release_document(index: &str) -> Option<IndexedDocument> {
+    indexed_documents(index)
+        .into_iter()
+        .find(|listed| listed.kind.to_ascii_uppercase().starts_with(PRESS_RELEASE))
+}
+
+pub fn is_text_document(document: &str) -> bool {
+    let lowered = document.to_ascii_lowercase();
+    [".htm", ".html", ".txt"]
+        .iter()
+        .any(|suffix| lowered.ends_with(suffix))
 }
 
 pub fn exhibit_text(document: &str, payload: &[u8]) -> String {

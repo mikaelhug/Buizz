@@ -3,10 +3,10 @@ use std::ops::RangeInclusive;
 
 use buizz_core::market::{
     Bar, BorrowAvailability, Company, CorporateAction, CorporateActionKind, DataSource, Dataset,
-    EarningsInsight, EarningsRelease, EstimateFact, Filing, FomcMeeting, FundamentalFact,
-    IndexHistory, InsiderFiling, InsiderPlan, Instrument, MacroObservation, NewsArticle,
-    PressExhibit, RiskFreeRate, SecFiling, Session, ShortInterestRecord, ShortVolumeRecord, Symbol,
-    split_rates,
+    EarningsInsight, EarningsRelease, EstimateFact, Filing, FilingDocument, FilingText,
+    FomcMeeting, FundamentalFact, IndexHistory, InsiderFiling, InsiderPlan, Instrument,
+    MacroObservation, NewsArticle, PressExhibit, RiskFreeRate, SecFiling, Session,
+    ShortInterestRecord, ShortVolumeRecord, Symbol, split_rates,
 };
 use buizz_core::ops::ActionDisagreement;
 use buizz_core::time::Timestamp;
@@ -14,6 +14,7 @@ use chrono::NaiveDate;
 use duckdb::{Appender, Connection, Transaction, params};
 
 use crate::codec::{ActionColumns, Dec, Ts, feed_name, wire_name};
+use crate::text::TextVolumes;
 use crate::{ActionWindow, MarketError, Result, WriteSummary};
 
 const STAGED: [&str; 12] = [
@@ -42,7 +43,8 @@ pub(crate) fn prepare(connection: &Connection) -> Result<()> {
          CREATE TEMP TABLE action_scope (symbol VARCHAR); \
          CREATE TEMP TABLE shadow_span (ticker VARCHAR, lo DATE, hi DATE, listing VARCHAR); \
          CREATE TEMP TABLE report_scope (report VARCHAR); \
-         CREATE TEMP TABLE coverage_stage AS SELECT * FROM main.coverage LIMIT 0",
+         CREATE TEMP TABLE coverage_stage AS SELECT * FROM main.coverage LIMIT 0; \
+         CREATE TEMP TABLE stage_text_blob (doc_id VARCHAR, content_hash VARCHAR, text VARCHAR, raw BLOB)",
     )?;
     Ok(())
 }
@@ -1469,6 +1471,162 @@ pub(crate) fn press_releases(
             Ok(rows)
         },
     )
+}
+
+pub(crate) fn filing_texts(
+    connection: &mut Connection,
+    volumes: &TextVolumes,
+    source: DataSource,
+    filings: Vec<FilingText>,
+) -> Result<WriteSummary> {
+    let mut coverage = Coverage::new();
+    for filing in &filings {
+        cover(&mut coverage, None, filing.accepted_at.exchange_date());
+    }
+    let source_name = wire_name(&source);
+    let mut months: BTreeMap<String, Vec<&FilingText>> = BTreeMap::new();
+    for filing in filings.iter().filter(|filing| filing.outcome.is_ok()) {
+        months
+            .entry(
+                filing
+                    .accepted_at
+                    .exchange_date()
+                    .format("%Y/%m")
+                    .to_string(),
+            )
+            .or_default()
+            .push(filing);
+    }
+    write_batch(
+        connection,
+        source,
+        Dataset::FilingDocuments,
+        coverage,
+        |transaction, batch_id| {
+            for (month, group) in &months {
+                write_text_file(transaction, volumes, &source_name, month, group, batch_id)?;
+            }
+            let mut statement = transaction.prepare_cached(
+                "INSERT OR IGNORE INTO main.filing_text VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            )?;
+            let mut rows = 0;
+            for filing in &filings {
+                let (documents, failure) = match &filing.outcome {
+                    Ok(documents) => (documents.len(), None),
+                    Err(reason) => (0, Some(reason.as_str())),
+                };
+                rows += statement.execute(params![
+                    filing.accession,
+                    filing.cik,
+                    filing.form,
+                    Ts(filing.accepted_at),
+                    Ts(filing.retrieved_at),
+                    u32::try_from(documents).unwrap_or(u32::MAX),
+                    failure,
+                    batch_id,
+                ])? as u64;
+            }
+            Ok(rows)
+        },
+    )
+}
+
+fn write_text_file(
+    transaction: &Transaction<'_>,
+    volumes: &TextVolumes,
+    source: &str,
+    month: &str,
+    filings: &[&FilingText],
+    batch_id: i64,
+) -> Result<()> {
+    let documents: Vec<(&FilingText, &FilingDocument, String)> = filings
+        .iter()
+        .flat_map(|filing| {
+            filing.outcome.iter().flatten().map(move |document| {
+                let id = format!("{source}:{}:{}", filing.accession, document.sequence);
+                (*filing, document, id)
+            })
+        })
+        .collect();
+    if documents.is_empty() {
+        return Ok(());
+    }
+    transaction.execute("DELETE FROM stage_text_blob", [])?;
+    let mut appender = transaction.appender_to_catalog_and_db("stage_text_blob", "temp", "main")?;
+    let mut hashes = Vec::with_capacity(documents.len());
+    for (_, document, id) in &documents {
+        let hash = blake3::hash(&document.raw).to_hex().to_string();
+        appender.append_row(params![id, hash, document.text, document.raw])?;
+        hashes.push(hash);
+    }
+    appender.flush()?;
+    drop(appender);
+    let volume = volumes.choose()?;
+    let name = format!("{batch_id}-{}.parquet", month.replace('/', "-"));
+    let written = TextVolumes::scratch(volume, &name)?;
+    let quoted = written.to_string_lossy().replace('\'', "''");
+    transaction.execute(
+        &format!(
+            "COPY (SELECT doc_id, content_hash, text, raw FROM stage_text_blob ORDER BY doc_id) \
+             TO '{quoted}' (FORMAT parquet, COMPRESSION zstd)"
+        ),
+        [],
+    )?;
+    let relative = format!("{source}/{month}/{batch_id}.parquet");
+    let bytes = TextVolumes::place(volume, &written, &relative)?;
+    let file_id: i64 =
+        transaction.query_row("SELECT nextval('text_file_id')", [], |row| row.get(0))?;
+    transaction.execute(
+        "INSERT INTO main.text_file VALUES (?, ?, ?, ?, ?, ?, ?)",
+        params![
+            file_id,
+            volume.id,
+            relative,
+            source,
+            u32::try_from(documents.len()).unwrap_or(u32::MAX),
+            bytes,
+            batch_id
+        ],
+    )?;
+    let mut statement = transaction.prepare_cached(
+        "INSERT OR IGNORE INTO main.text_document VALUES \
+         (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    )?;
+    for ((filing, document, id), hash) in documents.iter().zip(&hashes) {
+        statement.execute(params![
+            id,
+            hash,
+            source,
+            document.kind,
+            filing.accession,
+            document.sequence,
+            document.document,
+            document.description,
+            filing.cik,
+            Ts(filing.accepted_at),
+            Ts(filing.retrieved_at),
+            document.raw.len() as u64,
+            document
+                .text
+                .as_ref()
+                .map(|text| text.chars().count() as u64),
+            file_id,
+            batch_id,
+        ])?;
+    }
+    Ok(())
+}
+
+pub(crate) fn text_volumes(connection: &Connection, volumes: &TextVolumes) -> Result<()> {
+    let now = Ts(Timestamp::now());
+    for volume in volumes.volumes() {
+        connection.execute(
+            "INSERT INTO main.text_volume VALUES (?, ?, ?) ON CONFLICT (id) \
+             DO UPDATE SET path = excluded.path, seen_at = excluded.seen_at",
+            params![volume.id, volume.root.to_string_lossy(), now],
+        )?;
+    }
+    Ok(())
 }
 
 pub(crate) fn news_articles(

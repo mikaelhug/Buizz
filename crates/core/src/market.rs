@@ -597,6 +597,34 @@ pub struct PressCandidate {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TextCandidate {
+    pub cik: u32,
+    pub accession: String,
+    pub form: String,
+    pub accepted_at: Timestamp,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FilingDocument {
+    pub sequence: u32,
+    pub document: String,
+    pub kind: String,
+    pub description: Option<String>,
+    pub raw: Vec<u8>,
+    pub text: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FilingText {
+    pub cik: u32,
+    pub accession: String,
+    pub form: String,
+    pub accepted_at: Timestamp,
+    pub retrieved_at: Timestamp,
+    pub outcome: Result<Vec<FilingDocument>, String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct InsiderPlan {
     pub symbol: Symbol,
     pub accession: String,
@@ -1151,12 +1179,13 @@ pub enum Dataset {
     Estimates,
     CurrentReports,
     PressReleases,
+    FilingDocuments,
     ShortInterest,
     ShortVolume,
 }
 
 impl Dataset {
-    pub const ALL: [Self; 21] = [
+    pub const ALL: [Self; 22] = [
         Self::Bars1d,
         Self::Bars1m,
         Self::CorporateActions,
@@ -1169,6 +1198,7 @@ impl Dataset {
         Self::EarningsReleases,
         Self::CurrentReports,
         Self::PressReleases,
+        Self::FilingDocuments,
         Self::InsiderTrades,
         Self::Estimates,
         Self::Rates,
@@ -1191,6 +1221,7 @@ impl Dataset {
             | Self::EarningsReleases
             | Self::CurrentReports
             | Self::PressReleases
+            | Self::FilingDocuments
             | Self::InsiderTrades
             | Self::Estimates => DataDomain::Filings,
             Self::Rates | Self::Macro | Self::Fomc => DataDomain::Macro,

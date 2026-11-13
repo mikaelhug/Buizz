@@ -583,10 +583,13 @@ dependencies = [
 name = "buizz-market"
 version = "0.1.0"
 dependencies = [
+ "blake3",
  "buizz-core",
  "chrono",
  "csv",
  "duckdb",
+ "nix",
+ "rand 0.10.3",
  "rust_decimal",
  "serde",
  "serde_json",

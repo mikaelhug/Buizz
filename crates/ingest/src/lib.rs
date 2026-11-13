@@ -2,6 +2,7 @@ mod actions;
 mod bars;
 mod borrow;
 mod crosscheck;
+mod documents;
 mod estimates;
 mod facts;
 mod fetch;
@@ -261,6 +262,7 @@ impl Ingest {
             schedule::FILINGS => self.filings(now).await,
             schedule::INSIDER_TRADES => self.insider_trades(now).await,
             schedule::PRESS_RELEASES => self.press_releases(now).await,
+            schedule::FILING_DOCUMENTS => self.filing_documents(now).await,
             schedule::NEWS => self.news(now).await,
             schedule::INDEX_MEMBERSHIP => self.index_membership(now).await,
             schedule::RATES => self.rates(now).await,
@@ -350,6 +352,15 @@ impl Ingest {
                 dataset,
                 DataSource::Edgar,
                 count(&mut stocks.iter().map(|symbol| read.contains(symbol))),
+            );
+        }
+        if !self.market.text_volumes().volumes().is_empty() {
+            let (done, total) = self.market.filing_text_progress().await?;
+            let narrow = |count: u64| u32::try_from(count).unwrap_or(u32::MAX);
+            push(
+                Dataset::FilingDocuments,
+                DataSource::Edgar,
+                (narrow(done), narrow(total)),
             );
         }
         if let Some(floor) = bars.values().map(|row| row.first).min() {

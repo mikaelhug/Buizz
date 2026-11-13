@@ -24,9 +24,7 @@
   padding: var(--sp-4) var(--sp-5);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
-  background:
-    radial-gradient(120% 160% at 0% 0%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 55%),
-    var(--surface);
+  background: var(--surface);
 }
 
 .summary-figures {
@@ -463,10 +461,6 @@ span.health-key {
   stroke: var(--border);
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
-}
-
-.spark-span {
-  fill: color-mix(in srgb, var(--accent) 7%, transparent);
 }
 
 .spark-area {

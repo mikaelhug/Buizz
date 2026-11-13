@@ -55,6 +55,7 @@ async fn an_empty_spine_backfills_backs_off_rejects_a_bad_tiingo_tail_and_restar
             ("filings", ok),
             ("insider_trades", ok),
             ("press_releases", ok),
+            ("filing_documents", ok),
             ("rates", ok),
             ("borrow", ok),
             ("short_interest", Some(JobOutcome::Noop)),

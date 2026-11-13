@@ -42,6 +42,7 @@ const DATASETS: Record<Dataset, { name: string; caption: string }> = {
   earnings_releases: { name: "Earnings releases", caption: "8-K Item 2.02 filing times" },
   current_reports: { name: "8-K events", caption: "every 8-K with its item codes and acceptance time" },
   press_releases: { name: "Earnings press releases", caption: "the text of each earnings release, as filed" },
+  filing_documents: { name: "8-K documents", caption: "every document of each 8-K, raw and as text, in the text store" },
   insider_trades: { name: "Insider trades", caption: "Form 4 purchases and sales" },
   estimates: { name: "Analyst estimates", caption: "consensus earnings expectations" },
   rates: { name: "Treasury rates", caption: "the daily yield curve and the T-bill rate cash earns" },
@@ -616,7 +617,6 @@ function Spark({ name, coverage, start, peak: scale, stop }: { name: string; cov
     <svg className="spark" viewBox={`0 0 ${months} ${SPARK_HEIGHT}`} preserveAspectRatio="none" role="img" aria-label={summary}>
       <title>{summary}</title>
       <line className="spark-base" x1={0} x2={months} y1={SPARK_HEIGHT - 0.5} y2={SPARK_HEIGHT - 0.5} />
-      {firstIndex >= 0 && <rect className="spark-span" x={firstIndex} y={0} width={lastIndex - firstIndex + 1} height={SPARK_HEIGHT} />}
       {area && <path className={series ? "spark-area series" : "spark-area"} d={area} />}
       {stop && lastIndex >= 0 && <rect className="spark-tail" x={lastIndex + 1} y={SPARK_HEIGHT - 4} width={Math.max(0, months - lastIndex - 1)} height={4} />}
       {gaps.map((index) => (

@@ -92,6 +92,12 @@ fn world(mut world: World) -> World {
                 .to_owned(),
         ),
         (
+            format!("{folder}/bbb-8k.htm"),
+            "<html><body><p>Item 2.02 Results of Operations and Financial Condition</p>\
+             <p>See the press release furnished as Exhibit 99.1.</p></body></html>"
+                .to_owned(),
+        ),
+        (
             format!("{folder}/bbb-ex991.htm"),
             "<html><body><p>Beta Fixture reports third quarter results</p>\
              <table><tr><td>Revenue</td><td>$</td><td>1,250</td></tr></table></body></html>"
@@ -143,6 +149,28 @@ async fn bots_see_index_membership_profiles_earnings_and_8k_events_as_of_their_c
     )
     .await;
     spine.ingested().await;
+    let health: Value = spine.get("/api/data/health").await;
+    let documents = health["backfill"]
+        .as_array()
+        .expect("backfill progress")
+        .iter()
+        .find(|item| item["dataset"] == "filing_documents")
+        .expect("8-K documents report their backfill");
+    assert_eq!(
+        documents["done"], documents["total"],
+        "every 8-K is read once, an unreadable one recorded as such: {documents}"
+    );
+    let stored: Vec<std::path::PathBuf> = spine
+        .text_dirs()
+        .iter()
+        .inspect(|dir| assert!(dir.join("volume.json").is_file(), "{dir:?} names itself"))
+        .flat_map(|dir| parquet_files(dir))
+        .collect();
+    assert_eq!(
+        stored.len(),
+        1,
+        "the readable 8-K's documents are one Parquet file on one volume: {stored:?}"
+    );
 
     let (run, reports) = backtest(&spine, "reference").await;
     let at = |clock: &str| &reports[&stamp(clock)];
@@ -279,4 +307,25 @@ async fn bots_see_index_membership_profiles_earnings_and_8k_events_as_of_their_c
         json!(["AAA", "BBB"]),
         "a sold instrument outside the universe stops reaching the bot"
     );
+}
+
+fn parquet_files(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
+    std::fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .flat_map(|entry| {
+            let path = entry.path();
+            if path.is_dir() {
+                parquet_files(&path)
+            } else if path
+                .extension()
+                .is_some_and(|extension| extension == "parquet")
+            {
+                vec![path]
+            } else {
+                Vec::new()
+            }
+        })
+        .collect()
 }

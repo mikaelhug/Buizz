@@ -9,7 +9,7 @@ use buizz_core::market::{
     InsiderOwner, InsiderPlan, InsiderTrade, InsiderTransaction, Instrument, InstrumentProfile,
     Liquidity, MacroObservation, MacroPoint, MacroSeries, NewsArticle, PressCandidate,
     PressRelease, RiskFreeRate, SIP_DELAY, Session, ShortInterest, ShortInterestRecord,
-    ShortVolume, StockIndex, Symbol, Timeframe,
+    ShortVolume, StockIndex, Symbol, TextCandidate, Timeframe,
 };
 use buizz_core::ops::{ActionDisagreement, CoverageGap, DataWarning, UNEXPLAINED_MOVE_THRESHOLD};
 use buizz_core::protocol::BarRow;
@@ -1388,6 +1388,35 @@ pub(crate) fn press_candidates(connection: &Connection) -> Result<Vec<PressCandi
         })?
         .collect::<duckdb::Result<Vec<_>>>()?;
     Ok(candidates)
+}
+
+pub(crate) fn text_candidates(connection: &Connection) -> Result<Vec<TextCandidate>> {
+    let mut statement = connection.prepare_cached(
+        "SELECT c.cik, c.accession, any_value(c.form), any_value(c.accepted_at) \
+         FROM current_report c \
+         WHERE NOT EXISTS (SELECT 1 FROM filing_text f WHERE f.accession = c.accession) \
+         GROUP BY c.cik, c.accession ORDER BY any_value(c.accepted_at) DESC, c.accession",
+    )?;
+    let candidates = statement
+        .query_map([], |row| {
+            Ok(TextCandidate {
+                cik: row.get(0)?,
+                accession: row.get(1)?,
+                form: row.get(2)?,
+                accepted_at: row.get::<_, Ts>(3)?.0,
+            })
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    Ok(candidates)
+}
+
+pub(crate) fn filing_text_progress(connection: &Connection) -> Result<(u64, u64)> {
+    Ok(connection.query_row(
+        "SELECT (SELECT count(*) FROM filing_text), \
+         (SELECT count(DISTINCT accession) FROM current_report)",
+        [],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?)
 }
 
 pub(crate) fn unread_plans(connection: &Connection, from: Timestamp) -> Result<Vec<InsiderPlan>> {

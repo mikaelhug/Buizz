@@ -7,11 +7,12 @@ use buizz_core::listing::Listings;
 use buizz_core::market::{
     Adjustment, AdjustmentFactor, Bar, Borrow, BorrowAvailability, Calendar, Company,
     CorporateAction, Coverage, DataSource, EarningsInsight, EarningsRelease, EstimateFact, Filing,
-    FomcAnnouncement, FomcMeeting, FundamentalFact, FundamentalMetric, FundamentalPoint,
-    IndexHistory, InsiderFiling, InsiderPlan, InsiderTrade, Instrument, InstrumentProfile,
-    Liquidity, MacroObservation, MacroPoint, MacroSeries, NewsArticle, PressCandidate,
-    PressExhibit, PressRelease, RiskFreeRate, SecFiling, Session, ShortInterest,
-    ShortInterestRecord, ShortVolume, ShortVolumeRecord, StockIndex, Symbol, Timeframe, Watermarks,
+    FilingText, FomcAnnouncement, FomcMeeting, FundamentalFact, FundamentalMetric,
+    FundamentalPoint, IndexHistory, InsiderFiling, InsiderPlan, InsiderTrade, Instrument,
+    InstrumentProfile, Liquidity, MacroObservation, MacroPoint, MacroSeries, NewsArticle,
+    PressCandidate, PressExhibit, PressRelease, RiskFreeRate, SecFiling, Session, ShortInterest,
+    ShortInterestRecord, ShortVolume, ShortVolumeRecord, StockIndex, Symbol, TextCandidate,
+    Timeframe, Watermarks,
 };
 use buizz_core::ops::{ActionDisagreement, CoverageGap, DataWarning};
 use buizz_core::protocol::BarRow;
@@ -33,7 +34,10 @@ mod lane;
 mod migrate;
 mod read;
 mod restore;
+mod text;
 mod write;
+
+pub use text::{FILL_LIMIT, Space, TextVolume, TextVolumes};
 
 pub use restore::Restored;
 
@@ -79,6 +83,8 @@ pub enum MarketError {
     Setting(String),
     #[error("market store catalog: {0}")]
     Catalog(String),
+    #[error("text store: {0}")]
+    Text(String),
     #[error("market store has shut down")]
     Closed,
     #[error("market store worker failed: {0}")]
@@ -187,6 +193,7 @@ pub struct MarketStore {
     writer: Lane,
     readers: Lane,
     shared: Arc<Shared>,
+    text: Arc<TextVolumes>,
 }
 
 impl MarketStore {
@@ -216,7 +223,22 @@ impl MarketStore {
                 actions: RwLock::new(Arc::new(actions)),
                 watermarks: watch::Sender::new(Watermarks { day, minute: None }),
             }),
+            text: Arc::new(TextVolumes::default()),
         })
+    }
+
+    pub async fn with_text(mut self, roots: Vec<PathBuf>) -> Result<Self> {
+        let volumes = tokio::task::spawn_blocking(move || TextVolumes::open(&roots)).await??;
+        let registered = volumes.clone();
+        self.writer
+            .run(move |connection| write::text_volumes(connection, &registered))
+            .await?;
+        self.text = Arc::new(volumes);
+        Ok(self)
+    }
+
+    pub fn text_volumes(&self) -> &TextVolumes {
+        &self.text
     }
 
     pub async fn limit(&self, memory: String, threads: usize) -> Result<()> {
@@ -678,6 +700,29 @@ impl MarketStore {
     ) -> Result<WriteSummary> {
         self.writer
             .run(move |connection| write::press_releases(connection, source, releases))
+            .await
+    }
+
+    pub async fn append_filing_texts(
+        &self,
+        source: DataSource,
+        filings: Vec<FilingText>,
+    ) -> Result<WriteSummary> {
+        let volumes = Arc::clone(&self.text);
+        self.writer
+            .run(move |connection| write::filing_texts(connection, &volumes, source, filings))
+            .await
+    }
+
+    pub async fn text_candidates(&self) -> Result<Vec<TextCandidate>> {
+        self.readers
+            .run(|connection| read::text_candidates(connection))
+            .await
+    }
+
+    pub async fn filing_text_progress(&self) -> Result<(u64, u64)> {
+        self.readers
+            .run(|connection| read::filing_text_progress(connection))
             .await
     }
 
