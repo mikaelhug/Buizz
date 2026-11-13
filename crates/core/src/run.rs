@@ -387,6 +387,8 @@ pub struct RunConfig {
     pub risk: RiskLimits,
     pub seed: u64,
     pub benchmark: Symbol,
+    #[serde(default)]
+    pub hedge_benchmark: Option<Symbol>,
     pub holdout: bool,
 }
 
@@ -703,6 +705,8 @@ pub struct BotManifest {
     pub params: Map<String, Value>,
     #[serde(default = "BotManifest::default_benchmark")]
     pub benchmark: Symbol,
+    #[serde(default)]
+    pub hedge_benchmark: Option<Symbol>,
     #[serde(default)]
     pub risk: RiskLimits,
     #[serde(default = "BotManifest::default_step_timeout")]

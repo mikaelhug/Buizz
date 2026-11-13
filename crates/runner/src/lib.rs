@@ -629,6 +629,7 @@ impl Runner {
             risk,
             seed,
             benchmark: manifest.benchmark.clone(),
+            hedge_benchmark: manifest.hedge_benchmark.clone(),
             holdout,
         })
     }

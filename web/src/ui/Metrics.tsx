@@ -25,7 +25,13 @@ const DAILY = "Computed from session-close equity, so intraday swings that recov
 const drawdown = (value: Value) => (value === null || value === undefined ? value : -value);
 const noEquity = () => "no equity yet";
 const needsSessions = (metrics: Metrics) => (metrics.sessions < 2 ? "needs ≥ 2 sessions" : undefined);
-const benchmarkReason = (metrics: Metrics) => needsSessions(metrics) ?? "no benchmark returns";
+const benchmarkReason = (metrics: Metrics) => needsSessions(metrics) ?? "no benchmark returns or T-bill rate";
+const needsThree = (metrics: Metrics) => (metrics.sessions < 3 ? "needs ≥ 3 sessions" : undefined);
+const residualReason = (alpha: "alpha" | "hedge_alpha") => (metrics: Metrics) =>
+  needsThree(metrics) ?? (metrics[alpha] === null || metrics[alpha] === undefined ? "no benchmark returns or T-bill rate" : "residual under 0.001% a day");
+const REGRESSION = "a regression of the run's daily returns over the T-bill rate on the benchmark's";
+const HEDGE = "Against the hedge benchmark (hedge_benchmark in bot.toml), a second regression like the main one:";
+const NEWEY_WEST = "Alpha over its Newey–West standard error (Bartlett weights, ⌊4·(n/100)^(2/9)⌋ lags, scaled by n/(n−2)), robust to returns that cluster or trend; beyond ±2 is unlikely to be luck for one trial.";
 const needsYear = (metrics: Metrics) =>
   metrics.sessions < TRADING_DAYS ? `needs ≥ 1 year (${fmt.integer(metrics.sessions)} of ${TRADING_DAYS} sessions)` : undefined;
 const noTrades = (metrics: Metrics) => (metrics.trades === 0 ? "no closed trades" : undefined);
@@ -110,7 +116,7 @@ export const METRICS: Record<MetricKey, MetricSpec> = {
     key: "alpha",
     label: "Alpha",
     name: "Alpha",
-    title: `Annualised return not explained by the benchmark, from a regression of daily returns on the benchmark's. ${DAILY}`,
+    title: `Annualised return not explained by the benchmark: the daily intercept of ${REGRESSION}, times 252. ${DAILY}`,
     render: fmt.change,
     tone,
     missing: benchmarkReason,
@@ -119,10 +125,59 @@ export const METRICS: Record<MetricKey, MetricSpec> = {
     key: "beta",
     label: "Beta",
     name: "Beta",
-    title: "Sensitivity of daily returns to the benchmark's: 1 moves with it, 0 is unrelated, negative moves against it.",
+    title: `Slope of ${REGRESSION}: 1 moves with it, 0 is unrelated, negative moves against it.`,
     render: fmt.ratio,
     missing: benchmarkReason,
   },
+  residual_volatility: {
+    key: "residual_volatility",
+    label: "Resid vol",
+    name: "Residual volatility",
+    title: "Annualised standard deviation of the regression's daily residuals (n − 2 degrees of freedom): the risk the benchmark does not explain.",
+    render: fmt.percent,
+    missing: (metrics) => needsThree(metrics) ?? "no benchmark returns or T-bill rate",
+  },
+  appraisal_ratio: {
+    key: "appraisal_ratio",
+    label: "Appraisal",
+    name: "Appraisal ratio",
+    title: "Alpha divided by residual volatility: the Sharpe ratio of what is left once the benchmark exposure is hedged out.",
+    render: fmt.ratio,
+    tone,
+    missing: residualReason("alpha"),
+  },
+  alpha_t: { key: "alpha_t", label: "Alpha t", name: "Alpha t-stat", title: NEWEY_WEST, render: fmt.ratio, tone, missing: residualReason("alpha") },
+  overlay_sharpe: {
+    key: "overlay_sharpe",
+    label: "Overlay Sharpe",
+    name: "Benchmark + residual Sharpe",
+    title:
+      "The Sharpe of holding the benchmark plus this run's residual return at its best size: √(benchmark Sharpe² + appraisal ratio²), with a negative appraisal ratio adding nothing. Shown while the benchmark's own Sharpe is positive.",
+    render: fmt.ratio,
+    tone,
+    missing: (metrics) =>
+      metrics.appraisal_ratio === null || metrics.appraisal_ratio === undefined ? residualReason("alpha")(metrics) : "benchmark Sharpe not positive",
+  },
+  hedge_alpha: { key: "hedge_alpha", label: "Hedge alpha", name: "Alpha", title: `${HEDGE} annualised intercept.`, render: fmt.change, tone, missing: () => "no hedge benchmark returns or T-bill rate" },
+  hedge_beta: { key: "hedge_beta", label: "Hedge beta", name: "Beta", title: `${HEDGE} slope.`, render: fmt.ratio, missing: () => "no hedge benchmark returns or T-bill rate" },
+  hedge_residual_volatility: {
+    key: "hedge_residual_volatility",
+    label: "Hedge resid vol",
+    name: "Residual volatility",
+    title: `${HEDGE} annualised standard deviation of its residuals.`,
+    render: fmt.percent,
+    missing: (metrics) => needsThree(metrics) ?? "no hedge benchmark returns or T-bill rate",
+  },
+  hedge_appraisal_ratio: {
+    key: "hedge_appraisal_ratio",
+    label: "Hedge appraisal",
+    name: "Appraisal ratio",
+    title: `${HEDGE} alpha divided by residual volatility.`,
+    render: fmt.ratio,
+    tone,
+    missing: residualReason("hedge_alpha"),
+  },
+  hedge_alpha_t: { key: "hedge_alpha_t", label: "Hedge alpha t", name: "Alpha t-stat", title: `${HEDGE} ${NEWEY_WEST}`, render: fmt.ratio, tone, missing: residualReason("hedge_alpha") },
   trades: { key: "trades", label: "Trades", name: "Trades", title: "Closed round trips: a position opened and taken back to flat (or flipped).", render: fmt.integer },
   sessions: { key: "sessions", label: "Sessions", name: "Sessions", title: "Trading sessions with a close mark so far.", render: fmt.integer },
 };
@@ -134,6 +189,7 @@ export function MetricValue({ metrics, metric }: { metrics: Metrics | null | und
 }
 
 const BENCHMARKED: ReadonlySet<MetricKey> = new Set(["total_return", "cagr", "volatility", "sharpe", "sortino", "max_drawdown", "calmar"]);
+const COMPARED_WITH: Partial<Record<MetricKey, MetricKey>> = { overlay_sharpe: "sharpe" };
 
 type Benchmark = { symbol: string; metrics: Metrics };
 
@@ -142,7 +198,8 @@ export type Stat = { label: string; title: string; text: string; tone?: "up" | "
 function metricStat(key: MetricKey, metrics: Metrics | null | undefined, benchmark: Benchmark | undefined): Stat {
   const spec = METRICS[key];
   const value = metrics?.[key];
-  const reference = benchmark && BENCHMARKED.has(key) ? benchmark.metrics[key] : undefined;
+  const referenceKey = BENCHMARKED.has(key) ? key : COMPARED_WITH[key];
+  const reference = benchmark && referenceKey ? benchmark.metrics[referenceKey] : undefined;
   const absent = value === null || value === undefined;
   const note = metrics ? (absent ? spec.missing?.(metrics) : spec.caveat?.(metrics)) : "waiting for the first session";
   return {
@@ -227,13 +284,20 @@ function StatRow({ stat, headline = false }: { stat: Stat; headline?: boolean })
   );
 }
 
-type GroupsProps = { metrics: Metrics | null | undefined; benchmark: Benchmark | undefined; months: MonthRange };
+type GroupsProps = { metrics: Metrics | null | undefined; benchmark: Benchmark | undefined; hedge: string | null | undefined; months: MonthRange };
 
-export function MetricGroups({ metrics, benchmark, months }: GroupsProps) {
+export function MetricGroups({ metrics, benchmark, hedge, months }: GroupsProps) {
   const [open, setOpen] = useState(false);
   const stat = (key: MetricKey) => metricStat(key, metrics, benchmark);
   const groups: { title: string; headline: Stat; rows: Stat[] }[] = [
-    { title: `vs ${benchmark?.symbol ?? "benchmark"}`, headline: excessCagrStat(metrics, benchmark), rows: [excessStat(metrics, benchmark), stat("alpha"), stat("beta")] },
+    {
+      title: `vs ${benchmark?.symbol ?? "benchmark"}`,
+      headline: excessCagrStat(metrics, benchmark),
+      rows: [excessStat(metrics, benchmark), stat("alpha"), stat("beta"), stat("residual_volatility"), stat("appraisal_ratio"), stat("alpha_t"), stat("overlay_sharpe")],
+    },
+    ...(hedge
+      ? [{ title: `vs ${hedge}`, headline: stat("hedge_appraisal_ratio"), rows: [stat("hedge_alpha"), stat("hedge_beta"), stat("hedge_residual_volatility"), stat("hedge_alpha_t")] }]
+      : []),
     { title: "Returns", headline: stat("total_return"), rows: [stat("cagr"), monthStat("Best month", months?.best), monthStat("Worst month", months?.worst), stat("sessions")] },
     { title: "Risk", headline: stat("max_drawdown"), rows: [stat("volatility"), stat("sharpe"), stat("sortino"), stat("calmar")] },
     { title: "Trading", headline: stat("trades"), rows: [stat("win_rate"), stat("profit_factor"), stat("turnover"), stat("exposure")] },

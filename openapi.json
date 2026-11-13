@@ -1437,6 +1437,16 @@
           "benchmark": {
             "$ref": "#/components/schemas/Symbol"
           },
+          "hedge_benchmark": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Symbol"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "risk": {
             "$ref": "#/components/schemas/RiskLimits"
           },
@@ -2699,6 +2709,69 @@
             ],
             "format": "double"
           },
+          "residual_volatility": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "appraisal_ratio": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "alpha_t": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "overlay_sharpe": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "hedge_alpha": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "hedge_beta": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "hedge_residual_volatility": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "hedge_appraisal_ratio": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "hedge_alpha_t": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
           "trades": {
             "type": "integer",
             "format": "int32",
@@ -3520,6 +3593,16 @@
           },
           "benchmark": {
             "$ref": "#/components/schemas/Symbol"
+          },
+          "hedge_benchmark": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Symbol"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "holdout": {
             "type": "boolean"
