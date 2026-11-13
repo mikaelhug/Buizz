@@ -1,125 +1,66 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { api, errorMessage, must, type Schemas } from "../api/client";
 import { type SpineEvent, useSpineEvents } from "../api/stream";
-import { fmt, paramsText, tone } from "../lib/format";
+import { BENCHMARK, type Bot, closeness, type Entry, entriesOf, excessCagr, type Glance, type Group, GROUP_TEXT, GROUPS, headline, variantOf, windowOf } from "../lib/bots";
+import { fmt, tone } from "../lib/format";
 import { href, navigate, useQueryParam } from "../lib/route";
+import { useStored } from "../lib/stored";
 import { useFrameBatch } from "../lib/useFrameBatch";
 import { useResource } from "../lib/useResource";
+import { ExcessBar, excessScale } from "../ui/ExcessBar";
 import { Failure, Loading, StaleFailure } from "../ui/Feedback";
+import { GateResult } from "../ui/Gate";
 import { Icon } from "../ui/Icon";
-import { Card, EmptyState, Stat } from "../ui/Kit";
-import { Annualized, LIVE_COLUMNS, type Live } from "../ui/LiveTable";
+import { EmptyState } from "../ui/Kit";
+import { Annualized, type Live, Verdict } from "../ui/LiveTable";
 import { type MenuAction, OverflowMenu } from "../ui/Menu";
 import { Info } from "../ui/Popover";
 import { BulkBar, CompareButton, SelectAll, SelectBox, useSelection } from "../ui/Selection";
+import { SourceBacktest } from "../ui/Source";
 import { type Mark, Sparkline } from "../ui/Sparkline";
-import { SUB_PERIODS_ABOUT, SubPeriods } from "../ui/SubPeriods";
-import { Ago, matches, PageSearch, SortHeader, type SortColumns, useSort } from "../ui/Table";
+import { StatusPill } from "../ui/Status";
+import { SubPeriods } from "../ui/SubPeriods";
+import { Ago, matches, moveBetweenRows, PageSearch, SortHeader, type SortColumns, useSort } from "../ui/Table";
 import { notify } from "../ui/Toaster";
 import { goLive, isRunning, pauseRun, resumeRun, undoPause, useLiveControls } from "./BotActions";
 import { launchBacktest, launchSweep } from "./Launch";
+import { GoLiveButton, Overview } from "./Overview";
 import { type Preset, SWEEP_PRESETS } from "./SweepDialog";
 import "../styles/board.css";
 import "../styles/bots.css";
 
-type Bot = Schemas["BotSummary"];
 type Run = Schemas["RunSummary"];
-type Glance = Schemas["BacktestGlance"];
 type EquityEvent = Extract<SpineEvent, { type: "equity" }>;
 
-const STAGES = ["draft", "screened", "incubating", "tracking", "proven", "falsified"] as const;
-type Stage = (typeof STAGES)[number];
+const HEADLINE_ABOUT =
+  "The bot's CAGR minus total-return SPY's (dividends reinvested) over exactly the same sessions: live since the run started when it is live, else its screening backtest. SPY's own figures for each window are stated once above the list. A bot whose bot.toml names another benchmark says so under its figure.";
 
-const STAGE_TEXT: Record<Stage, { name: string; caption: string }> = {
-  draft: { name: "Draft", caption: "no variant passes the gate" },
-  screened: { name: "Screened", caption: "passed the backtest gate" },
-  incubating: { name: "Incubating", caption: "live, under 20 sessions" },
-  tracking: { name: "Tracking", caption: "live, inside its backtest band" },
-  proven: { name: "Proven", caption: "live, beats SPY with confidence" },
-  falsified: { name: "Falsified", caption: "live, left its backtest band" },
-};
+const BACKTEST_ABOUT =
+  "The backtest behind the row. For a live run, the backtest it went live from, with its CAGR vs SPY; otherwise the screening backtest. Passes gate or fails n of 8 checks (click for which), and the three squares show whether it beat SPY in each third of the period.";
 
-const STAGE_RANK: Record<Stage, number> = { proven: 0, tracking: 1, falsified: 2, incubating: 3, screened: 4, draft: 5 };
-
-const QUESTION_ABOUT =
-  "Every figure compares a bot with total-return SPY (dividends reinvested) over exactly the same sessions. A bot first screens in backtest: the screening backtest is the plateau variant on the longest preset period its current code ran with standard costs, risk and cash, else the default params, else the latest variant. Only live paper results can prove it.";
-
-type Entry = { key: string; bot: Bot; live: Live | undefined; stage: Stage };
-
-function stageOf(bot: Bot, live: Live | undefined): Stage {
-  if (live) {
-    const verdict = live.run.live_stats?.verdict ?? "incubating";
-    return verdict === "no_backtest" ? "tracking" : verdict;
-  }
-  return bot.stage === "screened" ? "screened" : "draft";
-}
-
-function entriesOf(bots: Bot[]): Entry[] {
-  return bots.flatMap((bot): Entry[] =>
-    bot.live.length > 0
-      ? bot.live.map((live) => ({ key: `run-${live.run.id}`, bot, live, stage: stageOf(bot, live) }))
-      : [{ key: `bot-${bot.name}`, bot, live: undefined, stage: stageOf(bot, undefined) }],
-  );
-}
-
-function excessCagr(glance: Glance | null | undefined): number | undefined {
-  const own = glance?.metrics.cagr;
-  const spy = glance?.benchmark.cagr;
-  return own === null || own === undefined || spy === null || spy === undefined ? undefined : own - spy;
-}
-
-function glanceWhat(glance: Glance): string {
-  return glance.preset ? `backtest ${glance.preset}` : `backtest ${glance.period.from.slice(0, 4)}–${glance.period.to.slice(0, 4)}`;
-}
-
-function headline(entry: Entry): number | undefined {
-  return entry.live ? (entry.live.run.live_stats?.excess_cagr ?? undefined) : excessCagr(entry.bot.backtest);
-}
-
-type Maybe = number | null | undefined;
-type Figures = { cagr?: Maybe; spyCagr?: Maybe; ret?: Maybe; spyRet?: Maybe; drawdown?: Maybe; spyDrawdown?: Maybe; thirds: number[] };
+type SortKey = "bot" | "headline" | "backtest" | "cagr" | "drawdown" | "activity";
 
 const negate = (value: number | null | undefined) => (value === null || value === undefined ? undefined : -value);
 
-function figures(entry: Entry): Figures {
+function own(entry: Entry): { cagr: number | undefined; drawdown: number | undefined } {
   const stats = entry.live?.run.live_stats;
   if (entry.live) {
-    return stats && stats.sessions > 0
-      ? { cagr: stats.cagr, spyCagr: stats.benchmark_cagr, ret: stats.total_return, spyRet: stats.benchmark_return, drawdown: negate(stats.max_drawdown), thirds: [] }
-      : { thirds: [] };
+    return stats && stats.sessions > 0 ? { cagr: stats.cagr, drawdown: -stats.max_drawdown } : { cagr: undefined, drawdown: undefined };
   }
   const glance = entry.bot.backtest;
-  return glance
-    ? {
-        cagr: glance.metrics.cagr,
-        spyCagr: glance.benchmark.cagr,
-        ret: glance.metrics.total_return,
-        spyRet: glance.benchmark.total_return,
-        drawdown: negate(glance.metrics.max_drawdown),
-        spyDrawdown: negate(glance.benchmark.max_drawdown),
-        thirds: glance.preset ? glance.sub_periods : [],
-      }
-    : { thirds: [] };
+  return { cagr: glance?.metrics.cagr ?? undefined, drawdown: negate(glance?.metrics.max_drawdown) };
 }
 
-function variantOf(params: Record<string, unknown>, defaults: Record<string, unknown>): string {
-  return paramsText(Object.fromEntries(Object.entries(params).filter(([name, value]) => JSON.stringify(value) !== JSON.stringify(defaults[name]))));
+function backtestOf(entry: Entry): Glance | null | undefined {
+  return entry.live ? entry.live.source : entry.bot.backtest;
 }
-
-function needsAttention(entry: Entry): boolean {
-  return entry.stage === "falsified" || (entry.live?.run.status === "paused" && Boolean(entry.live.run.message));
-}
-
-type SortKey = "bot" | "stage" | "headline" | "cagr" | "return" | "drawdown" | "thirds" | "activity";
 
 const SORT: SortColumns<Entry, SortKey> = {
   bot: { value: (entry) => entry.bot.name },
-  stage: { value: (entry) => (needsAttention(entry) ? -1 : STAGE_RANK[entry.stage]) + 0.5 - Math.atan(headline(entry) ?? -Infinity) / Math.PI },
   headline: { value: headline, descending: true },
-  cagr: { value: (entry) => figures(entry).cagr, descending: true },
-  return: { value: (entry) => figures(entry).ret, descending: true },
-  drawdown: { value: (entry) => figures(entry).drawdown, descending: true },
-  thirds: { value: (entry) => (figures(entry).thirds.length === 0 ? undefined : figures(entry).thirds.filter((edge) => edge > 0).length), descending: true },
+  backtest: { value: (entry) => (backtestOf(entry) ? -closeness(backtestOf(entry)) : undefined), descending: true },
+  cagr: { value: (entry) => own(entry).cagr, descending: true },
+  drawdown: { value: (entry) => own(entry).drawdown, descending: true },
   activity: { value: (entry) => (entry.bot.last_run_at ? Date.parse(entry.bot.last_run_at) : undefined), descending: true },
 };
 
@@ -131,22 +72,43 @@ function patchRun(bots: Bot[], run: Run, update: (live: Live) => Live): Bot[] {
   );
 }
 
-function isStage(value: string): value is Stage {
-  return STAGES.some((stage) => stage === value);
+function isGroup(value: string): value is Group {
+  return GROUPS.some((group) => group === value);
+}
+
+function useBotRefresh(mutate: (update: (bots: Bot[]) => Bot[]) => void) {
+  const inFlight = useRef(new Set<string>());
+  const again = useRef(new Set<string>());
+  const fetchBot = (name: string) => {
+    if (inFlight.current.has(name)) {
+      again.current.add(name);
+      return;
+    }
+    inFlight.current.add(name);
+    must(api.GET("/api/bots/{name}", { params: { path: { name } } }))
+      .then(
+        (detail) => mutate((current) => current.map((bot) => (bot.name === name ? detail.summary : bot))),
+        (error: unknown) => notify(`${name}: ${errorMessage(error)}`),
+      )
+      .finally(() => {
+        inFlight.current.delete(name);
+        if (again.current.delete(name)) {
+          fetchBot(name);
+        }
+      });
+  };
+  return useFrameBatch<string>((names) => new Set(names).forEach(fetchBot));
 }
 
 export function BotGrid() {
   const bots = useResource(() => must(api.GET("/api/bots")), []);
+  const jobs = useResource(() => must(api.GET("/api/data/jobs")), []);
   const [marks, setMarks] = useState<Record<number, Mark>>({});
   const [filter, setFilter] = useQueryParam("q");
-  const [stageParam, setStage] = useQueryParam("stage");
-  const sorting = useSort("bots", SORT, { key: "stage", descending: false });
-
-  const refreshBot = (name: string) =>
-    must(api.GET("/api/bots/{name}", { params: { path: { name } } })).then(
-      (detail) => bots.mutate((current) => current.map((bot) => (bot.name === name ? detail.summary : bot))),
-      (error: unknown) => notify(`${name}: ${errorMessage(error)}`),
-    );
+  const [groupParam, setGroup] = useQueryParam("stage");
+  const [untestedOpen, setUntestedOpen] = useStored<boolean>("bots-untested-open", false, (value): value is boolean => typeof value === "boolean");
+  const sorting = useSort("bot-list", SORT, { key: "headline", descending: true });
+  const refreshBot = useBotRefresh(bots.mutate);
 
   const applyMarks = useFrameBatch<EquityEvent>((events) =>
     setMarks((current) => ({ ...current, ...Object.fromEntries(events.map((event) => [event.run_id, { at: event.at, equity: event.equity }])) })),
@@ -157,7 +119,7 @@ export function BotGrid() {
 
   const changed = (run: Run) => {
     if (finished(run.status) || !known(run.id)) {
-      void refreshBot(run.bot);
+      refreshBot(run.bot);
     } else {
       bots.mutate((current) => patchRun(current, run, (live) => ({ ...live, run: { ...live.run, status: run.status, desired: run.desired, message: run.message ?? null } })));
     }
@@ -169,31 +131,42 @@ export function BotGrid() {
       if (known(event.run_id)) {
         bots.mutate((current) => patchRun(current, event.summary.run, () => event.summary));
       } else {
-        void refreshBot(event.bot);
+        refreshBot(event.bot);
       }
     } else if (event.type === "equity" && known(event.run_id)) {
       applyMarks(event);
     } else if (event.type === "run_status" && event.mode === "live") {
       const live = known(event.run_id);
       if (!live || finished(event.status)) {
-        void refreshBot(event.bot);
+        refreshBot(event.bot);
       } else {
         const desired = event.status === "paused" ? live.run.desired : "running";
         bots.mutate((current) => patchRun(current, live.run, (entry) => ({ ...entry, run: { ...entry.run, status: event.status, desired } })));
       }
     } else if (event.type === "run_status") {
-      const now = new Date().toISOString();
-      bots.mutate((current) => current.map((bot) => (bot.name === event.bot && event.status === "queued" ? { ...bot, last_run_at: now } : bot)));
-      if (event.status === "completed" && bots.data?.some((bot) => bot.name === event.bot && bot.live.length === 0)) {
-        void refreshBot(event.bot);
+      if (finished(event.status)) {
+        refreshBot(event.bot);
+      } else {
+        const now = new Date().toISOString();
+        bots.mutate((current) =>
+          current.map((bot) =>
+            bot.name !== event.bot ? bot : { ...bot, last_run_at: event.status === "queued" ? now : (bot.last_run_at ?? null), status: bot.live.length > 0 ? bot.status : "backtesting" },
+          ),
+        );
       }
+    } else if (event.type === "job") {
+      jobs.mutate((current) => (current.some((job) => job.name === event.job.name) ? current.map((job) => (job.name === event.job.name ? event.job : job)) : [...current, event.job]));
     }
   });
 
   const all = entriesOf(bots.data ?? []);
-  const stage = isStage(stageParam) ? stageParam : undefined;
-  const shown = sorting.order(all.filter((entry) => (!stage || entry.stage === stage) && matches(filter, entry.bot.name, entry.bot.description)));
-  const chosen = useSelection(shown.map((entry) => entry.key));
+  const group = isGroup(groupParam) ? groupParam : undefined;
+  const found = all.filter((entry) => (!group || entry.group === group) && matches(filter, entry.bot.name, entry.bot.description));
+  const searching = filter.trim() !== "" || group !== undefined;
+  const groups = GROUPS.map((key) => ({ key, rows: sorting.order(found.filter((entry) => entry.group === key)) })).filter((section) => section.rows.length > 0);
+  const visible = groups.flatMap((section) => (section.key === "untested" && !untestedOpen && !searching ? [] : section.rows));
+  const chosen = useSelection(visible.map((entry) => entry.key));
+  const scale = excessScale(all.map(headline));
 
   if (!bots.data) {
     return bots.error ? <Failure message={bots.error} onRetry={bots.reload} /> : <Loading shape="table" />;
@@ -207,235 +180,290 @@ export function BotGrid() {
       <header className="page-head bots-head">
         <div>
           <h1>Bots</h1>
-          <p className="page-question">
-            Which bot beats total-return SPY, first in backtest and then live?
-            <Info label="How bots are judged">{QUESTION_ABOUT}</Info>
-          </p>
+          <StateLine entries={all} />
         </div>
         <PageSearch label="Search bots" value={filter} onChange={setFilter} />
       </header>
       <StaleFailure resource={bots} />
-      <Pipeline entries={all} stage={stage} onStage={(next) => setStage(next === stage ? "" : (next ?? ""))} />
-      <Highlights entries={all} />
+      <Overview entries={all} jobs={jobs.data} marks={marks} />
       <section className="bots-list" aria-label="Bot list">
-        {shown.length === 0 ? (
-          <EmptyState title={stage ? `No bot is ${STAGE_TEXT[stage].name.toLowerCase()}` : "No bot matches"}>
-            {stage ? STAGE_TEXT[stage].caption : `Nothing matches “${filter.trim()}”.`}
-          </EmptyState>
+        <div className="list-bar">
+          <nav className="segmented list-filter" aria-label="Show">
+            <button type="button" aria-pressed={!group} className={group ? undefined : "active"} onClick={() => setGroup("")}>
+              All <span className="num">{all.length}</span>
+            </button>
+            {GROUPS.map((key) => (
+              <button key={key} type="button" aria-pressed={group === key} className={group === key ? "active" : undefined} onClick={() => setGroup(group === key ? "" : key)}>
+                {GROUP_TEXT[key].name} <span className="num">{all.filter((entry) => entry.group === key).length}</span>
+              </button>
+            ))}
+          </nav>
+          <BenchmarkStrip entries={all} />
+        </div>
+        {groups.length === 0 ? (
+          <div className="card">
+            <EmptyState title={group ? `Nothing is ${GROUP_TEXT[group].name.toLowerCase()}` : "No bot matches"}>
+              {group ? GROUP_TEXT[group].caption : `Nothing matches “${filter.trim()}”.`}
+            </EmptyState>
+          </div>
         ) : (
-          <div className="card table-wrap">
-            <table className="table board bot-list">
+          <div className="card bot-table-wrap">
+            <table className="table bot-list">
               <thead>
                 <tr>
-                  <SortHeader sorting={sorting} column="bot" className="board-name" select={<SelectAll selection={chosen} label="Select every bot shown" />}>
+                  <SortHeader sorting={sorting} column="bot" className="name-col" select={<SelectAll selection={chosen} label="Select every bot shown" />}>
                     Bot
                   </SortHeader>
-                  <SortHeader sorting={sorting} column="stage" className="stage-col">
-                    Stage
-                  </SortHeader>
-                  <SortHeader sorting={sorting} column="headline" numeric className="headline-cell" info={<Info label="CAGR vs SPY">{QUESTION_ABOUT}</Info>}>
+                  <SortHeader sorting={sorting} column="headline" numeric className="headline-col" info={<Info label="CAGR vs SPY">{HEADLINE_ABOUT}</Info>}>
                     CAGR vs SPY
                   </SortHeader>
-                  <SortHeader sorting={sorting} column="cagr" numeric className="wide-col">
+                  <th scope="col" className="status-col">
+                    Status
+                  </th>
+                  <SortHeader sorting={sorting} column="backtest" className="backtest-col" info={<Info label="Backtest">{BACKTEST_ABOUT}</Info>}>
+                    Backtest
+                  </SortHeader>
+                  <SortHeader sorting={sorting} column="cagr" numeric className="own-col">
                     CAGR
                   </SortHeader>
-                  <SortHeader sorting={sorting} column="return" numeric className="wide-col">
-                    Return
-                  </SortHeader>
-                  <SortHeader sorting={sorting} column="drawdown" numeric className="wide-col">
+                  <SortHeader sorting={sorting} column="drawdown" numeric className="own-col">
                     Max DD
                   </SortHeader>
-                  <SortHeader sorting={sorting} column="thirds" className="wider-col" info={<Info label="Thirds">{SUB_PERIODS_ABOUT}</Info>}>
-                    Thirds
-                  </SortHeader>
                   <th scope="col" className="chart-col">
-                    vs total-return SPY
+                    Equity vs SPY
                   </th>
                   <SortHeader sorting={sorting} column="activity" className="activity-col">
-                    Activity
+                    Last run
                   </SortHeader>
-                  <th scope="col">
-                    <span className="visually-hidden">Actions</span>
+                  <th scope="col" className="next-col">
+                    <span className="visually-hidden">Next step and actions</span>
                   </th>
                 </tr>
               </thead>
-              <tbody>
-                {shown.map((entry) => (
-                  <BotRow key={entry.key} entry={entry} mark={entry.live ? marks[entry.live.run.id] : undefined} chosen={chosen} onChanged={changed} />
-                ))}
-              </tbody>
+              {groups.map((section) => {
+                const collapsed = section.key === "untested" && !untestedOpen && !searching;
+                return (
+                  <tbody key={section.key} onKeyDown={moveBetweenRows}>
+                    <tr className="group-row">
+                      <th scope="colgroup" colSpan={9}>
+                        <span className="group-head">
+                          {section.key === "untested" && !searching ? (
+                            <button type="button" className="group-toggle" aria-expanded={!collapsed} onClick={() => setUntestedOpen(!untestedOpen)}>
+                              <Icon name="chevron" />
+                              <span className="group-name">{GROUP_TEXT[section.key].name}</span>
+                            </button>
+                          ) : (
+                            <span className="group-name">{GROUP_TEXT[section.key].name}</span>
+                          )}
+                          <span className="group-count num">{section.rows.length}</span>
+                          <span className="group-caption">{GROUP_TEXT[section.key].caption}</span>
+                          {section.key === "untested" && <UntestedActions entries={section.rows} />}
+                        </span>
+                      </th>
+                    </tr>
+                    {!collapsed &&
+                      section.rows.map((entry) => <BotRow key={entry.key} entry={entry} mark={entry.live ? marks[entry.live.run.id] : undefined} chosen={chosen} scale={scale} onChanged={changed} />)}
+                  </tbody>
+                );
+              })}
             </table>
           </div>
         )}
       </section>
       <div className="bulk-dock">
         <BulkBar selection={chosen} noun={chosen.keys.length === 1 ? "bot" : "bots"}>
-          <Bulk entries={shown.filter((entry) => chosen.has(entry.key))} onDone={chosen.clear} />
+          <Bulk entries={visible.filter((entry) => chosen.has(entry.key))} onDone={chosen.clear} />
         </BulkBar>
       </div>
     </div>
   );
 }
 
-function Pipeline({ entries, stage, onStage }: { entries: Entry[]; stage: Stage | undefined; onStage: (stage: Stage | undefined) => void }) {
+function StateLine({ entries }: { entries: Entry[] }) {
+  const live = entries.filter((entry) => entry.live).length;
+  const running = entries.filter((entry) => entry.live && isRunning(entry.live.run)).length;
+  const ready = entries.filter((entry) => entry.group === "ready").length;
+  const backtesting = new Set(entries.filter((entry) => entry.bot.status === "backtesting").map((entry) => entry.bot.name)).size;
+  const bots = new Set(entries.map((entry) => entry.bot.name)).size;
+  const parts = [
+    `${live} live paper ${live === 1 ? "run" : "runs"}${running < live ? ` (${live - running} paused)` : ""}`,
+    `${ready} ready to go live`,
+    ...(backtesting > 0 ? [`${backtesting} ${backtesting === 1 ? "bot" : "bots"} backtesting`] : []),
+    `${bots} bots`,
+  ];
   return (
-    <nav className="pipeline" aria-label="Pipeline">
-      {STAGES.map((step) => {
-        const count = entries.filter((entry) => entry.stage === step).length;
-        return (
-          <button key={step} type="button" className={`pipeline-step step-${step}`} aria-pressed={stage === step} onClick={() => onStage(step)}>
-            <span className={count > 0 ? "pipeline-count num" : "pipeline-count num zero"}>{count}</span>
-            <span className="pipeline-name">{STAGE_TEXT[step].name}</span>
-            <span className="pipeline-caption">{STAGE_TEXT[step].caption}</span>
-          </button>
-        );
-      })}
-    </nav>
+    <p className="page-question state-line" role="status">
+      {parts.join(" · ")}
+    </p>
   );
 }
 
-function best(entries: Entry[], score: (entry: Entry) => number | undefined): Entry | undefined {
-  return entries
-    .filter((entry) => score(entry) !== undefined)
-    .toSorted((a, b) => (score(b) ?? 0) - (score(a) ?? 0))[0];
+type Window = { key: string; symbol: string; label: string; cagr: number | null | undefined; drawdown: number | null | undefined; bots: number };
+
+function windows(entries: Entry[]): Window[] {
+  const found = new Map<string, Window>();
+  for (const entry of entries) {
+    const glance = entry.live ? undefined : entry.bot.backtest;
+    if (!glance) {
+      continue;
+    }
+    const label = windowOf(glance);
+    const key = `${glance.benchmark_symbol} ${label}`;
+    const known = found.get(key);
+    found.set(key, known ? { ...known, bots: known.bots + 1 } : { key, symbol: glance.benchmark_symbol, label, cagr: glance.benchmark.cagr, drawdown: negate(glance.benchmark.max_drawdown), bots: 1 });
+  }
+  return [...found.values()].toSorted((a, b) => b.bots - a.bots);
 }
 
-function Highlights({ entries }: { entries: Entry[] }) {
-  const live = entries.filter((entry) => entry.live && entry.live.run.live_stats && entry.live.run.live_stats.sessions > 0);
-  const judged = live.filter((entry) => entry.stage !== "incubating");
-  const topLive = best(judged.length > 0 ? judged : live, headline);
-  const screened = entries.filter((entry) => !entry.live && entry.stage === "screened");
-  const backtested = entries.filter((entry) => !entry.live && entry.bot.backtest?.preset);
-  const topScreened = best(screened.length > 0 ? screened : backtested, headline);
-  const liveCount = entries.filter((entry) => entry.live).length;
-
+function BenchmarkStrip({ entries }: { entries: Entry[] }) {
+  const shown = windows(entries);
+  if (shown.length === 0) {
+    return null;
+  }
   return (
-    <div className="highlights">
-      <Card title="Best live" label="Best live" className="highlight">
-        {topLive?.live?.run.live_stats ? (
-          <LiveHighlight entry={topLive} live={topLive.live} />
-        ) : (
-          <EmptyState
-            title={liveCount > 0 ? `${liveCount} live ${liveCount === 1 ? "run is" : "runs are"} waiting for a session close` : "No bot is live yet"}
-            action={
-              liveCount > 0 || !topScreened ? undefined : screened.length > 0 && topScreened.bot.backtest ? (
-                <GoLiveButton bot={topScreened.bot} glance={topScreened.bot.backtest} />
-              ) : (
-                <button type="button" className="btn btn-sm" onClick={() => launchSweep(topScreened.bot.name)}>
-                  Sweep {topScreened.bot.name}…
-                </button>
-              )
-            }
-          >
-            {liveCount > 0
-              ? "Figures appear after each live run's first session close."
-              : screened.length > 0
-                ? `${screened.length} ${screened.length === 1 ? "bot passed" : "bots passed"} screening and can go live; only live paper results rank bots.`
-                : topScreened
-                  ? `No bot has passed screening yet. Sweep the closest, ${topScreened.bot.name}, for a variant that beats total-return SPY.`
-                  : "Backtest a bot to start screening."}
-          </EmptyState>
-        )}
-      </Card>
-      <Card title={screened.length > 0 ? "Best screened" : "Closest to passing"} label="Best screened" className="highlight">
-        {topScreened?.bot.backtest ? (
-          <BacktestHighlight bot={topScreened.bot} glance={topScreened.bot.backtest} />
-        ) : (
-          <EmptyState title="Nothing backtested yet">Backtest or sweep a bot on a preset period to screen it against total-return SPY.</EmptyState>
-        )}
-      </Card>
-    </div>
+    <p className="benchmark-strip">
+      <span className="benchmark-title">
+        Benchmark
+        <Info label="Benchmark">
+          Every CAGR vs SPY figure subtracts the benchmark's own CAGR over exactly the same sessions, with dividends reinvested. The benchmark is the same for every bot over a
+          window, so its figures are stated here once per window instead of on every row. A live run's benchmark is stated in the Live paper card.
+        </Info>
+      </span>
+      {shown.map((window) => (
+        <span key={window.key} className="benchmark-chip">
+          <span className="benchmark-name">
+            {window.symbol} · {window.label}
+          </span>
+          <span className="num">{fmt.change(window.cagr)}/yr</span>
+          <span className="num muted">max DD {fmt.change(window.drawdown)}</span>
+        </span>
+      ))}
+    </p>
   );
 }
 
-function GoLiveButton({ bot, glance }: { bot: Bot; glance: Glance }) {
+function UntestedActions({ entries }: { entries: Entry[] }) {
+  const idle = entries.filter((entry) => entry.bot.status !== "backtesting").map((entry) => entry.bot.name);
   const [busy, setBusy] = useState(false);
-  const start = () => {
+  if (idle.length === 0) {
+    return null;
+  }
+  const screen = async () => {
     setBusy(true);
-    goLive(bot.name, glance.run_id).then(
-      (run) => navigate({ page: "bot", name: bot.name, run: run.id }),
-      (error: unknown) => {
-        notify(`${bot.name}: ${errorMessage(error)}`);
-        setBusy(false);
-      },
-    );
+    const queued = await settle(idle, String, (name) => must(api.POST("/api/bots/{name}/backtests", { params: { path: { name } }, body: { preset: "10y" } })));
+    setBusy(false);
+    if (queued.length > 0) {
+      notify(`${counted(queued.length, "backtest")} queued on 10y`, "success");
+    }
   };
   return (
-    <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={start}>
-      <Icon name="play" />
-      Go live with {bot.name}
+    <button type="button" className="btn btn-xs group-action" disabled={busy} onClick={() => void screen()}>
+      Backtest {idle.length} idle on 10y
     </button>
   );
 }
 
-function LiveHighlight({ entry, live }: { entry: Entry; live: Live }) {
-  const stats = live.run.live_stats;
-  if (!stats) {
-    return null;
+function HeadlineCell({ entry, scale }: { entry: Entry; scale: number }) {
+  const { live, bot } = entry;
+  const stats = live?.run.live_stats;
+  if (live) {
+    if (!stats || stats.sessions === 0) {
+      return (
+        <>
+          <span className="headline num muted">—</span>
+          <span className="cell-sub">no close yet</span>
+        </>
+      );
+    }
+    return (
+      <>
+        <span className="headline-line">
+          <span className={`headline num ${tone(stats.excess_cagr) ?? ""}`}>
+            <Annualized value={stats.excess_cagr} sessions={stats.sessions} />
+          </span>
+          <ExcessBar value={stats.excess_cagr} scale={scale} />
+        </span>
+        <span className="cell-sub">
+          live · {fmt.integer(stats.sessions)} {stats.sessions === 1 ? "session" : "sessions"}
+        </span>
+      </>
+    );
+  }
+  const glance = bot.backtest;
+  if (!glance) {
+    return (
+      <>
+        <span className="headline num muted">—</span>
+        <span className="cell-sub">no backtest of current code</span>
+      </>
+    );
+  }
+  const excess = excessCagr(glance);
+  return (
+    <>
+      <span className="headline-line">
+        <span className={`headline num ${tone(excess) ?? ""}`}>{fmt.change(excess)}</span>
+        <ExcessBar value={excess} scale={scale} />
+      </span>
+      <span className="cell-sub">
+        {windowOf(glance)}
+        {glance.benchmark_symbol !== BENCHMARK && ` · vs ${glance.benchmark_symbol}`}
+      </span>
+    </>
+  );
+}
+
+function BacktestCell({ entry }: { entry: Entry }) {
+  if (entry.live) {
+    return <SourceBacktest live={entry.live} />;
+  }
+  const glance = entry.bot.backtest;
+  if (!glance) {
+    return <span className="muted">—</span>;
   }
   return (
-    <div className="highlight-body">
-      <div className="highlight-who">
-        <a className="highlight-name" href={href({ page: "bot", name: entry.bot.name, run: live.run.id })}>
-          {entry.bot.name}
-        </a>
-        {LIVE_COLUMNS.verdict.cell(live)}
-        <span className="muted">
-          live {fmt.integer(stats.sessions)} {stats.sessions === 1 ? "session" : "sessions"}
-        </span>
-      </div>
-      <div className="highlight-stats">
-        <Stat size="lg" label="CAGR vs SPY" value={fmt.change(stats.excess_cagr)} tone={tone(stats.excess_cagr)} sub={`${fmt.change(stats.cagr)} vs ${fmt.change(stats.benchmark_cagr)}`} />
-        <Stat label="Return" value={fmt.change(stats.total_return)} sub={`SPY ${fmt.change(stats.benchmark_return)}`} />
-        <Stat label="Max drawdown" value={fmt.change(-stats.max_drawdown)} />
-      </div>
-      <Sparkline curve={stats.curve} mark={undefined} benchmark="total-return SPY" />
-    </div>
+    <span className="source">
+      <span className="source-checks">
+        {glance.preset ? <GateResult checks={glance.failed_checks} run={glance.run_id} /> : <span className="cell-sub">custom period, not a screen</span>}
+        <SubPeriods edges={glance.preset ? glance.sub_periods : []} count={false} />
+      </span>
+    </span>
   );
 }
 
-function BacktestHighlight({ bot, glance }: { bot: Bot; glance: Glance }) {
-  const excess = excessCagr(glance);
-  const variant = variantOf(glance.params, bot.params as Record<string, unknown>);
-  return (
-    <div className="highlight-body">
-      <div className="highlight-who">
-        <a className="highlight-name" href={href({ page: "bot", name: bot.name, run: glance.run_id })}>
-          {bot.name}
-        </a>
-        <span className={`pill pill-${bot.stage}`}>{bot.stage}</span>
-        <span className="muted">
-          {glanceWhat(glance)}
-          {variant && ` · ${variant}`}
-        </span>
-      </div>
-      <div className="highlight-stats">
-        <Stat size="lg" label="CAGR vs SPY" value={fmt.change(excess)} tone={tone(excess)} sub={`${fmt.change(glance.metrics.cagr)} vs ${fmt.change(glance.benchmark.cagr)}`} />
-        <Stat label="Return" value={fmt.change(glance.metrics.total_return)} sub={`SPY ${fmt.change(glance.benchmark.total_return)}`} />
-        <Stat
-          label="Max drawdown"
-          value={fmt.change(glance.metrics.max_drawdown === null || glance.metrics.max_drawdown === undefined ? undefined : -glance.metrics.max_drawdown)}
-          sub={`SPY ${fmt.change(glance.benchmark.max_drawdown === null || glance.benchmark.max_drawdown === undefined ? undefined : -glance.benchmark.max_drawdown)}`}
-        />
-        {glance.sub_periods.length > 0 && (
-          <Stat
-            label={
-              <>
-                Thirds ahead
-                <Info label="Thirds">{SUB_PERIODS_ABOUT}</Info>
-              </>
-            }
-            value={`${glance.sub_periods.filter((edge) => edge > 0).length} of ${glance.sub_periods.length}`}
-            sub={<SubPeriods edges={glance.sub_periods} count={false} />}
-          />
-        )}
-      </div>
-      <Sparkline curve={glance.curve} mark={undefined} benchmark="total-return SPY" />
-    </div>
+function StatusCell({ entry }: { entry: Entry }) {
+  const { live, bot } = entry;
+  if (live) {
+    return (
+      <span className="status-stack">
+        <Verdict live={live} />
+        {!isRunning(live.run) && <span className={`pill pill-${live.run.message ? "error" : "paused"}`}>{live.run.message ? "error" : "paused"}</span>}
+      </span>
+    );
+  }
+  return bot.status === "idle" ? null : <StatusPill status={bot.status} />;
+}
+
+function NextStep({ entry }: { entry: Entry }) {
+  const { bot, live, group } = entry;
+  if (live || bot.status === "backtesting") {
+    return null;
+  }
+  if (group === "ready" && bot.backtest) {
+    return <GoLiveButton bot={bot} glance={bot.backtest} primary={false} />;
+  }
+  return group === "failing" ? (
+    <button type="button" className="btn btn-sm btn-ghost" onClick={() => launchSweep(bot.name)} aria-label={`Sweep ${bot.name}`}>
+      Sweep…
+    </button>
+  ) : (
+    <button type="button" className="btn btn-sm btn-ghost" onClick={() => launchBacktest(bot.name)} aria-label={`Backtest ${bot.name}`}>
+      Backtest…
+    </button>
   );
 }
 
-function BotRow({ entry, mark, chosen, onChanged }: { entry: Entry; mark: Mark | undefined; chosen: ReturnType<typeof useSelection<string>>; onChanged: (run: Run) => void }) {
+function BotRow({ entry, mark, chosen, scale, onChanged }: { entry: Entry; mark: Mark | undefined; chosen: ReturnType<typeof useSelection<string>>; scale: number; onChanged: (run: Run) => void }) {
   const { bot, live } = entry;
   const controls = useLiveControls(bot.name, live?.run, onChanged);
   const glance = bot.backtest;
@@ -450,85 +478,46 @@ function BotRow({ entry, mark, chosen, onChanged }: { entry: Entry; mark: Mark |
     ...(!live ? [{ text: "Go live", run: controls.toggle }] : []),
     ...(controls.stop ? [{ text: "Stop…", run: controls.stop, danger: true }] : []),
   ];
-  const stats = live?.run.live_stats;
-  const excess = headline(entry);
+  const figures = own(entry);
+  const curve = live ? (live.run.live_stats?.curve ?? []) : (glance?.curve ?? []);
 
   return (
-    <tr className={[chosen.has(entry.key) ? "chosen" : "", needsAttention(entry) ? "attention" : ""].join(" ").trim() || undefined}>
-      <th scope="row" className="board-name">
-        <SelectBox selection={chosen} value={entry.key} label={`Select ${bot.name}${live ? ` run #${live.run.id}` : ""}`} />
-        <span className="bot-ident">
-          <a href={target}>{bot.name}</a>
-          <span className="tf">{bot.timeframe}</span>
-          {variant ? <span className="variant-params mono">{variant}</span> : bot.description && <span className="bot-desc">{bot.description}</span>}
+    <tr className={chosen.has(entry.key) ? "chosen" : undefined}>
+      <th scope="row" className="name-col">
+        <span className="name-cell">
+          <SelectBox selection={chosen} value={entry.key} label={`Select ${bot.name}${live ? ` run #${live.run.id}` : ""}`} />
+          <span className="bot-ident">
+            <span className="bot-title">
+              <a href={target}>{bot.name}</a>
+              <span className="tf">{bot.timeframe}</span>
+            </span>
+            {variant ? <span className="variant-params mono">{variant}</span> : bot.description && <span className="bot-desc">{bot.description}</span>}
+          </span>
         </span>
       </th>
-      <td className="stage-col">
-        <span className="stage-cell">
-          {live ? LIVE_COLUMNS.verdict.cell(live) : <span className={`pill pill-${entry.stage}`}>{entry.stage}</span>}
-          {live && !isRunning(live.run) && <span className={`pill pill-${needsAttention(entry) ? "error" : "paused"}`}>{needsAttention(entry) ? "error" : "paused"}</span>}
+      <td className="r headline-col">
+        <HeadlineCell entry={entry} scale={scale} />
+      </td>
+      <td className="status-col">
+        <StatusCell entry={entry} />
+      </td>
+      <td className="backtest-col">
+        <BacktestCell entry={entry} />
+      </td>
+      <td className="r num own-col">{fmt.change(figures.cagr)}</td>
+      <td className="r num own-col">{fmt.change(figures.drawdown)}</td>
+      <td className="spark-cell chart-col">
+        <Sparkline curve={curve} mark={mark} benchmark={`total-return ${live ? BENCHMARK : (glance?.benchmark_symbol ?? BENCHMARK)}`} />
+      </td>
+      <td className="muted nowrap activity-col">{bot.last_run_at ? <Ago at={bot.last_run_at} /> : "never"}</td>
+      <td className="next-col">
+        <span className="next-cell">
+          <NextStep entry={entry} />
+          <OverflowMenu label={`Actions for ${bot.name}${live ? ` run #${live.run.id}` : ""}`} actions={actions} />
+          {controls.dialog}
         </span>
       </td>
-      <td className="r headline-cell">
-        {live ? (
-          stats && stats.sessions > 0 ? (
-            <>
-              <span className={`headline num ${tone(excess) ?? ""}`}>
-                <Annualized value={stats.excess_cagr} sessions={stats.sessions} />
-              </span>
-              <span className="cell-sub">live · {fmt.integer(stats.sessions)} sessions</span>
-            </>
-          ) : (
-            <span className="cell-sub">live · first session pending</span>
-          )
-        ) : glance ? (
-          <>
-            <span className={`headline num ${tone(excess) ?? ""}`}>{fmt.change(excess)}</span>
-            <span className="cell-sub" title={glance.preset ? undefined : `${glance.period.from} → ${glance.period.to}, not a preset period with standard costs, so it does not screen`}>
-              {glanceWhat(glance)}
-              {!glance.preset ? " · not screened" : glance.failed_checks.length === 0 ? " · passes gate" : ""}
-            </span>
-          </>
-        ) : (
-          <span className="cell-sub">no completed backtest</span>
-        )}
-      </td>
-      <FigureCells figures={figures(entry)} />
-      <td className="spark-cell chart-col">
-        {live ? (
-          <Sparkline curve={stats?.curve ?? []} mark={mark} benchmark="total-return SPY" />
-        ) : glance ? (
-          <Sparkline curve={glance.curve} mark={undefined} benchmark="total-return SPY" />
-        ) : (
-          <div className="sparkline sparkline-empty" aria-hidden="true" />
-        )}
-      </td>
-      <td className="muted nowrap activity-col">{bot.last_run_at ? <Ago at={bot.last_run_at} /> : "—"}</td>
-      <td className="actions-cell">
-        <OverflowMenu label={`Actions for ${bot.name}${live ? ` run #${live.run.id}` : ""}`} actions={actions} />
-        {controls.dialog}
-      </td>
     </tr>
-  );
-}
-
-function FigureCells({ figures: shown }: { figures: Figures }) {
-  const pair = (own: number | null | undefined, spy: number | null | undefined) =>
-    own === null || own === undefined ? (
-      <span className="muted">—</span>
-    ) : (
-      <>
-        <span className="num">{fmt.change(own)}</span>
-        {spy !== null && spy !== undefined && <span className="cell-sub">SPY {fmt.change(spy)}</span>}
-      </>
-    );
-  return (
-    <>
-      <td className="r nowrap wide-col">{pair(shown.cagr, shown.spyCagr)}</td>
-      <td className="r nowrap wide-col">{pair(shown.ret, shown.spyRet)}</td>
-      <td className="r nowrap wide-col">{pair(shown.drawdown, shown.spyDrawdown)}</td>
-      <td className="wider-col"><SubPeriods edges={shown.thirds} /></td>
-    </>
   );
 }
 

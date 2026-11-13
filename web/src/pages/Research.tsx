@@ -18,6 +18,7 @@ import { StatusPill } from "../ui/Status";
 import { SUB_PERIODS_ABOUT, SubPeriods } from "../ui/SubPeriods";
 import { moveBetweenRows, openRow, SortHeader, type SortColumns, useFlash, useSort } from "../ui/Table";
 import { notify } from "../ui/Toaster";
+import { CHECKS, GATE_ABOUT } from "../ui/Gate";
 import { goLive } from "./BotActions";
 import { launchSweep } from "./Launch";
 import { isPreset } from "./SweepDialog";
@@ -28,21 +29,7 @@ type PresetResearch = Schemas["PresetResearch"];
 type Variant = Schemas["VariantResult"];
 type Params = Record<string, unknown>;
 
-export const CHECKS: Record<Schemas["GateCheck"], string> = {
-  not_completed: "not completed",
-  data_warnings: "data warnings",
-  drawdown_stop: "drawdown stop",
-  few_trades: "under 10 round trips",
-  no_edge: "Sharpe ≤ 0",
-  trails_benchmark: "CAGR at volatility-matched risk not above total-return SPY",
-  deeper_drawdown: "max drawdown at volatility-matched risk deeper than total-return SPY",
-  inconsistent_edge: "ahead of total-return SPY in fewer than 2 of 3 thirds",
-};
-
 const PENDING: ReadonlySet<Schemas["RunStatus"]> = new Set(["queued", "starting", "running"]);
-
-const GATE_ABOUT =
-  "A variant passes the screening gate on the longest preset it has run: completed with default costs on the current code, no data warnings (gaps in at most 0.5% of an index universe's member-sessions, in members the bot never ordered or held then, are minor and pass) or drawdown stop, at least 10 round trips and Sharpe above 0. At the same volatility as total-return SPY (dividends reinvested) it must also beat SPY's CAGR, draw down no deeper than SPY, and come out ahead of SPY in at least 2 of the period's 3 equal thirds. Passing is a screen, not a ranking: only live paper results rank bots.";
 
 const VOLATILITY_MATCH_ABOUT =
   "Volatility matching scales a variant to total-return SPY's risk before comparing them: its daily returns above T-bills are multiplied by SPY's realised volatility divided by its own, the rest of the capital earns the T-bill rate, and leverage above 1× is charged the run's financing spread on top of the T-bill rate. A variant that only holds less or more market than SPY then shows no edge.";
@@ -174,11 +161,35 @@ export function Research({ name, preset: requested, defaults, live }: Props) {
               </a>
             ))}
           </nav>
-          <PresetDates preset={shown.preset} className="muted research-period" />
+          <div className="research-window">
+            <PresetDates preset={shown.preset} className="muted research-period" />
+            <BenchmarkFacts research={shown} />
+          </div>
           <PresetView key={shown.preset} name={name} research={shown} defaults={defaults} liveVariants={liveVariants} trials={trials.variants} gate={shown.preset === gatePreset} />
         </>
       )}
     </div>
+  );
+}
+
+function BenchmarkFacts({ research }: { research: PresetResearch }) {
+  const measured = research.variants.find((variant) => variant.metrics?.cagr !== null && variant.metrics?.cagr !== undefined && variant.excess_cagr !== null && variant.excess_cagr !== undefined);
+  const cagr = measured && (measured.metrics?.cagr ?? 0) - (measured.excess_cagr ?? 0);
+  return (
+    <p className="benchmark-strip">
+      <span className="benchmark-title">
+        Benchmark
+        <Info label="Benchmark">
+          Total-return SPY (dividends reinvested) over exactly this period. Every variant's CAGR vs SPY subtracts this CAGR, so it is stated here once instead of on every row.
+        </Info>
+      </span>
+      <span className="benchmark-chip">
+        <span className="benchmark-name">SPY · {research.preset}</span>
+        <span className="num">{fmt.change(cagr)}/yr</span>
+        <span className="num muted">Sharpe {fmt.ratio(research.benchmark_sharpe)}</span>
+        <span className="num muted">max DD {fmt.change(research.benchmark_max_drawdown === null || research.benchmark_max_drawdown === undefined ? undefined : -research.benchmark_max_drawdown)}</span>
+      </span>
+    </p>
   );
 }
 
@@ -304,10 +315,6 @@ function Spread({ research, trials }: { research: PresetResearch; trials: number
           <dd className="num">
             {passing} of {finished.length}
           </dd>
-        </div>
-        <div>
-          <dt>Total-return SPY Sharpe</dt>
-          <dd className="num">{fmt.ratio(spy)}</dd>
         </div>
         <div>
           <dt>
@@ -478,6 +485,7 @@ function VariantTable({ name, variants, axes, defaults, plateau, liveVariants, b
   const flash = useFlash(variants, (variant) => variant.run_id);
   const ordered = sorting.order(variants);
   const chosen = useSelection(ordered.map((variant) => variant.run_id));
+  const statusVaries = new Set(variants.map((variant) => variant.status)).size > 1;
 
   return (
     <section className="panel" aria-label="Variants">
@@ -503,9 +511,11 @@ function VariantTable({ name, variants, axes, defaults, plateau, liveVariants, b
                   </SortHeader>
                 ))
               )}
-              <SortHeader sorting={sorting} column="status">
-                Status
-              </SortHeader>
+              {statusVaries && (
+                <SortHeader sorting={sorting} column="status">
+                  Status
+                </SortHeader>
+              )}
               <SortHeader sorting={sorting} column="excess" numeric info={<Info label="CAGR vs SPY">{EXCESS_ABOUT}</Info>}>
                 CAGR vs SPY
               </SortHeader>
@@ -556,9 +566,11 @@ function VariantTable({ name, variants, axes, defaults, plateau, liveVariants, b
                       </td>
                     ))
                   )}
-                  <td>
-                    <StatusPill status={variant.status} />
-                  </td>
+                  {statusVaries && (
+                    <td>
+                      <StatusPill status={variant.status} />
+                    </td>
+                  )}
                   <td className={`r num headline-num ${tone(excess(variant)) ?? ""}`}>{fmt.change(excess(variant))}</td>
                   <td className="spark-cell chart-col">
                     <Sparkline curve={variant.curve} mark={undefined} benchmark="total-return SPY" />

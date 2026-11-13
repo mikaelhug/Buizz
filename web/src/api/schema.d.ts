@@ -522,11 +522,11 @@ export interface components {
             params: Record<string, never>;
             metrics: components["schemas"]["Metrics"];
             benchmark: components["schemas"]["Metrics"];
+            benchmark_symbol: components["schemas"]["Symbol"];
             curve: components["schemas"]["LivePoint"][];
         };
         BotDetail: {
             summary: components["schemas"]["BotSummary"];
-            status: components["schemas"]["BotStatus"];
             /** Format: int32 */
             holdout_runs: number;
             manifest: components["schemas"]["BotManifest"];
@@ -566,6 +566,7 @@ export interface components {
             timeframe: components["schemas"]["Timeframe"];
             params: Record<string, never>;
             stage: components["schemas"]["BotStage"];
+            status: components["schemas"]["BotStatus"];
             screening?: components["schemas"]["Screening"] | null;
             backtest?: components["schemas"]["BacktestGlance"] | null;
             live: components["schemas"]["LiveSummary"][];
@@ -827,6 +828,8 @@ export interface components {
             run: components["schemas"]["RunSummary"];
             /** Format: int32 */
             sessions_needed?: number | null;
+            source?: components["schemas"]["BacktestGlance"] | null;
+            first_session?: components["schemas"]["Session"] | null;
         };
         /** @enum {string} */
         LiveVerdict: "incubating" | "tracking" | "no_backtest" | "falsified" | "proven";
@@ -1130,6 +1133,12 @@ export interface components {
             variants: number;
             /** Format: int32 */
             passing: number;
+        };
+        Session: {
+            /** Format: date */
+            date: string;
+            open: components["schemas"]["Timestamp"];
+            close: components["schemas"]["Timestamp"];
         };
         SessionInfo: {
             authenticated: boolean;

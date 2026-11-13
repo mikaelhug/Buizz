@@ -106,6 +106,17 @@ pub(crate) struct Inner {
 }
 
 impl Inner {
+    async fn bot(&self, name: &str) -> Result<BotSpec, RunnerError> {
+        let (bots_dir, name) = (self.config.bots_dir.clone(), name.to_owned());
+        let loaded = tokio::task::spawn_blocking(move || load_bot(&bots_dir, &name))
+            .await
+            .expect("loading a bot does not panic");
+        match loaded {
+            Err(SupervisorError::NoSuchBot(name)) => Err(RunnerError::UnknownBot(name)),
+            loaded => Ok(loaded?),
+        }
+    }
+
     fn issue_token(&self, run_id: RunId) -> String {
         let token: String = rand::random::<[u8; 32]>()
             .iter()
@@ -197,7 +208,7 @@ impl Runner {
                 self.conclude(run.id, RunStatus::Cancelled, None).await?;
                 continue;
             }
-            let spec = match self.bot(&run.bot).await {
+            let spec = match self.inner.bot(&run.bot).await {
                 Ok(spec) => spec,
                 Err(error) => {
                     self.conclude(run.id, RunStatus::Failed, Some(error.to_string()))
@@ -222,7 +233,7 @@ impl Runner {
         request: StartBacktest,
         today: NaiveDate,
     ) -> Result<RunSummary, RunnerError> {
-        let spec = self.bot(bot).await?;
+        let spec = self.inner.bot(bot).await?;
         let period = match (request.period, request.preset) {
             (Some(period), _) => period,
             (None, Some(preset)) => preset.resolve(today),
@@ -266,7 +277,7 @@ impl Runner {
         request: StartSweep,
         today: NaiveDate,
     ) -> Result<SweepStarted, RunnerError> {
-        let spec = self.bot(bot).await?;
+        let spec = self.inner.bot(bot).await?;
         if request.preset == PeriodPreset::Holdout {
             return Err(RunnerError::InvalidRequest(
                 "sweeps never run on the locked holdout".to_owned(),
@@ -313,7 +324,7 @@ impl Runner {
             .filter(|run| {
                 run.config.start == period.from
                     && run.config.end == Some(period.to)
-                    && self.standard(&run.config, &spec)
+                    && self.inner.standard(&run.config, &spec)
             })
             .map(|run| run.config.params)
             .collect();
@@ -344,7 +355,7 @@ impl Runner {
             .inner
             .state
             .runs(RunFilter {
-                bot: Some(self.bot(bot).await?.name),
+                bot: Some(self.inner.bot(bot).await?.name),
                 mode: Some(Mode::Backtest),
                 statuses: vec![RunStatus::Queued],
                 ..RunFilter::default()
@@ -361,7 +372,7 @@ impl Runner {
         bot: &str,
         from_run: Option<RunId>,
     ) -> Result<RunSummary, RunnerError> {
-        let spec = self.bot(bot).await?;
+        let spec = self.inner.bot(bot).await?;
         let today = Timestamp::now().exchange_date();
         let mut request = StartBacktest::default();
         if let Some(source) = from_run {
@@ -539,17 +550,6 @@ impl Runner {
         }
         for handle in handles {
             let _ = handle.task.await;
-        }
-    }
-
-    async fn bot(&self, name: &str) -> Result<BotSpec, RunnerError> {
-        let (bots_dir, name) = (self.inner.config.bots_dir.clone(), name.to_owned());
-        let loaded = tokio::task::spawn_blocking(move || load_bot(&bots_dir, &name))
-            .await
-            .expect("loading a bot does not panic");
-        match loaded {
-            Err(SupervisorError::NoSuchBot(name)) => Err(RunnerError::UnknownBot(name)),
-            loaded => Ok(loaded?),
         }
     }
 

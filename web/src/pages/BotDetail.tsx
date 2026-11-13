@@ -39,7 +39,7 @@ export function BotDetail({ name, view }: Props) {
   if (!detail.data) {
     return detail.error ? <Failure message={detail.error} onRetry={detail.reload} /> : <Loading shape="chart" />;
   }
-  const { summary, runs, status, holdout_runs: holdoutRuns } = detail.data;
+  const { summary, runs, holdout_runs: holdoutRuns } = detail.data;
   const runView = "preset" in view ? undefined : view;
   const live = summary.live.map((entry) => entry.run);
   const selected = runView && (runView.runId ?? live[0]?.id ?? summary.backtest?.run_id ?? runs.find((run) => run.status === "completed" && run.metrics)?.id ?? runs[0]?.id);
@@ -67,7 +67,7 @@ export function BotDetail({ name, view }: Props) {
         <div className="detail-title">
           <h1>{summary.name}</h1>
           <span className="tf">{summary.timeframe}</span>
-          <StatusPill status={status} />
+          <StatusPill status={summary.status} />
           {holdoutRuns > 0 && <HoldoutBadge runs={holdoutRuns} />}
         </div>
         <div className="detail-actions">
@@ -115,6 +115,7 @@ export function BotDetail({ name, view }: Props) {
           recent={runs}
           liveParams={new Set(live.map((run) => JSON.stringify(run.config.params)))}
           gate={screening?.run_id === selected ? screening.failed_checks : undefined}
+          live={summary.live.find((entry) => entry.run.id === selected)}
           runs={<RunHistory selected={selected} name={name} />}
         />
       )}

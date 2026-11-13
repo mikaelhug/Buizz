@@ -2,10 +2,10 @@ use std::collections::{BTreeMap, HashMap};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use buizz_core::api::{
-    BacktestGlance, PresetResearch, Research, RunSummary, Screening, SparkPoint, Trials,
+    BacktestGlance, LiveSummary, PresetResearch, Research, RunSummary, Screening, SparkPoint, Trials,
     VariantResult,
 };
-use buizz_core::market::{RiskFreeRate, Symbol};
+use buizz_core::market::{RiskFreeRate, Session, Symbol};
 use buizz_core::performance::{LivePoint, Metrics};
 use buizz_core::run::{CostModel, Mode, Period, PeriodPreset, RunConfig, RunId, RunStatus};
 use buizz_core::time::Timestamp;
@@ -13,11 +13,12 @@ use buizz_market::MarketStore;
 use buizz_metrics::{Screen, Screened};
 use buizz_state::{RunFilter, StateStore};
 use buizz_supervisor::BotSpec;
-use chrono::NaiveDate;
+use chrono::{NaiveDate, TimeDelta};
+use futures::future::try_join;
 use serde_json::{Map, Value};
 use tokio::sync::OnceCell;
 
-use crate::{Runner, RunnerError, report};
+use crate::{Inner, Runner, RunnerError, report};
 
 const SCREENED_STATUSES: [RunStatus; 5] = [
     RunStatus::Queued,
@@ -26,6 +27,8 @@ const SCREENED_STATUSES: [RunStatus; 5] = [
     RunStatus::Completed,
     RunStatus::Failed,
 ];
+
+const FIRST_SESSION_SEARCH_DAYS: i64 = 14;
 
 type BenchmarkKey = (Symbol, NaiveDate, NaiveDate);
 
@@ -238,12 +241,11 @@ fn gate_preset(presets: &BTreeMap<PeriodPreset, Vec<RunSummary>>) -> Option<Peri
         .map(|(preset, _)| *preset)
 }
 
-impl Runner {
-    pub fn benchmarks(&self) -> Arc<Benchmarks> {
+impl Inner {
+    pub(crate) fn benchmarks(&self) -> Arc<Benchmarks> {
         let today = Timestamp::now().exchange_date();
-        let data_through = self.inner.market.watermarks().borrow().day;
+        let data_through = self.market.watermarks().borrow().day;
         let mut shared = self
-            .inner
             .benchmarks
             .lock()
             .unwrap_or_else(PoisonError::into_inner);
@@ -252,8 +254,8 @@ impl Runner {
                 Arc::clone(current)
             }
             _ => Arc::clone(shared.insert(Arc::new(Benchmarks {
-                market: self.inner.market.clone(),
-                state: self.inner.state.clone(),
+                market: self.market.clone(),
+                state: self.state.clone(),
                 today,
                 data_through,
                 figures: Mutex::default(),
@@ -265,7 +267,97 @@ impl Runner {
     pub(crate) fn standard(&self, config: &RunConfig, spec: &BotSpec) -> bool {
         config.cost == CostModel::default()
             && config.risk == spec.manifest.risk
-            && config.start_cash == self.inner.config.start_cash
+            && config.start_cash == self.config.start_cash
+    }
+
+    pub(crate) async fn live_summary(
+        &self,
+        run: RunSummary,
+        started: u32,
+    ) -> Result<LiveSummary, RunnerError> {
+        let (source, first_session) =
+            try_join(self.source_glance(&run), self.first_session(&run)).await?;
+        Ok(LiveSummary {
+            source,
+            first_session,
+            ..buizz_metrics::live_summary(run, started)
+        })
+    }
+
+    async fn source_glance(&self, run: &RunSummary) -> Result<Option<BacktestGlance>, RunnerError> {
+        let Some(source) = run.source_run else {
+            return Ok(None);
+        };
+        let Some(source) = self.state.run(source).await? else {
+            return Ok(None);
+        };
+        let preset = match (source.config.end, self.bot(&source.bot).await) {
+            (Some(to), Ok(spec)) if self.standard(&source.config, &spec) => PeriodPreset::of(
+                Period {
+                    from: source.config.start,
+                    to,
+                },
+                source.created_at.exchange_date(),
+            ),
+            _ => None,
+        };
+        glance(&source, preset, false, &self.benchmarks()).await
+    }
+
+    async fn first_session(&self, run: &RunSummary) -> Result<Option<Session>, RunnerError> {
+        if run.live_stats.as_ref().is_some_and(|stats| stats.sessions > 0) || run.status.is_finished() {
+            return Ok(None);
+        }
+        let since = run.started_at.unwrap_or(run.created_at);
+        let from = since.exchange_date();
+        let calendar = self
+            .market
+            .calendar(from, from + TimeDelta::days(FIRST_SESSION_SEARCH_DAYS))
+            .await?;
+        Ok(calendar
+            .sessions()
+            .iter()
+            .find(|session| session.close > since)
+            .copied())
+    }
+}
+
+async fn glance(
+    run: &RunSummary,
+    preset: Option<PeriodPreset>,
+    plateau: bool,
+    benchmarks: &Benchmarks,
+) -> Result<Option<BacktestGlance>, RunnerError> {
+    let Some(metrics) = run.metrics.clone().filter(|_| run.status == RunStatus::Completed) else {
+        return Ok(None);
+    };
+    let judged = benchmarks.screen(run).await?;
+    Ok(Some(BacktestGlance {
+        run_id: run.id,
+        preset,
+        period: period_of(run),
+        plateau,
+        failed_checks: judged.screen.failed_checks.clone(),
+        sub_periods: judged.screen.sub_periods.clone(),
+        params: run.config.params.clone(),
+        metrics,
+        benchmark: benchmarks.metrics(run).await?,
+        benchmark_symbol: run.config.benchmark.clone(),
+        curve: judged.curve.clone(),
+    }))
+}
+
+impl Runner {
+    pub fn benchmarks(&self) -> Arc<Benchmarks> {
+        self.inner.benchmarks()
+    }
+
+    pub async fn live_summary(
+        &self,
+        run: RunSummary,
+        started: u32,
+    ) -> Result<LiveSummary, RunnerError> {
+        self.inner.live_summary(run, started).await
     }
 
     async fn screened_runs(
@@ -283,7 +375,7 @@ impl Runner {
                 ..RunFilter::default()
             })
             .await?;
-        Ok(latest_variants(runs, |config| self.standard(config, spec)))
+        Ok(latest_variants(runs, |config| self.inner.standard(config, spec)))
     }
 
     pub async fn screening(
@@ -326,6 +418,7 @@ impl Runner {
                 params: run.config.params.clone(),
                 metrics,
                 benchmark: benchmarks.metrics(run).await?,
+                benchmark_symbol: run.config.benchmark.clone(),
                 curve: judged.curve.clone(),
             }),
             None => self.latest_backtest(spec, benchmarks).await?,
@@ -353,29 +446,14 @@ impl Runner {
                 ..RunFilter::default()
             })
             .await?;
-        let Some(run) = latest.into_iter().next() else {
-            return Ok(None);
-        };
-        let Some(metrics) = run.metrics.clone() else {
-            return Ok(None);
-        };
-        let judged = benchmarks.screen(&run).await?;
-        Ok(Some(BacktestGlance {
-            run_id: run.id,
-            preset: None,
-            period: period_of(&run),
-            plateau: false,
-            failed_checks: judged.screen.failed_checks.clone(),
-            sub_periods: judged.screen.sub_periods.clone(),
-            params: run.config.params.clone(),
-            metrics,
-            benchmark: benchmarks.metrics(&run).await?,
-            curve: judged.curve.clone(),
-        }))
+        match latest.into_iter().next() {
+            Some(run) => glance(&run, None, false, benchmarks).await,
+            None => Ok(None),
+        }
     }
 
     pub async fn research(&self, bot: &str) -> Result<Research, RunnerError> {
-        let spec = self.bot(bot).await?;
+        let spec = self.inner.bot(bot).await?;
         let presets = self.screened_runs(&spec).await?;
         let trials = self.inner.state.trials(bot).await?;
         let benchmarks = self.benchmarks();

@@ -1288,6 +1288,7 @@
           "params",
           "metrics",
           "benchmark",
+          "benchmark_symbol",
           "curve"
         ],
         "properties": {
@@ -1332,6 +1333,9 @@
           "benchmark": {
             "$ref": "#/components/schemas/Metrics"
           },
+          "benchmark_symbol": {
+            "$ref": "#/components/schemas/Symbol"
+          },
           "curve": {
             "type": "array",
             "items": {
@@ -1344,7 +1348,6 @@
         "type": "object",
         "required": [
           "summary",
-          "status",
           "holdout_runs",
           "manifest",
           "bot_hash",
@@ -1353,9 +1356,6 @@
         "properties": {
           "summary": {
             "$ref": "#/components/schemas/BotSummary"
-          },
-          "status": {
-            "$ref": "#/components/schemas/BotStatus"
           },
           "holdout_runs": {
             "type": "integer",
@@ -1488,6 +1488,7 @@
           "timeframe",
           "params",
           "stage",
+          "status",
           "live"
         ],
         "properties": {
@@ -1505,6 +1506,9 @@
           },
           "stage": {
             "$ref": "#/components/schemas/BotStage"
+          },
+          "status": {
+            "$ref": "#/components/schemas/BotStatus"
           },
           "screening": {
             "oneOf": [
@@ -2560,6 +2564,26 @@
             ],
             "format": "int32",
             "minimum": 0
+          },
+          "source": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/BacktestGlance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "first_session": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Session"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         }
       },
@@ -3858,6 +3882,26 @@
             "type": "integer",
             "format": "int32",
             "minimum": 0
+          }
+        }
+      },
+      "Session": {
+        "type": "object",
+        "required": [
+          "date",
+          "open",
+          "close"
+        ],
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "open": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "close": {
+            "$ref": "#/components/schemas/Timestamp"
           }
         }
       },

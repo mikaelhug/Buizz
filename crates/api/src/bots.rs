@@ -8,7 +8,6 @@ use buizz_core::api::{
 use buizz_core::performance::LiveVerdict;
 use buizz_core::run::{DesiredState, Mode, PeriodPreset, PresetPeriod, RunBadge, RunStatus};
 use buizz_core::time::Timestamp;
-use buizz_metrics::live_summary;
 use buizz_runner::Benchmarks;
 use buizz_state::RunFilter;
 use buizz_supervisor::BotSpec;
@@ -20,9 +19,9 @@ use crate::extract::{JsonBody, Path};
 
 const RECENT_RUNS: u32 = 50;
 
-fn bot_status(runs: &[RunSummary], live: &[RunSummary]) -> BotStatus {
+fn bot_status(runs: &[RunSummary], live: &[&RunSummary]) -> BotStatus {
     let paused =
-        |run: &RunSummary| run.status == RunStatus::Paused || run.desired == DesiredState::Paused;
+        |run: &&RunSummary| run.status == RunStatus::Paused || run.desired == DesiredState::Paused;
     if live.iter().any(|run| !paused(run)) {
         return BotStatus::Live;
     }
@@ -48,23 +47,30 @@ fn live_runs(bot: Option<&str>, statuses: &[RunStatus]) -> RunFilter {
     }
 }
 
+fn recent_runs(bot: &str) -> RunFilter {
+    RunFilter {
+        bot: Some(bot.to_owned()),
+        limit: Some(RECENT_RUNS),
+        ..RunFilter::default()
+    }
+}
+
 async fn summarize(
     app: &AppState,
     bot: &BotSpec,
+    runs: &[RunSummary],
     live: &[RunSummary],
     started: u32,
     benchmarks: &Benchmarks,
 ) -> Result<BotSummary, Failure> {
-    let (last_run_at, screened) = try_join(
-        async { Ok::<_, Failure>(app.state.last_run_at(&bot.name).await?) },
-        async { Ok(app.runner.screening(bot, benchmarks).await?) },
+    let live: Vec<&RunSummary> = live.iter().filter(|run| run.bot == bot.name).collect();
+    let (screened, summaries) = try_join(
+        async { Ok::<_, Failure>(app.runner.screening(bot, benchmarks).await?) },
+        try_join_all(live.iter().map(|run| async {
+            Ok::<_, Failure>(app.runner.live_summary((*run).clone(), started).await?)
+        })),
     )
     .await?;
-    let live: Vec<LiveSummary> = live
-        .iter()
-        .filter(|run| run.bot == bot.name)
-        .map(|run| live_summary(run.clone(), started))
-        .collect();
     let passing = screened
         .screening
         .is_some_and(|screening| screening.passing > 0);
@@ -79,10 +85,11 @@ async fn summarize(
         timeframe: bot.manifest.timeframe,
         params: bot.manifest.params.clone(),
         stage,
+        status: bot_status(runs, &live),
         screening: screened.screening,
         backtest: screened.backtest,
-        live,
-        last_run_at,
+        live: summaries,
+        last_run_at: runs.first().map(|run| run.created_at),
     })
 }
 
@@ -98,11 +105,10 @@ pub(crate) async fn list_bots(
     )
     .await?;
     let benchmarks = app.runner.benchmarks();
-    let summaries = try_join_all(
-        scan.bots
-            .iter()
-            .map(|spec| summarize(&app, spec, &live, started, &benchmarks)),
-    )
+    let summaries = try_join_all(scan.bots.iter().map(|spec| async {
+        let runs = app.state.runs(recent_runs(&spec.name)).await?;
+        summarize(&app, spec, &runs, &live, started, &benchmarks).await
+    }))
     .await?;
     Ok(Json(summaries))
 }
@@ -120,22 +126,16 @@ pub(crate) async fn bot_detail(
         .iter()
         .find(|bot| bot.name == name)
         .ok_or_else(|| Failure::not_found(format!("bot {name}")))?;
-    let recent = RunFilter {
-        bot: Some(name.clone()),
-        limit: Some(RECENT_RUNS),
-        ..RunFilter::default()
-    };
     let ((runs, live), (started, holdout_runs)) = try_join(
         try_join(
-            app.state.runs(recent),
+            app.state.runs(recent_runs(&name)),
             app.state.runs(live_runs(Some(&name), &RunStatus::ACTIVE)),
         ),
         try_join(app.state.live_runs_started(), app.state.holdout_runs(&name)),
     )
     .await?;
     Ok(Json(BotDetail {
-        status: bot_status(&runs, &live),
-        summary: summarize(&app, spec, &live, started, &app.runner.benchmarks()).await?,
+        summary: summarize(&app, spec, &runs, &live, started, &app.runner.benchmarks()).await?,
         holdout_runs,
         manifest: spec.manifest.clone(),
         bot_hash: spec.content_hash.clone(),
@@ -157,9 +157,13 @@ fn confidence(summary: &LiveSummary) -> f64 {
 pub(crate) async fn league(State(app): State<AppState>) -> Result<Json<League>, Failure> {
     let runs = app.state.runs(live_runs(None, &[])).await?;
     let started = u32::try_from(runs.len()).unwrap_or(u32::MAX);
-    let (mut ranked, too_early): (Vec<_>, Vec<_>) = runs
+    let summaries = try_join_all(
+        runs.into_iter()
+            .map(|run| app.runner.live_summary(run, started)),
+    )
+    .await?;
+    let (mut ranked, too_early): (Vec<_>, Vec<_>) = summaries
         .into_iter()
-        .map(|run| live_summary(run, started))
         .partition(|summary| {
             summary
                 .run

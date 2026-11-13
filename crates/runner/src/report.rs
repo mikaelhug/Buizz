@@ -229,13 +229,17 @@ async fn record_live_session(inner: &Inner, run_id: RunId) -> Result<(), RunnerE
     inner.broadcast(SpineEvent::LiveSession {
         run_id,
         bot: run.bot.clone(),
-        summary: Box::new(buizz_metrics::live_summary(
-            RunSummary {
-                live_stats: Some(stats),
-                ..run
-            },
-            started,
-        )),
+        summary: Box::new(
+            inner
+                .live_summary(
+                    RunSummary {
+                        live_stats: Some(stats),
+                        ..run
+                    },
+                    started,
+                )
+                .await?,
+        ),
     });
     Ok(())
 }

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use utoipa::{IntoParams, ToSchema};
 
-use crate::market::{Coverage, DataSource, Dataset, Symbol, Timeframe, Watermarks};
+use crate::market::{Coverage, DataSource, Dataset, Session, Symbol, Timeframe, Watermarks};
 use crate::ops::{DataWarning, JobOutcome};
 use crate::order::{Fill, Order, OrderId, OrderUpdate};
 use crate::performance::{LivePoint, LiveStats, Metrics, RoundTrip};
@@ -44,6 +44,7 @@ pub struct BotSummary {
     #[schema(value_type = Object)]
     pub params: Map<String, Value>,
     pub stage: BotStage,
+    pub status: BotStatus,
     pub screening: Option<Screening>,
     pub backtest: Option<BacktestGlance>,
     pub live: Vec<LiveSummary>,
@@ -62,6 +63,7 @@ pub struct BacktestGlance {
     pub params: Map<String, Value>,
     pub metrics: Metrics,
     pub benchmark: Metrics,
+    pub benchmark_symbol: Symbol,
     pub curve: Vec<LivePoint>,
 }
 
@@ -168,6 +170,8 @@ pub enum BotStage {
 pub struct LiveSummary {
     pub run: RunSummary,
     pub sessions_needed: Option<u32>,
+    pub source: Option<BacktestGlance>,
+    pub first_session: Option<Session>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -180,7 +184,6 @@ pub struct League {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct BotDetail {
     pub summary: BotSummary,
-    pub status: BotStatus,
     pub holdout_runs: u32,
     pub manifest: BotManifest,
     pub bot_hash: String,
