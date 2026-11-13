@@ -1,5 +1,6 @@
 use buizz_core::market::{
-    AssetClass, Bar, DataSource, Feed, Instrument, Session, Symbol, Timeframe,
+    AssetClass, Bar, DataSource, DelistingCheck, DelistingOutcome, Feed, Instrument, SecFiling,
+    Session, Symbol, Timeframe,
 };
 use buizz_core::run::UniverseSpec;
 use buizz_core::time::Timestamp;
@@ -139,4 +140,62 @@ async fn bars_of_a_wide_universe_come_back_in_time_order_on_a_limited_store() {
         .unwrap();
 
     assert!(bars.is_sorted_by_key(|bar| (bar.start, bar.symbol.clone())));
+}
+
+#[tokio::test]
+async fn an_exchange_delisting_notice_belongs_to_the_listed_company_not_the_exchange() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = MarketStore::open(&dir.path().join(FILE_NAME), 1)
+        .await
+        .unwrap();
+    let filed: NaiveDate = "2016-04-08".parse().unwrap();
+    let notice = |cik, accession: &str, form: &str| SecFiling {
+        cik,
+        accession: accession.to_owned(),
+        form: form.to_owned(),
+        filed,
+    };
+    let by_exchange = "0000876661-16-000101";
+    let by_company = "0000990001-16-000003";
+    store
+        .append_delisting_notices(
+            DataSource::Fixture,
+            vec![
+                notice(876_661, by_exchange, "25-NSE"),
+                notice(750_556, by_exchange, "25-NSE"),
+                notice(990_001, by_company, "25"),
+            ],
+            (filed, filed),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        store
+            .unresolved_delistings(filed)
+            .await
+            .unwrap()
+            .iter()
+            .map(|notice| (notice.cik, notice.accession.as_str()))
+            .collect::<Vec<_>>(),
+        vec![(750_556, by_exchange), (990_001, by_company)],
+        "the exchange that filed the 25-NSE is not the company it delists"
+    );
+
+    let listing = Symbol::ended(&Symbol::new("STI"), "2016-03-31".parse().unwrap());
+    store
+        .record_delistings(
+            DataSource::Fixture,
+            vec![DelistingCheck {
+                accession: by_exchange.to_owned(),
+                ticker: Some(Symbol::new("STI")),
+                listing: Some(listing.clone()),
+                outcome: DelistingOutcome::Stored,
+            }],
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        store.delisted_companies().await.unwrap(),
+        vec![(listing, 750_556)]
+    );
 }

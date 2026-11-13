@@ -2,7 +2,7 @@ use duckdb::{Connection, params};
 
 use crate::{MarketError, Result, SCHEMA};
 
-const MIGRATIONS: [&str; 22] = [
+const MIGRATIONS: [&str; 23] = [
     include_str!("../migrations/2_revisions.sql"),
     include_str!("../migrations/3_sec_filings.sql"),
     include_str!("../migrations/4_daily_watermark.sql"),
@@ -25,6 +25,7 @@ const MIGRATIONS: [&str; 22] = [
     include_str!("../migrations/21_free_feeds.sql"),
     include_str!("../migrations/22_refetch_short_volume.sql"),
     include_str!("../migrations/23_tiingo_quiet_sessions.sql"),
+    include_str!("../migrations/24_delisting_submitters.sql"),
 ];
 
 pub(crate) const LATEST: i64 = MIGRATIONS.len() as i64 + 1;

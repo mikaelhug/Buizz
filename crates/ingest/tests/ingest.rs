@@ -321,6 +321,7 @@ async fn full_index(
     let notices = match (year.as_str(), quarter.as_str()) {
         ("2016", "QTR2") if listed => format!(
             "{DELISTED_CIK}|SUNTRUST BANKS INC|25-NSE|{DELISTING_FILED}|edgar/data/{DELISTED_CIK}/0000876661-16-000101.txt\n\
+             876661|NEW YORK STOCK EXCHANGE LLC|25-NSE|{DELISTING_FILED}|edgar/data/876661/0000876661-16-000101.txt\n\
              {DELISTED_CIK}|SUNTRUST BANKS INC|10-Q|2016-05-06|edgar/data/{DELISTED_CIK}/0000750556-16-000020.txt\n\
              {UNPRICED_CIK}|GONE INC|25|2016-05-02|edgar/data/{UNPRICED_CIK}/0000990001-16-000003.txt\n"
         ),

@@ -2016,18 +2016,31 @@ pub(crate) fn latest_sec_filings(
     Ok(latest)
 }
 
-const DELISTING_FORMS: &str = "('25', '25-NSE')";
-const LATEST_DELISTING_CHECKS: &str = "SELECT d.accession, d.ticker, d.listing, d.outcome, f.cik, f.filed \
-     FROM delisting d JOIN sec_filing f ON f.accession = d.accession \
-     QUALIFY row_number() OVER (PARTITION BY d.accession, d.ticker ORDER BY d.batch_id DESC) = 1";
+macro_rules! delisting_notices {
+    () => {
+        "SELECT f.cik, f.accession, f.form, f.filed FROM sec_filing f \
+         WHERE f.form IN ('25', '25-NSE') \
+         QUALIFY f.cik IS DISTINCT FROM TRY_CAST(split_part(f.accession, '-', 1) AS UINTEGER) \
+         OR NOT bool_or(f.cik IS DISTINCT FROM TRY_CAST(split_part(f.accession, '-', 1) AS UINTEGER)) \
+         OVER (PARTITION BY f.accession)"
+    };
+}
+const DELISTING_NOTICES: &str = delisting_notices!();
+const LATEST_DELISTING_CHECKS: &str = concat!(
+    "SELECT d.accession, d.ticker, d.listing, d.outcome, f.cik, f.filed \
+     FROM delisting d JOIN (",
+    delisting_notices!(),
+    ") f ON f.accession = d.accession \
+     QUALIFY row_number() OVER (PARTITION BY d.accession, d.ticker ORDER BY d.batch_id DESC, f.cik) = 1"
+);
 
 pub(crate) fn unresolved_delistings(
     connection: &Connection,
     from: NaiveDate,
 ) -> Result<Vec<SecFiling>> {
     let mut statement = connection.prepare_cached(&format!(
-        "SELECT f.cik, f.accession, f.form, f.filed FROM sec_filing f \
-         WHERE f.form IN {DELISTING_FORMS} AND f.filed >= ? \
+        "SELECT f.cik, f.accession, f.form, f.filed FROM ({DELISTING_NOTICES}) f \
+         WHERE f.filed >= ? \
          AND NOT EXISTS (SELECT 1 FROM delisting d WHERE d.accession = f.accession) \
          ORDER BY f.filed DESC, f.cik, f.accession"
     ))?;
@@ -2111,8 +2124,8 @@ pub(crate) fn delisting_progress(connection: &Connection) -> Result<AccessionPro
            count(*) FILTER (WHERE settled AND NOT priced) FROM ( \
            SELECT f.accession, coalesce(bool_and(c.outcome <> 'pending'), false) AS settled, \
              coalesce(bool_or(c.outcome IN ('held', 'stored')), false) AS priced \
-           FROM sec_filing f LEFT JOIN ({LATEST_DELISTING_CHECKS}) c ON c.accession = f.accession \
-           WHERE f.form IN {DELISTING_FORMS} GROUP BY f.accession)"
+           FROM ({DELISTING_NOTICES}) f LEFT JOIN ({LATEST_DELISTING_CHECKS}) c ON c.accession = f.accession \
+           GROUP BY f.accession)"
     ))?;
     Ok(statement.query_row([], |row| {
         Ok(AccessionProgress {
