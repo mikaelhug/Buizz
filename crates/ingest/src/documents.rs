@@ -1,12 +1,13 @@
 use buizz_core::market::{DataSource, FilingText};
 use buizz_core::time::Timestamp;
 use buizz_sources::http::SourceError;
+use futures::StreamExt;
 
-use crate::fetch::{Batch, Work};
+use crate::fetch::{Batch, EDGAR_IN_FLIGHT, Work};
 use crate::{Ingest, IngestError};
 
-const FILINGS_PER_RUN: usize = 400;
-const DOCUMENTS_PER_RUN: usize = 3_000;
+const FILINGS_PER_RUN: usize = 2_000;
+const DOCUMENTS_PER_RUN: usize = 15_000;
 const STORED_EVERY: usize = 25;
 const STORED_BYTES: usize = 128 << 20;
 const NOT_FOUND: u16 = 404;
@@ -31,15 +32,20 @@ impl Ingest {
         let mut read: Vec<FilingText> = Vec::new();
         let mut held = 0;
         let mut fetched = 0;
-        for candidate in candidates.into_iter().take(FILINGS_PER_RUN) {
+        let mut reads = futures::stream::iter(candidates.into_iter().take(FILINGS_PER_RUN))
+            .map(|candidate| async move {
+                let documents = edgar
+                    .filing_documents(candidate.cik, &candidate.accession)
+                    .await;
+                (candidate, documents)
+            })
+            .buffered(EDGAR_IN_FLIGHT);
+        while let Some((candidate, documents)) = reads.next().await {
             if self.stopping() || fetched >= DOCUMENTS_PER_RUN {
                 break;
             }
             left -= 1;
-            let outcome = match edgar
-                .filing_documents(candidate.cik, &candidate.accession)
-                .await
-            {
+            let outcome = match documents {
                 Ok(documents) => {
                     fetched += documents.len() + 1;
                     held += documents

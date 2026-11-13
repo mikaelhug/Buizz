@@ -33,7 +33,7 @@ pub use sections::{SPLITTER_VERSION, split_sections};
 pub const DATA_URL: &str = "https://data.sec.gov";
 pub const WWW_URL: &str = "https://www.sec.gov";
 pub const RATE_LIMIT: RateLimit = RateLimit {
-    requests: 5,
+    requests: 8,
     per: Duration::from_secs(1),
     cooldown: Duration::from_secs(10 * 60),
 };

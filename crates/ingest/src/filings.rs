@@ -5,9 +5,10 @@ use buizz_core::ops::FetchStatus;
 use buizz_core::time::Timestamp;
 use buizz_sources::edgar::{COMPANY_FORMS, EdgarClient, Filings};
 use buizz_sources::http::SourceError;
+use futures::StreamExt;
 
 use crate::facts::NO_CIK;
-use crate::fetch::{Batch, FetchKey, Work, read};
+use crate::fetch::{Batch, EDGAR_IN_FLIGHT, FetchKey, Work, read};
 use crate::{Ingest, IngestError};
 
 impl Ingest {
@@ -52,7 +53,33 @@ impl Ingest {
         let mut batch = Batch::default();
         let mut without_cik = 0;
         let mut more = more;
+        let mut listed = Vec::new();
         for symbol in due {
+            let Some(cik) = tickers.get(&symbol).copied() else {
+                let key = FetchKey::new(
+                    DataSource::Edgar,
+                    Dataset::CurrentReports,
+                    Some(&symbol),
+                    None,
+                );
+                self.record_rejection(now, &key, NO_CIK).await?;
+                without_cik += 1;
+                continue;
+            };
+            let backfill = unwalked.contains(&symbol)
+                || !self
+                    .latest_fetch(DataSource::Edgar, Dataset::CurrentReports, &symbol)
+                    .await?
+                    .is_some_and(|fetch| read(&fetch));
+            listed.push((symbol, cik, backfill));
+        }
+        let mut reads = futures::stream::iter(listed)
+            .map(|(symbol, cik, backfill)| async move {
+                let filings = self.company_filings(edgar, &symbol, cik, backfill).await;
+                (symbol, backfill, filings)
+            })
+            .buffered(EDGAR_IN_FLIGHT);
+        while let Some((symbol, backfill, read)) = reads.next().await {
             if self.stopping() {
                 more = true;
                 break;
@@ -63,23 +90,13 @@ impl Ingest {
                 Some(&symbol),
                 None,
             );
-            let Some(cik) = tickers.get(&symbol).copied() else {
-                self.record_rejection(now, &key, NO_CIK).await?;
-                without_cik += 1;
-                continue;
-            };
             let periodic_key = FetchKey::new(
                 DataSource::Edgar,
                 Dataset::PeriodicReports,
                 Some(&symbol),
                 None,
             );
-            let backfill = unwalked.contains(&symbol)
-                || !self
-                    .latest_fetch(DataSource::Edgar, Dataset::CurrentReports, &symbol)
-                    .await?
-                    .is_some_and(|fetch| read(&fetch));
-            match self.company_filings(edgar, &symbol, cik, backfill).await {
+            match read {
                 Ok((company, filings)) => {
                     let fetched = filings.reports.len() + 1;
                     let periodic = filings.periodic.len();

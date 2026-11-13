@@ -41,7 +41,7 @@ use buizz_sources::Sources;
 use buizz_sources::http::SourceError;
 use buizz_state::{StateError, StateStore};
 use chrono::{NaiveDate, NaiveTime, TimeDelta};
-use tokio::sync::{Mutex, broadcast, watch};
+use tokio::sync::{Mutex, RwLock, broadcast, watch};
 use tokio::task::JoinHandle;
 
 use crate::fetch::Work;
@@ -111,6 +111,7 @@ pub struct Ingest {
     sources: Sources,
     events: broadcast::Sender<SpineEvent>,
     ran_since_boot: Arc<Mutex<BTreeSet<&'static str>>>,
+    running: Arc<RwLock<()>>,
     stopping: Arc<AtomicBool>,
     booted_at: Timestamp,
     contracts: Arc<watch::Sender<Vec<CoverageContract>>>,
@@ -130,6 +131,7 @@ impl Ingest {
             sources,
             events: broadcast::Sender::new(EVENT_CAPACITY),
             ran_since_boot: Arc::default(),
+            running: Arc::default(),
             stopping: Arc::default(),
             booted_at: Timestamp::now(),
             contracts: Arc::new(watch::Sender::new(Vec::new())),
@@ -137,29 +139,38 @@ impl Ingest {
     }
 
     pub async fn tick(&self, now: Timestamp) -> Result<TickReport, IngestError> {
-        let mut ran_since_boot = self.ran_since_boot.lock().await;
+        let every: Vec<&'static JobSpec> = JOBS.iter().collect();
+        self.tick_lane(&every, now).await
+    }
+
+    async fn tick_lane(
+        &self,
+        lane: &[&'static JobSpec],
+        now: Timestamp,
+    ) -> Result<TickReport, IngestError> {
         let started = tokio::time::Instant::now();
         let finished_at = || now + TimeDelta::from_std(started.elapsed()).unwrap_or_default();
         let latest = self.state.latest_jobs().await?;
         let failures = self.state.failure_streaks(self.booted_at).await?;
         let limits = self.rate_limits().await?;
         let mut report = TickReport::default();
-        for spec in JOBS {
+        for spec in lane {
             if self.stopping() {
                 break;
             }
+            let running = self.running.read().await;
             let previous = latest.iter().find(|run| run.job == spec.name);
             let streak = failures.get(spec.name).copied().unwrap_or(0);
             let limited = spec.source.and_then(|source| limits.get(&source).copied());
-            let waiting = due_at(&spec, previous, streak, limited).is_some_and(|due| due > now);
-            let settled_before_boot = !ran_since_boot.contains(spec.name)
+            let waiting = due_at(spec, previous, streak, limited).is_some_and(|due| due > now);
+            let settled_before_boot = !self.ran_since_boot.lock().await.contains(spec.name)
                 && previous.is_some_and(|run| {
                     matches!(run.outcome, Some(JobOutcome::Ok | JobOutcome::Noop))
                 });
             if waiting && !(settled_before_boot && self.series_unread(spec.name).await?) {
                 continue;
             }
-            ran_since_boot.insert(spec.name);
+            self.ran_since_boot.lock().await.insert(spec.name);
             let run_id = self.state.start_job(spec.name, now).await?;
             let work = match self.run(spec.name, now).await {
                 Ok(work) => work,
@@ -178,6 +189,7 @@ impl Ingest {
                     Some(work.message),
                 )
                 .await?;
+            drop(running);
             report.ran.push((spec.name, work.outcome));
             let views = self.job_views(finished).await?;
             if let Some(job) = views.into_iter().find(|view| view.name == spec.name) {
@@ -231,7 +243,7 @@ impl Ingest {
 
     pub async fn stop(&self, grace: Duration) {
         self.stopping.store(true, Ordering::SeqCst);
-        if tokio::time::timeout(grace, self.ran_since_boot.lock())
+        if tokio::time::timeout(grace, self.running.write())
             .await
             .is_err()
         {
@@ -252,14 +264,27 @@ impl Ingest {
         }
         let ingest = self.clone();
         Some(tokio::spawn(async move {
-            let mut interval = tokio::time::interval(ingest.config.tick);
-            interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-            loop {
-                interval.tick().await;
-                if let Err(error) = ingest.tick(Timestamp::now()).await {
-                    tracing::error!(%error, "ingest tick failed");
-                }
+            let foundation: Vec<&'static JobSpec> = JOBS
+                .iter()
+                .filter(|spec| schedule::FOUNDATION.contains(&spec.name))
+                .collect();
+            if let Err(error) = ingest.tick_lane(&foundation, Timestamp::now()).await {
+                tracing::error!(%error, "ingest tick failed");
             }
+            futures::future::join_all(schedule::lanes().into_iter().map(|lane| {
+                let ingest = ingest.clone();
+                async move {
+                    let mut interval = tokio::time::interval(ingest.config.tick);
+                    interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+                    loop {
+                        interval.tick().await;
+                        if let Err(error) = ingest.tick_lane(&lane, Timestamp::now()).await {
+                            tracing::error!(%error, "ingest tick failed");
+                        }
+                    }
+                }
+            }))
+            .await;
         }))
     }
 

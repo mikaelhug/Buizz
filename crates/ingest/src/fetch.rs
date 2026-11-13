@@ -8,6 +8,8 @@ use chrono::{NaiveDate, TimeDelta};
 
 use crate::{Ingest, IngestError};
 
+pub(crate) const EDGAR_IN_FLIGHT: usize = 8;
+
 const NOT_FOUND: u16 = 404;
 const TOO_MANY_REQUESTS: u16 = 429;
 const MAX_LISTED_FAILURES: usize = 3;

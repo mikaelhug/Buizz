@@ -225,6 +225,28 @@ fn delta(duration: Duration) -> TimeDelta {
     TimeDelta::from_std(duration).unwrap_or(TimeDelta::MAX)
 }
 
+pub(crate) const FOUNDATION: [&str; 4] = [CALENDAR, INSTRUMENTS, INDEX_MEMBERSHIP, BARS_1D];
+
+fn reads_from(spec: &JobSpec) -> Option<DataSource> {
+    match spec.name {
+        TIINGO_HISTORY => Some(DataSource::Alpaca),
+        FILING_SECTIONS | RECIPE_FACTS => Some(DataSource::Edgar),
+        _ => spec.source,
+    }
+}
+
+pub(crate) fn lanes() -> Vec<Vec<&'static JobSpec>> {
+    let mut lanes: Vec<(Option<DataSource>, Vec<&'static JobSpec>)> = Vec::new();
+    for spec in &JOBS {
+        let lane = reads_from(spec);
+        match lanes.iter_mut().find(|(source, _)| *source == lane) {
+            Some((_, jobs)) => jobs.push(spec),
+            None => lanes.push((lane, vec![spec])),
+        }
+    }
+    lanes.into_iter().map(|(_, jobs)| jobs).collect()
+}
+
 pub(crate) fn due_at(
     spec: &JobSpec,
     latest: Option<&JobRun>,

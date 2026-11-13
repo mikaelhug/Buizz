@@ -3,11 +3,12 @@ use std::collections::{BTreeMap, BTreeSet};
 use buizz_core::market::{DataSource, PressCandidate, PressExhibit, Symbol};
 use buizz_core::time::Timestamp;
 use buizz_sources::http::SourceError;
+use futures::StreamExt;
 
-use crate::fetch::{Batch, Work};
+use crate::fetch::{Batch, EDGAR_IN_FLIGHT, Work};
 use crate::{Ingest, IngestError};
 
-const RELEASES_PER_RUN: usize = 1500;
+const RELEASES_PER_RUN: usize = 6_000;
 const STORED_EVERY: usize = 100;
 const NOT_FOUND: u16 = 404;
 
@@ -26,14 +27,19 @@ impl Ingest {
         let mut left = candidates.len();
         let mut batch = Batch::default();
         let mut read: Vec<PressExhibit> = Vec::new();
-        for candidate in candidates.into_iter().take(RELEASES_PER_RUN) {
+        let mut reads = futures::stream::iter(candidates.into_iter().take(RELEASES_PER_RUN))
+            .map(|candidate| async move {
+                let release = edgar
+                    .press_release(candidate.cik, &candidate.accession, candidate.accepted_at)
+                    .await;
+                (candidate, release)
+            })
+            .buffered(EDGAR_IN_FLIGHT);
+        while let Some((candidate, fetched)) = reads.next().await {
             if self.stopping() {
                 break;
             }
             left -= 1;
-            let fetched = edgar
-                .press_release(candidate.cik, &candidate.accession, candidate.accepted_at)
-                .await;
             match fetched {
                 Ok(release) => read.push(release),
                 Err(

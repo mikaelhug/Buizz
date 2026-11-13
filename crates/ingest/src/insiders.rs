@@ -5,12 +5,13 @@ use buizz_core::time::Timestamp;
 use buizz_sources::edgar::{EdgarClient, INSIDER_FORMS, OwnershipFiling};
 use buizz_sources::http::SourceError;
 use chrono::NaiveDate;
+use futures::StreamExt;
 
 use crate::facts::NO_CIK;
-use crate::fetch::{Batch, FetchKey, Work, read};
+use crate::fetch::{Batch, EDGAR_IN_FLIGHT, FetchKey, Work, read};
 use crate::{Ingest, IngestError, day_start};
 
-const DOCUMENTS_PER_RUN: usize = 3000;
+const DOCUMENTS_PER_RUN: usize = 15_000;
 const NOT_FOUND: u16 = 404;
 const PLAN_CHECKBOX_FROM: NaiveDate = NaiveDate::from_ymd_opt(2023, 4, 1).expect("a valid date");
 
@@ -156,23 +157,45 @@ impl Ingest {
         collected: &mut Collected,
     ) -> Result<bool, SourceError> {
         let listed = self.ownership_filings(edgar, symbol, cik, since).await?;
-        let fresh = listed.iter().filter(|filing| {
-            filing.filed >= self.config.history_start && !stored.contains(&filing.accession)
-        });
-        for filing in fresh {
-            if self.stopping() || *budget == 0 {
+        let fresh: Vec<&OwnershipFiling> = listed
+            .iter()
+            .filter(|filing| {
+                filing.filed >= self.config.history_start && !stored.contains(&filing.accession)
+            })
+            .collect();
+        let mut affordable = 0;
+        for filing in &fresh {
+            if *budget == 0 {
+                break;
+            }
+            *budget -= usize::from(filing.is_xml());
+            affordable += 1;
+        }
+        let chosen: Vec<OwnershipFiling> = fresh[..affordable]
+            .iter()
+            .map(|filing| (*filing).clone())
+            .collect();
+        let mut reads = futures::stream::iter(chosen)
+            .map(|filing| async move {
+                let reading = self.read_ownership(edgar, symbol, cik, &filing).await;
+                (filing, reading)
+            })
+            .buffered(EDGAR_IN_FLIGHT);
+        while let Some((filing, reading)) = reads.next().await {
+            if self.stopping() {
                 return Ok(false);
             }
-            match self
-                .read_ownership(edgar, symbol, cik, filing, budget)
-                .await
-            {
+            match reading {
                 Reading::Read(parsed) => collected.filings.push(parsed),
                 Reading::Unreadable => collected
                     .filings
-                    .push(without_document(symbol, cik, filing)),
+                    .push(without_document(symbol, cik, &filing)),
                 Reading::Failed(error) => return Err(error),
             }
+        }
+        drop(reads);
+        if affordable < fresh.len() {
+            return Ok(false);
         }
         let by_accession: BTreeMap<&str, &OwnershipFiling> = listed
             .iter()
@@ -183,14 +206,14 @@ impl Ingest {
                 return Ok(false);
             }
             let plan_10b5_1 = match by_accession.get(plan.accession.as_str()) {
-                Some(filing) => match self
-                    .read_ownership(edgar, symbol, cik, filing, budget)
-                    .await
-                {
-                    Reading::Read(parsed) => parsed.plan_10b5_1,
-                    Reading::Unreadable => None,
-                    Reading::Failed(error) => return Err(error),
-                },
+                Some(filing) => {
+                    *budget -= usize::from(filing.is_xml());
+                    match self.read_ownership(edgar, symbol, cik, filing).await {
+                        Reading::Read(parsed) => parsed.plan_10b5_1,
+                        Reading::Unreadable => None,
+                        Reading::Failed(error) => return Err(error),
+                    }
+                }
                 None => None,
             };
             collected.plans.push(InsiderPlan {
@@ -207,12 +230,10 @@ impl Ingest {
         symbol: &Symbol,
         cik: u32,
         filing: &OwnershipFiling,
-        budget: &mut usize,
     ) -> Reading {
         if !filing.is_xml() {
             return Reading::Unreadable;
         }
-        *budget -= 1;
         match edgar.ownership(symbol, cik, filing).await {
             Ok(parsed) => Reading::Read(parsed),
             Err(
