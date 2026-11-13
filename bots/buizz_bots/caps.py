@@ -8,6 +8,7 @@ from buizz_bots.fundamentals import adjusted_shares, traded_today
 
 DOLLAR_VOLUME_SESSIONS = 20
 MIN_HISTORY_DAYS = 40
+LISTED_MISSING = 20
 
 Identity = tuple[date, date, str]
 
@@ -55,3 +56,8 @@ def capped_weights(scores: Mapping[str, float], limits: Mapping[str, float]) -> 
 def parked(weights: Mapping[str, float], cash: str) -> dict[str, float]:
     rest = 1 - sum(weights.values())
     return {**weights, cash: rest} if rest > 0 else dict(weights)
+
+
+def missing_caps(members: list[str], caps: Mapping[str, float]) -> str:
+    missing = [symbol for symbol in members if symbol not in caps]
+    return f"{len(missing)} of {len(members)} members without a market cap: {', '.join(missing[:LISTED_MISSING])}"
