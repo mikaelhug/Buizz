@@ -24,7 +24,7 @@ const INDEX_RANKS: usize = CORE_ETFS.len() + 1;
 const ALONE_PER_RUN: usize = 20;
 const RECOVERED_PER_RUN: usize = 20;
 const RECOVERY_RETRY: TimeDelta = TimeDelta::days(30);
-const HALT_SESSIONS: i64 = 60;
+pub(crate) const HALT_SESSIONS: i64 = 60;
 
 impl Ingest {
     pub(crate) async fn daily_bars(&self, now: Timestamp) -> Result<Work, IngestError> {

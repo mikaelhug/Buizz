@@ -176,10 +176,10 @@ impl Ingest {
                     continue;
                 }
             };
-            let bars: Vec<Bar> = bars
+            let (bars, quiet): (Vec<Bar>, Vec<Bar>) = bars
                 .into_iter()
                 .filter(|bar| bar.start.exchange_date() < first)
-                .collect();
+                .partition(|bar| bar.volume > 0);
             let (actions, alpaca_era): (Vec<CorporateAction>, Vec<CorporateAction>) = actions
                 .into_iter()
                 .partition(|action| action.ex_date < first);
@@ -194,6 +194,17 @@ impl Ingest {
                 .market
                 .upsert_bars(DataSource::Tiingo, Timeframe::Day, bars)
                 .await?;
+            if !quiet.is_empty() {
+                self.market
+                    .record_quiet_sessions(
+                        DataSource::Tiingo,
+                        quiet
+                            .iter()
+                            .map(|bar| (bar.symbol.clone(), bar.start.exchange_date()))
+                            .collect(),
+                    )
+                    .await?;
+            }
             self.market
                 .replace_corporate_actions(
                     DataSource::Tiingo,

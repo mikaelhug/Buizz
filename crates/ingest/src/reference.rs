@@ -7,6 +7,7 @@ use buizz_core::ops::JobOutcome;
 use buizz_core::time::Timestamp;
 use chrono::{Datelike, NaiveDate, TimeDelta};
 
+use crate::bars::HALT_SESSIONS;
 use crate::fetch::{Batch, FetchKey, Work};
 use crate::{Ingest, IngestError};
 
@@ -151,8 +152,27 @@ impl Ingest {
                 .map(|coverage| coverage.last)
                 .filter(|last| Some(*last) < latest)
         };
-        for asset in assets.iter_mut().filter(|asset| !asset.active) {
-            asset.last_session = asset.last_session.or_else(|| ended(&asset.symbol));
+        let silent_before = match latest {
+            Some(latest) => self
+                .market
+                .calendar(self.config.history_start, latest)
+                .await?
+                .sessions()
+                .iter()
+                .rev()
+                .nth(HALT_SESSIONS as usize)
+                .map(|session| session.date),
+            None => None,
+        };
+        for asset in &mut assets {
+            if asset.active {
+                asset.last_session = priced
+                    .get(&asset.symbol)
+                    .map(|coverage| coverage.last)
+                    .filter(|last| silent_before.is_some_and(|before| *last < before));
+            } else {
+                asset.last_session = asset.last_session.or_else(|| ended(&asset.symbol));
+            }
         }
         let listed: BTreeSet<Symbol> = assets.iter().map(|asset| asset.symbol.clone()).collect();
         let unlisted_members: BTreeSet<Symbol> = self
