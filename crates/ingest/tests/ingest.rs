@@ -84,7 +84,7 @@ const ARCHIVE_PUBLISHED: &str = "Fri, 05 Jul 2024 11:00:00 GMT";
 const REUSED: &str = "STI";
 const ENDED_LAST_BAR: &str = "2016-03-31";
 const REUSED_FIRST_BAR: &str = "2016-04-20";
-const RENAMED: &str = "ANDV";
+const RENAMED: &str = "RNMD";
 const RENAMED_FIRST_BAR: &str = "2016-04-01";
 const SILENT: &str = "DOW";
 const HALTED: &str = "2016-03-03";
@@ -980,7 +980,7 @@ async fn a_member_alpaca_lists_only_under_its_later_ticker_is_priced_under_its_e
             .map(|row| row.start.exchange_date())
             .collect::<Vec<_>>(),
         weekdays(date(ALPACA_FIRST_BAR), date(ALPACA_LAST_BAR)),
-        "the March sessions it traded under its earlier ticker come from Alpaca's mapping as of its first day as ANDV"
+        "the March sessions it traded under its earlier ticker come from Alpaca's mapping as of its first day as RNMD"
     );
 }
 

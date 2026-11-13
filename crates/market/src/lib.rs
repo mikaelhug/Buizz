@@ -2039,6 +2039,17 @@ impl MarketStore {
             .await
     }
 
+    pub async fn forget_coverage(
+        &self,
+        dataset: Dataset,
+        source: DataSource,
+        symbols: Vec<Symbol>,
+    ) -> Result<u64> {
+        self.writer
+            .run(move |connection| write::forget_coverage(connection, dataset, source, &symbols))
+            .await
+    }
+
     pub async fn coverage(&self) -> Result<Vec<Coverage>> {
         self.readers
             .run(|connection| read::coverage(connection))

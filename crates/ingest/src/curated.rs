@@ -10,17 +10,48 @@ use rust_decimal::Decimal;
 
 use crate::{Ingest, IngestError, day_start};
 
-const RENAMES: [(&str, &str, &str); 4] = [
+const RENAMES: [(&str, &str, &str); 33] = [
+    ("MIL", "MFCB", "2016-02-16"),
     ("UA", "UAA", "2016-04-08"),
+    ("TSO", "ANDV", "2017-08-01"),
+    ("DOW", "DWDP", "2017-09-01"),
     ("DLPH", "APTV", "2017-12-05"),
+    ("WYN", "WYND", "2018-06-01"),
+    ("DPS", "KDP", "2018-07-10"),
+    ("ITUS", "ANIX", "2018-10-01"),
+    ("ALN", "PLAG", "2018-10-01"),
+    ("TPIV", "MRKR", "2018-10-18"),
+    ("CCE", "CCEP", "2018-11-07"),
+    ("KAAC", "ALTM", "2018-11-12"),
+    ("RXII", "PHIO", "2018-11-19"),
+    ("WGP", "WES", "2019-02-28"),
+    ("AMGP", "AM", "2019-03-13"),
     ("FOXA", "TFCFA", "2019-03-19"),
+    ("ORPN", "ENLV", "2019-03-26"),
+    ("KCAP", "PTMN", "2019-04-02"),
+    ("PRAN", "ATHE", "2019-04-09"),
+    ("NVMM", "REKR", "2019-04-30"),
+    ("CMSS", "KXIN", "2019-05-02"),
+    ("FONE", "NXTG", "2019-05-30"),
+    ("DWDP", "DD", "2019-06-03"),
+    ("OMAD", "PACK", "2019-06-03"),
+    ("MFCB", "SRL", "2019-06-04"),
+    ("MTEC", "KERN", "2019-06-18"),
+    ("CYTX", "PSTV", "2019-07-29"),
+    ("AETI", "SLNG", "2019-07-29"),
+    ("ESV", "VAL", "2019-07-31"),
+    ("BHGE", "BKR", "2019-10-18"),
+    ("IPOA", "SPCE", "2019-10-28"),
+    ("CUR", "SNCA", "2019-11-01"),
     ("LB", "BBWI", "2021-08-03"),
 ];
-const SPIN_OFFS: [(&str, &str, &str, &str); 3] = [
+const SPIN_OFFS: [(&str, &str, &str, &str); 4] = [
     ("UAA", "UA", "2016-04-08", "1"),
     ("APTV", "DLPH", "2017-12-05", "0.33333333"),
+    ("TNL", "WH", "2018-06-01", "1"),
     ("BBWI", "VSXY", "2021-08-03", "0.33333333"),
 ];
+const CASH: [(&str, &str, &str); 1] = [("CCEP", "2016-05-31", "14.50")];
 const ENDED: [(&str, &str); 1] = [("TIVO", "2016-09-07")];
 
 fn date(text: &str) -> NaiveDate {
@@ -55,7 +86,17 @@ fn curated_actions(priced: &BTreeMap<Symbol, Coverage>) -> Vec<CorporateAction> 
                 new_rate: rate.parse().expect("a curated rate is a decimal"),
             },
         });
-    renames.chain(spin_offs).collect()
+    let cash = CASH
+        .iter()
+        .filter(|(symbol, _, _)| priced(&[symbol]))
+        .map(|(symbol, on, rate)| CorporateAction {
+            symbol: Symbol::new(symbol),
+            ex_date: date(on),
+            kind: CorporateActionKind::CashDividend {
+                rate: rate.parse().expect("a curated rate is a decimal"),
+            },
+        });
+    renames.chain(spin_offs).chain(cash).collect()
 }
 
 impl Ingest {
@@ -64,28 +105,39 @@ impl Ingest {
         let priced = self
             .symbol_coverage(Dataset::Bars1d, DataSource::Alpaca)
             .await?;
-        let stored = self.market.actions_reaching_other_symbols().await?;
         let actions = curated_actions(&priced);
+        let window = ActionWindow {
+            symbols: actions.iter().map(|action| action.symbol.clone()).collect(),
+            from: actions
+                .iter()
+                .map(|action| action.ex_date)
+                .min()
+                .unwrap_or(NaiveDate::MIN),
+            through: actions
+                .iter()
+                .map(|action| action.ex_date)
+                .max()
+                .unwrap_or(NaiveDate::MIN),
+            covered_to: None,
+        };
+        let stored = self
+            .market
+            .corporate_actions(window.symbols.clone(), window.from, window.through)
+            .await?;
         if actions.iter().any(|action| !stored.contains(action)) {
-            let window = ActionWindow {
-                symbols: actions.iter().map(|action| action.symbol.clone()).collect(),
-                from: actions
-                    .iter()
-                    .map(|action| action.ex_date)
-                    .min()
-                    .unwrap_or(NaiveDate::MIN),
-                through: actions
-                    .iter()
-                    .map(|action| action.ex_date)
-                    .max()
-                    .unwrap_or(NaiveDate::MIN),
-                covered_to: None,
-            };
             rows += self
                 .market
                 .replace_corporate_actions(DataSource::Curated, actions, window)
                 .await?
                 .rows;
+            let listings = self.market.listings();
+            let renamed: Vec<Symbol> = RENAMES
+                .iter()
+                .filter_map(|(_, new, on)| listings.listing(&Symbol::new(new), date(on)))
+                .collect();
+            self.market
+                .forget_coverage(Dataset::CorporateActions, DataSource::Alpaca, renamed)
+                .await?;
         }
         let instruments = self.market.instruments().await?;
         let ended: Vec<Instrument> = ENDED

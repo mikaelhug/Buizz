@@ -13,9 +13,9 @@ use buizz_core::market::{
 use buizz_core::ops::ActionDisagreement;
 use buizz_core::time::Timestamp;
 use chrono::NaiveDate;
-use duckdb::{Appender, Connection, Transaction, params};
+use duckdb::{Appender, Connection, Transaction, params, params_from_iter};
 
-use crate::codec::{ActionColumns, Dec, Ts, feed_name, wire_name};
+use crate::codec::{ActionColumns, Dec, IN_SYMBOLS, Params, Ts, feed_name, symbol_list, wire_name};
 use crate::text::TextVolumes;
 use crate::{ActionWindow, MarketError, Result, WriteSummary};
 
@@ -264,6 +264,26 @@ pub(crate) fn sessions(
             replace_staged(transaction, "calendar", batch_id)
         },
     )
+}
+
+pub(crate) fn forget_coverage(
+    connection: &Connection,
+    dataset: Dataset,
+    source: DataSource,
+    symbols: &[Symbol],
+) -> Result<u64> {
+    let params: Params = vec![
+        Box::new(wire_name(&dataset)),
+        Box::new(wire_name(&source)),
+        symbol_list(symbols),
+    ];
+    let forgotten = connection.execute(
+        &format!(
+            "DELETE FROM main.coverage WHERE dataset = ? AND source = ? AND symbol {IN_SYMBOLS}"
+        ),
+        params_from_iter(params.iter()),
+    )?;
+    Ok(forgotten as u64)
 }
 
 pub(crate) fn daily_bars(
