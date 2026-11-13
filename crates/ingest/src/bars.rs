@@ -15,7 +15,7 @@ use crate::{CORE_ETFS, Ingest, IngestError, Priced, day_start};
 
 const SYMBOLS_PER_REQUEST: usize = 1_000;
 const REQUESTS_PER_RUN: usize = 600;
-const SETTLE_MARGIN: TimeDelta = TimeDelta::minutes(15);
+pub(crate) const SETTLE_MARGIN: TimeDelta = TimeDelta::minutes(15);
 const SETTLING: TimeDelta = TimeDelta::hours(24);
 const MAX_LAG_SESSIONS: usize = 20;
 const REFUSED_REQUEST: [u16; 2] = [400, 422];

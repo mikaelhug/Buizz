@@ -11,6 +11,7 @@ use crate::JobSpec;
 pub(crate) const CALENDAR: &str = "calendar";
 pub(crate) const INSTRUMENTS: &str = "instruments";
 pub(crate) const BARS_1D: &str = "bars_1d";
+pub(crate) const BARS_1M: &str = "bars_1m";
 pub(crate) const CORPORATE_ACTIONS: &str = "corporate_actions";
 pub(crate) const SEC_INDEX: &str = "sec_index";
 pub(crate) const FUNDAMENTALS: &str = "fundamentals";
@@ -42,7 +43,7 @@ const SHORT_RETRY: Duration = HOUR;
 const FIRST_FAILURE_RETRY: Duration = Duration::from_secs(5 * 60);
 const STALE_AFTER_INTERVALS: i32 = 3;
 
-pub(crate) const JOBS: [JobSpec; 25] = [
+pub(crate) const JOBS: [JobSpec; 26] = [
     JobSpec {
         name: CALENDAR,
         source: Some(DataSource::Alpaca),
@@ -65,6 +66,12 @@ pub(crate) const JOBS: [JobSpec; 25] = [
         name: BARS_1D,
         source: Some(DataSource::Alpaca),
         datasets: &[Dataset::Bars1d],
+        every: SIX_HOURS,
+    },
+    JobSpec {
+        name: BARS_1M,
+        source: Some(DataSource::Alpaca),
+        datasets: &[Dataset::Bars1m],
         every: SIX_HOURS,
     },
     JobSpec {

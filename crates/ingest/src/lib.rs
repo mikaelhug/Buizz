@@ -263,6 +263,7 @@ impl Ingest {
             schedule::CALENDAR => self.calendar(now).await,
             schedule::INSTRUMENTS => self.instruments(now).await,
             schedule::BARS_1D => self.daily_bars(now).await,
+            schedule::BARS_1M => self.minute_bars(now).await,
             schedule::CORPORATE_ACTIONS => self.corporate_actions(now).await,
             schedule::SEC_INDEX => self.sec_index(now).await,
             schedule::FUNDAMENTALS => self.fundamentals(now).await,

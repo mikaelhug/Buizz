@@ -35,7 +35,7 @@ const DOMAIN_ORDER: Domain[] = ["prices", "reference", "filings", "macro", "alte
 
 const DATASETS: Record<Dataset, { name: string; caption: string }> = {
   bars1d: { name: "Daily prices", caption: "open, high, low, close and volume per session" },
-  bars1m: { name: "Minute prices", caption: "intraday bars from the live stream and on demand" },
+  bars1m: { name: "Minute prices", caption: "intraday bars for the symbols bots use, kept current" },
   corporate_actions: { name: "Splits, dividends & mergers", caption: "corporate actions, cross-checked between sources" },
   instruments: { name: "Listed securities", caption: "every stock and ETF with its listing dates" },
   calendar: { name: "Trading calendar", caption: "sessions, half days and closing times" },
@@ -212,10 +212,9 @@ function yearRange(coverage: Coverage, today: string): string {
 }
 
 const STALE_DAYS = 62;
-const ON_DEMAND: Dataset[] = ["bars1m"];
 
-function stopped(dataset: Dataset, coverage: Coverage | undefined, today: string): string | undefined {
-  if (!coverage?.last || ON_DEMAND.includes(dataset)) {
+function stopped(coverage: Coverage | undefined, today: string): string | undefined {
+  if (!coverage?.last) {
     return undefined;
   }
   return Date.parse(today) - Date.parse(coverage.last) > STALE_DAYS * 86_400_000 ? coverage.last : undefined;
@@ -578,7 +577,7 @@ function Row({ entry, start, today, peak, health, jobs, sources, focus, pulses, 
   const coverage = entry.markets[0];
   const contract = headline(contractsOf(coverage, focus));
   const gaps = coverage ? gapMonths(coverage.monthly).length : 0;
-  const stop = stopped(entry.dataset, coverage, today);
+  const stop = stopped(coverage, today);
   const detail = `spine-detail-${entry.dataset}`;
   return (
     <>
@@ -593,7 +592,7 @@ function Row({ entry, start, today, peak, health, jobs, sources, focus, pulses, 
         </span>
         <span role="cell" className="col-timeline">
           {entry.markets.map((market) => (
-            <Spark key={market.market} name={text.name} coverage={market} start={start} peak={peak} stop={stopped(entry.dataset, market, today)} />
+            <Spark key={market.market} name={text.name} coverage={market} start={start} peak={peak} stop={stopped(market, today)} />
           ))}
         </span>
         <span role="cell" className="col-num num">

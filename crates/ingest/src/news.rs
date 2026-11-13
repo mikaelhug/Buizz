@@ -43,9 +43,9 @@ impl Ingest {
         let mut batch = Batch::default();
         let mut requests = 0;
         let mut span = WINDOW_DAYS;
-        while settled(first) && !self.stopping() {
-            if requests >= REQUESTS_PER_RUN {
-                batch.more_remains("news weeks");
+        while settled(first) {
+            if requests >= REQUESTS_PER_RUN || self.stopping() {
+                batch.more_remains(format!("news from {first}"));
                 break;
             }
             let last = (1..span)
