@@ -7,6 +7,7 @@ import { useResource } from "../lib/useResource";
 import { Failure, Loading, StaleFailure } from "../ui/Feedback";
 import { Info } from "../ui/Popover";
 import { Ago, matches, PageSearch } from "../ui/Table";
+import { TextVolumes } from "./TextVolumes";
 import "../styles/spine.css";
 
 type Spine = Schemas["DataSpine"];
@@ -240,6 +241,7 @@ export function DataSpine() {
     <div className="spine-page">
       <StaleFailure resource={spine} />
       <Summary data={data} states={data.datasets.map(healthOf)} sources={sources.length} feed={feed.data} health={filters.health} onHealth={(state) => setHealthParam(filters.health === state ? "" : (state ?? ""))} />
+      <TextVolumes />
       <nav className="source-bar" aria-label="Sources">
         <span className="source-bar-label">Sources</span>
         <button type="button" className="source-pill" aria-pressed={filters.source === undefined} onClick={() => setSourceParam("")}>

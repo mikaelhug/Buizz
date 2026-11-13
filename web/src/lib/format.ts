@@ -69,10 +69,18 @@ export const fmt = {
   date: (value: Maybe<string>) => present(value, (v) => localDate.format(new Date(v))),
   market: (value: Maybe<string>) => present(value, (v) => `${exchangeTime.format(new Date(v))} ET`),
   memory: (bytes: Maybe<number>) => present(bytes, (v) => `${integer.format(Math.round(v / MIB))} MiB`),
+  bytes: (bytes: Maybe<number>) => present(bytes, sized),
   duration: (seconds: Maybe<number>) => present(seconds, duration),
 };
 
 const MIB = 1024 * 1024;
+const SIZE_UNITS = ["B", "KB", "MB", "GB", "TB"];
+const oneDecimal = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
+
+function sized(bytes: number): string {
+  const step = Math.min(SIZE_UNITS.length - 1, Math.max(0, Math.floor(Math.log(Math.max(bytes, 1)) / Math.log(1000))));
+  return `${oneDecimal.format(bytes / 1000 ** step)} ${SIZE_UNITS[step]}`;
+}
 
 function duration(seconds: number): string {
   if (seconds < 60) {

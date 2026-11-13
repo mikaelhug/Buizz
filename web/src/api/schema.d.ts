@@ -244,6 +244,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/data/text": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["text_volumes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/data/text/document": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["text_document"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/data/text/files/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["text_file_documents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/data/text/{volume}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["text_listing"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/events": {
         parameters: {
             query?: never;
@@ -1415,6 +1479,70 @@ export interface components {
         };
         /** @example AAPL */
         Symbol: string;
+        TextDocumentText: {
+            doc_id: string;
+            text?: string | null;
+            /** Format: int64 */
+            chars: number;
+            truncated: boolean;
+        };
+        TextDocumentView: {
+            doc_id: string;
+            kind: string;
+            document: string;
+            description?: string | null;
+            accession?: string | null;
+            /** Format: int32 */
+            cik?: number | null;
+            published_at: components["schemas"]["Timestamp"];
+            /** Format: int64 */
+            raw_bytes: number;
+            /** Format: int64 */
+            text_chars?: number | null;
+        };
+        TextFileView: {
+            /** Format: int64 */
+            id: number;
+            path: string;
+            source: string;
+            /** Format: int32 */
+            documents: number;
+            /** Format: int64 */
+            bytes: number;
+            written_at?: components["schemas"]["Timestamp"] | null;
+        };
+        TextFolder: {
+            name: string;
+            /** Format: int64 */
+            files: number;
+            /** Format: int64 */
+            bytes: number;
+            /** Format: int64 */
+            documents: number;
+        };
+        TextListing: {
+            volume: string;
+            prefix: string;
+            folders: components["schemas"]["TextFolder"][];
+            files: components["schemas"]["TextFileView"][];
+        };
+        TextVolumeView: {
+            id: string;
+            path: string;
+            mounted: boolean;
+            /** Format: int64 */
+            total?: number | null;
+            /** Format: int64 */
+            available?: number | null;
+            /** Format: double */
+            fill_limit: number;
+            /** Format: int64 */
+            files: number;
+            /** Format: int64 */
+            bytes: number;
+            /** Format: int64 */
+            documents: number;
+        };
         /** @enum {string} */
         TimeInForce: "day" | "gtc";
         /** @enum {string} */
@@ -1913,6 +2041,98 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DataSpine"];
+                };
+            };
+        };
+    };
+    text_volumes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TextVolumeView"][];
+                };
+            };
+        };
+    };
+    text_document: {
+        parameters: {
+            query: {
+                id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TextDocumentText"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    text_file_documents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TextDocumentView"][];
+                };
+            };
+        };
+    };
+    text_listing: {
+        parameters: {
+            query?: {
+                prefix?: string;
+            };
+            header?: never;
+            path: {
+                volume: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TextListing"];
                 };
             };
         };

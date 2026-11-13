@@ -390,6 +390,66 @@ pub struct DataSpine {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct TextVolumeView {
+    pub id: String,
+    pub path: String,
+    pub mounted: bool,
+    pub total: Option<u64>,
+    pub available: Option<u64>,
+    pub fill_limit: f64,
+    pub files: u64,
+    pub bytes: u64,
+    pub documents: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct TextFolder {
+    pub name: String,
+    pub files: u64,
+    pub bytes: u64,
+    pub documents: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct TextFileView {
+    pub id: i64,
+    pub path: String,
+    pub source: String,
+    pub documents: u32,
+    pub bytes: u64,
+    pub written_at: Option<Timestamp>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct TextListing {
+    pub volume: String,
+    pub prefix: String,
+    pub folders: Vec<TextFolder>,
+    pub files: Vec<TextFileView>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct TextDocumentView {
+    pub doc_id: String,
+    pub kind: String,
+    pub document: String,
+    pub description: Option<String>,
+    pub accession: Option<String>,
+    pub cik: Option<u32>,
+    pub published_at: Timestamp,
+    pub raw_bytes: u64,
+    pub text_chars: Option<u64>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct TextDocumentText {
+    pub doc_id: String,
+    pub text: Option<String>,
+    pub chars: u64,
+    pub truncated: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct DatasetSpine {
     pub dataset: Dataset,
     pub domain: DataDomain,
@@ -556,6 +616,18 @@ pub struct EventsQuery {
     #[serde(default)]
     #[param(inline)]
     pub kind: Vec<RunEventType>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct TextBrowseQuery {
+    pub prefix: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct TextDocumentQuery {
+    pub id: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, IntoParams)]

@@ -535,6 +535,136 @@
         }
       }
     },
+    "/api/data/text": {
+      "get": {
+        "tags": [
+          "data"
+        ],
+        "operationId": "text_volumes",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TextVolumeView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/data/text/document": {
+      "get": {
+        "tags": [
+          "data"
+        ],
+        "operationId": "text_document",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TextDocumentText"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/data/text/files/{id}": {
+      "get": {
+        "tags": [
+          "data"
+        ],
+        "operationId": "text_file_documents",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TextDocumentView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/data/text/{volume}": {
+      "get": {
+        "tags": [
+          "data"
+        ],
+        "operationId": "text_listing",
+        "parameters": [
+          {
+            "name": "volume",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "prefix",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TextListing"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/events": {
       "get": {
         "tags": [
@@ -4979,6 +5109,248 @@
       "Symbol": {
         "type": "string",
         "example": "AAPL"
+      },
+      "TextDocumentText": {
+        "type": "object",
+        "required": [
+          "doc_id",
+          "chars",
+          "truncated"
+        ],
+        "properties": {
+          "doc_id": {
+            "type": "string"
+          },
+          "text": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "chars": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        }
+      },
+      "TextDocumentView": {
+        "type": "object",
+        "required": [
+          "doc_id",
+          "kind",
+          "document",
+          "published_at",
+          "raw_bytes"
+        ],
+        "properties": {
+          "doc_id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "document": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "accession": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cik": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "published_at": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "raw_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "text_chars": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "TextFileView": {
+        "type": "object",
+        "required": [
+          "id",
+          "path",
+          "source",
+          "documents",
+          "bytes"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "path": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "documents": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "written_at": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "TextFolder": {
+        "type": "object",
+        "required": [
+          "name",
+          "files",
+          "bytes",
+          "documents"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "files": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "documents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "TextListing": {
+        "type": "object",
+        "required": [
+          "volume",
+          "prefix",
+          "folders",
+          "files"
+        ],
+        "properties": {
+          "volume": {
+            "type": "string"
+          },
+          "prefix": {
+            "type": "string"
+          },
+          "folders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TextFolder"
+            }
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TextFileView"
+            }
+          }
+        }
+      },
+      "TextVolumeView": {
+        "type": "object",
+        "required": [
+          "id",
+          "path",
+          "mounted",
+          "fill_limit",
+          "files",
+          "bytes",
+          "documents"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "mounted": {
+            "type": "boolean"
+          },
+          "total": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "available": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "fill_limit": {
+            "type": "number",
+            "format": "double"
+          },
+          "files": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "documents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
       },
       "TimeInForce": {
         "type": "string",

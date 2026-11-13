@@ -3,6 +3,9 @@ use std::ops::RangeInclusive;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, PoisonError, RwLock};
 
+use buizz_core::api::{
+    TextDocumentText, TextDocumentView, TextFolder, TextListing, TextVolumeView,
+};
 use buizz_core::listing::Listings;
 use buizz_core::market::{
     Adjustment, AdjustmentFactor, Bar, Borrow, BorrowAvailability, Calendar, Company,
@@ -711,6 +714,112 @@ impl MarketStore {
         let volumes = Arc::clone(&self.text);
         self.writer
             .run(move |connection| write::filing_texts(connection, &volumes, source, filings))
+            .await
+    }
+
+    pub async fn text_volume_views(&self) -> Result<Vec<TextVolumeView>> {
+        let totals = self
+            .readers
+            .run(|connection| read::text_volume_totals(connection))
+            .await?;
+        let volumes = Arc::clone(&self.text);
+        tokio::task::spawn_blocking(move || {
+            Ok(totals
+                .into_iter()
+                .map(|total| {
+                    let mounted = volumes
+                        .volumes()
+                        .iter()
+                        .find(|volume| volume.id == total.id);
+                    let space = mounted.and_then(|volume| TextVolumes::space(volume).ok());
+                    TextVolumeView {
+                        path: mounted.map_or(total.path, |volume| {
+                            volume.root.to_string_lossy().into_owned()
+                        }),
+                        id: total.id,
+                        mounted: mounted.is_some(),
+                        total: space.map(|space| space.total),
+                        available: space.map(|space| space.available),
+                        fill_limit: FILL_LIMIT,
+                        files: total.files,
+                        bytes: total.bytes,
+                        documents: total.documents,
+                    }
+                })
+                .collect())
+        })
+        .await?
+    }
+
+    pub async fn text_listing(&self, volume: String, prefix: String) -> Result<TextListing> {
+        let prefix = prefix.trim_matches('/').to_owned();
+        let start = if prefix.is_empty() {
+            String::new()
+        } else {
+            format!("{prefix}/")
+        };
+        let lookup = (volume.clone(), start.clone());
+        let files = self
+            .readers
+            .run(move |connection| read::text_files(connection, &lookup.0, &lookup.1))
+            .await?;
+        let mut folders: BTreeMap<String, TextFolder> = BTreeMap::new();
+        let mut here = Vec::new();
+        for file in files {
+            match file.path[start.len()..].split_once('/') {
+                Some((name, _)) => {
+                    let folder = folders
+                        .entry(name.to_owned())
+                        .or_insert_with(|| TextFolder {
+                            name: name.to_owned(),
+                            files: 0,
+                            bytes: 0,
+                            documents: 0,
+                        });
+                    folder.files += 1;
+                    folder.bytes += file.bytes;
+                    folder.documents += u64::from(file.documents);
+                }
+                None => here.push(file),
+            }
+        }
+        Ok(TextListing {
+            volume,
+            prefix,
+            folders: folders.into_values().collect(),
+            files: here,
+        })
+    }
+
+    pub async fn text_file_documents(&self, file: i64) -> Result<Vec<TextDocumentView>> {
+        self.readers
+            .run(move |connection| read::text_file_documents(connection, file))
+            .await
+    }
+
+    pub async fn document_text(
+        &self,
+        doc_id: String,
+        limit: usize,
+    ) -> Result<Option<TextDocumentText>> {
+        let volumes = Arc::clone(&self.text);
+        self.readers
+            .run(move |connection| {
+                let Some((volume, path, hash)) = read::text_location(connection, &doc_id)? else {
+                    return Ok(None);
+                };
+                let root = volumes.root(&volume).ok_or_else(|| {
+                    MarketError::Text(format!("volume {volume} holding {doc_id} is not mounted"))
+                })?;
+                let text = read::parquet_text(connection, &root.join(&path), &doc_id, &hash)?;
+                let chars = text.as_ref().map_or(0, |text| text.chars().count());
+                Ok(Some(TextDocumentText {
+                    text: text.map(|text| text.chars().take(limit).collect()),
+                    truncated: chars > limit,
+                    chars: chars as u64,
+                    doc_id,
+                }))
+            })
             .await
     }
 

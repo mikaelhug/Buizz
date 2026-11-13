@@ -32,6 +32,10 @@ pub(crate) fn protected_routes() -> OpenApiRouter<Api> {
         .routes(routes!(data::data_jobs))
         .routes(routes!(data::data_feed))
         .routes(routes!(data::data_processes))
+        .routes(routes!(data::text_volumes))
+        .routes(routes!(data::text_file_documents))
+        .routes(routes!(data::text_document))
+        .routes(routes!(data::text_listing))
         .routes(routes!(events::events))
         .merge(
             base_router()

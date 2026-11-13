@@ -1,5 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::path::Path;
 
+use buizz_core::api::{TextDocumentView, TextFileView};
 use buizz_core::listing::Listings;
 use buizz_core::market::{
     Adjustment, AdjustmentFactor, AssetClass, Bar, Borrow, Calendar, Company, CorporateAction,
@@ -1408,6 +1410,116 @@ pub(crate) fn text_candidates(connection: &Connection) -> Result<Vec<TextCandida
         })?
         .collect::<duckdb::Result<Vec<_>>>()?;
     Ok(candidates)
+}
+
+pub(crate) struct VolumeTotals {
+    pub(crate) id: String,
+    pub(crate) path: String,
+    pub(crate) files: u64,
+    pub(crate) bytes: u64,
+    pub(crate) documents: u64,
+}
+
+pub(crate) fn text_volume_totals(connection: &Connection) -> Result<Vec<VolumeTotals>> {
+    let mut statement = connection.prepare_cached(
+        "SELECT v.id, v.path, count(f.id), coalesce(sum(f.bytes), 0)::UBIGINT, \
+         coalesce(sum(f.documents), 0)::UBIGINT \
+         FROM text_volume v LEFT JOIN text_file f ON f.volume = v.id \
+         GROUP BY v.id, v.path ORDER BY v.path",
+    )?;
+    let totals = statement
+        .query_map([], |row| {
+            Ok(VolumeTotals {
+                id: row.get(0)?,
+                path: row.get(1)?,
+                files: row.get(2)?,
+                bytes: row.get(3)?,
+                documents: row.get(4)?,
+            })
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    Ok(totals)
+}
+
+pub(crate) fn text_files(
+    connection: &Connection,
+    volume: &str,
+    prefix: &str,
+) -> Result<Vec<TextFileView>> {
+    let mut statement = connection.prepare_cached(
+        "SELECT f.id, f.path, f.source, f.documents, f.bytes, b.created_at \
+         FROM text_file f LEFT JOIN ingest_batch b ON b.id = f.batch_id \
+         WHERE f.volume = ? AND starts_with(f.path, ?) ORDER BY f.path",
+    )?;
+    let files = statement
+        .query_map(params![volume, prefix], |row| {
+            Ok(TextFileView {
+                id: row.get(0)?,
+                path: row.get(1)?,
+                source: row.get(2)?,
+                documents: row.get(3)?,
+                bytes: row.get(4)?,
+                written_at: row.get::<_, Option<Ts>>(5)?.map(|stamp| stamp.0),
+            })
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    Ok(files)
+}
+
+pub(crate) fn text_file_documents(
+    connection: &Connection,
+    file: i64,
+) -> Result<Vec<TextDocumentView>> {
+    let mut statement = connection.prepare_cached(
+        "SELECT doc_id, kind, document, description, accession, cik, published_at, raw_bytes, \
+         text_chars FROM text_document WHERE file_id = ? ORDER BY doc_id",
+    )?;
+    let documents = statement
+        .query_map([file], |row| {
+            Ok(TextDocumentView {
+                doc_id: row.get(0)?,
+                kind: row.get(1)?,
+                document: row.get(2)?,
+                description: row.get(3)?,
+                accession: row.get(4)?,
+                cik: row.get(5)?,
+                published_at: row.get::<_, Ts>(6)?.0,
+                raw_bytes: row.get(7)?,
+                text_chars: row.get(8)?,
+            })
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    Ok(documents)
+}
+
+pub(crate) fn text_location(
+    connection: &Connection,
+    doc_id: &str,
+) -> Result<Option<(String, String, String)>> {
+    let mut statement = connection.prepare_cached(
+        "SELECT f.volume, f.path, d.content_hash FROM text_document d \
+         JOIN text_file f ON f.id = d.file_id WHERE d.doc_id = ? \
+         ORDER BY d.batch_id DESC LIMIT 1",
+    )?;
+    let mut rows =
+        statement.query_map([doc_id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?;
+    Ok(rows.next().transpose()?)
+}
+
+pub(crate) fn parquet_text(
+    connection: &Connection,
+    file: &Path,
+    doc_id: &str,
+    content_hash: &str,
+) -> Result<Option<String>> {
+    let quoted = file.to_string_lossy().replace('\'', "''");
+    let mut statement = connection.prepare(&format!(
+        "SELECT text FROM read_parquet('{quoted}') WHERE doc_id = ? AND content_hash = ?"
+    ))?;
+    let mut rows = statement.query_map(params![doc_id, content_hash], |row| {
+        row.get::<_, Option<String>>(0)
+    })?;
+    Ok(rows.next().transpose()?.flatten())
 }
 
 pub(crate) fn filing_text_progress(connection: &Connection) -> Result<(u64, u64)> {

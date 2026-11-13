@@ -1,10 +1,11 @@
 use std::collections::BTreeMap;
 
 use axum::Json;
-use axum::extract::State;
+use axum::extract::{Path, Query, State};
 use buizz_core::api::{
-    BackfillProgress, BotProcesses, DataHealth, DataSpine, DatasetSpine, FeedSlots, JobView,
-    MarketCoverage, SourceCoverage,
+    ApiError, BackfillProgress, BotProcesses, DataHealth, DataSpine, DatasetSpine, FeedSlots,
+    JobView, MarketCoverage, SourceCoverage, TextBrowseQuery, TextDocumentQuery, TextDocumentText,
+    TextDocumentView, TextListing, TextVolumeView,
 };
 use buizz_core::market::{
     Coverage, DataSource, Dataset, HISTORY_START, Market, Symbol, Timeframe, Watermarks,
@@ -17,6 +18,7 @@ use crate::AppState;
 use crate::error::Failure;
 
 const WARNING_WINDOW_DAYS: i64 = 365;
+const DOCUMENT_TEXT_LIMIT: usize = 200_000;
 
 fn covered_ranges(coverage: &[Coverage]) -> BTreeMap<Symbol, (NaiveDate, NaiveDate)> {
     let mut ranges: BTreeMap<Symbol, (NaiveDate, NaiveDate)> = BTreeMap::new();
@@ -242,4 +244,51 @@ pub(crate) async fn data_processes(
         slots: app.runner.process_slots(),
         footprints: app.state.footprints().await?,
     }))
+}
+
+#[utoipa::path(get, path = "/api/data/text", tag = "data",
+    responses((status = 200, body = Vec<TextVolumeView>)))]
+pub(crate) async fn text_volumes(
+    State(app): State<AppState>,
+) -> Result<Json<Vec<TextVolumeView>>, Failure> {
+    Ok(Json(app.market.text_volume_views().await?))
+}
+
+#[utoipa::path(get, path = "/api/data/text/{volume}", tag = "data",
+    params(("volume" = String, Path), TextBrowseQuery),
+    responses((status = 200, body = TextListing)))]
+pub(crate) async fn text_listing(
+    State(app): State<AppState>,
+    Path(volume): Path<String>,
+    Query(query): Query<TextBrowseQuery>,
+) -> Result<Json<TextListing>, Failure> {
+    Ok(Json(
+        app.market
+            .text_listing(volume, query.prefix.unwrap_or_default())
+            .await?,
+    ))
+}
+
+#[utoipa::path(get, path = "/api/data/text/files/{id}", tag = "data",
+    params(("id" = i64, Path)),
+    responses((status = 200, body = Vec<TextDocumentView>)))]
+pub(crate) async fn text_file_documents(
+    State(app): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<Vec<TextDocumentView>>, Failure> {
+    Ok(Json(app.market.text_file_documents(id).await?))
+}
+
+#[utoipa::path(get, path = "/api/data/text/document", tag = "data",
+    params(TextDocumentQuery),
+    responses((status = 200, body = TextDocumentText), (status = 404, body = ApiError)))]
+pub(crate) async fn text_document(
+    State(app): State<AppState>,
+    Query(query): Query<TextDocumentQuery>,
+) -> Result<Json<TextDocumentText>, Failure> {
+    app.market
+        .document_text(query.id.clone(), DOCUMENT_TEXT_LIMIT)
+        .await?
+        .map(Json)
+        .ok_or_else(|| Failure::not_found(format!("document {}", query.id)))
 }
