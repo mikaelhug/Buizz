@@ -446,7 +446,16 @@ pub struct Period {
     pub to: NaiveDate,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct PresetPeriod {
+    pub preset: PeriodPreset,
+    pub period: Period,
+    pub shortened: bool,
+}
+
 pub const HOLDOUT_MONTHS: u32 = 12;
+
+pub const PRESET_FLOOR: NaiveDate = NaiveDate::from_ymd_opt(2016, 1, 4).expect("valid date");
 
 pub const MAX_LIVE_VARIANTS: u32 = 3;
 
@@ -509,25 +518,41 @@ impl PeriodPreset {
             .find(|preset| preset.resolve(created_on) == period)
     }
 
-    pub fn resolve(self, today: NaiveDate) -> Period {
+    fn unfloored_start(self, today: NaiveDate) -> NaiveDate {
         let holdout = holdout_start(today);
         let years = match self {
-            Self::Holdout => {
-                return Period {
-                    from: holdout,
-                    to: today,
-                };
-            }
+            Self::Holdout => return holdout,
             Self::OneYear => 1,
             Self::ThreeYears => 3,
             Self::FiveYears => 5,
             Self::TenYears => 10,
         };
-        let to = holdout - TimeDelta::days(1);
-        let from = holdout
+        holdout
             .checked_sub_months(Months::new(12 * years))
-            .unwrap_or(NaiveDate::MIN);
-        Period { from, to }
+            .unwrap_or(NaiveDate::MIN)
+    }
+
+    pub fn resolve(self, today: NaiveDate) -> Period {
+        let holdout = holdout_start(today);
+        match self {
+            Self::Holdout => Period {
+                from: holdout,
+                to: today,
+            },
+            _ => Period {
+                from: self.unfloored_start(today).max(PRESET_FLOOR),
+                to: holdout - TimeDelta::days(1),
+            },
+        }
+    }
+
+    pub fn described(self, today: NaiveDate) -> PresetPeriod {
+        let period = self.resolve(today);
+        PresetPeriod {
+            preset: self,
+            period,
+            shortened: self.unfloored_start(today) < period.from,
+        }
     }
 }
 
@@ -749,5 +774,23 @@ mod tests {
             RiskLimits::default().check_order(equity, exposure, exposure),
             Ok(())
         );
+    }
+
+    #[test]
+    fn a_screening_preset_never_starts_before_the_daily_history_floor() {
+        let today: NaiveDate = "2026-11-13".parse().unwrap();
+        let ten = PeriodPreset::TenYears.described(today);
+        assert_eq!(ten.period.from, PRESET_FLOOR);
+        assert!(ten.shortened);
+        assert_eq!(
+            PeriodPreset::of(ten.period, today),
+            Some(PeriodPreset::TenYears)
+        );
+        let before_the_floor = Period {
+            from: "2015-11-13".parse().unwrap(),
+            to: ten.period.to,
+        };
+        assert_eq!(PeriodPreset::of(before_the_floor, today), None);
+        assert!(!PeriodPreset::FiveYears.described(today).shortened);
     }
 }

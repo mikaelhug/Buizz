@@ -6,7 +6,7 @@ use buizz_core::api::{
     LiveSummary, Research, RunSummary, StartBacktest, StartSweep, SweepStarted,
 };
 use buizz_core::performance::LiveVerdict;
-use buizz_core::run::{DesiredState, Mode, RunBadge, RunStatus};
+use buizz_core::run::{DesiredState, Mode, PeriodPreset, PresetPeriod, RunBadge, RunStatus};
 use buizz_core::time::Timestamp;
 use buizz_metrics::live_summary;
 use buizz_runner::Benchmarks;
@@ -225,6 +225,19 @@ pub(crate) async fn cancel_backtests(
     Ok(Json(CancelledBacktests {
         cancelled: app.runner.cancel_queued(&name).await?,
     }))
+}
+
+#[utoipa::path(get, path = "/api/periods", tag = "bots",
+    responses((status = 200, body = Vec<PresetPeriod>)))]
+pub(crate) async fn periods() -> Json<Vec<PresetPeriod>> {
+    let today = Timestamp::now().exchange_date();
+    Json(
+        PeriodPreset::SCREENING
+            .into_iter()
+            .chain([PeriodPreset::Holdout])
+            .map(|preset| preset.described(today))
+            .collect(),
+    )
 }
 
 #[utoipa::path(get, path = "/api/bots/{name}/research", tag = "bots",

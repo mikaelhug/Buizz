@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::ops::RangeInclusive;
 
 use buizz_core::market::{IndexHistory, IndexMember, StockIndex, Symbol};
@@ -103,19 +103,14 @@ pub fn normalize_sp500(
     }
     log.sort_by_key(|change| std::cmp::Reverse(change.date));
 
-    let mut known: HashMap<String, Vec<Symbol>> = HashMap::new();
-    let mut open: Vec<Open> = Vec::new();
-    for member in current {
-        known
-            .entry(member.key.clone())
-            .or_default()
-            .push(member.symbol.clone());
-        open.push(Open {
+    let mut open: Vec<Open> = current
+        .into_iter()
+        .map(|member| Open {
             key: member.key,
             symbol: member.symbol,
             end: None,
-        });
-    }
+        })
+        .collect();
     let mut sizes = vec![(today, open.len())];
     let mut members = Vec::new();
     for day in log.chunk_by(|a, b| a.date == b.date) {
@@ -142,21 +137,13 @@ pub fn normalize_sp500(
             .iter()
             .filter_map(|change| Some((change, change.removed.as_ref()?)))
         {
-            let symbols = known.entry(removed.key.clone()).or_default();
-            let symbol = match symbols.as_slice() {
-                [only] if !symbols.contains(&removed.symbol) => only.clone(),
-                _ => removed.symbol.clone(),
-            };
-            if !symbols.contains(&symbol) {
-                symbols.push(symbol.clone());
-            }
             let present = open
                 .iter()
-                .any(|member| member.key == removed.key && member.symbol == symbol);
+                .any(|member| member.key == removed.key && member.symbol == removed.symbol);
             if !present {
                 open.push(Open {
                     key: removed.key.clone(),
-                    symbol,
+                    symbol: removed.symbol.clone(),
                     end: Some(change.date),
                 });
             }

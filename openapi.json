@@ -555,6 +555,28 @@
         }
       }
     },
+    "/api/periods": {
+      "get": {
+        "tags": [
+          "bots"
+        ],
+        "operationId": "periods",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PresetPeriod"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/runs": {
       "get": {
         "tags": [
@@ -3073,6 +3095,25 @@
           },
           "weight": {
             "type": "string"
+          }
+        }
+      },
+      "PresetPeriod": {
+        "type": "object",
+        "required": [
+          "preset",
+          "period",
+          "shortened"
+        ],
+        "properties": {
+          "preset": {
+            "$ref": "#/components/schemas/PeriodPreset"
+          },
+          "period": {
+            "$ref": "#/components/schemas/Period"
+          },
+          "shortened": {
+            "type": "boolean"
           }
         }
       },

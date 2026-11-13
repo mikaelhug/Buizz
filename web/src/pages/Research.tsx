@@ -12,6 +12,7 @@ import { Stat } from "../ui/Kit";
 import { MetricValue } from "../ui/Metrics";
 import { OverflowMenu } from "../ui/Menu";
 import { Info } from "../ui/Popover";
+import { PresetDates } from "../ui/PresetDates";
 import { Sparkline } from "../ui/Sparkline";
 import { StatusPill } from "../ui/Status";
 import { SUB_PERIODS_ABOUT, SubPeriods } from "../ui/SubPeriods";
@@ -172,6 +173,7 @@ export function Research({ name, preset: requested, defaults, live }: Props) {
               </a>
             ))}
           </nav>
+          <PresetDates preset={shown.preset} className="muted research-period" />
           <PresetView key={shown.preset} name={name} research={shown} defaults={defaults} liveVariants={liveVariants} trials={trials.variants} gate={shown.preset === gatePreset} />
         </>
       )}

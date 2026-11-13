@@ -22,7 +22,12 @@
 }
 
 .research-presets {
-  margin-bottom: var(--sp-4);
+  margin-bottom: var(--sp-2);
+}
+
+.research-period {
+  margin: 0 0 var(--sp-4);
+  font-size: var(--fs-sm);
 }
 
 .research-gate-mark {
