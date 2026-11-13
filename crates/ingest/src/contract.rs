@@ -1,12 +1,11 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use buizz_core::api::{
     ContractState, CoverageContract, JobView, RecipeContract, RecipeVersionView, ScopeKind,
     ScopeUnit, SpineEvent,
 };
 use buizz_core::market::{
-    ALPACA_HISTORY_START, AssetClass, Calendar, Coverage, DataSource, Dataset, MacroSeries,
-    RecipeState, Symbol,
+    ALPACA_HISTORY_START, Calendar, Coverage, DataSource, Dataset, MacroSeries, RecipeState, Symbol,
 };
 use buizz_core::ops::{FetchStatus, JobOutcome};
 use buizz_core::time::Timestamp;
@@ -301,16 +300,6 @@ impl Ingest {
                 .collect()
         };
         let priced = self.priced_symbols().await?;
-        let priced_set: BTreeSet<&Symbol> = priced.iter().map(|p| &p.symbol).collect();
-        let stocks: Vec<Symbol> = self
-            .market
-            .instruments()
-            .await?
-            .into_iter()
-            .filter(|instrument| instrument.active && instrument.asset_class == AssetClass::Stock)
-            .map(|instrument| instrument.symbol)
-            .filter(|symbol| priced_set.contains(symbol))
-            .collect();
         let mut measures = Vec::new();
 
         let bars = covered(Dataset::Bars1d, DataSource::Alpaca);
@@ -471,6 +460,7 @@ impl Ingest {
             );
         }
 
+        let companies = self.company_scope(&BTreeMap::new()).await?.symbols;
         let fetched = self
             .state
             .symbol_fetches(DataSource::Edgar, Dataset::CurrentReports)
@@ -486,13 +476,13 @@ impl Ingest {
                     source: DataSource::Edgar,
                     kind: ScopeKind::Indexed,
                     unit: ScopeUnit::Symbols,
-                    scope: "active priced stocks, read from each company's EDGAR filing list"
+                    scope: "priced stocks, active and delisted, read from EDGAR's nightly submissions archive"
                         .into(),
                     from: start,
                     to: today,
                 }
                 .items(
-                    stocks
+                    companies
                         .iter()
                         .map(|symbol| Item::backfilled(fetched.get(symbol))),
                 ),
@@ -501,15 +491,15 @@ impl Ingest {
         for (dataset, scope) in [
             (
                 Dataset::PeriodicReports,
-                "active priced stocks, read from each company's 10-K and 10-Q filing list",
+                "priced stocks, active and delisted, 10-Ks and 10-Qs from EDGAR's nightly submissions archive",
             ),
             (
                 Dataset::Fundamentals,
-                "active priced stocks, read from each company's XBRL facts",
+                "priced stocks, active and delisted, read from each company's XBRL facts",
             ),
             (
                 Dataset::InsiderTrades,
-                "active priced stocks, each company's Form 4 filings dated by its filing list, from SEC's quarterly data sets and single documents after them",
+                "priced stocks, active and delisted, each company's Form 4 filings dated by its filing list, from SEC's quarterly data sets and single documents after them",
             ),
         ] {
             let fetched = self
@@ -527,7 +517,7 @@ impl Ingest {
                     to: today,
                 }
                 .items(
-                    stocks
+                    companies
                         .iter()
                         .map(|symbol| Item::backfilled(fetched.get(symbol))),
                 ),

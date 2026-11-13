@@ -1,9 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::path::Path;
 use std::time::Duration;
 
 use buizz_core::market::{
-    Calendar, Exhibit, FilingDocument, FundamentalFact, InsiderReport, PressExhibit, SecFiling,
-    Symbol,
+    Calendar, Company, Exhibit, FilingDocument, FundamentalFact, InsiderReport, PressExhibit,
+    SecFiling, Symbol,
 };
 use buizz_core::time::Timestamp;
 use chrono::{Datelike, NaiveDate};
@@ -12,6 +13,7 @@ use serde::Deserialize;
 
 use crate::http::{HttpClient, RateLimit, SourceError};
 
+mod bulk;
 mod concepts;
 mod exhibit;
 mod filings;
@@ -21,6 +23,7 @@ mod ownership;
 mod sections;
 mod submission;
 
+pub use bulk::{SUBMISSIONS_ARCHIVE_PATH, SubmissionsArchive};
 pub use exhibit::{IndexedDocument, cover_tickers, exhibit_text, press_release_document};
 pub use filings::{
     Filings, FilingsPage, OwnershipFiling, Submissions, normalize_filings_page,
@@ -179,6 +182,37 @@ impl EdgarClient {
         normalize_filings_page(symbol, cik, &self.fetch(url).await?)
     }
 
+    pub async fn company_filings(
+        &self,
+        symbol: &Symbol,
+        cik: u32,
+        since: Option<NaiveDate>,
+    ) -> Result<(Company, Filings), SourceError> {
+        let submissions = self.submissions(symbol, cik).await?;
+        let mut filings = submissions.filings.clone();
+        for page in submissions.pages_since(since) {
+            filings.extend(self.filings_page(symbol, cik, page).await?);
+        }
+        Ok((submissions.company, filings))
+    }
+
+    pub async fn submissions_archive(
+        &self,
+        read_through: Option<NaiveDate>,
+        scratch: &Path,
+    ) -> Result<Option<SubmissionsArchive>, SourceError> {
+        let url = format!("{}{SUBMISSIONS_ARCHIVE_PATH}", self.www_url);
+        let request = self.http.client().get(url).timeout(bulk::DOWNLOAD_TIMEOUT);
+        let response = refused_as_limited(self.http.open(request).await)?;
+        let filed_through = bulk::filed_through(&response)?;
+        if read_through.is_some_and(|read| filed_through <= read) {
+            return Ok(None);
+        }
+        SubmissionsArchive::download(response, filed_through, scratch)
+            .await
+            .map(Some)
+    }
+
     pub async fn ownership(
         &self,
         cik: u32,
@@ -326,14 +360,18 @@ impl EdgarClient {
     }
 
     async fn send(&self, request: RequestBuilder) -> Result<Vec<u8>, SourceError> {
-        match self.http.fetch(request).await {
-            Err(SourceError::Status {
-                status: REFUSED, ..
-            }) => Err(SourceError::RateLimited {
-                retry_after: Some(RATE_LIMIT.cooldown),
-            }),
-            outcome => outcome,
-        }
+        refused_as_limited(self.http.fetch(request).await)
+    }
+}
+
+fn refused_as_limited<T>(outcome: Result<T, SourceError>) -> Result<T, SourceError> {
+    match outcome {
+        Err(SourceError::Status {
+            status: REFUSED, ..
+        }) => Err(SourceError::RateLimited {
+            retry_after: Some(RATE_LIMIT.cooldown),
+        }),
+        outcome => outcome,
     }
 }
 

@@ -1139,6 +1139,22 @@ pub(crate) fn sec_filings(
     )
 }
 
+pub(crate) fn filing_lists(
+    connection: &mut Connection,
+    source: DataSource,
+    through: NaiveDate,
+) -> Result<WriteSummary> {
+    let mut coverage = Coverage::new();
+    cover(&mut coverage, None, through);
+    write_batch(
+        connection,
+        source,
+        Dataset::CurrentReports,
+        coverage,
+        |_, _| Ok(0),
+    )
+}
+
 pub(crate) fn delisting_checks(
     connection: &mut Connection,
     source: DataSource,

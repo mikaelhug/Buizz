@@ -11,10 +11,8 @@ use axum::{Json, Router};
 use buizz_core::market::{AssetClass, Bar, CorporateActionKind, MacroSeries, Symbol};
 use buizz_core::time::Timestamp;
 use buizz_sources::alpaca_stream::SYMBOL_CAP;
-use buizz_sources::edgar::INSIDER_QUARTERS_PAGE;
-use buizz_sources::finra;
-use buizz_sources::nasdaq;
-use buizz_sources::ssga;
+use buizz_sources::edgar::{self, INSIDER_QUARTERS_PAGE};
+use buizz_sources::{finra, nasdaq, ssga};
 use chrono::{Datelike, NaiveDate, NaiveTime, TimeDelta};
 use serde_json::{Number, Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -35,6 +33,7 @@ const OPTIONED: &str = "SPY";
 const FINRA_SCHEDULE: &str =
     include_str!("../../../crates/sources/fixtures/finra/short-interest.htm");
 const RETRY_AFTER_SECONDS: &str = "3600";
+const ARCHIVE_PUBLISHED: &str = "Mon, 02 Nov 2026 11:00:00 GMT";
 const CLAUDE_BATCH_ID: &str = "msgbatch_e2e";
 const SYMBOL_LIMIT_EXCEEDED: &str = r#"[{"T":"error","code":405,"msg":"symbol limit exceeded"}]"#;
 
@@ -130,6 +129,7 @@ impl FakeProviders {
             .route(&format!("{}/{{file}}", ssga::FUND_DATA_PATH), get(ssga_workbook))
             .route("/api/xbrl/companyfacts/{file}", get(company_facts))
             .route("/submissions/{file}", get(submissions))
+            .route(edgar::SUBMISSIONS_ARCHIVE_PATH, get(submissions_archive))
             .route("/Archives/edgar/data/{*path}", get(archive))
             .route(INSIDER_QUARTERS_PAGE, get(insider_quarters))
             .route(&format!("{INSIDER_QUARTERS}/{{file}}"), get(insider_quarter))
@@ -611,6 +611,31 @@ async fn submissions(State(fake): State<Arc<Fake>>, Path(file): Path<String>) ->
         || StatusCode::NOT_FOUND.into_response(),
         |page| Json(page).into_response(),
     )
+}
+
+async fn submissions_archive(State(fake): State<Arc<Fake>>) -> Response {
+    let entries: Vec<(String, Value)> = fake
+        .world()
+        .companies
+        .iter()
+        .flat_map(|company| {
+            std::iter::once((
+                format!("CIK{:010}.json", company.cik),
+                company.submissions.clone(),
+            ))
+            .chain(company.older_filings.iter().cloned())
+        })
+        .collect();
+    let mut archive = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+    for (name, page) in entries {
+        archive
+            .start_file(name, zip::write::SimpleFileOptions::default())
+            .expect("a zip entry starts");
+        std::io::Write::write_all(&mut archive, page.to_string().as_bytes())
+            .expect("a zip entry writes");
+    }
+    let bytes = archive.finish().expect("the zip closes").into_inner();
+    ([(header::LAST_MODIFIED, ARCHIVE_PUBLISHED)], bytes).into_response()
 }
 
 async fn wikipedia(State(fake): State<Arc<Fake>>, Query(params): Query<Params>) -> Response {

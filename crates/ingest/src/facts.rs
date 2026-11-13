@@ -9,9 +9,14 @@ use crate::fetch::{Batch, FetchKey, Work, read, waiting};
 use crate::reference::CALENDAR_HORIZON_DAYS;
 use crate::{Ingest, IngestError, Priced};
 
-const COMPANIES_PER_RUN: usize = 500;
+pub(crate) const COMPANIES_PER_RUN: usize = 500;
 const SAFETY_REFRESH: TimeDelta = TimeDelta::days(90);
 pub(crate) const NO_CIK: &str = "no SEC CIK for this ticker";
+
+pub(crate) struct CompanyScope {
+    pub symbols: Vec<Symbol>,
+    pub ciks: BTreeMap<Symbol, u32>,
+}
 
 impl Ingest {
     pub(crate) async fn fundamentals(&self, now: Timestamp) -> Result<Work, IngestError> {
@@ -22,15 +27,15 @@ impl Ingest {
             return Ok(work);
         }
         let map_key = FetchKey::new(DataSource::Edgar, Dataset::Fundamentals, None, None);
-        let tickers = match edgar.ticker_map().await {
-            Ok(tickers) => tickers,
+        let scope = match edgar.ticker_map().await {
+            Ok(tickers) => self.company_scope(&tickers).await?,
             Err(error) => return self.source_failure(now, &map_key, &error).await,
         };
         let (due, more) = self
             .companies_due(
                 now,
                 Dataset::Fundamentals,
-                &tickers,
+                &scope,
                 &ACCEPTED_FORMS,
                 &BTreeSet::new(),
             )
@@ -55,7 +60,7 @@ impl Ingest {
                 Some(&symbol),
                 None,
             );
-            let Some(cik) = tickers.get(&symbol) else {
+            let Some(cik) = scope.ciks.get(&symbol) else {
                 self.record_rejection(now, &key, NO_CIK).await?;
                 without_cik += 1;
                 continue;
@@ -89,14 +94,10 @@ impl Ingest {
         Ok(work)
     }
 
-    pub(crate) async fn companies_due(
+    pub(crate) async fn company_scope(
         &self,
-        now: Timestamp,
-        dataset: Dataset,
         tickers: &BTreeMap<Symbol, u32>,
-        forms: &'static [&'static str],
-        pending: &BTreeSet<Symbol>,
-    ) -> Result<(Vec<Symbol>, bool), IngestError> {
+    ) -> Result<CompanyScope, IngestError> {
         let stocks: BTreeSet<Symbol> = self
             .market
             .instruments()
@@ -105,22 +106,56 @@ impl Ingest {
             .filter(|instrument| instrument.active && instrument.asset_class == AssetClass::Stock)
             .map(|instrument| instrument.symbol)
             .collect();
+        let mut symbols: Vec<Symbol> = self
+            .priced_symbols()
+            .await?
+            .into_iter()
+            .map(|Priced { symbol, .. }| symbol)
+            .filter(|symbol| stocks.contains(symbol))
+            .collect();
+        let mut ciks: BTreeMap<Symbol, u32> = symbols
+            .iter()
+            .filter_map(|symbol| Some((symbol.clone(), *tickers.get(symbol)?)))
+            .collect();
+        for (listing, cik) in self.market.delisted_companies().await? {
+            let wanted = self
+                .config
+                .only
+                .as_ref()
+                .is_none_or(|only| only.contains(&listing));
+            if wanted && !stocks.contains(&listing) && !ciks.contains_key(&listing) {
+                ciks.insert(listing.clone(), cik);
+                symbols.push(listing);
+            }
+        }
+        Ok(CompanyScope { symbols, ciks })
+    }
+
+    pub(crate) async fn companies_due(
+        &self,
+        now: Timestamp,
+        dataset: Dataset,
+        scope: &CompanyScope,
+        forms: &'static [&'static str],
+        pending: &BTreeSet<Symbol>,
+    ) -> Result<(Vec<Symbol>, bool), IngestError> {
         let filed = self.market.latest_sec_filings(forms).await?;
         let mut due: Vec<Symbol> = Vec::new();
-        for Priced { symbol, .. } in self.priced_symbols().await? {
-            if !stocks.contains(&symbol) {
-                continue;
-            }
+        for symbol in &scope.symbols {
             if due.len() == COMPANIES_PER_RUN {
                 return Ok((due, true));
             }
-            let last_filed = tickers.get(&symbol).and_then(|cik| filed.get(cik)).copied();
-            let unread = pending.contains(&symbol);
+            let last_filed = scope
+                .ciks
+                .get(symbol)
+                .and_then(|cik| filed.get(cik))
+                .copied();
+            let unread = pending.contains(symbol);
             if self
-                .company_due(now, dataset, &symbol, last_filed, unread)
+                .company_due(now, dataset, symbol, last_filed, unread)
                 .await?
             {
-                due.push(symbol);
+                due.push(symbol.clone());
             }
         }
         Ok((due, false))

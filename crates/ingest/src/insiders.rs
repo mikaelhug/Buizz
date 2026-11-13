@@ -51,8 +51,8 @@ impl Ingest {
             return Ok(batch.finish("insider trades"));
         }
         let map_key = FetchKey::new(DataSource::Edgar, Dataset::InsiderTrades, None, None);
-        let tickers = match edgar.ticker_map().await {
-            Ok(tickers) => tickers,
+        let scope = match edgar.ticker_map().await {
+            Ok(tickers) => self.company_scope(&tickers).await?,
             Err(error) => return self.source_failure(now, &map_key, &error).await,
         };
         let mut unread: BTreeMap<Symbol, Vec<InsiderPlan>> = BTreeMap::new();
@@ -68,7 +68,7 @@ impl Ingest {
             .companies_due(
                 now,
                 Dataset::InsiderTrades,
-                &tickers,
+                &scope,
                 &INSIDER_FORMS,
                 &pending,
             )
@@ -93,7 +93,7 @@ impl Ingest {
                 Some(&symbol),
                 None,
             );
-            let Some(cik) = tickers.get(&symbol).copied() else {
+            let Some(cik) = scope.ciks.get(&symbol).copied() else {
                 self.record_rejection(now, &key, NO_CIK).await?;
                 without_cik += 1;
                 continue;

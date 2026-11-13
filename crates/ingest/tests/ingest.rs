@@ -22,7 +22,9 @@ use buizz_market::{HistoryRequest, MarketStore};
 use buizz_sources::Sources;
 use buizz_sources::alpaca::{AlpacaClient, AlpacaConfig};
 use buizz_sources::cboe::{CboeClient, CboeConfig};
-use buizz_sources::edgar::{EdgarClient, EdgarConfig, INSIDER_QUARTERS_PAGE};
+use buizz_sources::edgar::{
+    EdgarClient, EdgarConfig, INSIDER_QUARTERS_PAGE, SUBMISSIONS_ARCHIVE_PATH,
+};
 use buizz_sources::tiingo::{TiingoClient, TiingoConfig};
 use buizz_sources::treasury::{TreasuryClient, TreasuryConfig};
 use buizz_state::StateStore;
@@ -77,6 +79,8 @@ const DELISTED_MEMBER: &str = "K";
 const DELISTED_CIK: u32 = 750556;
 const UNPRICED_CIK: u32 = 990001;
 const DELISTING_FILED: &str = "2016-04-08";
+const DELISTED_RELEASE: &str = "0000750556-16-000003";
+const ARCHIVE_PUBLISHED: &str = "Fri, 05 Jul 2024 11:00:00 GMT";
 const REUSED: &str = "STI";
 const ENDED_LAST_BAR: &str = "2016-03-31";
 const REUSED_FIRST_BAR: &str = "2016-04-20";
@@ -325,13 +329,33 @@ async fn full_index(
     format!("{header}{notices}").into_response()
 }
 
-fn filer(cik: u32, report: &str) -> Response {
-    json(format!(
+fn filer(cik: u32, report: &str) -> String {
+    format!(
         r#"{{"cik":"{cik:010}","sic":"6022","tickers":[],"filings":{{"recent":{{
-            "accessionNumber":["{report}"],"filingDate":["2016-02-26"],"reportDate":["2015-12-31"],
-            "acceptanceDateTime":["2016-02-26T16:05:00.000Z"],"form":["10-K"],"items":[""],
-            "primaryDocument":["annual.htm"]}},"files":[]}}}}"#
-    ))
+            "accessionNumber":["{report}","{DELISTED_RELEASE}"],"filingDate":["2016-02-26","2016-01-22"],
+            "reportDate":["2015-12-31","2016-01-22"],
+            "acceptanceDateTime":["2016-02-26T16:05:00.000Z","2016-01-22T12:30:00.000Z"],
+            "form":["10-K","8-K"],"items":["","2.02,9.01"],
+            "primaryDocument":["annual.htm","release.htm"]}},"files":[]}}}}"#
+    )
+}
+
+async fn submissions_archive() -> Response {
+    let mut archive = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+    for (cik, body) in [
+        (320_193, SUBMISSIONS.to_owned()),
+        (DELISTED_CIK, filer(DELISTED_CIK, "0000750556-16-000010")),
+    ] {
+        archive
+            .start_file(
+                format!("CIK{cik:010}.json"),
+                zip::write::SimpleFileOptions::default(),
+            )
+            .unwrap();
+        archive.write_all(body.as_bytes()).unwrap();
+    }
+    let bytes = archive.finish().unwrap().into_inner();
+    ([(header::LAST_MODIFIED, ARCHIVE_PUBLISHED)], bytes).into_response()
 }
 
 fn cover(ticker: &str) -> Response {
@@ -398,13 +422,14 @@ async fn serve_fakes(fake: Arc<Fake>) -> String {
             "/Archives/edgar/full-index/{year}/{quarter}/master.idx",
             get(full_index),
         )
+        .route(SUBMISSIONS_ARCHIVE_PATH, get(submissions_archive))
         .route(
             "/submissions/CIK0000750556.json",
-            get(|| async { filer(DELISTED_CIK, "0000750556-16-000010") }),
+            get(|| async { json(filer(DELISTED_CIK, "0000750556-16-000010")) }),
         )
         .route(
             "/submissions/CIK0000990001.json",
-            get(|| async { filer(UNPRICED_CIK, "0000990001-16-000001") }),
+            get(|| async { json(filer(UNPRICED_CIK, "0000990001-16-000001")) }),
         )
         .route(
             "/Archives/edgar/data/750556/000075055616000010/R1.htm",
@@ -877,6 +902,23 @@ async fn a_company_alpaca_no_longer_lists_is_priced_from_its_form_25_and_one_it_
         bars.len(),
         weekdays(date(ALPACA_FIRST_BAR), date(ENDED_LAST_BAR)).len(),
         "the delisted company's bars as it traded under STI, not the later STI's"
+    );
+    let reports = market
+        .filings(
+            vec![Symbol::new(REUSED)],
+            date(HISTORY_START),
+            None,
+            stamp("2016-03-01T00:00:00Z"),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        reports
+            .iter()
+            .map(|report| report.accession.as_str())
+            .collect::<Vec<_>>(),
+        vec![DELISTED_RELEASE],
+        "the delisted company's 8-K, seen under STI while it traded"
     );
     assert_eq!(
         market

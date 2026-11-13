@@ -1285,6 +1285,18 @@ pub(crate) fn accessions(
     Ok(accessions)
 }
 
+pub(crate) fn symbol_accessions(
+    connection: &Connection,
+    table: &str,
+) -> Result<BTreeSet<(Symbol, String)>> {
+    let mut statement =
+        connection.prepare_cached(&format!("SELECT symbol, accession FROM {table}"))?;
+    let accessions = statement
+        .query_map([], |row| Ok((row.get::<_, Sym>(0)?.0, row.get(1)?)))?
+        .collect::<duckdb::Result<_>>()?;
+    Ok(accessions)
+}
+
 pub(crate) fn filings(
     connection: &Connection,
     symbols: &[Symbol],
@@ -1954,7 +1966,7 @@ pub(crate) fn latest_sec_filings(
 }
 
 const DELISTING_FORMS: &str = "('25', '25-NSE')";
-const LATEST_DELISTING_CHECKS: &str = "SELECT d.accession, d.ticker, d.outcome, f.cik, f.filed \
+const LATEST_DELISTING_CHECKS: &str = "SELECT d.accession, d.ticker, d.listing, d.outcome, f.cik, f.filed \
      FROM delisting d JOIN sec_filing f ON f.accession = d.accession \
      QUALIFY row_number() OVER (PARTITION BY d.accession, d.ticker ORDER BY d.batch_id DESC) = 1";
 
@@ -1979,6 +1991,18 @@ pub(crate) fn unresolved_delistings(
         })?
         .collect::<duckdb::Result<_>>()?;
     Ok(notices)
+}
+
+pub(crate) fn delisted_companies(connection: &Connection) -> Result<Vec<(Symbol, u32)>> {
+    let mut statement = connection.prepare_cached(&format!(
+        "SELECT c.listing, any_value(c.cik ORDER BY c.filed DESC) FROM ({LATEST_DELISTING_CHECKS}) c \
+         WHERE c.outcome IN ('held', 'stored') AND c.listing IS NOT NULL \
+         GROUP BY c.listing ORDER BY max(c.filed) DESC, c.listing"
+    ))?;
+    let companies = statement
+        .query_map([], |row| Ok((row.get::<_, Sym>(0)?.0, row.get(1)?)))?
+        .collect::<duckdb::Result<_>>()?;
+    Ok(companies)
 }
 
 pub(crate) fn pending_delistings(connection: &Connection) -> Result<Vec<PendingDelisting>> {

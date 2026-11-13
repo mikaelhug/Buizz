@@ -174,6 +174,13 @@ pub struct Export {
     pub rows: u64,
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct CompanyAccessions {
+    pub current_reports: BTreeSet<(Symbol, String)>,
+    pub periodic_reports: BTreeSet<(Symbol, String)>,
+    pub earnings_releases: BTreeSet<(Symbol, String)>,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct AccessionProgress {
     pub expected: u64,
@@ -1231,6 +1238,22 @@ impl MarketStore {
             .await
     }
 
+    pub async fn delisted_companies(&self) -> Result<Vec<(Symbol, u32)>> {
+        self.readers
+            .run(|connection| read::delisted_companies(connection))
+            .await
+    }
+
+    pub async fn record_filing_lists(
+        &self,
+        source: DataSource,
+        through: NaiveDate,
+    ) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| write::filing_lists(connection, source, through))
+            .await
+    }
+
     pub async fn pending_delistings(&self) -> Result<Vec<PendingDelisting>> {
         self.readers
             .run(|connection| read::pending_delistings(connection))
@@ -1588,16 +1611,16 @@ impl MarketStore {
             .await
     }
 
-    pub async fn earnings_accessions(&self, symbol: Symbol) -> Result<BTreeSet<String>> {
-        self.accessions("earnings_release", symbol).await
-    }
-
-    pub async fn current_report_accessions(&self, symbol: Symbol) -> Result<BTreeSet<String>> {
-        self.accessions("current_report", symbol).await
-    }
-
-    pub async fn periodic_report_accessions(&self, symbol: Symbol) -> Result<BTreeSet<String>> {
-        self.accessions("periodic_report", symbol).await
+    pub async fn company_accessions(&self) -> Result<CompanyAccessions> {
+        self.readers
+            .run(|connection| {
+                Ok(CompanyAccessions {
+                    current_reports: read::symbol_accessions(connection, "current_report")?,
+                    periodic_reports: read::symbol_accessions(connection, "periodic_report")?,
+                    earnings_releases: read::symbol_accessions(connection, "earnings_release")?,
+                })
+            })
+            .await
     }
 
     pub async fn insider_accessions(&self, symbol: Symbol) -> Result<BTreeSet<String>> {

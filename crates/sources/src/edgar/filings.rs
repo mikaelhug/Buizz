@@ -40,6 +40,26 @@ pub struct FilingsPage {
     pub filing_to: NaiveDate,
 }
 
+impl Filings {
+    pub fn extend(&mut self, older: Filings) {
+        self.reports.extend(older.reports);
+        self.periodic.extend(older.periodic);
+        self.releases.extend(older.releases);
+        self.ownership.extend(older.ownership);
+    }
+}
+
+impl Submissions {
+    pub(super) fn pages_since(
+        &self,
+        since: Option<NaiveDate>,
+    ) -> impl Iterator<Item = &FilingsPage> {
+        self.older_pages
+            .iter()
+            .filter(move |page| since.is_some_and(|since| page.filing_to >= since))
+    }
+}
+
 impl OwnershipFiling {
     pub fn is_xml(&self) -> bool {
         self.document.ends_with(".xml")
