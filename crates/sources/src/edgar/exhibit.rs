@@ -46,7 +46,7 @@ pub struct IndexedDocument {
     pub kind: String,
 }
 
-pub fn indexed_documents(index: &str) -> Vec<IndexedDocument> {
+fn indexed_documents(index: &str) -> Vec<IndexedDocument> {
     let html = Html::parse_document(index);
     let (Ok(rows), Ok(cells)) = (
         Selector::parse(r#"table[summary="Document Format Files"] tr"#),

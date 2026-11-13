@@ -11,8 +11,8 @@ use serde_json::{Value, json};
 use crate::fake::FakeProviders;
 use crate::spine::{Options, Spine, eventually};
 use crate::world::{
-    ClaudeAnswer, Company, Filing, World, decimal, recorded_earnings_insight, repository, stamp,
-    submissions,
+    ClaudeAnswer, Company, Filing, Submitted, World, complete_submission, decimal,
+    recorded_earnings_insight, repository, stamp, submissions,
 };
 
 const RESULTS: &str = "0009999001-24-000050";
@@ -105,6 +105,13 @@ fn world(mut world: World) -> World {
         ],
     );
     let folder = format!("{}/{}", beta.cik, RESULTS.replace('-', ""));
+    let report = "<html><body><p>Item 2.02 Results of Operations and Financial Condition</p>\
+         <p>See the press release furnished as Exhibit 99.1.</p></body></html>";
+    let release = format!(
+        "<html><body><p>Beta Fixture reports third quarter results</p>\
+         <table><tr><td>Revenue</td><td>$</td><td>1,250</td></tr></table>\
+         <p>{OUTLOOK}</p></body></html>"
+    );
     world.archives.extend([
         (
             format!("{folder}/{RESULTS}-index.htm"),
@@ -115,18 +122,25 @@ fn world(mut world: World) -> World {
 </table>"#
                 .to_owned(),
         ),
+        (format!("{folder}/bbb-ex991.htm"), release.clone()),
         (
-            format!("{folder}/bbb-8k.htm"),
-            "<html><body><p>Item 2.02 Results of Operations and Financial Condition</p>\
-             <p>See the press release furnished as Exhibit 99.1.</p></body></html>"
-                .to_owned(),
-        ),
-        (
-            format!("{folder}/bbb-ex991.htm"),
-            format!(
-                "<html><body><p>Beta Fixture reports third quarter results</p>\
-                 <table><tr><td>Revenue</td><td>$</td><td>1,250</td></tr></table>\
-                 <p>{OUTLOOK}</p></body></html>"
+            format!("{folder}/{RESULTS}.txt"),
+            complete_submission(
+                RESULTS,
+                &[
+                    Submitted {
+                        kind: "8-K",
+                        document: "bbb-8k.htm",
+                        description: "8-K",
+                        body: report,
+                    },
+                    Submitted {
+                        kind: "EX-99.1",
+                        document: "bbb-ex991.htm",
+                        description: "PRESS RELEASE",
+                        body: &release,
+                    },
+                ],
             ),
         ),
     ]);
@@ -153,41 +167,39 @@ fn world(mut world: World) -> World {
         told: guidance(1_350_000_000),
     });
     let notice = format!("{}/{}", beta.cik, LISTING_NOTICE.replace('-', ""));
+    let listing_notice = format!(
+        "<html><body><p>Item 3.01 Notice of Delisting or Failure to Satisfy a Continued \
+         Listing Rule or Standard; Transfer of Listing.</p><p>{BID_PRICE_NOTICE}</p>\
+         </body></html>"
+    );
+    let quarterly = format!("{}/{}", beta.cik, QUARTERLY.replace('-', ""));
+    let quarterly_report =
+        std::fs::read_to_string(repository().join("crates/sources/fixtures/edgar/10q_sample.htm"))
+            .expect("a recorded 10-Q");
     world.archives.extend([
         (
-            format!("{notice}/{LISTING_NOTICE}-index.htm"),
-            r#"<table class="tableFile" summary="Document Format Files">
-<tr><th>Seq</th><th>Description</th><th>Document</th><th>Type</th><th>Size</th></tr>
-<tr><td>1</td><td>8-K</td><td><a href="bbb-8k-notice.htm">bbb-8k-notice.htm</a></td><td>8-K</td><td>800</td></tr>
-</table>"#
-                .to_owned(),
-        ),
-        (
-            format!("{notice}/bbb-8k-notice.htm"),
-            format!(
-                "<html><body><p>Item 3.01 Notice of Delisting or Failure to Satisfy a Continued \
-                 Listing Rule or Standard; Transfer of Listing.</p><p>{BID_PRICE_NOTICE}</p>\
-                 </body></html>"
+            format!("{notice}/{LISTING_NOTICE}.txt"),
+            complete_submission(
+                LISTING_NOTICE,
+                &[Submitted {
+                    kind: "8-K",
+                    document: "bbb-8k-notice.htm",
+                    description: "8-K",
+                    body: &listing_notice,
+                }],
             ),
         ),
-    ]);
-    let quarterly = format!("{}/{}", beta.cik, QUARTERLY.replace('-', ""));
-    let recorded = |name: &str| {
-        std::fs::read_to_string(
-            repository()
-                .join("crates/sources/fixtures/edgar")
-                .join(name),
-        )
-        .expect("a recorded 10-Q")
-    };
-    world.archives.extend([
         (
-            format!("{quarterly}/{QUARTERLY}-index.htm"),
-            recorded("10q_index_sample.htm"),
-        ),
-        (
-            format!("{quarterly}/aapl-20260627.htm"),
-            recorded("10q_sample.htm"),
+            format!("{quarterly}/{QUARTERLY}.txt"),
+            complete_submission(
+                QUARTERLY,
+                &[Submitted {
+                    kind: "10-Q",
+                    document: "aapl-20260627.htm",
+                    description: "10-Q",
+                    body: &quarterly_report,
+                }],
+            ),
         ),
     ]);
     world.companies.push(Company {

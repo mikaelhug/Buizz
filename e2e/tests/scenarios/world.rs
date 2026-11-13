@@ -82,6 +82,36 @@ pub fn submissions(cik: u32, sic: &str, filings: &[Filing<'_>]) -> Value {
     })
 }
 
+pub struct Submitted<'a> {
+    pub kind: &'a str,
+    pub document: &'a str,
+    pub description: &'a str,
+    pub body: &'a str,
+}
+
+pub fn complete_submission(accession: &str, documents: &[Submitted<'_>]) -> String {
+    let documents: String = documents
+        .iter()
+        .zip(1..)
+        .map(|(submitted, sequence)| {
+            let body = if submitted.body.starts_with("<?xml") {
+                format!("<XBRL>\n{}\n</XBRL>", submitted.body)
+            } else {
+                submitted.body.to_owned()
+            };
+            format!(
+                "<DOCUMENT>\n<TYPE>{}\n<SEQUENCE>{sequence}\n<FILENAME>{}\n<DESCRIPTION>{}\n\
+                 <TEXT>\n{body}\n</TEXT>\n</DOCUMENT>\n",
+                submitted.kind, submitted.document, submitted.description
+            )
+        })
+        .collect();
+    format!(
+        "<SEC-DOCUMENT>{accession}.txt\n<SEC-HEADER>{accession}.hdr.sgml\n\
+         ACCESSION NUMBER:\t\t{accession}\n</SEC-HEADER>\n{documents}</SEC-DOCUMENT>\n"
+    )
+}
+
 #[derive(Clone, Default)]
 pub struct World {
     pub sessions: Vec<Session>,

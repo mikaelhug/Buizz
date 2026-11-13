@@ -7,6 +7,7 @@ use buizz_core::market::{
 };
 use buizz_core::time::Timestamp;
 use chrono::{Datelike, NaiveDate};
+use reqwest::RequestBuilder;
 use serde::Deserialize;
 
 use crate::http::{HttpClient, RateLimit, SourceError};
@@ -17,11 +18,9 @@ mod filings;
 mod normalize;
 mod ownership;
 mod sections;
+mod submission;
 
-pub use exhibit::{
-    IndexedDocument, cover_tickers, exhibit_text, indexed_documents, is_text_document,
-    press_release_document,
-};
+pub use exhibit::{IndexedDocument, cover_tickers, exhibit_text, press_release_document};
 pub use filings::{
     Filings, FilingsPage, OwnershipFiling, Submissions, normalize_filings_page,
     normalize_submissions,
@@ -29,6 +28,7 @@ pub use filings::{
 pub use normalize::normalize_company_facts;
 pub use ownership::normalize_ownership;
 pub use sections::{SPLITTER_VERSION, split_sections};
+use submission::submission_documents;
 
 pub const DATA_URL: &str = "https://data.sec.gov";
 pub const WWW_URL: &str = "https://www.sec.gov";
@@ -46,8 +46,8 @@ pub const PERIODIC_FORMS: [&str; 4] = ["10-K", "10-K/A", "10-Q", "10-Q/A"];
 pub const COMPANY_FORMS: [&str; 6] = ["8-K", "8-K/A", "10-K", "10-K/A", "10-Q", "10-Q/A"];
 pub const DELISTING_FORMS: [&str; 2] = ["25", "25-NSE"];
 const NOT_FOUND: u16 = 404;
-const SKIPPED_KINDS: [&str; 4] = ["GRAPHIC", "ZIP", "EX-101", "JSON"];
 const REFUSED: u16 = 403;
+const SUBMISSION_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EdgarConfig {
@@ -229,36 +229,13 @@ impl EdgarClient {
         cik: u32,
         accession: &str,
     ) -> Result<Vec<FilingDocument>, SourceError> {
-        let folder = format!(
-            "{}/Archives/edgar/data/{cik}/{}",
+        let url = format!(
+            "{}/Archives/edgar/data/{cik}/{}/{accession}.txt",
             self.www_url,
             accession.replace('-', "")
         );
-        let index = self
-            .fetch(format!("{folder}/{accession}-index.htm"))
-            .await?;
-        let mut documents = Vec::new();
-        for listed in indexed_documents(&String::from_utf8_lossy(&index)) {
-            if SKIPPED_KINDS
-                .iter()
-                .any(|kind| listed.kind.to_ascii_uppercase().starts_with(kind))
-            {
-                continue;
-            }
-            let raw = self.fetch(format!("{folder}/{}", listed.document)).await?;
-            let text = is_text_document(&listed.document)
-                .then(|| exhibit_text(&listed.document, &raw))
-                .filter(|text| !text.is_empty());
-            documents.push(FilingDocument {
-                sequence: listed.sequence,
-                document: listed.document,
-                kind: listed.kind,
-                description: listed.description,
-                raw,
-                text,
-            });
-        }
-        Ok(documents)
+        let request = self.http.client().get(url).timeout(SUBMISSION_TIMEOUT);
+        submission_documents(accession, &self.send(request).await?)
     }
 
     pub async fn delisting_notices(
@@ -322,7 +299,11 @@ impl EdgarClient {
     }
 
     async fn fetch(&self, url: String) -> Result<Vec<u8>, SourceError> {
-        match self.http.fetch(self.http.client().get(url)).await {
+        self.send(self.http.client().get(url)).await
+    }
+
+    async fn send(&self, request: RequestBuilder) -> Result<Vec<u8>, SourceError> {
+        match self.http.fetch(request).await {
             Err(SourceError::Status {
                 status: REFUSED, ..
             }) => Err(SourceError::RateLimited {
