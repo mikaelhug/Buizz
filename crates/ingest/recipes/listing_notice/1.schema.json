@@ -1,0 +1,14 @@
+{
+  "type": "object",
+  "properties": {
+    "exchange": {
+      "type": "string",
+      "enum": ["nyse", "nyse_american", "nasdaq", "other"]
+    },
+    "rule": {
+      "type": ["string", "null"]
+    }
+  },
+  "required": ["exchange", "rule"],
+  "additionalProperties": false
+}

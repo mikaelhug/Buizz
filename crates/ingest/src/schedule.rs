@@ -21,6 +21,7 @@ pub(crate) const INSIDER_TRADES: &str = "insider_trades";
 pub(crate) const PRESS_RELEASES: &str = "press_releases";
 pub(crate) const FILING_DOCUMENTS: &str = "filing_documents";
 pub(crate) const FILING_SECTIONS: &str = "filing_sections";
+pub(crate) const RECIPE_FACTS: &str = "recipe_facts";
 pub(crate) const NEWS: &str = "news";
 pub(crate) const INDEX_MEMBERSHIP: &str = "index_membership";
 pub(crate) const RATES: &str = "rates";
@@ -44,7 +45,7 @@ const SHORT_RETRY: Duration = HOUR;
 const FIRST_FAILURE_RETRY: Duration = Duration::from_secs(5 * 60);
 const STALE_AFTER_INTERVALS: i32 = 3;
 
-pub(crate) const JOBS: [JobSpec; 27] = [
+pub(crate) const JOBS: [JobSpec; 28] = [
     JobSpec {
         name: CALENDAR,
         source: Some(DataSource::Alpaca),
@@ -132,6 +133,12 @@ pub(crate) const JOBS: [JobSpec; 27] = [
         name: FILING_SECTIONS,
         source: None,
         datasets: &[Dataset::FilingSections],
+        every: SIX_HOURS,
+    },
+    JobSpec {
+        name: RECIPE_FACTS,
+        source: None,
+        datasets: &[Dataset::ListingNotices],
         every: SIX_HOURS,
     },
     JobSpec {

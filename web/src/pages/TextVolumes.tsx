@@ -13,7 +13,7 @@ type TextFile = Schemas["TextFileView"];
 type TextDocument = Schemas["TextDocumentView"];
 type Section = Schemas["Section"];
 
-const TEXT_JOBS = ["filing_documents", "filing_sections"];
+const TEXT_JOBS = ["filing_documents", "filing_sections", "recipe_facts"];
 const EDGAR = "https://www.sec.gov/Archives/edgar/data";
 
 type Place = { volume: string; prefix: string };
@@ -284,12 +284,33 @@ function Reader({ document, onClose }: { document: TextDocument; onClose: () => 
       </header>
       <div className="reader-body">
         {text.error && <p className="muted">{text.error}</p>}
+        {text.data && text.data.facts.length > 0 && <Facts facts={text.data.facts} />}
         {text.data?.split_failure && <p className="muted">Not split into items: {text.data.split_failure}.</p>}
         {text.data && (text.data.text ? <SectionedText text={text.data.text} sections={text.data.sections} /> : <p className="muted">This document has no text: it is kept as filed only.</p>)}
         {text.data?.truncated && <p className="muted">Showing the first {fmt.integer(text.data.text?.length ?? 0)} of {fmt.integer(text.data.chars)} characters.</p>}
         {!text.data && !text.error && <p className="muted">Loading…</p>}
       </div>
     </dialog>
+  );
+}
+
+const SHARED_FACT_COLUMNS = new Set(["recipe", "version", "doc_id", "section_key", "ordinal", "accession", "cik", "status", "evidence", "evidence_start", "reason", "published_at", "produced_at"]);
+
+function Facts({ facts }: { facts: Record<string, unknown>[] }) {
+  return (
+    <ul className="reader-facts" aria-label="Facts">
+      {facts.map((fact) => {
+        const fields = Object.entries(fact).filter(([name, value]) => !SHARED_FACT_COLUMNS.has(name) && value !== null);
+        return (
+          <li key={`${String(fact.recipe)}:${String(fact.section_key)}:${String(fact.ordinal)}`}>
+            <strong>{String(fact.recipe).replaceAll("_", " ")}</strong> v{String(fact.version)} · {String(fact.section_key)} · {String(fact.status).replace("_", " ")}
+            {fields.length > 0 && ` · ${fields.map(([name, value]) => `${name.replaceAll("_", " ")} ${typeof value === "string" ? value : JSON.stringify(value)}`).join(", ")}`}
+            {typeof fact.reason === "string" && <span className="muted"> · {fact.reason}</span>}
+            {typeof fact.evidence === "string" && <blockquote className="muted">{fact.evidence}</blockquote>}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

@@ -15,6 +15,11 @@ use crate::world::{
 
 const RESULTS: &str = "0009999001-24-000050";
 const QUARTERLY: &str = "0009999001-24-000045";
+const LISTING_NOTICE: &str = "0009999001-24-000044";
+const BID_PRICE_NOTICE: &str = "On October 14, 2024, the Company received a letter from the Listing \
+     Qualifications Department of The Nasdaq Stock Market LLC stating that it no longer complies \
+     with Nasdaq Listing Rule 5550(a)(2), as its bid price closed below $1.00 for 30 consecutive \
+     business days.";
 
 fn constituents() -> String {
     let unpriced: String = (2..*SP500_MEMBERS.start())
@@ -80,6 +85,13 @@ fn world(mut world: World) -> World {
                 accepted: stamp("2024-10-31T20:30:00Z"),
             },
             Filing {
+                accession: LISTING_NOTICE,
+                form: "8-K",
+                items: "3.01",
+                report_date: "2024-10-14",
+                accepted: stamp("2024-10-16T20:30:00Z"),
+            },
+            Filing {
                 accession: "0009999001-24-000049",
                 form: "8-K",
                 items: "8.01",
@@ -110,6 +122,25 @@ fn world(mut world: World) -> World {
             "<html><body><p>Beta Fixture reports third quarter results</p>\
              <table><tr><td>Revenue</td><td>$</td><td>1,250</td></tr></table></body></html>"
                 .to_owned(),
+        ),
+    ]);
+    let notice = format!("{}/{}", beta.cik, LISTING_NOTICE.replace('-', ""));
+    world.archives.extend([
+        (
+            format!("{notice}/{LISTING_NOTICE}-index.htm"),
+            r#"<table class="tableFile" summary="Document Format Files">
+<tr><th>Seq</th><th>Description</th><th>Document</th><th>Type</th><th>Size</th></tr>
+<tr><td>1</td><td>8-K</td><td><a href="bbb-8k-notice.htm">bbb-8k-notice.htm</a></td><td>8-K</td><td>800</td></tr>
+</table>"#
+                .to_owned(),
+        ),
+        (
+            format!("{notice}/bbb-8k-notice.htm"),
+            format!(
+                "<html><body><p>Item 3.01 Notice of Delisting or Failure to Satisfy a Continued \
+                 Listing Rule or Standard; Transfer of Listing.</p><p>{BID_PRICE_NOTICE}</p>\
+                 </body></html>"
+            ),
         ),
     ]);
     let quarterly = format!("{}/{}", beta.cik, QUARTERLY.replace('-', ""));
@@ -214,6 +245,37 @@ async fn bots_see_index_membership_profiles_earnings_and_8k_events_as_of_their_c
         ],
         "the 10-Q is split into the items of both its parts, past its table of contents"
     );
+    let notice: Value = spine
+        .get(&format!(
+            "/api/data/text/document?id=edgar:{LISTING_NOTICE}:1"
+        ))
+        .await;
+    let facts: Vec<Value> = notice["facts"]
+        .as_array()
+        .expect("the 8-K's facts")
+        .iter()
+        .map(|fact| {
+            json!([
+                fact["section_key"],
+                fact["status"],
+                fact["exchange"],
+                fact["rule"],
+                fact["evidence"]
+            ])
+        })
+        .collect();
+    assert_eq!(
+        facts,
+        [json!([
+            "8-K:3.01",
+            "ok",
+            "nasdaq",
+            "5550(a)(2)",
+            BID_PRICE_NOTICE
+        ])],
+        "the Item 3.01 notice's exchange and rule are read by code, pass every check with their \
+         quote, and are served from the typed view of the current version"
+    );
     let stored: Vec<std::path::PathBuf> = spine
         .text_dirs()
         .iter()
@@ -223,7 +285,7 @@ async fn bots_see_index_membership_profiles_earnings_and_8k_events_as_of_their_c
     assert_eq!(
         stored.len(),
         2,
-        "the readable 8-K and 10-Q, filed in different months, are one Parquet file each: {stored:?}"
+        "the readable 8-Ks and the 10-Q are one Parquet file per month filed: {stored:?}"
     );
 
     let (run, reports) = backtest(&spine, "reference").await;

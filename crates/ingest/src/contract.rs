@@ -2,7 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use buizz_core::api::{ContractState, CoverageContract, JobView, ScopeKind, ScopeUnit, SpineEvent};
 use buizz_core::market::{
-    ALPACA_HISTORY_START, AssetClass, Calendar, Coverage, DataSource, Dataset, MacroSeries, Symbol,
+    ALPACA_HISTORY_START, AssetClass, Calendar, Coverage, DataSource, Dataset, MacroSeries,
+    RecipeState, Symbol,
 };
 use buizz_core::ops::{FetchStatus, JobOutcome};
 use buizz_core::time::Timestamp;
@@ -16,6 +17,7 @@ use chrono::{NaiveDate, TimeDelta};
 
 use crate::finra::settlement_dates;
 use crate::macros::series_key;
+use crate::recipe::RECIPES;
 use crate::schedule::JOBS;
 use crate::{Ingest, IngestError};
 
@@ -61,7 +63,7 @@ struct Scope {
     source: DataSource,
     kind: ScopeKind,
     unit: ScopeUnit,
-    scope: &'static str,
+    scope: String,
     from: NaiveDate,
     to: NaiveDate,
 }
@@ -250,7 +252,7 @@ impl Ingest {
             source: scope.source,
             kind: scope.kind,
             unit: scope.unit,
-            scope: scope.scope.to_owned(),
+            scope: scope.scope,
             from: scope.from,
             to: scope.to,
             expected,
@@ -310,7 +312,7 @@ impl Ingest {
                 source: DataSource::Alpaca,
                 kind: ScopeKind::Indexed,
                 unit: ScopeUnit::Symbols,
-                scope: "priced stocks and ETFs",
+                scope: "priced stocks and ETFs".into(),
                 from: ALPACA_HISTORY_START,
                 to: today,
             }
@@ -334,7 +336,7 @@ impl Ingest {
                 source: DataSource::Alpaca,
                 kind: ScopeKind::Indexed,
                 unit: ScopeUnit::Symbols,
-                scope: "priced stocks and ETFs",
+                scope: "priced stocks and ETFs".into(),
                 from: start,
                 to: today,
             }
@@ -365,7 +367,7 @@ impl Ingest {
                     source: DataSource::Tiingo,
                     kind: ScopeKind::Indexed,
                     unit: ScopeUnit::Symbols,
-                    scope: "priced symbols listed before Alpaca's history starts",
+                    scope: "priced symbols listed before Alpaca's history starts".into(),
                     from: start,
                     to: floor - TimeDelta::days(1),
                 }
@@ -392,7 +394,7 @@ impl Ingest {
                     source: DataSource::Alpaca,
                     kind: ScopeKind::OnDemand,
                     unit: ScopeUnit::Symbols,
-                    scope: "symbols and sessions runs asked for",
+                    scope: "symbols and sessions runs asked for".into(),
                     from: first,
                     to: last,
                 }
@@ -449,7 +451,7 @@ impl Ingest {
                     source,
                     kind: ScopeKind::Indexed,
                     unit: ScopeUnit::Lists,
-                    scope,
+                    scope: scope.into(),
                     from,
                     to: today,
                 }
@@ -472,7 +474,8 @@ impl Ingest {
                     source: DataSource::Edgar,
                     kind: ScopeKind::Indexed,
                     unit: ScopeUnit::Symbols,
-                    scope: "active priced stocks, read from each company's EDGAR filing list",
+                    scope: "active priced stocks, read from each company's EDGAR filing list"
+                        .into(),
                     from: start,
                     to: today,
                 }
@@ -507,7 +510,7 @@ impl Ingest {
                     source: DataSource::Edgar,
                     kind: ScopeKind::Indexed,
                     unit: ScopeUnit::Symbols,
-                    scope,
+                    scope: scope.into(),
                     from: start,
                     to: today,
                 }
@@ -525,7 +528,8 @@ impl Ingest {
                 source: DataSource::Edgar,
                 kind: ScopeKind::Indexed,
                 unit: ScopeUnit::Filings,
-                scope: "every Form 25 and 25-NSE in EDGAR's full and daily indexes since 2016",
+                scope: "every Form 25 and 25-NSE in EDGAR's full and daily indexes since 2016"
+                    .into(),
                 from: ALPACA_HISTORY_START,
                 to: today,
             }
@@ -538,7 +542,7 @@ impl Ingest {
                     source: DataSource::Edgar,
                     kind: ScopeKind::Indexed,
                     unit: ScopeUnit::Sessions,
-                    scope: "EDGAR's daily index, every business day since the first read",
+                    scope: "EDGAR's daily index, every business day since the first read".into(),
                     from: row.first,
                     to: due,
                 }
@@ -551,7 +555,7 @@ impl Ingest {
                 source: DataSource::Edgar,
                 kind: ScopeKind::Derived,
                 unit: ScopeUnit::Filings,
-                scope: "every earnings release 8-K stored",
+                scope: "every earnings release 8-K stored".into(),
                 from: start,
                 to: today,
             }
@@ -564,7 +568,7 @@ impl Ingest {
                     source: DataSource::Edgar,
                     kind: ScopeKind::Derived,
                     unit: ScopeUnit::Filings,
-                    scope: "every 8-K, 10-K and 10-Q accession stored",
+                    scope: "every 8-K, 10-K and 10-Q accession stored".into(),
                     from: start,
                     to: today,
                 }
@@ -576,12 +580,46 @@ impl Ingest {
                     source: DataSource::Edgar,
                     kind: ScopeKind::Derived,
                     unit: ScopeUnit::Filings,
-                    scope: "every stored 10-K and 10-Q document, split by the current splitter",
+                    scope: "every stored 10-K and 10-Q document, split by the current splitter"
+                        .into(),
                     from: start,
                     to: today,
                 }
                 .accessions(self.market.split_progress(SPLITTER_VERSION).await?),
             );
+            let versions = self.market.recipe_versions().await?;
+            for recipe in &RECIPES {
+                let Some(version) = versions
+                    .iter()
+                    .filter(|version| {
+                        version.recipe == recipe.name
+                            && matches!(
+                                version.state,
+                                RecipeState::Filling | RecipeState::Complete | RecipeState::Current
+                            )
+                    })
+                    .max_by_key(|version| version.version)
+                else {
+                    continue;
+                };
+                measures.push(
+                    Scope {
+                        dataset: recipe.dataset,
+                        source: DataSource::Edgar,
+                        kind: ScopeKind::Derived,
+                        unit: ScopeUnit::Sections,
+                        scope: format!(
+                            "every 8-K Item {} section, read by {} version {}",
+                            version.scope.items.join(", "),
+                            version.recipe,
+                            version.version
+                        ),
+                        from: version.scope.from.max(start),
+                        to: today,
+                    }
+                    .accessions(self.market.recipe_progress(version.clone()).await?),
+                );
+            }
         }
 
         measures.push(
@@ -590,7 +628,7 @@ impl Ingest {
                 source: DataSource::Treasury,
                 kind: ScopeKind::Indexed,
                 unit: ScopeUnit::Sessions,
-                scope: "every session's yield curve",
+                scope: "every session's yield curve".into(),
                 from: series(Dataset::Rates, DataSource::Treasury).map_or(start, |row| row.first),
                 to: due,
             }
@@ -618,7 +656,7 @@ impl Ingest {
                     source,
                     kind: ScopeKind::Indexed,
                     unit: ScopeUnit::Series,
-                    scope,
+                    scope: scope.into(),
                     from: start,
                     to: today,
                 }
@@ -637,7 +675,7 @@ impl Ingest {
                 source: DataSource::Alpaca,
                 kind: ScopeKind::Indexed,
                 unit: ScopeUnit::Days,
-                scope: "every day of Alpaca's news history",
+                scope: "every day of Alpaca's news history".into(),
                 from: news_from,
                 to: yesterday,
             }
@@ -667,7 +705,7 @@ impl Ingest {
                         source,
                         kind: ScopeKind::Recorder,
                         unit,
-                        scope,
+                        scope: scope.into(),
                         from: row.first,
                         to: if unit == ScopeUnit::Days {
                             yesterday
@@ -700,7 +738,7 @@ impl Ingest {
                 source: DataSource::Finra,
                 kind: ScopeKind::Indexed,
                 unit: ScopeUnit::Settlements,
-                scope: "every published FINRA settlement",
+                scope: "every published FINRA settlement".into(),
                 from: FIRST_SETTLEMENT,
                 to: published.last().copied().unwrap_or(FIRST_SETTLEMENT),
             }
@@ -718,7 +756,7 @@ impl Ingest {
                 source: DataSource::Finra,
                 kind: ScopeKind::Indexed,
                 unit: ScopeUnit::Sessions,
-                scope: "every FINRA daily short volume file",
+                scope: "every FINRA daily short volume file".into(),
                 from: FIRST_SHORT_VOLUME,
                 to: due,
             }

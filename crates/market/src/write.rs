@@ -49,9 +49,9 @@ pub(crate) fn prepare(connection: &Connection) -> Result<()> {
     Ok(())
 }
 
-type Coverage = BTreeMap<Option<Symbol>, (NaiveDate, NaiveDate)>;
+pub(crate) type Coverage = BTreeMap<Option<Symbol>, (NaiveDate, NaiveDate)>;
 
-fn cover(coverage: &mut Coverage, symbol: Option<&Symbol>, date: NaiveDate) {
+pub(crate) fn cover(coverage: &mut Coverage, symbol: Option<&Symbol>, date: NaiveDate) {
     coverage
         .entry(symbol.cloned())
         .and_modify(|(first, last)| {
@@ -61,7 +61,7 @@ fn cover(coverage: &mut Coverage, symbol: Option<&Symbol>, date: NaiveDate) {
         .or_insert((date, date));
 }
 
-fn write_batch(
+pub(crate) fn write_batch(
     connection: &mut Connection,
     source: DataSource,
     dataset: Dataset,

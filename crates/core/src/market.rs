@@ -680,6 +680,73 @@ pub struct DocumentSections {
     pub outcome: Result<Vec<Section>, String>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum FactStatus {
+    Ok,
+    NotStated,
+    Failed,
+    Skipped,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RecipeState {
+    Evaluating,
+    Filling,
+    Complete,
+    Current,
+    Retired,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RecipeScope {
+    pub items: Vec<String>,
+    pub exhibits: Vec<String>,
+    pub from: NaiveDate,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RecipeVersion {
+    pub recipe: String,
+    pub version: u32,
+    pub schema: String,
+    pub producer: String,
+    pub prompt_hash: Option<String>,
+    pub scope: RecipeScope,
+    pub state: RecipeState,
+    pub gold: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RecipeSection {
+    pub doc_id: String,
+    pub section_key: String,
+    pub accession: Option<String>,
+    pub cik: Option<u32>,
+    pub published_at: Timestamp,
+    pub text: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Fact {
+    pub recipe: String,
+    pub version: u32,
+    pub doc_id: String,
+    pub section_key: String,
+    pub ordinal: u32,
+    pub accession: Option<String>,
+    pub cik: Option<u32>,
+    pub status: FactStatus,
+    pub fields: Option<String>,
+    pub evidence: Option<String>,
+    pub evidence_start: Option<u64>,
+    pub reason: Option<String>,
+    pub published_at: Timestamp,
+    pub produced_at: Timestamp,
+    pub input_hash: String,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct InsiderPlan {
     pub symbol: Symbol,
@@ -1242,10 +1309,11 @@ pub enum Dataset {
     ShortInterest,
     ShortVolume,
     Delistings,
+    ListingNotices,
 }
 
 impl Dataset {
-    pub const ALL: [Self; 25] = [
+    pub const ALL: [Self; 26] = [
         Self::Bars1d,
         Self::Bars1m,
         Self::CorporateActions,
@@ -1262,6 +1330,7 @@ impl Dataset {
         Self::PressReleases,
         Self::FilingDocuments,
         Self::FilingSections,
+        Self::ListingNotices,
         Self::InsiderTrades,
         Self::Estimates,
         Self::Rates,
@@ -1289,6 +1358,7 @@ impl Dataset {
             | Self::PressReleases
             | Self::FilingDocuments
             | Self::FilingSections
+            | Self::ListingNotices
             | Self::InsiderTrades
             | Self::Estimates => DataDomain::Filings,
             Self::Rates | Self::Macro | Self::Fomc => DataDomain::Macro,

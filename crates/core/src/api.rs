@@ -381,6 +381,7 @@ pub enum ScopeUnit {
     Sessions,
     Settlements,
     Filings,
+    Sections,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
@@ -498,6 +499,8 @@ pub struct TextDocumentText {
     pub truncated: bool,
     pub sections: Vec<Section>,
     pub split_failure: Option<String>,
+    #[schema(value_type = Vec<Object>)]
+    pub facts: Vec<Map<String, Value>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]

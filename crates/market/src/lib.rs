@@ -10,13 +10,13 @@ use buizz_core::listing::Listings;
 use buizz_core::market::{
     ALPACA_HISTORY_START, Adjustment, AdjustmentFactor, Bar, Borrow, BorrowAvailability, Calendar,
     Company, CorporateAction, Coverage, DataSource, Dataset, DelistingCheck, DocumentSections,
-    EarningsInsight, EarningsRelease, EstimateFact, Filing, FilingText, FomcAnnouncement,
+    EarningsInsight, EarningsRelease, EstimateFact, Fact, Filing, FilingText, FomcAnnouncement,
     FomcMeeting, FundamentalFact, FundamentalMetric, FundamentalPoint, IndexHistory, InsiderFiling,
     InsiderPlan, InsiderTrade, Instrument, InstrumentProfile, Liquidity, MacroObservation,
     MacroPoint, MacroSeries, NewsArticle, PendingDelisting, PressCandidate, PressExhibit,
-    PressRelease, RiskFreeRate, SecFiling, Session, ShortInterest, ShortInterestRecord,
-    ShortVolume, ShortVolumeRecord, StockIndex, Symbol, TextCandidate, Timeframe, UnsplitDocument,
-    Watermarks,
+    PressRelease, RecipeSection, RecipeState, RecipeVersion, RiskFreeRate, SecFiling, Session,
+    ShortInterest, ShortInterestRecord, ShortVolume, ShortVolumeRecord, StockIndex, Symbol,
+    TextCandidate, Timeframe, UnsplitDocument, Watermarks,
 };
 use buizz_core::ops::{
     ActionDisagreement, CoverageGap, DataWarning, UNPRICED_DELISTINGS_TOLERATED,
@@ -39,6 +39,7 @@ mod fixture;
 mod lane;
 mod migrate;
 mod read;
+mod recipe;
 mod restore;
 mod text;
 mod write;
@@ -49,7 +50,7 @@ pub use restore::Restored;
 
 pub(crate) const SCHEMA: &str = include_str!("../schema.sql");
 pub const FILE_NAME: &str = "market.duckdb";
-const APPENDED: [(&str, &str); 19] = [
+const APPENDED: [(&str, &str); 21] = [
     ("ingest_batch", "id"),
     ("borrow_availability", "batch_id"),
     ("short_interest", "batch_id"),
@@ -69,6 +70,8 @@ const APPENDED: [(&str, &str); 19] = [
     ("earnings_insight", "batch_id"),
     ("earnings_insight_fact_revision", "superseded_by"),
     ("press_release", "batch_id"),
+    ("recipe_version", "batch_id"),
+    ("fact", "batch_id"),
 ];
 const REPLACED: [&str; 2] = ["index_member", "index_history"];
 pub const TIMESTAMP_RESOLUTION: TimeDelta = TimeDelta::microseconds(1);
@@ -91,6 +94,8 @@ pub enum MarketError {
     Catalog(String),
     #[error("text store: {0}")]
     Text(String),
+    #[error("recipe: {0}")]
+    Recipe(String),
     #[error("market store has shut down")]
     Closed,
     #[error("market store worker failed: {0}")]
@@ -735,35 +740,116 @@ impl MarketStore {
         self.readers
             .run(move |connection| {
                 let located = read::unsplit_documents(connection, splitter_version, limit)?;
-                let mut by_file: BTreeMap<(&str, &str), Vec<&read::UnsplitLocation>> =
-                    BTreeMap::new();
-                for location in &located {
-                    by_file
-                        .entry((location.volume.as_str(), location.path.as_str()))
-                        .or_default()
-                        .push(location);
-                }
-                let mut documents = Vec::with_capacity(located.len());
-                for ((volume, path), group) in by_file {
-                    let Some(root) = volumes.root(volume) else {
-                        continue;
-                    };
-                    let ids: Vec<&str> = group.iter().map(|doc| doc.doc_id.as_str()).collect();
-                    let mut texts = read::parquet_texts(connection, &root.join(path), &ids)?;
-                    documents.extend(group.into_iter().map(|location| {
-                        UnsplitDocument {
-                            text: texts
-                                .remove(&(location.doc_id.clone(), location.content_hash.clone()))
-                                .flatten(),
-                            doc_id: location.doc_id.clone(),
-                            content_hash: location.content_hash.clone(),
-                            kind: location.kind.clone(),
-                            published_at: location.published_at,
-                        }
-                    }));
-                }
-                Ok(documents)
+                Ok(with_texts(connection, &volumes, located, |doc| {
+                    (&doc.volume, &doc.path, &doc.doc_id, &doc.content_hash)
+                })?
+                .into_iter()
+                .map(|(location, text)| UnsplitDocument {
+                    text,
+                    doc_id: location.doc_id,
+                    content_hash: location.content_hash,
+                    kind: location.kind,
+                    published_at: location.published_at,
+                })
+                .collect())
             })
+            .await
+    }
+
+    pub async fn register_recipe(
+        &self,
+        dataset: Dataset,
+        version: RecipeVersion,
+    ) -> Result<RecipeVersion> {
+        self.writer
+            .run(move |connection| {
+                recipe::register(connection, DataSource::Edgar, dataset, version)
+            })
+            .await
+    }
+
+    pub async fn advance_recipe(
+        &self,
+        dataset: Dataset,
+        recipe: String,
+        version: u32,
+        to: RecipeState,
+        gold: Option<String>,
+    ) -> Result<()> {
+        self.writer
+            .run(move |connection| {
+                recipe::advance(
+                    connection,
+                    DataSource::Edgar,
+                    dataset,
+                    &recipe,
+                    version,
+                    to,
+                    gold,
+                )
+            })
+            .await
+    }
+
+    pub async fn recipe_versions(&self) -> Result<Vec<RecipeVersion>> {
+        self.readers
+            .run(|connection| recipe::recipe_versions(connection))
+            .await
+    }
+
+    pub async fn unread_sections(
+        &self,
+        version: RecipeVersion,
+        limit: usize,
+    ) -> Result<Vec<RecipeSection>> {
+        let volumes = Arc::clone(&self.text);
+        self.readers
+            .run(move |connection| {
+                let located = recipe::unread_sections(
+                    connection,
+                    &version.recipe,
+                    version.version,
+                    &version.scope,
+                    limit,
+                )?;
+                Ok(with_texts(connection, &volumes, located, |section| {
+                    (
+                        &section.volume,
+                        &section.path,
+                        &section.doc_id,
+                        &section.content_hash,
+                    )
+                })?
+                .into_iter()
+                .map(|(location, text)| RecipeSection {
+                    text,
+                    doc_id: location.doc_id,
+                    section_key: location.section_key,
+                    accession: location.accession,
+                    cik: location.cik,
+                    published_at: location.published_at,
+                })
+                .collect())
+            })
+            .await
+    }
+
+    pub async fn recipe_progress(&self, version: RecipeVersion) -> Result<AccessionProgress> {
+        self.readers
+            .run(move |connection| {
+                recipe::recipe_progress(
+                    connection,
+                    &version.recipe,
+                    version.version,
+                    &version.scope,
+                )
+            })
+            .await
+    }
+
+    pub async fn append_facts(&self, dataset: Dataset, facts: Vec<Fact>) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| recipe::facts(connection, DataSource::Edgar, dataset, facts))
             .await
     }
 
@@ -892,7 +978,9 @@ impl MarketStore {
                 let chars = text.as_ref().map_or(0, |text| text.chars().count());
                 let (sections, split_failure) =
                     read::document_sections(connection, &doc_id, &hash)?;
+                let facts = recipe::document_facts(connection, &doc_id)?;
                 Ok(Some(TextDocumentText {
+                    facts,
                     sections,
                     split_failure,
                     text: text.map(|text| text.chars().take(limit).collect()),
@@ -1738,6 +1826,36 @@ impl MarketStore {
             })
             .await
     }
+}
+
+fn with_texts<T>(
+    connection: &Connection,
+    volumes: &TextVolumes,
+    located: Vec<T>,
+    place: impl Fn(&T) -> (&String, &String, &String, &String),
+) -> Result<Vec<(T, Option<String>)>> {
+    let mut by_file: BTreeMap<(String, String), Vec<T>> = BTreeMap::new();
+    for location in located {
+        let (volume, path, _, _) = place(&location);
+        by_file
+            .entry((volume.clone(), path.clone()))
+            .or_default()
+            .push(location);
+    }
+    let mut texts = Vec::new();
+    for ((volume, path), group) in by_file {
+        let Some(root) = volumes.root(&volume) else {
+            continue;
+        };
+        let ids: Vec<&str> = group.iter().map(|item| place(item).2.as_str()).collect();
+        let mut read = read::parquet_texts(connection, &root.join(path), &ids)?;
+        texts.extend(group.into_iter().map(|item| {
+            let (_, _, doc_id, hash) = place(&item);
+            let text = read.remove(&(doc_id.clone(), hash.clone())).flatten();
+            (item, text)
+        }));
+    }
+    Ok(texts)
 }
 
 fn visible_through(timeframe: Timeframe, bars: &[Bar], calendar: &Calendar) -> Option<Timestamp> {

@@ -2414,7 +2414,8 @@
           "filing_sections",
           "short_interest",
           "short_volume",
-          "delistings"
+          "delistings",
+          "listing_notices"
         ]
       },
       "DatasetSpine": {
@@ -4698,7 +4699,8 @@
           "days",
           "sessions",
           "settlements",
-          "filings"
+          "filings",
+          "sections"
         ]
       },
       "Screening": {
@@ -5294,7 +5296,8 @@
           "doc_id",
           "chars",
           "truncated",
-          "sections"
+          "sections",
+          "facts"
         ],
         "properties": {
           "doc_id": {
@@ -5325,6 +5328,12 @@
               "string",
               "null"
             ]
+          },
+          "facts": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
           }
         }
       },
