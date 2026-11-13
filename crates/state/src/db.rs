@@ -10,7 +10,7 @@ use tokio::sync::oneshot;
 use crate::{Result, SCHEMA, StateError};
 
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
-const MIGRATIONS: [&str; 11] = [
+const MIGRATIONS: [&str; 12] = [
     include_str!("../migrations/1_financing.sql"),
     include_str!("../migrations/2_undelivered.sql"),
     include_str!("../migrations/3_drawdown_badge.sql"),
@@ -22,6 +22,7 @@ const MIGRATIONS: [&str; 11] = [
     include_str!("../migrations/9_variants.sql"),
     include_str!("../migrations/10_reorganization.sql"),
     include_str!("../migrations/11_reread_company_facts.sql"),
+    include_str!("../migrations/12_rerun_corporate_actions_and_bars.sql"),
 ];
 
 type WriteJob = Box<dyn FnOnce(&mut Connection) + Send>;
