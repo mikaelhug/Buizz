@@ -3,6 +3,7 @@ mod bars;
 mod borrow;
 mod contract;
 mod crosscheck;
+mod delistings;
 mod documents;
 mod estimates;
 mod facts;
@@ -266,6 +267,7 @@ impl Ingest {
             schedule::BARS_1M => self.minute_bars(now).await,
             schedule::CORPORATE_ACTIONS => self.corporate_actions(now).await,
             schedule::SEC_INDEX => self.sec_index(now).await,
+            schedule::DELISTINGS => self.delistings(now).await,
             schedule::FUNDAMENTALS => self.fundamentals(now).await,
             schedule::FILINGS => self.filings(now).await,
             schedule::INSIDER_TRADES => self.insider_trades(now).await,

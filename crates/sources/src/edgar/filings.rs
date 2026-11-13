@@ -3,7 +3,7 @@ use buizz_core::time::Timestamp;
 use chrono::NaiveDate;
 use serde::Deserialize;
 
-use super::{EARNINGS_FORMS, INSIDER_FORMS, PERIODIC_FORMS};
+use super::{EARNINGS_FORMS, INSIDER_FORMS, PERIODIC_FORMS, symbol as ticker};
 use crate::http::SourceError;
 
 const RESULTS_OF_OPERATIONS: &str = "2.02";
@@ -13,6 +13,7 @@ pub struct Submissions {
     pub company: Company,
     pub filings: Filings,
     pub older_pages: Vec<FilingsPage>,
+    pub tickers: Vec<Symbol>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -51,6 +52,8 @@ struct WireSubmissions {
     sic: String,
     #[serde(rename = "sicDescription")]
     sic_description: Option<String>,
+    #[serde(default)]
+    tickers: Vec<String>,
     filings: WireFilings,
 }
 
@@ -109,6 +112,7 @@ pub fn normalize_submissions(symbol: &Symbol, payload: &[u8]) -> Result<Submissi
                     })
             })
             .collect(),
+        tickers: wire.tickers.iter().map(|text| ticker(text)).collect(),
     })
 }
 

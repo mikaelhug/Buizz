@@ -519,6 +519,18 @@ impl Ingest {
             );
         }
 
+        measures.push(
+            Scope {
+                dataset: Dataset::Delistings,
+                source: DataSource::Edgar,
+                kind: ScopeKind::Indexed,
+                unit: ScopeUnit::Filings,
+                scope: "every Form 25 and 25-NSE in EDGAR's full and daily indexes since 2016",
+                from: ALPACA_HISTORY_START,
+                to: today,
+            }
+            .accessions(self.market.delisting_progress().await?),
+        );
         if let Some(row) = series(Dataset::SecFilings, DataSource::Edgar) {
             measures.push(
                 Scope {

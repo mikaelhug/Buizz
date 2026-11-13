@@ -76,6 +76,12 @@ pub enum DataWarning {
         message: String,
     },
     ActionDisagreement(ActionDisagreement),
+    SurvivorshipGap {
+        from: NaiveDate,
+        to: NaiveDate,
+        delistings: u32,
+        unpriced: u32,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, ToSchema)]
@@ -106,3 +112,4 @@ pub struct ActionDisagreement {
 }
 
 pub const UNEXPLAINED_MOVE_THRESHOLD: f64 = 0.40;
+pub const UNPRICED_DELISTINGS_TOLERATED: f64 = 0.10;

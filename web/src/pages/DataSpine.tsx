@@ -40,6 +40,7 @@ const DATASETS: Record<Dataset, { name: string; caption: string }> = {
   instruments: { name: "Listed securities", caption: "every stock and ETF with its listing dates" },
   calendar: { name: "Trading calendar", caption: "sessions, half days and closing times" },
   index_membership: { name: "S&P 500 membership", caption: "who was in the index on each day" },
+  delistings: { name: "Delistings", caption: "SEC Form 25 notices, each priced as an ended listing where Alpaca has its bars" },
   companies: { name: "Company profiles", caption: "industry codes and listing exchange per company" },
   fundamentals: { name: "Financial statements", caption: "XBRL facts from 10-K and 10-Q filings, as filed" },
   sec_filings: { name: "SEC filings", caption: "every filing with the time it was accepted" },

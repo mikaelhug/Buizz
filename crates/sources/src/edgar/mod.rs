@@ -19,7 +19,8 @@ mod ownership;
 mod sections;
 
 pub use exhibit::{
-    IndexedDocument, exhibit_text, indexed_documents, is_text_document, press_release_document,
+    IndexedDocument, cover_tickers, exhibit_text, indexed_documents, is_text_document,
+    press_release_document,
 };
 pub use filings::{
     Filings, FilingsPage, OwnershipFiling, Submissions, normalize_filings_page,
@@ -43,6 +44,7 @@ pub const EARNINGS_FORMS: [&str; 2] = ["8-K", "8-K/A"];
 pub const INSIDER_FORMS: [&str; 2] = ["4", "4/A"];
 pub const PERIODIC_FORMS: [&str; 4] = ["10-K", "10-K/A", "10-Q", "10-Q/A"];
 pub const COMPANY_FORMS: [&str; 6] = ["8-K", "8-K/A", "10-K", "10-K/A", "10-Q", "10-Q/A"];
+pub const DELISTING_FORMS: [&str; 2] = ["25", "25-NSE"];
 const NOT_FOUND: u16 = 404;
 const SKIPPED_KINDS: [&str; 4] = ["GRAPHIC", "ZIP", "EX-101", "JSON"];
 const REFUSED: u16 = 403;
@@ -259,6 +261,39 @@ impl EdgarClient {
         Ok(documents)
     }
 
+    pub async fn delisting_notices(
+        &self,
+        year: i32,
+        quarter: u32,
+    ) -> Result<Vec<SecFiling>, SourceError> {
+        let url = format!(
+            "{}/Archives/edgar/full-index/{year}/QTR{quarter}/master.idx",
+            self.www_url
+        );
+        let mut notices = normalize_daily_index(&self.fetch(url).await?);
+        notices.retain(|filing| DELISTING_FORMS.contains(&filing.form.as_str()));
+        Ok(notices)
+    }
+
+    pub async fn report_tickers(
+        &self,
+        cik: u32,
+        accession: &str,
+    ) -> Result<Vec<Symbol>, SourceError> {
+        let url = format!(
+            "{}/Archives/edgar/data/{cik}/{}/R1.htm",
+            self.www_url,
+            accession.replace('-', "")
+        );
+        match self.fetch(url).await {
+            Ok(body) => Ok(cover_tickers(&String::from_utf8_lossy(&body))),
+            Err(SourceError::Status {
+                status: NOT_FOUND, ..
+            }) => Ok(Vec::new()),
+            Err(error) => Err(error),
+        }
+    }
+
     pub async fn daily_index(&self, day: NaiveDate) -> Result<Option<Vec<SecFiling>>, SourceError> {
         let quarter = format!(
             "{}/Archives/edgar/daily-index/{}/QTR{}",
@@ -308,9 +343,14 @@ pub fn normalize_daily_index(payload: &[u8]) -> Vec<SecFiling> {
                 return None;
             };
             let form = form.trim();
-            if ![&ACCEPTED_FORMS[..], &EARNINGS_FORMS, &INSIDER_FORMS]
-                .iter()
-                .any(|forms| forms.contains(&form))
+            if ![
+                &ACCEPTED_FORMS[..],
+                &EARNINGS_FORMS,
+                &INSIDER_FORMS,
+                &DELISTING_FORMS,
+            ]
+            .iter()
+            .any(|forms| forms.contains(&form))
             {
                 return None;
             }

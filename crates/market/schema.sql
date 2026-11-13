@@ -412,3 +412,11 @@ CREATE TABLE IF NOT EXISTS section (
     batch_id BIGINT NOT NULL,
     PRIMARY KEY (doc_id, content_hash, splitter_version, ordinal)
 );
+
+CREATE TABLE IF NOT EXISTS delisting (
+    accession VARCHAR NOT NULL,
+    ticker VARCHAR,
+    listing VARCHAR,
+    outcome VARCHAR NOT NULL,
+    batch_id BIGINT NOT NULL
+);

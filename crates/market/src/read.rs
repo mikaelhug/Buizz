@@ -5,13 +5,14 @@ use buizz_core::api::{TextDocumentView, TextFileView};
 use buizz_core::listing::Listings;
 use buizz_core::market::{
     Adjustment, AdjustmentFactor, AssetClass, Bar, Borrow, Calendar, Company, CorporateAction,
-    CorporateActionKind, Coverage, DataSource, Dataset, EarningsInsight, EarningsRelease,
-    EstimateFact, EstimateMetric, EstimateScope, Filing, FomcAnnouncement, FomcMeeting,
-    FundamentalMetric, FundamentalPoint, HISTORY_FLOORS, HISTORY_START, IndexHistory, IndexMember,
-    InsiderOwner, InsiderPlan, InsiderTrade, InsiderTransaction, Instrument, InstrumentProfile,
-    Liquidity, MacroObservation, MacroPoint, MacroSeries, NewsArticle, PressCandidate,
-    PressRelease, RiskFreeRate, SIP_DELAY, Section, Session, ShortInterest, ShortInterestRecord,
-    ShortVolume, StockIndex, Symbol, TextCandidate, Timeframe,
+    CorporateActionKind, Coverage, DataSource, Dataset, DelistingTally, EarningsInsight,
+    EarningsRelease, EstimateFact, EstimateMetric, EstimateScope, Filing, FomcAnnouncement,
+    FomcMeeting, FundamentalMetric, FundamentalPoint, HISTORY_FLOORS, HISTORY_START, IndexHistory,
+    IndexMember, InsiderOwner, InsiderPlan, InsiderTrade, InsiderTransaction, Instrument,
+    InstrumentProfile, Liquidity, MacroObservation, MacroPoint, MacroSeries, NewsArticle,
+    PendingDelisting, PressCandidate, PressRelease, RiskFreeRate, SIP_DELAY, SecFiling, Section,
+    Session, ShortInterest, ShortInterestRecord, ShortVolume, StockIndex, Symbol, TextCandidate,
+    Timeframe,
 };
 use buizz_core::ops::{ActionDisagreement, CoverageGap, DataWarning, UNEXPLAINED_MOVE_THRESHOLD};
 use buizz_core::protocol::BarRow;
@@ -1848,6 +1849,101 @@ pub(crate) fn latest_sec_filings(
         })?
         .collect::<duckdb::Result<_>>()?;
     Ok(latest)
+}
+
+const DELISTING_FORMS: &str = "('25', '25-NSE')";
+const LATEST_DELISTING_CHECKS: &str = "SELECT d.accession, d.ticker, d.outcome, f.cik, f.filed \
+     FROM delisting d JOIN sec_filing f ON f.accession = d.accession \
+     QUALIFY row_number() OVER (PARTITION BY d.accession, d.ticker ORDER BY d.batch_id DESC) = 1";
+
+pub(crate) fn unresolved_delistings(
+    connection: &Connection,
+    from: NaiveDate,
+) -> Result<Vec<SecFiling>> {
+    let mut statement = connection.prepare_cached(&format!(
+        "SELECT f.cik, f.accession, f.form, f.filed FROM sec_filing f \
+         WHERE f.form IN {DELISTING_FORMS} AND f.filed >= ? \
+         AND NOT EXISTS (SELECT 1 FROM delisting d WHERE d.accession = f.accession) \
+         ORDER BY f.filed DESC, f.cik, f.accession"
+    ))?;
+    let notices = statement
+        .query_map(params![from], |row| {
+            Ok(SecFiling {
+                cik: row.get(0)?,
+                accession: row.get(1)?,
+                form: row.get(2)?,
+                filed: row.get(3)?,
+            })
+        })?
+        .collect::<duckdb::Result<_>>()?;
+    Ok(notices)
+}
+
+pub(crate) fn pending_delistings(connection: &Connection) -> Result<Vec<PendingDelisting>> {
+    let mut statement = connection.prepare_cached(&format!(
+        "SELECT ticker, filed, accession FROM ({LATEST_DELISTING_CHECKS}) \
+         WHERE outcome = 'pending' ORDER BY filed DESC, ticker, accession"
+    ))?;
+    let rows = statement
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, Sym>(0)?.0,
+                row.get::<_, NaiveDate>(1)?,
+                row.get::<_, String>(2)?,
+            ))
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    let mut pending: Vec<PendingDelisting> = Vec::new();
+    for (ticker, filed, accession) in rows {
+        match pending.last_mut() {
+            Some(last) if last.ticker == ticker && last.filed == filed => {
+                last.accessions.push(accession);
+            }
+            _ => pending.push(PendingDelisting {
+                ticker,
+                filed,
+                accessions: vec![accession],
+            }),
+        }
+    }
+    Ok(pending)
+}
+
+pub(crate) fn delisting_tally(
+    connection: &Connection,
+    from: NaiveDate,
+    to: NaiveDate,
+) -> Result<DelistingTally> {
+    let mut statement = connection.prepare_cached(&format!(
+        "SELECT count(*), count(*) FILTER (WHERE NOT priced) FROM ( \
+           SELECT cik, filed, bool_or(outcome IN ('held', 'stored')) AS priced \
+           FROM ({LATEST_DELISTING_CHECKS}) WHERE ticker IS NOT NULL AND filed BETWEEN ? AND ? \
+           GROUP BY cik, filed HAVING bool_and(outcome <> 'pending'))"
+    ))?;
+    Ok(statement.query_row(params![from, to], |row| {
+        Ok(DelistingTally {
+            delistings: row.get(0)?,
+            unpriced: row.get(1)?,
+        })
+    })?)
+}
+
+pub(crate) fn delisting_progress(connection: &Connection) -> Result<AccessionProgress> {
+    let mut statement = connection.prepare_cached(&format!(
+        "SELECT count(*), count(*) FILTER (WHERE settled AND priced), \
+           count(*) FILTER (WHERE settled AND NOT priced) FROM ( \
+           SELECT f.accession, coalesce(bool_and(c.outcome <> 'pending'), false) AS settled, \
+             coalesce(bool_or(c.outcome IN ('held', 'stored')), false) AS priced \
+           FROM sec_filing f LEFT JOIN ({LATEST_DELISTING_CHECKS}) c ON c.accession = f.accession \
+           WHERE f.form IN {DELISTING_FORMS} GROUP BY f.accession)"
+    ))?;
+    Ok(statement.query_row([], |row| {
+        Ok(AccessionProgress {
+            expected: row.get(0)?,
+            done: row.get(1)?,
+            failed: row.get(2)?,
+        })
+    })?)
 }
 
 pub(crate) fn daily_watermark(connection: &Connection) -> Result<Option<Timestamp>> {

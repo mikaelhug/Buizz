@@ -656,6 +656,9 @@ impl Runner {
                 .action_disagreements(Some(required), config.start, end)
                 .await?,
         );
+        if matches!(config.universe, UniverseSpec::TopDollarVolume { .. }) {
+            warnings.extend(market.survivorship_gaps(config.start, end).await?);
+        }
         Ok(warnings)
     }
 
@@ -937,6 +940,22 @@ pub(crate) fn describe(warning: &DataWarning) -> String {
             source,
             message,
         } => format!("{symbol} from {source:?} was rejected: {message}"),
+        DataWarning::SurvivorshipGap {
+            from,
+            to,
+            delistings: 0,
+            ..
+        } => format!(
+            "before Alpaca's history the universe from {from} to {to} holds only companies still trading in 2016"
+        ),
+        DataWarning::SurvivorshipGap {
+            from,
+            to,
+            delistings,
+            unpriced,
+        } => format!(
+            "{unpriced} of {delistings} stock delistings from {from} to {to} have no prices, so the universe misses those losers"
+        ),
         DataWarning::ActionDisagreement(disagreement) => {
             let value = |value: &Option<Decimal>| {
                 value.map_or("none".to_owned(), |value| value.normalize().to_string())

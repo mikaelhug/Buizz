@@ -8,7 +8,8 @@ use buizz_core::api::{
     TextDocumentView, TextListing, TextVolumeView,
 };
 use buizz_core::market::{
-    Coverage, DataSource, Dataset, HISTORY_START, Market, Symbol, Timeframe, Watermarks,
+    ALPACA_HISTORY_START, Coverage, DataSource, Dataset, HISTORY_START, Market, Symbol, Timeframe,
+    Watermarks,
 };
 use buizz_core::ops::{CoverageGap, DataWarning};
 use buizz_core::time::Timestamp;
@@ -73,6 +74,15 @@ async fn warnings(
             .action_disagreements(None, HISTORY_START, to)
             .await?,
     );
+    for year in ALPACA_HISTORY_START.year()..=to.year() {
+        let first = NaiveDate::from_ymd_opt(year, 1, 1).expect("a year starts on a date");
+        let last = NaiveDate::from_ymd_opt(year, 12, 31).expect("a year ends on a date");
+        warnings.extend(
+            app.market
+                .survivorship_gaps(first.max(ALPACA_HISTORY_START), last.min(to))
+                .await?,
+        );
+    }
     Ok(warnings)
 }
 

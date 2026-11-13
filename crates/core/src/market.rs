@@ -539,6 +539,37 @@ pub struct SecFiling {
     pub filed: NaiveDate,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DelistingOutcome {
+    Pending,
+    NoTicker,
+    NoBars,
+    Held,
+    Stored,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DelistingCheck {
+    pub accession: String,
+    pub ticker: Option<Symbol>,
+    pub listing: Option<Symbol>,
+    pub outcome: DelistingOutcome,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PendingDelisting {
+    pub ticker: Symbol,
+    pub filed: NaiveDate,
+    pub accessions: Vec<String>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DelistingTally {
+    pub delistings: u32,
+    pub unpriced: u32,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct EarningsRelease {
     pub symbol: Symbol,
@@ -1209,16 +1240,18 @@ pub enum Dataset {
     FilingSections,
     ShortInterest,
     ShortVolume,
+    Delistings,
 }
 
 impl Dataset {
-    pub const ALL: [Self; 24] = [
+    pub const ALL: [Self; 25] = [
         Self::Bars1d,
         Self::Bars1m,
         Self::CorporateActions,
         Self::Instruments,
         Self::Calendar,
         Self::IndexMembership,
+        Self::Delistings,
         Self::Companies,
         Self::Fundamentals,
         Self::SecFilings,
@@ -1242,9 +1275,11 @@ impl Dataset {
     pub fn domain(self) -> DataDomain {
         match self {
             Self::Bars1d | Self::Bars1m | Self::CorporateActions => DataDomain::Prices,
-            Self::Instruments | Self::Calendar | Self::IndexMembership | Self::Companies => {
-                DataDomain::Reference
-            }
+            Self::Instruments
+            | Self::Calendar
+            | Self::IndexMembership
+            | Self::Delistings
+            | Self::Companies => DataDomain::Reference,
             Self::Fundamentals
             | Self::SecFilings
             | Self::EarningsReleases

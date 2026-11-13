@@ -3,10 +3,10 @@ use std::ops::RangeInclusive;
 
 use buizz_core::market::{
     Bar, BorrowAvailability, Company, CorporateAction, CorporateActionKind, DataSource, Dataset,
-    DocumentSections, EarningsInsight, EarningsRelease, EstimateFact, Filing, FilingDocument,
-    FilingText, FomcMeeting, FundamentalFact, IndexHistory, InsiderFiling, InsiderPlan, Instrument,
-    MacroObservation, NewsArticle, PressExhibit, RiskFreeRate, SecFiling, Section, Session,
-    ShortInterestRecord, ShortVolumeRecord, Symbol, split_rates,
+    DelistingCheck, DocumentSections, EarningsInsight, EarningsRelease, EstimateFact, Filing,
+    FilingDocument, FilingText, FomcMeeting, FundamentalFact, IndexHistory, InsiderFiling,
+    InsiderPlan, Instrument, MacroObservation, NewsArticle, PressExhibit, RiskFreeRate, SecFiling,
+    Section, Session, ShortInterestRecord, ShortVolumeRecord, Symbol, split_rates,
 };
 use buizz_core::ops::ActionDisagreement;
 use buizz_core::time::Timestamp;
@@ -1081,15 +1081,17 @@ pub(crate) fn earnings_releases(
 pub(crate) fn sec_filings(
     connection: &mut Connection,
     source: DataSource,
+    dataset: Dataset,
     filings: Vec<SecFiling>,
-    day: NaiveDate,
+    (from, to): (NaiveDate, NaiveDate),
 ) -> Result<WriteSummary> {
     let mut coverage = Coverage::new();
-    cover(&mut coverage, None, day);
+    cover(&mut coverage, None, from);
+    cover(&mut coverage, None, to);
     write_batch(
         connection,
         source,
-        Dataset::SecFilings,
+        dataset,
         coverage,
         |transaction, batch_id| {
             let mut statement = transaction
@@ -1105,6 +1107,33 @@ pub(crate) fn sec_filings(
                 ])? as u64;
             }
             Ok(rows)
+        },
+    )
+}
+
+pub(crate) fn delisting_checks(
+    connection: &mut Connection,
+    source: DataSource,
+    checks: Vec<DelistingCheck>,
+) -> Result<WriteSummary> {
+    write_batch(
+        connection,
+        source,
+        Dataset::Delistings,
+        Coverage::new(),
+        |transaction, batch_id| {
+            let mut statement =
+                transaction.prepare_cached("INSERT INTO main.delisting VALUES (?, ?, ?, ?, ?)")?;
+            for check in &checks {
+                statement.execute(params![
+                    check.accession,
+                    check.ticker.as_ref().map(Symbol::as_str),
+                    check.listing.as_ref().map(Symbol::as_str),
+                    wire_name(&check.outcome),
+                    batch_id
+                ])?;
+            }
+            Ok(checks.len() as u64)
         },
     )
 }

@@ -233,6 +233,8 @@ impl Ingest {
                 &mut batch,
             )
             .await?;
+            self.price_delistings(now, alpaca, &calendar, &target, &mut batch)
+                .await?;
         }
         let stored: BTreeMap<Symbol, Instrument> = self
             .market
@@ -570,7 +572,7 @@ impl Around<'_> {
     }
 }
 
-async fn listing_bars(
+pub(crate) async fn listing_bars(
     alpaca: &AlpacaClient,
     calendar: &Calendar,
     ticker: &Symbol,

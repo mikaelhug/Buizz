@@ -14,7 +14,7 @@ use buizz_core::market::{
     Adjustment, AssetClass, BorrowAvailability, DataSource, Dataset, IndexHistory, IndexMember,
     MacroSeries, StockIndex, Symbol, Timeframe,
 };
-use buizz_core::ops::{FetchStatus, JobOutcome};
+use buizz_core::ops::{DataWarning, FetchStatus, JobOutcome};
 use buizz_core::time::Timestamp;
 use buizz_ingest::{Ingest, IngestConfig, TickReport};
 use buizz_market::{HistoryRequest, MarketStore};
@@ -57,6 +57,9 @@ const SPY_REVISED: &str = "2024-07-05";
 const HOLIDAY: &str = "2024-07-04";
 const UNKNOWN: &str = "BADX";
 const DELISTED_MEMBER: &str = "K";
+const DELISTED_CIK: u32 = 750556;
+const UNPRICED_CIK: u32 = 990001;
+const DELISTING_FILED: &str = "2016-04-08";
 const REUSED: &str = "STI";
 const ENDED_LAST_BAR: &str = "2016-03-31";
 const REUSED_FIRST_BAR: &str = "2016-04-20";
@@ -77,6 +80,7 @@ struct Fake {
     last_bars: Mutex<Params>,
     listed_later: AtomicBool,
     filed_late: AtomicBool,
+    delistings: AtomicBool,
     action_requests: Mutex<Vec<Params>>,
     hits: Mutex<HashMap<&'static str, u32>>,
 }
@@ -287,6 +291,41 @@ async fn daily_index(Path((_, _, file)): Path<(String, String, String)>) -> Resp
     }
 }
 
+async fn full_index(
+    State(fake): State<Arc<Fake>>,
+    Path((year, quarter)): Path<(String, String)>,
+) -> Response {
+    let header = "CIK|Company Name|Form Type|Date Filed|File Name\n---\n";
+    let listed = fake.delistings.load(Ordering::SeqCst);
+    let notices = match (year.as_str(), quarter.as_str()) {
+        ("2016", "QTR2") if listed => format!(
+            "{DELISTED_CIK}|SUNTRUST BANKS INC|25-NSE|{DELISTING_FILED}|edgar/data/{DELISTED_CIK}/0000876661-16-000101.txt\n\
+             {DELISTED_CIK}|SUNTRUST BANKS INC|10-Q|2016-05-06|edgar/data/{DELISTED_CIK}/0000750556-16-000020.txt\n\
+             {UNPRICED_CIK}|GONE INC|25|2016-05-02|edgar/data/{UNPRICED_CIK}/0000990001-16-000003.txt\n"
+        ),
+        _ => String::new(),
+    };
+    format!("{header}{notices}").into_response()
+}
+
+fn filer(cik: u32, report: &str) -> Response {
+    json(format!(
+        r#"{{"cik":"{cik:010}","sic":"6022","tickers":[],"filings":{{"recent":{{
+            "accessionNumber":["{report}"],"filingDate":["2016-02-26"],"reportDate":["2015-12-31"],
+            "acceptanceDateTime":["2016-02-26T16:05:00.000Z"],"form":["10-K"],"items":[""],
+            "primaryDocument":["annual.htm"]}},"files":[]}}}}"#
+    ))
+}
+
+fn cover(ticker: &str) -> Response {
+    format!(
+        r#"<table class="report"><tr><th>Document and Entity Information</th></tr>
+        <tr><td class="pl"><a>Entity Registrant Name</a></td><td class="text">Filer</td></tr>
+        <tr><td class="pl"><a>Trading Symbol</a></td><td class="text">{ticker}<span></span></td></tr></table>"#
+    )
+    .into_response()
+}
+
 async fn yields() -> Response {
     YIELDS.to_owned().into_response()
 }
@@ -318,6 +357,26 @@ async fn serve_fakes(fake: Arc<Fake>) -> String {
         .route(
             "/Archives/edgar/daily-index/{year}/{quarter}/{file}",
             get(daily_index),
+        )
+        .route(
+            "/Archives/edgar/full-index/{year}/{quarter}/master.idx",
+            get(full_index),
+        )
+        .route(
+            "/submissions/CIK0000750556.json",
+            get(|| async { filer(DELISTED_CIK, "0000750556-16-000010") }),
+        )
+        .route(
+            "/submissions/CIK0000990001.json",
+            get(|| async { filer(UNPRICED_CIK, "0000990001-16-000001") }),
+        )
+        .route(
+            "/Archives/edgar/data/750556/000075055616000010/R1.htm",
+            get(|| async { cover("sti") }),
+        )
+        .route(
+            "/Archives/edgar/data/990001/000099000116000001/R1.htm",
+            get(|| async { cover("GONE") }),
         )
         .route(
             "/submissions/CIK0000320193.json",
@@ -733,6 +792,65 @@ async fn a_member_whose_ticker_a_later_company_took_is_priced_as_alpaca_mapped_i
 }
 
 #[tokio::test]
+async fn a_company_alpaca_no_longer_lists_is_priced_from_its_form_25_and_one_it_lacks_is_a_survivorship_gap()
+ {
+    let fake = Arc::new(Fake::default());
+    fake.delistings.store(true, Ordering::SeqCst);
+    let url = serve_fakes(fake.clone()).await;
+    let directory = tempfile::tempdir().unwrap();
+    let (market, _state, ingest) = spine(directory.path(), &url).await;
+    let first_at = stamp("2016-07-06T21:00:00Z");
+    ingest.tick(first_at).await.unwrap();
+    ingest.tick(first_at + TimeDelta::hours(7)).await.unwrap();
+
+    let ended = Symbol::ended(&Symbol::new(REUSED), date(ENDED_LAST_BAR));
+    let listing = market
+        .instruments()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|instrument| instrument.symbol == ended)
+        .map(|instrument| {
+            (
+                instrument.asset_class,
+                instrument.active,
+                instrument.last_session,
+            )
+        });
+    assert_eq!(
+        listing,
+        Some((AssetClass::Stock, false, Some(date(ENDED_LAST_BAR))))
+    );
+    let bars = market
+        .bars_between(
+            Timeframe::Day,
+            vec![ended],
+            stamp("2016-01-01T00:00:00Z"),
+            stamp("2016-12-31T00:00:00Z"),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        bars.len(),
+        weekdays(date(ALPACA_FIRST_BAR), date(ENDED_LAST_BAR)).len(),
+        "the delisted company's bars as it traded under STI, not the later STI's"
+    );
+    assert_eq!(
+        market
+            .survivorship_gaps(date("2016-01-04"), date("2016-12-31"))
+            .await
+            .unwrap(),
+        vec![DataWarning::SurvivorshipGap {
+            from: date("2016-01-04"),
+            to: date("2016-12-31"),
+            delistings: 2,
+            unpriced: 1,
+        }],
+        "GONE delisted in 2016 and Alpaca has no bars for it"
+    );
+}
+
+#[tokio::test]
 async fn a_member_alpaca_lists_only_under_its_later_ticker_is_priced_under_its_earlier_one() {
     let fake = Arc::new(Fake::default());
     let url = serve_fakes(fake.clone()).await;
@@ -869,6 +987,7 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
             ("bars_1m", JobOutcome::Noop),
             ("corporate_actions", JobOutcome::Ok),
             ("sec_index", JobOutcome::Noop),
+            ("delistings", JobOutcome::Noop),
             ("fundamentals", JobOutcome::Ok),
             ("filings", JobOutcome::Ok),
             ("insider_trades", JobOutcome::Ok),
@@ -988,6 +1107,7 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
             ("bars_1m", JobOutcome::Noop),
             ("corporate_actions", JobOutcome::Noop),
             ("sec_index", JobOutcome::Noop),
+            ("delistings", JobOutcome::Noop),
             ("fundamentals", JobOutcome::Noop),
             ("filings", JobOutcome::Noop),
             ("insider_trades", JobOutcome::Noop),

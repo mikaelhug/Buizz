@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use buizz_core::listing::Listings;
 use buizz_core::market::{
@@ -34,12 +34,22 @@ impl Ingest {
         if let Some(work) = self.backoff_work(now, DataSource::Alpaca).await? {
             return Ok(work);
         }
-        let symbols: Vec<Symbol> = self
+        let mut symbols: Vec<Symbol> = self
             .priced_symbols()
             .await?
             .into_iter()
             .map(|priced| priced.symbol)
             .collect();
+        let priced: BTreeSet<Symbol> = symbols.iter().cloned().collect();
+        let ended: BTreeSet<Symbol> = self
+            .market
+            .instruments()
+            .await?
+            .into_iter()
+            .filter_map(|instrument| Some(instrument.symbol.ended_listing()?.0))
+            .filter(|ticker| !priced.contains(ticker))
+            .collect();
+        symbols.extend(ended);
         if symbols.is_empty() {
             return Ok(Work::waiting("no instruments to price"));
         }

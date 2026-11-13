@@ -2347,6 +2347,42 @@
                 }
               }
             ]
+          },
+          {
+            "type": "object",
+            "required": [
+              "from",
+              "to",
+              "delistings",
+              "unpriced",
+              "type"
+            ],
+            "properties": {
+              "from": {
+                "type": "string",
+                "format": "date"
+              },
+              "to": {
+                "type": "string",
+                "format": "date"
+              },
+              "delistings": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 0
+              },
+              "unpriced": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "survivorship_gap"
+                ]
+              }
+            }
           }
         ]
       },
@@ -2376,7 +2412,8 @@
           "filing_documents",
           "filing_sections",
           "short_interest",
-          "short_volume"
+          "short_volume",
+          "delistings"
         ]
       },
       "DatasetSpine": {

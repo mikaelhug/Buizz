@@ -14,6 +14,7 @@ pub(crate) const BARS_1D: &str = "bars_1d";
 pub(crate) const BARS_1M: &str = "bars_1m";
 pub(crate) const CORPORATE_ACTIONS: &str = "corporate_actions";
 pub(crate) const SEC_INDEX: &str = "sec_index";
+pub(crate) const DELISTINGS: &str = "delistings";
 pub(crate) const FUNDAMENTALS: &str = "fundamentals";
 pub(crate) const FILINGS: &str = "filings";
 pub(crate) const INSIDER_TRADES: &str = "insider_trades";
@@ -43,7 +44,7 @@ const SHORT_RETRY: Duration = HOUR;
 const FIRST_FAILURE_RETRY: Duration = Duration::from_secs(5 * 60);
 const STALE_AFTER_INTERVALS: i32 = 3;
 
-pub(crate) const JOBS: [JobSpec; 26] = [
+pub(crate) const JOBS: [JobSpec; 27] = [
     JobSpec {
         name: CALENDAR,
         source: Some(DataSource::Alpaca),
@@ -84,6 +85,12 @@ pub(crate) const JOBS: [JobSpec; 26] = [
         name: SEC_INDEX,
         source: Some(DataSource::Edgar),
         datasets: &[Dataset::SecFilings],
+        every: SIX_HOURS,
+    },
+    JobSpec {
+        name: DELISTINGS,
+        source: Some(DataSource::Edgar),
+        datasets: &[Dataset::Delistings],
         every: SIX_HOURS,
     },
     JobSpec {

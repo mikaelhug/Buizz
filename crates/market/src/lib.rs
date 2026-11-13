@@ -8,16 +8,19 @@ use buizz_core::api::{
 };
 use buizz_core::listing::Listings;
 use buizz_core::market::{
-    Adjustment, AdjustmentFactor, Bar, Borrow, BorrowAvailability, Calendar, Company,
-    CorporateAction, Coverage, DataSource, DocumentSections, EarningsInsight, EarningsRelease,
-    EstimateFact, Filing, FilingText, FomcAnnouncement, FomcMeeting, FundamentalFact,
-    FundamentalMetric, FundamentalPoint, IndexHistory, InsiderFiling, InsiderPlan, InsiderTrade,
-    Instrument, InstrumentProfile, Liquidity, MacroObservation, MacroPoint, MacroSeries,
-    NewsArticle, PressCandidate, PressExhibit, PressRelease, RiskFreeRate, SecFiling, Session,
-    ShortInterest, ShortInterestRecord, ShortVolume, ShortVolumeRecord, StockIndex, Symbol,
-    TextCandidate, Timeframe, UnsplitDocument, Watermarks,
+    ALPACA_HISTORY_START, Adjustment, AdjustmentFactor, Bar, Borrow, BorrowAvailability, Calendar,
+    Company, CorporateAction, Coverage, DataSource, Dataset, DelistingCheck, DocumentSections,
+    EarningsInsight, EarningsRelease, EstimateFact, Filing, FilingText, FomcAnnouncement,
+    FomcMeeting, FundamentalFact, FundamentalMetric, FundamentalPoint, IndexHistory, InsiderFiling,
+    InsiderPlan, InsiderTrade, Instrument, InstrumentProfile, Liquidity, MacroObservation,
+    MacroPoint, MacroSeries, NewsArticle, PendingDelisting, PressCandidate, PressExhibit,
+    PressRelease, RiskFreeRate, SecFiling, Session, ShortInterest, ShortInterestRecord,
+    ShortVolume, ShortVolumeRecord, StockIndex, Symbol, TextCandidate, Timeframe, UnsplitDocument,
+    Watermarks,
 };
-use buizz_core::ops::{ActionDisagreement, CoverageGap, DataWarning};
+use buizz_core::ops::{
+    ActionDisagreement, CoverageGap, DataWarning, UNPRICED_DELISTINGS_TOLERATED,
+};
 use buizz_core::protocol::BarRow;
 use buizz_core::run::UniverseSpec;
 use buizz_core::time::Timestamp;
@@ -990,7 +993,80 @@ impl MarketStore {
         day: NaiveDate,
     ) -> Result<WriteSummary> {
         self.writer
-            .run(move |connection| write::sec_filings(connection, source, filings, day))
+            .run(move |connection| {
+                write::sec_filings(connection, source, Dataset::SecFilings, filings, (day, day))
+            })
+            .await
+    }
+
+    pub async fn append_delisting_notices(
+        &self,
+        source: DataSource,
+        notices: Vec<SecFiling>,
+        span: (NaiveDate, NaiveDate),
+    ) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| {
+                write::sec_filings(connection, source, Dataset::Delistings, notices, span)
+            })
+            .await
+    }
+
+    pub async fn record_delistings(
+        &self,
+        source: DataSource,
+        checks: Vec<DelistingCheck>,
+    ) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| write::delisting_checks(connection, source, checks))
+            .await
+    }
+
+    pub async fn unresolved_delistings(&self, from: NaiveDate) -> Result<Vec<SecFiling>> {
+        self.readers
+            .run(move |connection| read::unresolved_delistings(connection, from))
+            .await
+    }
+
+    pub async fn pending_delistings(&self) -> Result<Vec<PendingDelisting>> {
+        self.readers
+            .run(|connection| read::pending_delistings(connection))
+            .await
+    }
+
+    pub async fn survivorship_gaps(
+        &self,
+        from: NaiveDate,
+        to: NaiveDate,
+    ) -> Result<Vec<DataWarning>> {
+        let mut gaps = Vec::new();
+        if from < ALPACA_HISTORY_START {
+            gaps.push(DataWarning::SurvivorshipGap {
+                from,
+                to: to.min(ALPACA_HISTORY_START - TimeDelta::days(1)),
+                delistings: 0,
+                unpriced: 0,
+            });
+        }
+        let checked_from = from.max(ALPACA_HISTORY_START);
+        let tally = self
+            .readers
+            .run(move |connection| read::delisting_tally(connection, checked_from, to))
+            .await?;
+        if f64::from(tally.unpriced) > UNPRICED_DELISTINGS_TOLERATED * f64::from(tally.delistings) {
+            gaps.push(DataWarning::SurvivorshipGap {
+                from: checked_from,
+                to,
+                delistings: tally.delistings,
+                unpriced: tally.unpriced,
+            });
+        }
+        Ok(gaps)
+    }
+
+    pub async fn delisting_progress(&self) -> Result<AccessionProgress> {
+        self.readers
+            .run(|connection| read::delisting_progress(connection))
             .await
     }
 

@@ -1,6 +1,9 @@
+use buizz_core::market::Symbol;
 use scraper::{ElementRef, Html, Node, Selector};
 
 const PRESS_RELEASE: &str = "EX-99";
+const TRADING_SYMBOL: &str = "Trading Symbol";
+const NOT_TICKERS: [&str; 6] = ["NONE", "NA", "N", "NYSE", "AMEX", "OTC"];
 const SKIPPED: [&str; 6] = ["head", "script", "style", "title", "noscript", "template"];
 const BLOCKS: [&str; 26] = [
     "address",
@@ -67,6 +70,42 @@ pub fn indexed_documents(index: &str) -> Vec<IndexedDocument> {
             })
         })
         .collect()
+}
+
+pub fn cover_tickers(report: &str) -> Vec<Symbol> {
+    let html = Html::parse_document(report);
+    let (Ok(rows), Ok(cells)) = (Selector::parse("tr"), Selector::parse("td")) else {
+        return Vec::new();
+    };
+    let mut tickers: Vec<Symbol> = Vec::new();
+    for row in html.select(&rows) {
+        let texts: Vec<String> = row
+            .select(&cells)
+            .map(|cell| cell.text().collect::<String>())
+            .collect();
+        let Some((label, values)) = texts.split_first() else {
+            continue;
+        };
+        if !label.trim().eq_ignore_ascii_case(TRADING_SYMBOL) {
+            continue;
+        }
+        for token in values.iter().flat_map(|value| {
+            value.split(|letter: char| letter == ',' || letter == ';' || letter.is_whitespace())
+        }) {
+            let ticker = token.trim().to_ascii_uppercase().replace('-', ".");
+            let (root, class) = ticker.split_once('.').unwrap_or((&ticker, ""));
+            let plausible = (1..=5).contains(&root.len())
+                && root.chars().all(|letter| letter.is_ascii_uppercase())
+                && class.len() <= 2
+                && class.chars().all(|letter| letter.is_ascii_alphanumeric())
+                && !NOT_TICKERS.contains(&root);
+            let symbol = Symbol::new(&ticker);
+            if plausible && !tickers.contains(&symbol) {
+                tickers.push(symbol);
+            }
+        }
+    }
+    tickers
 }
 
 pub fn press_release_document(index: &str) -> Option<IndexedDocument> {

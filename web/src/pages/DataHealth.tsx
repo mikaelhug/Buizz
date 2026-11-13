@@ -21,6 +21,7 @@ const WARNING_KINDS: Record<Schemas["DataWarning"]["type"], string> = {
   unexplained_move: "Unexplained move",
   overlap_rejected: "Overlap rejected",
   action_disagreement: "Sources disagree",
+  survivorship_gap: "Delistings unpriced",
 };
 
 const TIMEFRAMES: Record<Schemas["Timeframe"], string> = { "1d": "Daily", "1m": "Minute" };
@@ -240,8 +241,12 @@ function gapDays(from: string, to: string): number {
   return Math.round((Date.parse(to) - Date.parse(from)) / DAY_MS) + 1;
 }
 
+const warningSymbol = (warning: Schemas["DataWarning"]) => ("symbol" in warning ? warning.symbol : ABSENT);
+
 function warningText(warning: Schemas["DataWarning"]): string {
   switch (warning.type) {
+    case "survivorship_gap":
+      return `${warning.unpriced} of ${warning.delistings} stock delistings ${warning.from} → ${warning.to} have no prices`;
     case "coverage_gap": {
       const days = gapDays(warning.from, warning.to);
       return `${TIMEFRAMES[warning.timeframe]} bars missing ${warning.from} → ${warning.to} (${days} ${days === 1 ? "day" : "days"})`;
@@ -259,7 +264,7 @@ type Warning = Schemas["DataWarning"];
 type WarningColumn = "symbol" | "kind" | "detail";
 
 const WARNING_COLUMNS: SortColumns<Warning, WarningColumn> = {
-  symbol: { value: (warning) => warning.symbol },
+  symbol: { value: warningSymbol },
   kind: { value: (warning) => WARNING_KINDS[warning.type] },
   detail: { value: warningText },
 };
@@ -268,7 +273,7 @@ function WarningsPanel({ health }: { health: Resource<Schemas["DataHealth"]> }) 
   const warnings = health.data?.warnings;
   const sorting = useSort("warnings", WARNING_COLUMNS, { key: "symbol", descending: false });
   const [query, setQuery] = useQueryParam("warnings");
-  const shown = sorting.order((warnings ?? []).filter((warning) => matches(query, warning.symbol, WARNING_KINDS[warning.type], warningText(warning))));
+  const shown = sorting.order((warnings ?? []).filter((warning) => matches(query, warningSymbol(warning), WARNING_KINDS[warning.type], warningText(warning))));
   return (
     <section className="panel">
       <header className="panel-head">
@@ -304,8 +309,8 @@ function WarningsPanel({ health }: { health: Resource<Schemas["DataHealth"]> }) 
             </thead>
             <tbody>
               {shown.map((warning) => (
-                <tr key={`${warning.symbol}-${warningText(warning)}`} className={`warning-${warning.type}`}>
-                  <td className="sym">{warning.symbol}</td>
+                <tr key={`${warningSymbol(warning)}-${warningText(warning)}`} className={`warning-${warning.type}`}>
+                  <td className="sym">{warningSymbol(warning)}</td>
                   <td className="warning-kind">{WARNING_KINDS[warning.type]}</td>
                   <td className="reason">{warningText(warning)}</td>
                 </tr>
