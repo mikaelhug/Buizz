@@ -637,8 +637,12 @@ impl Runner {
         let market = &self.inner.market;
         let symbols = gate_symbols(market, config).await?;
         let end = config.end.unwrap_or(config.start);
+        let required = match config.universe {
+            UniverseSpec::Index { .. } => vec![config.benchmark.clone()],
+            _ => symbols.clone(),
+        };
         let gaps = market
-            .coverage_gaps(symbols.clone(), Timeframe::Day, config.start, end)
+            .coverage_gaps(required, Timeframe::Day, config.start, end)
             .await?;
         if !gaps.is_empty() {
             return Err(RunnerError::CoverageGaps(gaps));
