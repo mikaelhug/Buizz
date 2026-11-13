@@ -124,6 +124,7 @@ pub(crate) fn refuted_by_prices(
     date: NaiveDate,
     ratio: Decimal,
     distributed: Decimal,
+    other_splits: &[NaiveDate],
 ) -> bool {
     let Some((close, open)) = around(bars, date).filter(|(close, _)| *close > distributed) else {
         return false;
@@ -138,7 +139,9 @@ pub(crate) fn refuted_by_prices(
     };
     let shown_on_another_session = bars.windows(2).any(|pair| {
         let moved = pair[0].close / pair[1].open;
-        pair[1].start.exchange_date() != date
+        let session = pair[1].start.exchange_date();
+        session != date
+            && !other_splits.contains(&session)
             && !pair[1].open.is_zero()
             && match (distance(moved, ratio), distance(moved, Decimal::ONE)) {
                 (Some(split), Some(none)) => split <= CORROBORATED_LOG_DISTANCE && split < none,
@@ -194,7 +197,7 @@ mod tests {
                 bar("2020-04-02", close, close),
                 bar("2020-04-03", open, open),
             ];
-            refuted_by_prices(&bars, date("2020-04-03"), dec(ratio), dec(distributed))
+            refuted_by_prices(&bars, date("2020-04-03"), dec(ratio), dec(distributed), &[])
         };
         let misdated = [
             bar("2025-02-26", 102, 102),
@@ -202,8 +205,18 @@ mod tests {
             bar("2025-02-28", 21, 21),
         ];
         assert!(
-            !refuted_by_prices(&misdated, date("2025-02-27"), dec("5"), Decimal::ZERO),
+            !refuted_by_prices(&misdated, date("2025-02-27"), dec("5"), Decimal::ZERO, &[]),
             "a 5-for-1 the prices show a session away from Alpaca's ex-date is a real split"
+        );
+        assert!(
+            refuted_by_prices(
+                &misdated,
+                date("2025-02-27"),
+                dec("5"),
+                Decimal::ZERO,
+                &[date("2025-02-28")]
+            ),
+            "a second filing of a split Alpaca also has on the session the prices show it"
         );
         assert!(
             refuted(86, 51, "0.5", "0"),

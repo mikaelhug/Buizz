@@ -246,7 +246,16 @@ impl Ingest {
                 .await?;
             let distributed = self.distributed(&actions, action).await?;
             let ratio = new_rate / old_rate;
-            if refuted_by_prices(&bars, action.ex_date, ratio, distributed) {
+            let other_splits: Vec<NaiveDate> = actions
+                .iter()
+                .filter(|other| {
+                    other.symbol == action.symbol
+                        && other.ex_date != action.ex_date
+                        && matches!(other.kind, CorporateActionKind::Split { .. })
+                })
+                .map(|other| other.ex_date)
+                .collect();
+            if refuted_by_prices(&bars, action.ex_date, ratio, distributed, &other_splits) {
                 dropped.insert(index);
                 refuted.push(ActionDisagreement {
                     symbol: action.symbol.clone(),
