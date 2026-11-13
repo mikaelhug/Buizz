@@ -246,7 +246,7 @@ impl Ingest {
         }
         if !check.disagreements.is_empty() {
             self.market
-                .record_action_disagreements(check.disagreements)
+                .record_action_disagreements(DataSource::Tiingo, check.disagreements)
                 .await?;
         }
         Ok(())

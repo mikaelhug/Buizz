@@ -15,7 +15,7 @@ use buizz_core::api::{
 };
 use buizz_core::market::{Instrument, StockIndex, Symbol, Timeframe};
 use buizz_core::money::CASH_DECIMALS;
-use buizz_core::ops::{CoverageGap, DataWarning};
+use buizz_core::ops::{ActionVerdict, CoverageGap, DataWarning};
 use buizz_core::performance::Metrics;
 use buizz_core::run::{
     DesiredState, MAX_SWEEP_VARIANTS, Mode, PeriodPreset, RunBadge, RunConfig, RunEvent,
@@ -938,14 +938,18 @@ pub(crate) fn describe(warning: &DataWarning) -> String {
             let value = |value: &Option<Decimal>| {
                 value.map_or("none".to_owned(), |value| value.normalize().to_string())
             };
+            let used = match disagreement.kept {
+                ActionVerdict::Alpaca => "Alpaca's is used",
+                ActionVerdict::Tiingo => "Tiingo's is used",
+                ActionVerdict::Prices => "the prices refute Alpaca's, so none is applied",
+            };
             format!(
-                "Alpaca and Tiingo disagree on {}'s {:?} on {}: Alpaca {}, Tiingo {}; {:?} is used",
+                "Alpaca and Tiingo disagree on {}'s {:?} on {}: Alpaca {}, Tiingo {}; {used}",
                 disagreement.symbol,
                 disagreement.action,
                 disagreement.ex_date,
                 value(&disagreement.alpaca),
                 value(&disagreement.tiingo),
-                disagreement.kept
             )
         }
     }

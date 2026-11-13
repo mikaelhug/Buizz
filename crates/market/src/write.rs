@@ -664,11 +664,12 @@ pub(crate) fn normalized_splits(connection: &mut Connection, source: DataSource)
 
 pub(crate) fn action_checks(
     connection: &mut Connection,
+    source: DataSource,
     checks: Vec<ActionDisagreement>,
 ) -> Result<WriteSummary> {
     write_batch(
         connection,
-        DataSource::Tiingo,
+        source,
         Dataset::CorporateActions,
         Coverage::new(),
         |transaction, batch_id| {

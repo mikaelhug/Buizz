@@ -230,7 +230,7 @@ function warningText(warning: Schemas["DataWarning"]): string {
     case "overlap_rejected":
       return `${label(warning.source)}: ${warning.message}`;
     case "action_disagreement":
-      return `${label(warning.action)} on ${warning.ex_date}: Alpaca ${warning.alpaca ?? "none"}, Tiingo ${warning.tiingo ?? "none"}; ${label(warning.kept)} is used`;
+      return `${label(warning.action)} on ${warning.ex_date}: Alpaca ${warning.alpaca ?? "none"}, Tiingo ${warning.tiingo ?? "none"}; ${warning.kept === "prices" ? "the prices refute Alpaca's, so none is applied" : `${label(warning.kept)}'s is used`}`;
   }
 }
 

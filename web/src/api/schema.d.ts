@@ -495,8 +495,10 @@ export interface components {
             action: components["schemas"]["CheckedAction"];
             alpaca?: string | null;
             tiingo?: string | null;
-            kept: components["schemas"]["DataSource"];
+            kept: components["schemas"]["ActionVerdict"];
         };
+        /** @enum {string} */
+        ActionVerdict: "alpaca" | "tiingo" | "prices";
         ApiError: {
             error: string;
         };

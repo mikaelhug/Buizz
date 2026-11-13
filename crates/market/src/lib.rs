@@ -1199,10 +1199,11 @@ impl MarketStore {
 
     pub async fn record_action_disagreements(
         &self,
+        source: DataSource,
         disagreements: Vec<ActionDisagreement>,
     ) -> Result<WriteSummary> {
         self.writer
-            .run(move |connection| write::action_checks(connection, disagreements))
+            .run(move |connection| write::action_checks(connection, source, disagreements))
             .await
     }
 

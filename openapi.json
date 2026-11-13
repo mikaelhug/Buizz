@@ -1220,9 +1220,17 @@
             ]
           },
           "kept": {
-            "$ref": "#/components/schemas/DataSource"
+            "$ref": "#/components/schemas/ActionVerdict"
           }
         }
+      },
+      "ActionVerdict": {
+        "type": "string",
+        "enum": [
+          "alpaca",
+          "tiingo",
+          "prices"
+        ]
       },
       "ApiError": {
         "type": "object",

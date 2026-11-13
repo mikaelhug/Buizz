@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use buizz_core::market::{Bar, CorporateAction, CorporateActionKind, DataSource};
-use buizz_core::ops::{ActionDisagreement, CheckedAction};
+use buizz_core::market::{Bar, CorporateAction, CorporateActionKind};
+use buizz_core::ops::{ActionDisagreement, ActionVerdict, CheckedAction};
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
@@ -63,8 +63,8 @@ pub(crate) fn cross_check(
         }
         let distance = |ratio: Option<&Decimal>| {
             let ratio = ratio.copied().unwrap_or(Decimal::ONE);
-            price_ratio(bars, date)
-                .and_then(|moved| (moved / ratio).to_f64())
+            around(bars, date)
+                .and_then(|(close, open)| (close / open / ratio).to_f64())
                 .map(|relative| relative.ln().abs())
         };
         let tiingo_wins = match (distance(ours), distance(theirs)) {
@@ -85,9 +85,9 @@ pub(crate) fn cross_check(
             alpaca: ours.copied(),
             tiingo: theirs.copied(),
             kept: if tiingo_wins {
-                DataSource::Tiingo
+                ActionVerdict::Tiingo
             } else {
-                DataSource::Alpaca
+                ActionVerdict::Alpaca
             },
         });
     }
@@ -112,17 +112,34 @@ pub(crate) fn cross_check(
                 action: CheckedAction::CashDividend,
                 alpaca: ours.copied(),
                 tiingo: theirs.copied(),
-                kept: DataSource::Alpaca,
+                kept: ActionVerdict::Alpaca,
             });
         }
     }
     check
 }
 
-fn price_ratio(bars: &[Bar], date: NaiveDate) -> Option<Decimal> {
+pub(crate) fn refuted_by_prices(
+    bars: &[Bar],
+    date: NaiveDate,
+    ratio: Decimal,
+    distributed: Decimal,
+) -> bool {
+    let Some((close, open)) = around(bars, date).filter(|(close, _)| *close > distributed) else {
+        return false;
+    };
+    let moved = (close - distributed) / open;
+    let distance = |ratio: Decimal| (moved / ratio).to_f64().map(|relative| relative.ln().abs());
+    match (distance(ratio), distance(Decimal::ONE)) {
+        (Some(split), Some(none)) => split - none > CORROBORATED_LOG_DISTANCE,
+        _ => false,
+    }
+}
+
+fn around(bars: &[Bar], date: NaiveDate) -> Option<(Decimal, Decimal)> {
     let index = bars.partition_point(|bar| bar.start.exchange_date() < date);
     let (previous, on) = (bars.get(index.checked_sub(1)?)?, bars.get(index)?);
-    (on.start.exchange_date() == date && !on.open.is_zero()).then(|| previous.close / on.open)
+    (on.start.exchange_date() == date && !on.open.is_zero()).then_some((previous.close, on.open))
 }
 
 #[cfg(test)]
@@ -155,6 +172,40 @@ mod tests {
             ex_date: date(day),
             kind,
         }
+    }
+
+    #[test]
+    fn a_split_is_refuted_only_when_the_prices_move_far_closer_to_no_split() {
+        let dec = |text: &str| text.parse::<Decimal>().unwrap();
+        let refuted = |close: i64, open: i64, ratio: &str, distributed: &str| {
+            let bars = [
+                bar("2020-04-02", close, close),
+                bar("2020-04-03", open, open),
+            ];
+            refuted_by_prices(&bars, date("2020-04-03"), dec(ratio), dec(distributed))
+        };
+        assert!(
+            refuted(86, 51, "0.5", "0"),
+            "RTX's 1-for-2 on the day UTX spun off CARR and OTIS: 86 to 51 is no 1-for-2"
+        );
+        assert!(refuted(39, 39, "2", "0"), "an unmoved price is no 2-for-1");
+        assert!(!refuted(81, 41, "2", "0"), "a real 2-for-1");
+        assert!(
+            !refuted(1487, 1000, "1.487", "0"),
+            "DowDuPont's DOW spin-off as the split that holds its value"
+        );
+        assert!(
+            !refuted(60, 60, "0.8", "12"),
+            "a share consolidation paired with a special dividend leaves the price where it was"
+        );
+        assert!(
+            !refuted(232, 240, "0.5", "115"),
+            "a 1-for-2 on the day of a spin-off worth half the price leaves the price where it was"
+        );
+        assert!(
+            !refuted(100, 97, "1.011", "0"),
+            "Honeywell's spin-off splits are too small for the prices to settle"
+        );
     }
 
     #[test]
@@ -191,7 +242,7 @@ mod tests {
             ],
             "81 to 41 is the 2-for-1 only Tiingo records; 2 June's unmoved price refutes Alpaca's"
         );
-        let kept: Vec<(NaiveDate, CheckedAction, DataSource)> = check
+        let kept: Vec<(NaiveDate, CheckedAction, ActionVerdict)> = check
             .disagreements
             .iter()
             .map(|found| (found.ex_date, found.action, found.kept))
@@ -199,12 +250,20 @@ mod tests {
         assert_eq!(
             kept,
             vec![
-                (date("2017-05-17"), CheckedAction::Split, DataSource::Tiingo),
-                (date("2017-06-02"), CheckedAction::Split, DataSource::Tiingo),
+                (
+                    date("2017-05-17"),
+                    CheckedAction::Split,
+                    ActionVerdict::Tiingo
+                ),
+                (
+                    date("2017-06-02"),
+                    CheckedAction::Split,
+                    ActionVerdict::Tiingo
+                ),
                 (
                     date("2017-08-30"),
                     CheckedAction::CashDividend,
-                    DataSource::Alpaca
+                    ActionVerdict::Alpaca
                 ),
             ]
         );
