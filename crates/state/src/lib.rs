@@ -16,7 +16,8 @@ use buizz_core::ops::{JobOutcome, JobRun, SourceFetch};
 use buizz_core::order::{Fill, Order, OrderId};
 use buizz_core::performance::{LiveStats, Metrics};
 use buizz_core::run::{
-    DesiredState, EquityPoint, Mode, RunBadge, RunConfig, RunEvent, RunEventType, RunId, RunStatus,
+    BotCode, DesiredState, EquityPoint, Mode, RunBadge, RunConfig, RunEvent, RunEventType, RunId,
+    RunStatus,
 };
 use buizz_core::time::Timestamp;
 use rust_decimal::Decimal;
@@ -60,6 +61,7 @@ pub struct NewRun {
     pub status: RunStatus,
     pub desired: DesiredState,
     pub bot_hash: String,
+    pub behaviour_hash: String,
     pub engine_version: String,
     pub data_watermark: Option<Timestamp>,
     pub badges: Vec<RunBadge>,
@@ -71,7 +73,7 @@ pub struct NewRun {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct RunFilter {
     pub bot: Option<String>,
-    pub bot_hash: Option<String>,
+    pub code: Option<BotCode>,
     pub mode: Option<Mode>,
     pub statuses: Vec<RunStatus>,
     pub desired: Option<DesiredState>,

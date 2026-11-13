@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::ops::RangeInclusive;
 
 use buizz_core::api::{BotFootprint, BotUsage, RunSummary, Trials};
@@ -25,7 +24,8 @@ const LIVE_RUN_CONFLICT: &str = "UNIQUE constraint failed: run.bot, run.variant"
 
 const RUN_COLUMNS: &str = "id, bot, mode, status, desired, config, created_at, started_at, \
     finished_at, clock, equity, metrics, result_hash, badges, bot_hash, engine_version, seed, \
-    data_watermark, message, live_stats, bot_processes, bot_seconds, bot_peak_memory, source_run";
+    data_watermark, message, live_stats, bot_processes, bot_seconds, bot_peak_memory, source_run, \
+    behaviour_hash";
 
 fn tag_of<T: Serialize>(value: &T) -> Result<String> {
     match serde_json::to_value(value)?.get("type") {
@@ -55,6 +55,7 @@ fn run_summary(row: &Row) -> rusqlite::Result<RunSummary> {
         badges: read_json(row, 13)?,
         reproducibility: Some(Reproducibility {
             bot_hash: row.get(14)?,
+            behaviour_hash: row.get(24)?,
             engine_version: row.get(15)?,
             seed: read_u64(row, 16)?,
             data_watermark: read_optional(row, 17, read_timestamp)?,
@@ -71,9 +72,9 @@ fn run_summary(row: &Row) -> rusqlite::Result<RunSummary> {
 
 pub fn create(connection: &Connection, run: &NewRun) -> Result<RunId> {
     let inserted = connection.execute(
-        "INSERT INTO run (bot, mode, status, desired, config, holdout, bot_hash, engine_version, \
-         seed, data_watermark, created_at, badges, source_run) \
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO run (bot, mode, status, desired, config, holdout, bot_hash, \
+         behaviour_hash, engine_version, seed, data_watermark, created_at, badges, source_run) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         params![
             run.config.bot,
             enum_text(&run.config.mode)?,
@@ -82,6 +83,7 @@ pub fn create(connection: &Connection, run: &NewRun) -> Result<RunId> {
             json_text(&run.config)?,
             run.config.holdout,
             run.bot_hash,
+            run.behaviour_hash,
             run.engine_version,
             int(run.config.seed)?,
             run.data_watermark.map(Timestamp::nanos),
@@ -133,9 +135,17 @@ pub fn list(connection: &Connection, filter: &RunFilter) -> Result<Vec<RunSummar
         conditions.push("bot = ?".to_owned());
         values.push(bot.clone().into());
     }
-    if let Some(bot_hash) = &filter.bot_hash {
-        conditions.push("bot_hash = ?".to_owned());
-        values.push(bot_hash.clone().into());
+    if let Some(code) = &filter.code {
+        match &code.behaviour_hash {
+            Some(behaviour_hash) => {
+                conditions.push(
+                    "(behaviour_hash = ? OR (behaviour_hash IS NULL AND bot_hash = ?))".to_owned(),
+                );
+                values.push(behaviour_hash.clone().into());
+            }
+            None => conditions.push("bot_hash = ?".to_owned()),
+        }
+        values.push(code.content_hash.clone().into());
     }
     if let Some(mode) = filter.mode {
         conditions.push("mode = ?".to_owned());
@@ -611,62 +621,23 @@ pub fn last_run_at(connection: &Connection, bot: &str) -> Result<Option<Timestam
     )?)
 }
 
-type Version = (Option<String>, String);
-
-type Outcome = (Option<String>, Option<String>, Option<String>);
-
-fn root(parent: &mut [usize], mut node: usize) -> usize {
-    while parent[node] != node {
-        parent[node] = parent[parent[node]];
-        node = parent[node];
-    }
-    node
-}
-
 pub fn trials(connection: &Connection, bot: &str) -> Result<Trials> {
-    let mut statement = connection.prepare_cached(
-        "SELECT variant, bot_hash, json_extract(config, '$.start'), json_extract(config, '$.end'), \
-         result_hash FROM run WHERE bot = ?",
-    )?;
-    let runs = statement
-        .query_map([bot], |row| -> rusqlite::Result<(Version, Outcome)> {
-            Ok((
-                (row.get::<_, Option<String>>(0)?, row.get::<_, String>(1)?),
-                (
-                    row.get::<_, Option<String>>(2)?,
-                    row.get::<_, Option<String>>(3)?,
-                    row.get::<_, Option<String>>(4)?,
-                ),
-            ))
-        })?
-        .collect::<rusqlite::Result<Vec<_>>>()?;
-    let mut versions: BTreeMap<&Version, usize> = BTreeMap::new();
-    let mut parent: Vec<usize> = Vec::new();
-    let mut results: BTreeMap<(&Option<String>, &Outcome), usize> = BTreeMap::new();
-    for (version, result) in &runs {
-        let next = parent.len();
-        let node = *versions.entry(version).or_insert(next);
-        if node == next {
-            parent.push(next);
-        }
-        if result.2.is_none() {
-            continue;
-        }
-        match results.get(&(&version.0, result)) {
-            Some(&same) => {
-                let (a, b) = (root(&mut parent, node), root(&mut parent, same));
-                parent[a] = b;
-            }
-            None => {
-                results.insert((&version.0, result), node);
-            }
-        }
-    }
-    let distinct = (0..parent.len())
-        .filter(|node| root(&mut parent, *node) == *node)
-        .count();
-    Ok(Trials {
-        variants: u32::try_from(distinct).unwrap_or(u32::MAX),
-        runs: u32::try_from(runs.len()).unwrap_or(u32::MAX),
-    })
+    Ok(connection.query_row(
+        "SELECT \
+           (SELECT COUNT(*) FROM (SELECT DISTINCT behaviour_hash, variant FROM run AS trial \
+              WHERE bot = ?1 AND (behaviour_hash IS NOT NULL OR NOT EXISTS ( \
+                SELECT 1 FROM run AS versioned WHERE versioned.bot = ?1 \
+                  AND versioned.variant = trial.variant AND versioned.behaviour_hash IS NOT NULL)))), \
+           COUNT(DISTINCT variant), COUNT(*), COUNT(*) - COUNT(behaviour_hash) \
+         FROM run WHERE bot = ?1",
+        [bot],
+        |row| {
+            Ok(Trials {
+                variants: row.get(0)?,
+                params: row.get(1)?,
+                runs: row.get(2)?,
+                unversioned_runs: row.get(3)?,
+            })
+        },
+    )?)
 }

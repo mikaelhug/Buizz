@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS run (
     config TEXT NOT NULL,
     holdout INTEGER NOT NULL CHECK (holdout IN (0, 1)),
     bot_hash TEXT NOT NULL,
+    behaviour_hash TEXT,
     engine_version TEXT NOT NULL,
     seed INTEGER NOT NULL,
     data_watermark INTEGER,

@@ -112,6 +112,7 @@ export function BotDetail({ name, view }: Props) {
           tab={runView.tab}
           symbol={runView.symbol}
           botHash={detail.data.bot_hash}
+          behaviourHash={detail.data.behaviour_hash}
           recent={runs}
           liveParams={new Set(live.map((run) => JSON.stringify(run.config.params)))}
           gate={screening?.run_id === selected ? screening.failed_checks : undefined}

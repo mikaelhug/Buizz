@@ -139,6 +139,7 @@ pub(crate) async fn bot_detail(
         holdout_runs,
         manifest: spec.manifest.clone(),
         bot_hash: spec.content_hash.clone(),
+        behaviour_hash: spec.behaviour_hash.clone(),
         runs,
     }))
 }

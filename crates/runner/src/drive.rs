@@ -13,8 +13,8 @@ use buizz_core::protocol::{
     StepEvent,
 };
 use buizz_core::run::{
-    DRAWDOWN_STOP, DesiredState, EquityPoint, LogLevel, Mode, RunBadge, RunConfig, RunEvent,
-    RunEventKind, RunId, RunStatus, UniverseSpec,
+    DRAWDOWN_STOP, DesiredState, EquityPoint, LogLevel, Mode, Reproducibility, RunBadge, RunConfig,
+    RunEvent, RunEventKind, RunId, RunStatus, UniverseSpec,
 };
 use buizz_core::time::Timestamp;
 use buizz_core::visibility::{close_auction_session, open_auction_session, order_session};
@@ -24,7 +24,7 @@ use buizz_ingest::IngestError;
 use buizz_market::MarketError;
 use buizz_state::{RunOutcome, StateError, StepCommit};
 use buizz_supervisor::{
-    BotProcess, BotSpec, OutputStream, ProcessEvent, Reaped, Restarts, SupervisorError, bot_hash,
+    BotProcess, BotSpec, OutputStream, ProcessEvent, Reaped, Restarts, SupervisorError, load_bot,
 };
 use chrono::{NaiveDate, TimeDelta};
 use rust_decimal::Decimal;
@@ -755,11 +755,16 @@ impl Driver {
     }
 
     async fn outdated(&mut self) -> Flow<Option<String>> {
-        let dir = self.spec.dir.clone();
-        let current = tokio::task::spawn_blocking(move || bot_hash(&dir))
+        let (bots_dir, name) = (self.inner.config.bots_dir.clone(), self.run.bot.clone());
+        let current = tokio::task::spawn_blocking(move || load_bot(&bots_dir, &name))
             .await
             .expect("hashing a bot does not panic")?;
-        Ok((current != self.recorded_hash()).then(|| self.outdated_message()))
+        let recorded = self
+            .run
+            .reproducibility
+            .as_ref()
+            .map_or_else(|| self.spec.code(), Reproducibility::code);
+        Ok((!recorded.same_as(&current.code())).then(|| self.outdated_message()))
     }
 
     async fn enter_next_session(&mut self) -> Flow<()> {

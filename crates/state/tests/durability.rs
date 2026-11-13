@@ -42,6 +42,7 @@ fn new_run(mode: Mode) -> NewRun {
         status: RunStatus::Running,
         desired: DesiredState::Running,
         bot_hash: "abc".into(),
+        behaviour_hash: "own".into(),
         engine_version: "1".into(),
         data_watermark: None,
         badges: vec![],
@@ -228,11 +229,15 @@ async fn a_bot_has_one_live_run_per_variant_and_at_most_three_variants() {
 }
 
 #[tokio::test]
-async fn a_rerun_on_new_code_that_reproduces_a_result_is_the_same_trial() {
+async fn a_trial_is_a_params_set_under_one_version_of_the_bots_own_code() {
     let directory = tempfile::tempdir().unwrap();
-    let store = StateStore::open(&directory.path().join(FILE_NAME))
-        .await
-        .unwrap();
+    let path = directory.path().join(FILE_NAME);
+    let run = |weight: f64, bot_hash: &str, behaviour_hash: &str| {
+        let mut run = variant(Mode::Backtest, weight);
+        run.bot_hash = bot_hash.to_owned();
+        run.behaviour_hash = behaviour_hash.to_owned();
+        run
+    };
     let finished = |result: &str| RunOutcome {
         status: RunStatus::Completed,
         finished_at: at(9),
@@ -241,17 +246,38 @@ async fn a_rerun_on_new_code_that_reproduces_a_result_is_the_same_trial() {
         message: None,
         badge: None,
     };
-    for (bot_hash, result) in [("v1", "same"), ("v2", "same"), ("v3", "changed")] {
-        let mut run = variant(Mode::Backtest, 0.5);
-        run.bot_hash = bot_hash.to_owned();
-        let id = create(&store, run).await.unwrap();
+    let store = StateStore::open(&path).await.unwrap();
+    for (weight, bot_hash, result) in [(0.5, "v1", "a"), (0.5, "v2", "b"), (0.25, "v2", "c")] {
+        let id = create(&store, run(weight, bot_hash, "")).await.unwrap();
+        store.finish_run(id, finished(result)).await.unwrap();
+    }
+    drop(store);
+    rusqlite::Connection::open(&path)
+        .unwrap()
+        .execute("UPDATE run SET behaviour_hash = NULL", [])
+        .unwrap();
+    let store = StateStore::open(&path).await.unwrap();
+    for (bot_hash, behaviour_hash, result) in [
+        ("v3", "own1", "d"),
+        ("v4", "own1", "e"),
+        ("v5", "own2", "f"),
+    ] {
+        let id = create(&store, run(0.5, bot_hash, behaviour_hash))
+            .await
+            .unwrap();
         store.finish_run(id, finished(result)).await.unwrap();
     }
     let trials = store.trials("momentum").await.unwrap();
     assert_eq!(
-        (trials.variants, trials.runs),
-        (2, 3),
-        "v2 reproduced v1's result exactly; only v3 changed behaviour"
+        (
+            trials.variants,
+            trials.params,
+            trials.runs,
+            trials.unversioned_runs
+        ),
+        (3, 2, 6, 3),
+        "v4 reran v3's params after a data fix and an unrelated shared edit, so own1 is one trial; \
+         own2 changed the bot's own code; the unversioned 0.5 runs join own1 and own2, the 0.25 run counts once"
     );
 }
 

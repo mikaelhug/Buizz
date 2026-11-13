@@ -4,8 +4,8 @@ use std::time::Duration;
 
 use buizz_core::run::{BotManifest, RunId};
 use buizz_supervisor::{
-    BotSpec, Launch, ProcessEvent, Supervisor, SupervisorConfig, SupervisorError, bot_hash,
-    load_bot, scan_bots,
+    BotSpec, Launch, ProcessEvent, Supervisor, SupervisorConfig, SupervisorError, behaviour_hash,
+    bot_hash, load_bot, scan_bots,
 };
 use nix::errno::Errno;
 use nix::sys::signal::killpg;
@@ -19,12 +19,69 @@ fn write_bot(bots: &Path, name: &str, script: &str) -> BotSpec {
     fs::write(dir.join("run.sh"), script).unwrap();
     let manifest = format!("command = [\"sh\", \"run.sh\"]\n{MANIFEST}");
     fs::write(dir.join("bot.toml"), &manifest).unwrap();
+    let manifest = BotManifest::from_toml(&manifest).unwrap();
     BotSpec {
         name: name.into(),
-        manifest: BotManifest::from_toml(&manifest).unwrap(),
         content_hash: bot_hash(&dir).unwrap(),
+        behaviour_hash: behaviour_hash(&dir, &manifest).unwrap(),
+        manifest,
         dir,
     }
+}
+
+#[test]
+fn a_bots_behaviour_hash_covers_its_own_folder_and_the_shared_modules_it_imports() {
+    let temp = tempfile::tempdir().unwrap();
+    let bots = temp.path().join("bots");
+    let shared = bots.join("buizz_bots");
+    fs::create_dir_all(bots.join("regime")).unwrap();
+    fs::create_dir_all(&shared).unwrap();
+    let write = |path: &str, text: &str| fs::write(bots.join(path), text).unwrap();
+    write(
+        "regime/bot.toml",
+        &format!("description = \"breadth\"\ncommand = [\"python\", \"bot.py\"]\n{MANIFEST}"),
+    );
+    write(
+        "regime/bot.py",
+        "from buizz_bots.signals import (\n    SmaCache,\n)\n\nfrom buizz import run\n",
+    );
+    write("buizz_bots/__init__.py", "");
+    write(
+        "buizz_bots/signals.py",
+        "from .sessions import week_ends\n\nWINDOW = 200\n",
+    );
+    write("buizz_bots/sessions.py", "def week_ends(): ...\n");
+    write("buizz_bots/hrp.py", "LINKAGE = \"single\"\n");
+    let hashed = || load_bot(&bots, "regime").unwrap();
+    let before = hashed();
+
+    write("buizz_bots/hrp.py", "LINKAGE = \"ward\"\n");
+    write("regime/BRIEF.md", "Breadth regime notes.\n");
+    write(
+        "regime/bot.toml",
+        &format!(
+            "description = \"breadth, reworded\"\ncommand = [\"python\", \"bot.py\"]\n{MANIFEST}"
+        ),
+    );
+    let unrelated = hashed();
+    assert_ne!(unrelated.content_hash, before.content_hash);
+    assert_eq!(
+        unrelated.behaviour_hash, before.behaviour_hash,
+        "a module the bot never imports, its notes and its description do not change its behaviour"
+    );
+
+    write("buizz_bots/sessions.py", "def week_ends(): return []\n");
+    let imported = hashed();
+    assert_ne!(
+        imported.behaviour_hash, unrelated.behaviour_hash,
+        "sessions.py is imported through signals.py"
+    );
+
+    write(
+        "regime/bot.py",
+        "from buizz_bots.signals import (\n    SmaCache,\n)\n\nfrom buizz import run\nWINDOW = 100\n",
+    );
+    assert_ne!(hashed().behaviour_hash, imported.behaviour_hash);
 }
 
 fn gone(pid: u32) -> bool {

@@ -50,6 +50,7 @@ type Props = {
   tab: BotTab;
   symbol: string | undefined;
   botHash: string;
+  behaviourHash: string;
   recent: Run[];
   liveParams: ReadonlySet<string>;
   gate: Schemas["GateCheck"][] | undefined;
@@ -57,7 +58,7 @@ type Props = {
   runs: ReactNode;
 };
 
-export function RunView({ name, runId, pinned, tab, symbol, botHash, recent, liveParams, gate, live, runs }: Props) {
+export function RunView({ name, runId, pinned, tab, symbol, botHash, behaviourHash, recent, liveParams, gate, live, runs }: Props) {
   const run = useResource(() => must(api.GET("/api/runs/{id}", { params: { path: { id: runId } } })), [runId]);
   const tabRoute = (target: BotTab): Route => ({ page: "bot", name, ...(pinned ? { run: runId } : {}), tab: target });
   const tabHref = (target: BotTab) => href(tabRoute(target));
@@ -91,7 +92,7 @@ export function RunView({ name, runId, pinned, tab, symbol, botHash, recent, liv
   return (
     <>
       <StaleFailure resource={run} />
-      <RunBar run={run.data} name={name} tab={tab} botHash={botHash} recent={recent} liveParams={liveParams} gate={gate} logsHref={tabHref("logs")} runsHref={tabHref("runs")} />
+      <RunBar run={run.data} name={name} tab={tab} botHash={botHash} behaviourHash={behaviourHash} recent={recent} liveParams={liveParams} gate={gate} logsHref={tabHref("logs")} runsHref={tabHref("runs")} />
       <Tabs tab={tab} routeFor={tabRoute} />
       <div className="tab-panel" role="tabpanel" id="run-tabpanel" aria-labelledby={`tab-${tab}`}>
         {tab === "overview" && <Overview run={run.data} live={live} symbol={symbol} gate={gate} closeHref={tabHref("overview")} />}
@@ -203,13 +204,19 @@ function paramValue(value: unknown): string {
   return typeof value === "string" ? value : JSON.stringify(value);
 }
 
-function reproRows(run: Run, botHash: string): Row[] {
+function reproRows(run: Run, botHash: string, behaviourHash: string): Row[] {
   const repro = run.reproducibility;
   if (!repro) {
     return [];
   }
+  const ownCode: Row[] = repro.behaviour_hash
+    ? [["Own code", <Hash value={repro.behaviour_hash} note={repro.behaviour_hash === behaviourHash ? undefined : "changed since"} />]]
+    : [];
+  const sameCode = repro.behaviour_hash ? repro.behaviour_hash === behaviourHash : repro.bot_hash === botHash;
+  const codeNote = repro.bot_hash === botHash ? undefined : sameCode ? "shared code changed since" : "changed since";
   return [
-    ["Bot code", <Hash value={repro.bot_hash} note={repro.bot_hash === botHash ? undefined : "changed since"} />],
+    ["Bot code", <Hash value={repro.bot_hash} note={codeNote} />],
+    ...ownCode,
     ["Engine", repro.engine_version],
     ["Seed", String(repro.seed)],
     ["Data through", fmt.market(repro.data_watermark)],
@@ -239,10 +246,10 @@ function KeyValues({ rows, mono = false }: { rows: Row[]; mono?: boolean }) {
   );
 }
 
-type RunBarProps = { run: Run; name: string; tab: BotTab; botHash: string; recent: Run[]; liveParams: ReadonlySet<string>; gate: Schemas["GateCheck"][] | undefined; logsHref: string; runsHref: string };
+type RunBarProps = { run: Run; name: string; tab: BotTab; botHash: string; behaviourHash: string; recent: Run[]; liveParams: ReadonlySet<string>; gate: Schemas["GateCheck"][] | undefined; logsHref: string; runsHref: string };
 
-function RunBar({ run, name, tab, botHash, recent, liveParams, gate, logsHref, runsHref }: RunBarProps) {
-  const repro = reproRows(run, botHash);
+function RunBar({ run, name, tab, botHash, behaviourHash, recent, liveParams, gate, logsHref, runsHref }: RunBarProps) {
+  const repro = reproRows(run, botHash, behaviourHash);
   const [starting, setStarting] = useState(false);
   const promotable = run.mode === "backtest" && run.status === "completed" && gate?.length === 0 && !liveParams.has(JSON.stringify(run.config.params));
   const promote = () => {

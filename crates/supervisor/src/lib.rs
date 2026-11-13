@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::fs;
 use std::os::unix::process::CommandExt;
 use std::path::{Component, Path, PathBuf};
@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use buizz_core::api::ProcessSlots;
 use buizz_core::protocol::{ENV_RUN_ID, ENV_RUN_TOKEN, ENV_SPINE_URL};
-use buizz_core::run::{BotManifest, RunId};
+use buizz_core::run::{BotCode, BotManifest, RunId};
 use nix::errno::Errno;
 use nix::sys::signal::{Signal, killpg};
 use nix::unistd::Pid;
@@ -45,6 +45,8 @@ pub enum SupervisorError {
         bot: String,
         source: buizz_core::run::ManifestError,
     },
+    #[error("bot manifest cannot be encoded: {0}")]
+    Encode(serde_json::Error),
     #[error("cannot spawn bot {bot}: {source}")]
     Spawn { bot: String, source: std::io::Error },
     #[error("cannot signal bot process group {pid}: {source}")]
@@ -57,6 +59,7 @@ pub struct BotSpec {
     pub dir: PathBuf,
     pub manifest: BotManifest,
     pub content_hash: String,
+    pub behaviour_hash: String,
 }
 
 #[derive(Debug, Default)]
@@ -99,6 +102,15 @@ pub fn load_bot(bots_dir: &Path, name: &str) -> Result<BotSpec, SupervisorError>
     load(name.to_owned(), dir)
 }
 
+impl BotSpec {
+    pub fn code(&self) -> BotCode {
+        BotCode {
+            content_hash: self.content_hash.clone(),
+            behaviour_hash: Some(self.behaviour_hash.clone()),
+        }
+    }
+}
+
 fn load(name: String, dir: PathBuf) -> Result<BotSpec, SupervisorError> {
     let manifest_path = dir.join(BotManifest::FILE_NAME);
     let text =
@@ -108,15 +120,18 @@ fn load(name: String, dir: PathBuf) -> Result<BotSpec, SupervisorError> {
         source,
     })?;
     let content_hash = bot_hash(&dir)?;
+    let behaviour_hash = behaviour_hash(&dir, &manifest)?;
     Ok(BotSpec {
         name,
         dir,
         manifest,
         content_hash,
+        behaviour_hash,
     })
 }
 
-const SHARED_BOT_CODE: [&str; 3] = ["buizz_bots", "pyproject.toml", "uv.lock"];
+const SHARED_PACKAGE: &str = "buizz_bots";
+const SHARED_BOT_CODE: [&str; 3] = [SHARED_PACKAGE, "pyproject.toml", "uv.lock"];
 const SDK_SOURCE: &str = "sdk/python/src";
 
 pub fn bot_hash(dir: &Path) -> Result<String, SupervisorError> {
@@ -140,24 +155,164 @@ pub fn bot_hash(dir: &Path) -> Result<String, SupervisorError> {
     Ok(hasher.finalize().to_hex().to_string())
 }
 
-fn hash_file(
-    path: &Path,
-    label: &Path,
-    hasher: &mut blake3::Hasher,
-) -> Result<(), SupervisorError> {
-    let bytes = fs::read(path).map_err(|e| SupervisorError::Io(path.to_path_buf(), e))?;
-    let label = label.to_string_lossy();
-    hasher.update(&(label.len() as u64).to_le_bytes());
-    hasher.update(label.as_bytes());
-    hasher.update(&(bytes.len() as u64).to_le_bytes());
-    hasher.update(&bytes);
-    Ok(())
+pub fn behaviour_hash(dir: &Path, manifest: &BotManifest) -> Result<String, SupervisorError> {
+    let mut hasher = blake3::Hasher::new();
+    let behaviour = BotManifest {
+        description: String::new(),
+        ..manifest.clone()
+    };
+    let encoded = serde_json::to_vec(&behaviour).map_err(SupervisorError::Encode)?;
+    hash_bytes(BotManifest::FILE_NAME, &encoded, &mut hasher);
+    let mut files = Vec::new();
+    list_files(dir, Path::new(""), &mut files)?;
+    let mut pending = Vec::new();
+    for relative in &files {
+        let name = relative.to_string_lossy();
+        if name == BotManifest::FILE_NAME || name.ends_with(".md") {
+            continue;
+        }
+        let path = dir.join(relative);
+        hash_file(&path, relative, &mut hasher)?;
+        if name.ends_with(".py") {
+            pending.extend(shared_imports(&read_source(&path)?, None));
+        }
+    }
+    let Some(package) = dir.parent().map(|bots_dir| bots_dir.join(SHARED_PACKAGE)) else {
+        return Ok(hasher.finalize().to_hex().to_string());
+    };
+    let mut imported = BTreeMap::new();
+    while let Some(module) = pending.pop() {
+        if imported.contains_key(&module) {
+            continue;
+        }
+        let Some((relative, own_package)) = module_file(&package, &module) else {
+            continue;
+        };
+        let path = package.join(&relative);
+        pending.extend(shared_imports(&read_source(&path)?, Some(&own_package)));
+        imported.insert(module, relative);
+    }
+    let files: BTreeSet<PathBuf> = imported.into_values().collect();
+    for relative in files {
+        hash_file(
+            &package.join(&relative),
+            &Path::new(SHARED_PACKAGE).join(&relative),
+            &mut hasher,
+        )?;
+    }
+    Ok(hasher.finalize().to_hex().to_string())
 }
 
-fn hash_tree(
+fn read_source(path: &Path) -> Result<String, SupervisorError> {
+    fs::read_to_string(path).map_err(|e| SupervisorError::Io(path.to_path_buf(), e))
+}
+
+fn module_file(package: &Path, module: &[String]) -> Option<(PathBuf, Vec<String>)> {
+    let nested: PathBuf = module.iter().collect();
+    let init = nested.join("__init__.py");
+    if package.join(&init).is_file() {
+        return Some((init, module.to_vec()));
+    }
+    let (last, parent) = module.split_last()?;
+    let file = nested.with_file_name(format!("{last}.py"));
+    package
+        .join(&file)
+        .is_file()
+        .then(|| (file, parent.to_vec()))
+}
+
+fn import_statements(source: &str) -> Vec<String> {
+    let mut statements = Vec::new();
+    let mut current: Option<String> = None;
+    let mut depth = 0_i32;
+    for line in source.lines() {
+        let code = line.split('#').next().unwrap_or_default().trim();
+        let statement = match current.as_mut() {
+            Some(statement) => statement,
+            None if code.starts_with("from ") || code.starts_with("import ") => {
+                depth = 0;
+                current.insert(String::new())
+            }
+            None => continue,
+        };
+        let continued = code.ends_with('\\');
+        statement.push(' ');
+        statement.push_str(code.trim_end_matches('\\'));
+        depth += code.matches('(').count() as i32 - code.matches(')').count() as i32;
+        if depth <= 0 && !continued {
+            statements.extend(current.take());
+        }
+    }
+    statements.extend(current);
+    statements
+}
+
+fn shared_imports(source: &str, own_package: Option<&[String]>) -> Vec<Vec<String>> {
+    let mut modules = Vec::new();
+    let mut found = |base: Vec<String>, names: &[&str]| {
+        for depth in 0..=base.len() {
+            modules.push(base[..depth].to_vec());
+        }
+        for name in names {
+            let mut module = base.clone();
+            module.push((*name).to_owned());
+            modules.push(module);
+        }
+    };
+    let shared = |dotted: &str| -> Option<Vec<String>> {
+        let mut parts = dotted.split('.');
+        (parts.next() == Some(SHARED_PACKAGE)).then(|| parts.map(str::to_owned).collect())
+    };
+    for statement in import_statements(source) {
+        let statement = statement.trim();
+        if let Some(targets) = statement.strip_prefix("import ") {
+            for target in targets.split(',') {
+                let dotted = target.split_whitespace().next().unwrap_or_default();
+                if let Some(base) = shared(dotted) {
+                    found(base, &[]);
+                }
+            }
+        } else if let Some(rest) = statement.strip_prefix("from ")
+            && let Some((source_module, names)) = rest.split_once(" import ")
+        {
+            let source_module = source_module.trim();
+            let names: Vec<&str> = names
+                .split(',')
+                .filter_map(|name| {
+                    name.trim_matches(|c| c == '(' || c == ')')
+                        .split_whitespace()
+                        .next()
+                })
+                .filter(|name| *name != "*")
+                .collect();
+            let dotted = source_module.trim_start_matches('.');
+            let level = source_module.len() - dotted.len();
+            let base = match (level, own_package) {
+                (0, _) => shared(dotted),
+                (_, Some(own)) if level <= own.len() + 1 => {
+                    let mut base = own[..own.len() + 1 - level].to_vec();
+                    base.extend(
+                        dotted
+                            .split('.')
+                            .filter(|part| !part.is_empty())
+                            .map(str::to_owned),
+                    );
+                    Some(base)
+                }
+                _ => None,
+            };
+            if let Some(base) = base {
+                found(base, &names);
+            }
+        }
+    }
+    modules
+}
+
+fn list_files(
     root: &Path,
     relative: &Path,
-    hasher: &mut blake3::Hasher,
+    files: &mut Vec<PathBuf>,
 ) -> Result<(), SupervisorError> {
     let current = root.join(relative);
     let io = |source| SupervisorError::Io(current.clone(), source);
@@ -175,10 +330,40 @@ fn hash_tree(
     for (name, file_type) in entries {
         let child = relative.join(&name);
         if file_type.is_dir() {
-            hash_tree(root, &child, hasher)?;
+            list_files(root, &child, files)?;
         } else if file_type.is_file() {
-            hash_file(&root.join(&child), &child, hasher)?;
+            files.push(child);
         }
+    }
+    Ok(())
+}
+
+fn hash_file(
+    path: &Path,
+    label: &Path,
+    hasher: &mut blake3::Hasher,
+) -> Result<(), SupervisorError> {
+    let bytes = fs::read(path).map_err(|e| SupervisorError::Io(path.to_path_buf(), e))?;
+    hash_bytes(&label.to_string_lossy(), &bytes, hasher);
+    Ok(())
+}
+
+fn hash_bytes(label: &str, bytes: &[u8], hasher: &mut blake3::Hasher) {
+    hasher.update(&(label.len() as u64).to_le_bytes());
+    hasher.update(label.as_bytes());
+    hasher.update(&(bytes.len() as u64).to_le_bytes());
+    hasher.update(bytes);
+}
+
+fn hash_tree(
+    root: &Path,
+    relative: &Path,
+    hasher: &mut blake3::Hasher,
+) -> Result<(), SupervisorError> {
+    let mut files = Vec::new();
+    list_files(root, relative, &mut files)?;
+    for file in files {
+        hash_file(&root.join(&file), &file, hasher)?;
     }
     Ok(())
 }

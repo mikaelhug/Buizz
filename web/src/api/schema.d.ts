@@ -531,6 +531,7 @@ export interface components {
             holdout_runs: number;
             manifest: components["schemas"]["BotManifest"];
             bot_hash: string;
+            behaviour_hash: string;
             runs: components["schemas"]["RunSummary"][];
         };
         BotFootprint: {
@@ -1015,6 +1016,7 @@ export interface components {
         RejectReason: "unknown_symbol" | "duplicate_client_id" | "zero_quantity" | "invalid_limit_price" | "no_price" | "not_shortable" | "max_position_weight" | "max_gross_exposure" | "invalid_size" | "no_stream_slot" | "invalid_stop_price" | "auction_closed" | "auction_unavailable";
         Reproducibility: {
             bot_hash: string;
+            behaviour_hash?: string | null;
             engine_version: string;
             /** Format: int64 */
             seed: number;
@@ -1259,7 +1261,11 @@ export interface components {
             /** Format: int32 */
             variants: number;
             /** Format: int32 */
+            params: number;
+            /** Format: int32 */
             runs: number;
+            /** Format: int32 */
+            unversioned_runs: number;
         };
         UniverseSpec: {
             symbols: components["schemas"]["Symbol"][];

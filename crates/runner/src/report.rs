@@ -1,7 +1,9 @@
 use buizz_core::api::{RunSummary, SparkPoint, SpineEvent};
 use buizz_core::market::{Bar, RiskFreeRate, Session, Timeframe};
 use buizz_core::performance::{LiveStats, Metrics};
-use buizz_core::run::{EquityPoint, Mode, RunEventKind, RunEventType, RunId, RunStatus};
+use buizz_core::run::{
+    EquityPoint, Mode, Reproducibility, RunEventKind, RunEventType, RunId, RunStatus,
+};
 use buizz_core::time::Timestamp;
 use buizz_market::MarketStore;
 use buizz_metrics::{LiveInput, MetricsInput, Source};
@@ -142,11 +144,7 @@ async fn source_backtest(
     if let Some(source) = run.source_run {
         return Ok(state.run(source).await?);
     }
-    let hash = |run: &RunSummary| {
-        run.reproducibility
-            .as_ref()
-            .map(|record| record.bot_hash.clone())
-    };
+    let code = |run: &RunSummary| run.reproducibility.as_ref().map(Reproducibility::code);
     let backtests = state
         .runs(RunFilter {
             bot: Some(run.bot.clone()),
@@ -162,7 +160,9 @@ async fn source_backtest(
                 && backtest.config.params == run.config.params
                 && backtest.config.cost == run.config.cost
                 && backtest.config.risk == run.config.risk
-                && hash(backtest) == hash(run)
+                && code(backtest)
+                    .zip(code(run))
+                    .is_some_and(|(backtest, run)| backtest.same_as(&run))
         })
         .max_by_key(|backtest| {
             let end = backtest.config.end.unwrap_or(backtest.config.start);
