@@ -29,7 +29,7 @@ async function customPeriodBacktest(page: Page): Promise<Seen> {
   const cells = await year.locator("th, td").allTextContents();
   const months = Object.fromEntries(headings.map((heading, index) => [heading, cells[index] ?? ""]).filter(([heading, cell]) => heading && cell));
 
-  const benchmarkReturn = await page.locator(".metric", { hasText: "Return" }).first().locator(".metric-bench").textContent();
+  const benchmarkReturn = await page.getByRole("region", { name: "Returns", exact: true }).locator(".metric-headline .metric-bench").textContent();
   await openTab(page, "Trades");
   const trades = panel(page, "Trades");
   await trades.locator(".metric", { hasText: "Net P&L" }).waitFor();

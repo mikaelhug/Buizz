@@ -53,9 +53,11 @@ pub struct BotSummary {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct BacktestGlance {
     pub run_id: RunId,
-    pub preset: PeriodPreset,
+    pub preset: Option<PeriodPreset>,
+    pub period: Period,
     pub plateau: bool,
     pub failed_checks: Vec<GateCheck>,
+    pub sub_periods: Vec<f64>,
     #[schema(value_type = Object)]
     pub params: Map<String, Value>,
     pub metrics: Metrics,
@@ -99,7 +101,10 @@ pub struct VariantResult {
     pub metrics: Option<Metrics>,
     pub badges: Vec<RunBadge>,
     pub failed_checks: Vec<GateCheck>,
+    pub sub_periods: Vec<f64>,
+    pub excess_cagr: Option<f64>,
     pub neighbourhood_sharpe: Option<f64>,
+    pub curve: Vec<LivePoint>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]

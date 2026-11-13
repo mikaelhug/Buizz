@@ -496,9 +496,11 @@ export interface components {
         };
         BacktestGlance: {
             run_id: components["schemas"]["RunId"];
-            preset: components["schemas"]["PeriodPreset"];
+            preset?: components["schemas"]["PeriodPreset"] | null;
+            period: components["schemas"]["Period"];
             plateau: boolean;
             failed_checks: components["schemas"]["GateCheck"][];
+            sub_periods: number[];
             params: Record<string, never>;
             metrics: components["schemas"]["Metrics"];
             benchmark: components["schemas"]["Metrics"];
@@ -1244,8 +1246,12 @@ export interface components {
             metrics?: components["schemas"]["Metrics"] | null;
             badges: components["schemas"]["RunBadge"][];
             failed_checks: components["schemas"]["GateCheck"][];
+            sub_periods: number[];
+            /** Format: double */
+            excess_cagr?: number | null;
             /** Format: double */
             neighbourhood_sharpe?: number | null;
+            curve: components["schemas"]["LivePoint"][];
         };
         /**
          * @example bar

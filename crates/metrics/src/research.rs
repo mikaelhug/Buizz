@@ -54,15 +54,13 @@ impl Matched {
         Some(Self { returns, benchmark })
     }
 
-    fn sub_periods_ahead(&self) -> usize {
+    fn sub_period_edges(&self) -> Vec<f64> {
         let length = self.returns.len();
         (0..SUB_PERIODS)
-            .filter(|part| {
-                let range = part * length / SUB_PERIODS..(part + 1) * length / SUB_PERIODS;
-                !range.is_empty()
-                    && growth(&self.returns[range.clone()]) > growth(&self.benchmark[range])
-            })
-            .count()
+            .map(|part| part * length / SUB_PERIODS..(part + 1) * length / SUB_PERIODS)
+            .filter(|range| !range.is_empty())
+            .map(|range| growth(&self.returns[range.clone()]) - growth(&self.benchmark[range]))
+            .collect()
     }
 }
 
@@ -86,23 +84,35 @@ fn path(returns: &[f64]) -> Vec<f64> {
         .collect()
 }
 
-pub fn gate(run: &RunSummary, screened: Option<&Screened<'_>>) -> Vec<GateCheck> {
+pub struct Screen {
+    pub failed_checks: Vec<GateCheck>,
+    pub sub_periods: Vec<f64>,
+}
+
+pub fn screen(run: &RunSummary, screened: Option<&Screened<'_>>) -> Screen {
     if !run.status.is_finished() {
-        return vec![GateCheck::NotCompleted];
+        return Screen {
+            failed_checks: vec![GateCheck::NotCompleted],
+            sub_periods: Vec::new(),
+        };
     }
     let metrics = run.metrics.as_ref();
     let sharpe = metrics.and_then(|metrics| metrics.sharpe);
-    let (trails, deeper, inconsistent) =
-        match screened.and_then(|screened| Matched::of(run, screened)) {
-            Some(matched) => (
-                annualized(&matched.returns) <= annualized(&matched.benchmark),
-                max_drawdown(&path(&matched.returns)) > max_drawdown(&path(&matched.benchmark)),
-                matched.sub_periods_ahead() < AHEAD_SUB_PERIODS,
-            ),
-            None => (true, true, true),
-        };
+    let matched = screened.and_then(|screened| Matched::of(run, screened));
+    let sub_periods = matched
+        .as_ref()
+        .map(Matched::sub_period_edges)
+        .unwrap_or_default();
+    let (trails, deeper, inconsistent) = match &matched {
+        Some(matched) => (
+            annualized(&matched.returns) <= annualized(&matched.benchmark),
+            max_drawdown(&path(&matched.returns)) > max_drawdown(&path(&matched.benchmark)),
+            sub_periods.iter().filter(|edge| **edge > 0.0).count() < AHEAD_SUB_PERIODS,
+        ),
+        None => (true, true, true),
+    };
     let stopped = run.badges.contains(&RunBadge::DrawdownStop);
-    [
+    let checks = [
         (
             GateCheck::NotCompleted,
             !stopped && run.status != RunStatus::Completed,
@@ -123,10 +133,14 @@ pub fn gate(run: &RunSummary, screened: Option<&Screened<'_>>) -> Vec<GateCheck>
         (GateCheck::TrailsBenchmark, trails),
         (GateCheck::DeeperDrawdown, deeper),
         (GateCheck::InconsistentEdge, inconsistent),
-    ]
-    .into_iter()
-    .filter_map(|(check, failed)| failed.then_some(check))
-    .collect()
+    ];
+    Screen {
+        failed_checks: checks
+            .into_iter()
+            .filter_map(|(check, failed)| failed.then_some(check))
+            .collect(),
+        sub_periods,
+    }
 }
 
 pub fn luck_sharpe(sessions: u32, trials: u32) -> Option<f64> {

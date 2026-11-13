@@ -410,7 +410,9 @@ function signedYearly(value: number): string {
   return `${fmt.change(Math.abs(value))}/yr`.replace(/^[+-]/, "");
 }
 
-function Headline({ run, metrics, benchmark, gate }: { run: Run; metrics: Schemas["Metrics"] | null | undefined; benchmark: Schemas["Metrics"] | undefined; gate: Schemas["GateCheck"][] | undefined }) {
+type HeadlineProps = { run: Run; metrics: Schemas["Metrics"] | null | undefined; benchmark: Schemas["Metrics"] | undefined; pending: boolean; gate: Schemas["GateCheck"][] | undefined };
+
+function Headline({ run, metrics, benchmark, pending, gate }: HeadlineProps) {
   const stats = run.live_stats;
   if (run.mode === "live") {
     if (!stats || stats.sessions === 0) {
@@ -425,6 +427,9 @@ function Headline({ run, metrics, benchmark, gate }: { run: Run; metrics: Schema
         {stats.sessions < 252 && ` (annualized from ${fmt.integer(stats.sessions)} sessions)`}, verdict {label(stats.verdict)}.
       </p>
     );
+  }
+  if (pending) {
+    return <p className="run-headline" aria-busy="true" />;
   }
   if (!metrics || metrics.sessions === 0) {
     return null;
@@ -532,7 +537,7 @@ function Overview({ run, symbol, gate, closeHref }: { run: Run; symbol: string |
 
   return (
     <div className="overview">
-      <Headline run={run} metrics={metrics} benchmark={curve.data?.benchmark_metrics} gate={gate} />
+      <Headline run={run} metrics={metrics} benchmark={curve.data?.benchmark_metrics} pending={curve.data === undefined && curve.error === undefined} gate={gate} />
       <section className="panel chart-panel" aria-label="Equity">
         <StaleFailure resource={curve} />
         {curve.data ? (

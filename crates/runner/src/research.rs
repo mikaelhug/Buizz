@@ -2,15 +2,15 @@ use std::collections::{BTreeMap, HashMap};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use buizz_core::api::{
-    BacktestGlance, GateCheck, PresetResearch, Research, RunSummary, Screening, SparkPoint, Trials,
+    BacktestGlance, PresetResearch, Research, RunSummary, Screening, SparkPoint, Trials,
     VariantResult,
 };
 use buizz_core::market::{RiskFreeRate, Symbol};
-use buizz_core::performance::Metrics;
+use buizz_core::performance::{LivePoint, Metrics};
 use buizz_core::run::{CostModel, Mode, Period, PeriodPreset, RunConfig, RunId, RunStatus};
 use buizz_core::time::Timestamp;
 use buizz_market::MarketStore;
-use buizz_metrics::Screened;
+use buizz_metrics::{Screen, Screened};
 use buizz_state::{RunFilter, StateStore};
 use buizz_supervisor::BotSpec;
 use chrono::NaiveDate;
@@ -39,7 +39,9 @@ pub struct Benchmarks {
     market: MarketStore,
     state: StateStore,
     today: NaiveDate,
+    data_through: Option<Timestamp>,
     figures: Mutex<HashMap<BenchmarkKey, Arc<OnceCell<Figures>>>>,
+    judged: Mutex<HashMap<RunId, Arc<Judged>>>,
 }
 
 pub struct BotScreening {
@@ -48,7 +50,7 @@ pub struct BotScreening {
 }
 
 struct Gated {
-    failed_checks: Vec<Vec<GateCheck>>,
+    judged: Vec<Arc<Judged>>,
     neighbourhood: Vec<Option<f64>>,
     plateau: Option<RunId>,
 }
@@ -90,37 +92,62 @@ impl Benchmarks {
             .clone())
     }
 
-    async fn curve(&self, run: &RunSummary) -> Result<Vec<SparkPoint>, RunnerError> {
-        let cell = self.figures(run).await?;
-        Ok(cell
-            .get()
-            .expect("benchmark figures are initialised")
-            .curve
-            .clone())
+    async fn screen(&self, run: &RunSummary) -> Result<Arc<Judged>, RunnerError> {
+        if !run.status.is_finished() {
+            return Ok(Arc::new(Judged {
+                screen: buizz_metrics::screen(run, None),
+                excess_cagr: None,
+                curve: Vec::new(),
+            }));
+        }
+        if let Some(known) = self
+            .judged
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(&run.id)
+        {
+            return Ok(Arc::clone(known));
+        }
+        let judged = Arc::new(self.judge(run).await?);
+        self.judged
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(run.id, Arc::clone(&judged));
+        Ok(judged)
     }
 
-    async fn gate(&self, run: &RunSummary) -> Result<Vec<GateCheck>, RunnerError> {
-        if !run.status.is_finished() {
-            return Ok(buizz_metrics::gate(run, None));
-        }
+    async fn judge(&self, run: &RunSummary) -> Result<Judged, RunnerError> {
         let cell = self.figures(run).await?;
         let figures = cell.get().expect("benchmark figures are initialised");
         let equity = self.state.equity(run.id).await?;
-        Ok(buizz_metrics::gate(
-            run,
-            Some(&Screened {
-                equity: &equity,
-                benchmark: &figures.curve,
-                risk_free: &figures.risk_free,
-            }),
-        ))
+        let cagr = |metrics: Option<&Metrics>| metrics.and_then(|metrics| metrics.cagr);
+        Ok(Judged {
+            screen: buizz_metrics::screen(
+                run,
+                Some(&Screened {
+                    equity: &equity,
+                    benchmark: &figures.curve,
+                    risk_free: &figures.risk_free,
+                }),
+            ),
+            excess_cagr: cagr(run.metrics.as_ref())
+                .zip(cagr(Some(&figures.metrics)))
+                .map(|(own, spy)| own - spy),
+            curve: buizz_metrics::backtest_curve(&equity, &figures.curve),
+        })
     }
 }
 
+struct Judged {
+    screen: Screen,
+    excess_cagr: Option<f64>,
+    curve: Vec<LivePoint>,
+}
+
 async fn gated(runs: &[RunSummary], benchmarks: &Benchmarks) -> Result<Gated, RunnerError> {
-    let mut failed_checks = Vec::with_capacity(runs.len());
+    let mut judged = Vec::with_capacity(runs.len());
     for run in runs {
-        failed_checks.push(benchmarks.gate(run).await?);
+        judged.push(benchmarks.screen(run).await?);
     }
     let sharpes: Vec<_> = runs
         .iter()
@@ -134,13 +161,19 @@ async fn gated(runs: &[RunSummary], benchmarks: &Benchmarks) -> Result<Gated, Ru
     let neighbourhood = buizz_metrics::neighbourhood_sharpes(&sharpes);
     let plateau = runs
         .iter()
-        .zip(&failed_checks)
+        .zip(&judged)
         .zip(&neighbourhood)
-        .filter_map(|((run, failed), median)| failed.is_empty().then_some((run.id, (*median)?)))
+        .filter_map(|((run, judged), median)| {
+            judged
+                .screen
+                .failed_checks
+                .is_empty()
+                .then_some((run.id, (*median)?))
+        })
         .max_by(|left, right| left.1.total_cmp(&right.1))
         .map(|(run_id, _)| run_id);
     Ok(Gated {
-        failed_checks,
+        judged,
         neighbourhood,
         plateau,
     })
@@ -150,12 +183,12 @@ fn featured<'a>(
     runs: &'a [RunSummary],
     gated: &'a Gated,
     defaults: &Map<String, Value>,
-) -> Option<(&'a RunSummary, Metrics, &'a [GateCheck])> {
+) -> Option<(&'a RunSummary, Metrics, &'a Arc<Judged>)> {
     let completed = || {
         runs.iter()
-            .zip(&gated.failed_checks)
+            .zip(&gated.judged)
             .filter(|(run, _)| run.status == RunStatus::Completed)
-            .filter_map(|(run, failed)| Some((run, run.metrics.clone()?, failed.as_slice())))
+            .filter_map(|(run, judged)| Some((run, run.metrics.clone()?, judged)))
     };
     completed()
         .find(|(run, ..)| Some(run.id) == gated.plateau)
@@ -190,6 +223,13 @@ fn latest_variants(
     presets
 }
 
+fn period_of(run: &RunSummary) -> Period {
+    Period {
+        from: run.config.start,
+        to: run.config.end.unwrap_or(run.config.start),
+    }
+}
+
 fn gate_preset(presets: &BTreeMap<PeriodPreset, Vec<RunSummary>>) -> Option<PeriodPreset> {
     presets
         .iter()
@@ -199,12 +239,26 @@ fn gate_preset(presets: &BTreeMap<PeriodPreset, Vec<RunSummary>>) -> Option<Peri
 }
 
 impl Runner {
-    pub fn benchmarks(&self) -> Benchmarks {
-        Benchmarks {
-            market: self.inner.market.clone(),
-            state: self.inner.state.clone(),
-            today: Timestamp::now().exchange_date(),
-            figures: Mutex::default(),
+    pub fn benchmarks(&self) -> Arc<Benchmarks> {
+        let today = Timestamp::now().exchange_date();
+        let data_through = self.inner.market.watermarks().borrow().day;
+        let mut shared = self
+            .inner
+            .benchmarks
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        match shared.as_ref() {
+            Some(current) if current.today == today && current.data_through == data_through => {
+                Arc::clone(current)
+            }
+            _ => Arc::clone(shared.insert(Arc::new(Benchmarks {
+                market: self.inner.market.clone(),
+                state: self.inner.state.clone(),
+                today,
+                data_through,
+                figures: Mutex::default(),
+                judged: Mutex::default(),
+            }))),
         }
     }
 
@@ -241,28 +295,40 @@ impl Runner {
         let Some(preset) = gate_preset(&presets) else {
             return Ok(BotScreening {
                 screening: None,
-                backtest: None,
+                backtest: self.latest_backtest(spec, benchmarks).await?,
             });
         };
         let runs = &presets[&preset];
         let gated = gated(runs, benchmarks).await?;
         let finished = || {
             runs.iter()
-                .zip(&gated.failed_checks)
+                .zip(&gated.judged)
                 .filter(|(run, _)| run.status.is_finished())
         };
         let screening = Screening {
             preset,
             variants: u32::try_from(finished().count()).unwrap_or(u32::MAX),
-            passing: u32::try_from(finished().filter(|(_, failed)| failed.is_empty()).count())
-                .unwrap_or(u32::MAX),
+            passing: u32::try_from(
+                finished()
+                    .filter(|(_, judged)| judged.screen.failed_checks.is_empty())
+                    .count(),
+            )
+            .unwrap_or(u32::MAX),
         };
         let backtest = match featured(runs, &gated, &spec.manifest.params) {
-            Some((run, metrics, failed)) => Some(
-                self.glance(run, metrics, failed, preset, gated.plateau, benchmarks)
-                    .await?,
-            ),
-            None => None,
+            Some((run, metrics, judged)) => Some(BacktestGlance {
+                run_id: run.id,
+                preset: Some(preset),
+                period: period_of(run),
+                plateau: gated.plateau == Some(run.id),
+                failed_checks: judged.screen.failed_checks.clone(),
+                sub_periods: judged.screen.sub_periods.clone(),
+                params: run.config.params.clone(),
+                metrics,
+                benchmark: benchmarks.metrics(run).await?,
+                curve: judged.curve.clone(),
+            }),
+            None => self.latest_backtest(spec, benchmarks).await?,
         };
         Ok(BotScreening {
             screening: Some(screening),
@@ -270,27 +336,42 @@ impl Runner {
         })
     }
 
-    async fn glance(
+    async fn latest_backtest(
         &self,
-        run: &RunSummary,
-        metrics: Metrics,
-        failed_checks: &[GateCheck],
-        preset: PeriodPreset,
-        plateau: Option<RunId>,
+        spec: &BotSpec,
         benchmarks: &Benchmarks,
-    ) -> Result<BacktestGlance, RunnerError> {
-        let equity = self.inner.state.equity(run.id).await?;
-        let benchmark_curve = benchmarks.curve(run).await?;
-        Ok(BacktestGlance {
+    ) -> Result<Option<BacktestGlance>, RunnerError> {
+        let latest = self
+            .inner
+            .state
+            .runs(RunFilter {
+                bot: Some(spec.name.clone()),
+                bot_hash: Some(spec.content_hash.clone()),
+                mode: Some(Mode::Backtest),
+                statuses: vec![RunStatus::Completed],
+                limit: Some(1),
+                ..RunFilter::default()
+            })
+            .await?;
+        let Some(run) = latest.into_iter().next() else {
+            return Ok(None);
+        };
+        let Some(metrics) = run.metrics.clone() else {
+            return Ok(None);
+        };
+        let judged = benchmarks.screen(&run).await?;
+        Ok(Some(BacktestGlance {
             run_id: run.id,
-            preset,
-            plateau: plateau == Some(run.id),
-            failed_checks: failed_checks.to_vec(),
+            preset: None,
+            period: period_of(&run),
+            plateau: false,
+            failed_checks: judged.screen.failed_checks.clone(),
+            sub_periods: judged.screen.sub_periods.clone(),
             params: run.config.params.clone(),
             metrics,
-            benchmark: benchmarks.metrics(run).await?,
-            curve: buizz_metrics::backtest_curve(&equity, &benchmark_curve),
-        })
+            benchmark: benchmarks.metrics(&run).await?,
+            curve: judged.curve.clone(),
+        }))
     }
 
     pub async fn research(&self, bot: &str) -> Result<Research, RunnerError> {
@@ -322,29 +403,27 @@ async fn preset_research(
         None => None,
     };
     let Gated {
-        failed_checks,
+        judged,
         neighbourhood,
         plateau,
     } = gated(&runs, benchmarks).await?;
     let variants = runs
         .into_iter()
-        .zip(failed_checks)
+        .zip(judged)
         .zip(neighbourhood)
-        .map(
-            |((run, failed_checks), neighbourhood_sharpe)| VariantResult {
-                run_id: run.id,
-                status: run.status,
-                period: Period {
-                    from: run.config.start,
-                    to: run.config.end.unwrap_or(run.config.start),
-                },
-                params: run.config.params,
-                metrics: run.metrics,
-                badges: run.badges,
-                failed_checks,
-                neighbourhood_sharpe,
-            },
-        )
+        .map(|((run, judged), neighbourhood_sharpe)| VariantResult {
+            run_id: run.id,
+            status: run.status,
+            period: period_of(&run),
+            params: run.config.params,
+            metrics: run.metrics,
+            badges: run.badges,
+            failed_checks: judged.screen.failed_checks.clone(),
+            sub_periods: judged.screen.sub_periods.clone(),
+            excess_cagr: judged.excess_cagr,
+            neighbourhood_sharpe,
+            curve: judged.curve.clone(),
+        })
         .collect();
     Ok(PresetResearch {
         preset,

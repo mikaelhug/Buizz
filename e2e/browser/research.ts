@@ -11,7 +11,11 @@ async function twoVariantsLive(page: Page): Promise<{ params: string[] }> {
   await page.getByRole("option", { name: /^Research sma_cross/ }).waitFor();
   await page.keyboard.press("Enter");
   await page.locator(".research-trials", { hasText: "4 variants tried" }).waitFor();
-  await page.getByRole("region", { name: "Heatmap" }).locator("table").waitFor();
+  const heatmap = page.getByRole("region", { name: "Heatmap" });
+  await heatmap.getByRole("heading", { name: /^CAGR vs SPY by / }).waitFor();
+  await heatmap.getByRole("button", { name: "Sharpe", exact: true }).click();
+  await heatmap.getByRole("heading", { name: /^Sharpe by / }).waitFor();
+  await heatmap.locator("table").waitFor();
   const variants = page.getByRole("region", { name: "Variants" }).locator("tbody tr");
   if ((await variants.count()) !== 4) {
     throw new Error(`the research table shows ${await variants.count()} variants, not 4`);

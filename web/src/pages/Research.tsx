@@ -1,16 +1,20 @@
 import { useState } from "react";
 import { api, errorMessage, must, type Schemas } from "../api/client";
 import { useSpineEvents } from "../api/stream";
-import { fmt, label, paramsText } from "../lib/format";
+import { fmt, label, paramsText, tone } from "../lib/format";
 import { href, navigate } from "../lib/route";
 import { BulkBar, CompareButton, SelectAll, SelectBox, useSelection } from "../ui/Selection";
 import { useFrameBatch } from "../lib/useFrameBatch";
 import { useResource } from "../lib/useResource";
+import { useStored } from "../lib/stored";
 import { Failure, Loading, StaleFailure } from "../ui/Feedback";
+import { Stat } from "../ui/Kit";
 import { MetricValue } from "../ui/Metrics";
 import { OverflowMenu } from "../ui/Menu";
 import { Info } from "../ui/Popover";
+import { Sparkline } from "../ui/Sparkline";
 import { StatusPill } from "../ui/Status";
+import { SUB_PERIODS_ABOUT, SubPeriods } from "../ui/SubPeriods";
 import { moveBetweenRows, openRow, SortHeader, type SortColumns, useFlash, useSort } from "../ui/Table";
 import { notify } from "../ui/Toaster";
 import { goLive } from "./BotActions";
@@ -68,6 +72,13 @@ function varying(variants: Variant[]): string[] {
 function sharpe(variant: Variant): number | undefined {
   return variant.metrics?.sharpe ?? undefined;
 }
+
+function excess(variant: Variant): number | undefined {
+  return variant.excess_cagr ?? undefined;
+}
+
+const EXCESS_ABOUT =
+  "The variant's CAGR minus total-return SPY's (dividends reinvested) over exactly the same sessions, at the risk the variant actually took. The gate also asks for the edge at SPY's volatility.";
 
 function quantile(sorted: number[], q: number): number | undefined {
   if (sorted.length === 0) {
@@ -194,12 +205,20 @@ function PresetView({ name, research, defaults, liveVariants, trials, gate }: Pr
       <section className="panel research-suggest" aria-label="Suggested variant">
         {plateau ? (
           <>
-            <div>
+            <div className="research-suggest-text">
               <h2>Plateau variant</h2>
               <p>
                 <span className="mono">{variantText(plateau.params, defaults)}</span> passes the gate with the best neighbourhood median Sharpe,{" "}
                 <span className="num">{fmt.ratio(plateau.neighbourhood_sharpe)}</span> (its own <span className="num">{fmt.ratio(sharpe(plateau))}</span>).
               </p>
+            </div>
+            <div className="research-suggest-stats">
+              <Stat label="CAGR vs SPY" value={fmt.change(excess(plateau))} tone={tone(excess(plateau))} sub={`CAGR ${fmt.change(plateau.metrics?.cagr)}`} />
+              <Stat label="Thirds ahead" value={`${plateau.sub_periods.filter((edge) => edge > 0).length} of ${plateau.sub_periods.length}`} sub={<SubPeriods edges={plateau.sub_periods} count={false} />} />
+              <Stat label="Max drawdown" value={fmt.change(plateau.metrics?.max_drawdown === null || plateau.metrics?.max_drawdown === undefined ? undefined : -plateau.metrics.max_drawdown)} />
+              <div className="research-suggest-chart">
+                <Sparkline curve={plateau.curve} mark={undefined} benchmark="total-return SPY" />
+              </div>
             </div>
             {liveVariants.has(key(plateau.params)) ? (
               <span className="pill pill-live">live</span>
@@ -242,6 +261,7 @@ function Spread({ research, trials }: { research: PresetResearch; trials: number
   const values = research.variants.flatMap((variant) => sharpe(variant) ?? []).toSorted((a, b) => a - b);
   const finished = research.variants.filter((variant) => !PENDING.has(variant.status));
   const passing = research.variants.filter((variant) => variant.failed_checks.length === 0).length;
+  const beating = finished.filter((variant) => (excess(variant) ?? 0) > 0).length;
   const [low, median, high] = [quantile(values, 0.25), quantile(values, 0.5), quantile(values, 0.75)];
   const spy = research.benchmark_sharpe ?? undefined;
   const luck = research.luck_sharpe ?? undefined;
@@ -262,6 +282,15 @@ function Spread({ research, trials }: { research: PresetResearch; trials: number
           <dt>Middle half</dt>
           <dd className="num">
             {fmt.ratio(low)} to {fmt.ratio(high)}
+          </dd>
+        </div>
+        <div>
+          <dt>
+            Beat SPY's CAGR
+            <Info label="CAGR vs SPY">{EXCESS_ABOUT}</Info>
+          </dt>
+          <dd className="num">
+            {beating} of {finished.length}
           </dd>
         </div>
         <div>
@@ -325,18 +354,38 @@ function tint(value: number | undefined, scale: number): string | undefined {
   return `color-mix(in srgb, var(${value >= 0 ? "--up" : "--down"}) ${strength}%, transparent)`;
 }
 
+const HEAT_METRICS = {
+  excess: { text: "CAGR vs SPY", value: excess, render: fmt.change },
+  sharpe: { text: "Sharpe", value: sharpe, render: fmt.ratio },
+} as const;
+
+type HeatMetric = keyof typeof HEAT_METRICS;
+
+const isHeatMetric = (value: unknown): value is HeatMetric => value === "excess" || value === "sharpe";
+
 function Heatmap({ name, variants, axes, plateau }: { name: string; variants: Variant[]; axes: string[]; plateau: number | null | undefined }) {
+  const [metric, setMetric] = useStored<HeatMetric>("heatmap-metric", "excess", isHeatMetric);
+  const shown = HEAT_METRICS[metric];
   const [across, down] = [axes[0] ?? "", axes[1]];
   const columns = axisValues(variants, across);
   const rows = down === undefined ? [undefined] : axisValues(variants, down);
-  const scale = Math.max(0, ...variants.map((variant) => Math.abs(sharpe(variant) ?? 0)));
+  const scale = Math.max(0, ...variants.map((variant) => Math.abs(shown.value(variant) ?? 0)));
   const cell = (column: unknown, row: unknown) =>
     variants.find((variant) => key({ v: variant.params[across] }) === key({ v: column }) && (down === undefined || key({ v: variant.params[down] }) === key({ v: row })));
 
   return (
     <section className="panel" aria-label="Heatmap">
       <header className="panel-head">
-        <h2>Sharpe by {down === undefined ? across : `${across} and ${down}`}</h2>
+        <h2>
+          {shown.text} by {down === undefined ? across : `${across} and ${down}`}
+        </h2>
+        <span className="segmented segmented-sm" role="group" aria-label="Colour by">
+          {Object.entries(HEAT_METRICS).map(([option, spec]) => (
+            <button key={option} type="button" className={option === metric ? "active" : undefined} aria-pressed={option === metric} onClick={() => isHeatMetric(option) && setMetric(option)}>
+              {spec.text}
+            </button>
+          ))}
+        </span>
         <span className="monthly-legend">
           <span>below 0</span>
           <span className="monthly-scale" aria-hidden="true" />
@@ -365,12 +414,12 @@ function Heatmap({ name, variants, axes, plateau }: { name: string; variants: Va
                 </th>
                 {columns.map((column) => {
                   const variant = cell(column, row);
-                  const value = variant && sharpe(variant);
+                  const value = variant && shown.value(variant);
                   return (
                     <td key={key({ v: column })} className={variant?.run_id === plateau ? "r plateau" : "r"} style={{ background: tint(value, scale) }}>
                       {variant ? (
                         <a href={href({ page: "bot", name, run: variant.run_id })} title={variant.failed_checks.length === 0 ? "passes the gate" : variant.failed_checks.map((check) => CHECKS[check]).join(", ")}>
-                          {value === undefined && PENDING.has(variant.status) ? label(variant.status) : fmt.ratio(value)}
+                          {value === undefined && PENDING.has(variant.status) ? label(variant.status) : shown.render(value)}
                           {variant.failed_checks.length === 0 && <span className="heat-pass"> ✓</span>}
                         </a>
                       ) : (
@@ -413,6 +462,8 @@ function VariantTable({ name, variants, axes, defaults, plateau, liveVariants, b
     params: { value: (variant) => variantText(variant.params, defaults) },
     status: { value: (variant) => variant.status },
     neighbourhood: { value: (variant) => variant.neighbourhood_sharpe, descending: true },
+    excess: { value: excess, descending: true },
+    thirds: { value: (variant) => (variant.sub_periods.length === 0 ? undefined : variant.sub_periods.filter((edge) => edge > 0).length), descending: true },
     gate: { value: (variant) => variant.failed_checks.length },
     ...Object.fromEntries(axes.map((axis) => [`param:${axis}`, { value: (variant: Variant) => {
       const value = variant.params[axis];
@@ -451,6 +502,15 @@ function VariantTable({ name, variants, axes, defaults, plateau, liveVariants, b
               )}
               <SortHeader sorting={sorting} column="status">
                 Status
+              </SortHeader>
+              <SortHeader sorting={sorting} column="excess" numeric info={<Info label="CAGR vs SPY">{EXCESS_ABOUT}</Info>}>
+                CAGR vs SPY
+              </SortHeader>
+              <th scope="col" className="chart-col">
+                vs total-return SPY
+              </th>
+              <SortHeader sorting={sorting} column="thirds" info={<Info label="Thirds">{SUB_PERIODS_ABOUT}</Info>}>
+                Thirds
               </SortHeader>
               {METRIC_COLUMNS.slice(0, 1).map(([metric, text]) => (
                 <SortHeader key={metric} sorting={sorting} column={metric} numeric>
@@ -496,6 +556,13 @@ function VariantTable({ name, variants, axes, defaults, plateau, liveVariants, b
                   <td>
                     <StatusPill status={variant.status} />
                   </td>
+                  <td className={`r num headline-num ${tone(excess(variant)) ?? ""}`}>{fmt.change(excess(variant))}</td>
+                  <td className="spark-cell chart-col">
+                    <Sparkline curve={variant.curve} mark={undefined} benchmark="total-return SPY" />
+                  </td>
+                  <td>
+                    <SubPeriods edges={variant.sub_periods} />
+                  </td>
                   <td className="r">
                     <MetricValue metrics={variant.metrics} metric="sharpe" />
                   </td>
@@ -511,11 +578,8 @@ function VariantTable({ name, variants, axes, defaults, plateau, liveVariants, b
                     ) : passes ? (
                       <span className="pill pill-ok">pass</span>
                     ) : (
-                      variant.failed_checks.length === 1 ? (
-                      <span className="gate-fails">{CHECKS[variant.failed_checks[0] ?? "not_completed"]}</span>
-                    ) : (
                       <span className="gate-fails">
-                        fails {variant.failed_checks.length} checks
+                        {variant.failed_checks.length === 1 ? "fails 1 check" : `fails ${variant.failed_checks.length} checks`}
                         <Info label={`Run #${variant.run_id} fails`}>
                           <ul className="gate-list">
                             {variant.failed_checks.map((check) => (
@@ -524,7 +588,6 @@ function VariantTable({ name, variants, axes, defaults, plateau, liveVariants, b
                           </ul>
                         </Info>
                       </span>
-                    )
                     )}
                     {variant.run_id === plateau && <span className="pill pill-plateau">plateau</span>}
                   </td>
