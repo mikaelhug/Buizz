@@ -106,7 +106,8 @@ export function BotGrid() {
   const [marks, setMarks] = useState<Record<number, Mark>>({});
   const [filter, setFilter] = useQueryParam("q");
   const [groupParam, setGroup] = useQueryParam("stage");
-  const [untestedOpen, setUntestedOpen] = useStored<boolean>("bots-untested-open", false, (value): value is boolean => typeof value === "boolean");
+  const [untestedChoice, setUntestedOpen] = useStored<boolean | null>("bots-untested-open", null, (value): value is boolean => typeof value === "boolean");
+  const firstLoad = useRef<boolean | undefined>(undefined);
   const sorting = useSort("bot-list", SORT, { key: "headline", descending: true });
   const refreshBot = useBotRefresh(bots.mutate);
 
@@ -160,6 +161,10 @@ export function BotGrid() {
   });
 
   const all = entriesOf(bots.data ?? []);
+  if (bots.data && firstLoad.current === undefined) {
+    firstLoad.current = all.every((entry) => entry.group === "untested");
+  }
+  const untestedOpen = untestedChoice ?? firstLoad.current ?? false;
   const group = isGroup(groupParam) ? groupParam : undefined;
   const found = all.filter((entry) => (!group || entry.group === group) && matches(filter, entry.bot.name, entry.bot.description));
   const searching = filter.trim() !== "" || group !== undefined;

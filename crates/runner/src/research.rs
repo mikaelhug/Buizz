@@ -2,8 +2,8 @@ use std::collections::{BTreeMap, HashMap};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use buizz_core::api::{
-    BacktestGlance, LiveSummary, PresetResearch, Research, RunSummary, Screening, SparkPoint, Trials,
-    VariantResult,
+    BacktestGlance, LiveSummary, PresetResearch, Research, RunSummary, Screening, SparkPoint,
+    Trials, VariantResult,
 };
 use buizz_core::market::{RiskFreeRate, Session, Symbol};
 use buizz_core::performance::{LivePoint, Metrics};
@@ -305,7 +305,12 @@ impl Inner {
     }
 
     async fn first_session(&self, run: &RunSummary) -> Result<Option<Session>, RunnerError> {
-        if run.live_stats.as_ref().is_some_and(|stats| stats.sessions > 0) || run.status.is_finished() {
+        if run
+            .live_stats
+            .as_ref()
+            .is_some_and(|stats| stats.sessions > 0)
+            || run.status.is_finished()
+        {
             return Ok(None);
         }
         let since = run.started_at.unwrap_or(run.created_at);
@@ -328,7 +333,11 @@ async fn glance(
     plateau: bool,
     benchmarks: &Benchmarks,
 ) -> Result<Option<BacktestGlance>, RunnerError> {
-    let Some(metrics) = run.metrics.clone().filter(|_| run.status == RunStatus::Completed) else {
+    let Some(metrics) = run
+        .metrics
+        .clone()
+        .filter(|_| run.status == RunStatus::Completed)
+    else {
         return Ok(None);
     };
     let judged = benchmarks.screen(run).await?;
@@ -375,7 +384,9 @@ impl Runner {
                 ..RunFilter::default()
             })
             .await?;
-        Ok(latest_variants(runs, |config| self.inner.standard(config, spec)))
+        Ok(latest_variants(runs, |config| {
+            self.inner.standard(config, spec)
+        }))
     }
 
     pub async fn screening(

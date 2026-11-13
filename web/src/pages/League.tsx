@@ -176,7 +176,7 @@ export function League() {
           <EmptyState
             title="No live runs yet"
             action={
-              <a className="btn btn-primary btn-sm" href={`${href({ page: "bots" })}?stage=screened`}>
+              <a className="btn btn-primary btn-sm" href={`${href({ page: "bots" })}?stage=ready`}>
                 See screened bots
               </a>
             }

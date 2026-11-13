@@ -1382,16 +1382,6 @@ tr:hover .select-box,
   color: var(--muted);
 }
 
-.pill-screened {
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
-.pill-draft {
-  background: transparent;
-  box-shadow: inset 0 0 0 1px var(--border);
-}
-
 .sub-periods {
   display: inline-flex;
   align-items: center;

@@ -163,15 +163,13 @@ pub(crate) async fn league(State(app): State<AppState>) -> Result<Json<League>, 
             .map(|run| app.runner.live_summary(run, started)),
     )
     .await?;
-    let (mut ranked, too_early): (Vec<_>, Vec<_>) = summaries
-        .into_iter()
-        .partition(|summary| {
-            summary
-                .run
-                .live_stats
-                .as_ref()
-                .is_some_and(|stats| stats.sessions >= LiveVerdict::TRACKING_SESSIONS)
-        });
+    let (mut ranked, too_early): (Vec<_>, Vec<_>) = summaries.into_iter().partition(|summary| {
+        summary
+            .run
+            .live_stats
+            .as_ref()
+            .is_some_and(|stats| stats.sessions >= LiveVerdict::TRACKING_SESSIONS)
+    });
     ranked.sort_by(|left, right| confidence(right).total_cmp(&confidence(left)));
     Ok(Json(League {
         started,
