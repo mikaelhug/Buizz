@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use serde::de::DeserializeOwned;
@@ -323,19 +325,18 @@ impl BarBuffer {
         rows: impl IntoIterator<Item = &'a BarRow>,
     ) -> Result<Self, BarBufferError> {
         let mut buffer = Self::default();
+        let mut indexes: HashMap<&Symbol, u16> = HashMap::new();
         for row in rows {
-            let index = match buffer
-                .symbols
-                .iter()
-                .position(|symbol| *symbol == row.symbol)
-            {
-                Some(index) => index,
+            let index = match indexes.get(&row.symbol) {
+                Some(index) => *index,
                 None => {
+                    let index = u16::try_from(buffer.symbols.len())
+                        .map_err(|_| BarBufferError::TooManySymbols)?;
                     buffer.symbols.push(row.symbol.clone());
-                    buffer.symbols.len() - 1
+                    indexes.insert(&row.symbol, index);
+                    index
                 }
             };
-            let index = u16::try_from(index).map_err(|_| BarBufferError::TooManySymbols)?;
             buffer.symbol_index.extend_from_slice(&index.to_le_bytes());
             buffer
                 .start

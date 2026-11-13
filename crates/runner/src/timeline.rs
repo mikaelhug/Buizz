@@ -30,6 +30,7 @@ impl Point {
 #[derive(Debug, Default)]
 pub(crate) struct SessionData {
     pub date: Option<NaiveDate>,
+    pub universe_at: Vec<Symbol>,
     pub universe: Vec<Symbol>,
     pub actions: Vec<CorporateAction>,
     pub average_daily_volume: BTreeMap<Symbol, u64>,
@@ -223,9 +224,11 @@ impl Timeline {
             date: Some(session.date),
             universe: fetched
                 .universe
-                .into_iter()
+                .iter()
                 .filter(|symbol| !self.ended(symbol, session.date, session.date))
+                .cloned()
                 .collect(),
+            universe_at: fetched.universe,
             actions: fetched.actions,
             average_daily_volume: fetched.average_daily_volume,
             delisted: fetched

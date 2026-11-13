@@ -4,11 +4,10 @@ use buizz_core::listing::Listings;
 use buizz_core::market::{
     Adjustment, AdjustmentFactor, AssetClass, Bar, Calendar, Company, CorporateAction,
     CorporateActionKind, Coverage, DataSource, Dataset, EarningsInsight, EarningsRelease,
-    EstimateFact, EstimateMetric, EstimateScope, Feed, FomcAnnouncement, FomcMeeting,
-    FundamentalMetric, FundamentalPoint, HISTORY_FLOORS, HISTORY_START, IndexHistory, IndexMember,
-    InsiderOwner, InsiderTrade, InsiderTransaction, Instrument, InstrumentProfile,
-    MacroObservation, MacroPoint, MacroSeries, NewsArticle, RiskFreeRate, SIP_DELAY, Session,
-    StockIndex, Symbol, Timeframe,
+    EstimateFact, EstimateMetric, EstimateScope, FomcAnnouncement, FomcMeeting, FundamentalMetric,
+    FundamentalPoint, HISTORY_FLOORS, HISTORY_START, IndexHistory, IndexMember, InsiderOwner,
+    InsiderTrade, InsiderTransaction, Instrument, InstrumentProfile, MacroObservation, MacroPoint,
+    MacroSeries, NewsArticle, RiskFreeRate, SIP_DELAY, Session, StockIndex, Symbol, Timeframe,
 };
 use buizz_core::ops::{ActionDisagreement, CoverageGap, DataWarning, UNEXPLAINED_MOVE_THRESHOLD};
 use buizz_core::protocol::BarRow;
@@ -24,7 +23,8 @@ use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
 
 use crate::codec::{
-    ActionColumns, Dec, Params, Sym, Ts, Wire, placeholders, symbol_params, wire_name,
+    ActionColumns, Dec, FeedColumn, IN_SYMBOLS, Params, Sym, Ts, Wire, placeholders, symbol_list,
+    wire_name,
 };
 use crate::{ChartBars, ChartRequest, HistoryRequest, Result};
 
@@ -137,11 +137,9 @@ pub(crate) fn delisted_before(
         return Ok(BTreeSet::new());
     }
     let mut statement = connection.prepare_cached(&format!(
-        "SELECT symbol FROM instrument WHERE last_session < ? AND symbol IN ({})",
-        placeholders(symbols.len())
+        "SELECT symbol FROM instrument WHERE last_session < ? AND symbol {IN_SYMBOLS}"
     ))?;
-    let mut params: Params = vec![Box::new(date)];
-    params.extend(symbol_params(symbols));
+    let params: Params = vec![Box::new(date), symbol_list(symbols)];
     let delisted = statement
         .query_map(params_from_iter(params.iter()), |row| {
             Ok(row.get::<_, Sym>(0)?.0)
@@ -174,10 +172,9 @@ pub(crate) fn bars(connection: &Connection, query: &BarQuery<'_>) -> Result<Vec<
     let upper = if query.to_inclusive { "<=" } else { "<" };
     let mut sql = format!(
         "SELECT b.symbol, {start}, b.open, b.high, b.low, b.close, b.volume, {feed} \
-         FROM {source} WHERE b.symbol IN ({}) AND {start} {upper} ?",
-        placeholders(query.symbols.len())
+         FROM {source} WHERE b.symbol {IN_SYMBOLS} AND {start} {upper} ?"
     );
-    let mut params = symbol_params(query.symbols);
+    let mut params = vec![symbol_list(query.symbols)];
     params.push(Box::new(Ts(query.to)));
     if let Some(from) = query.from {
         sql.push_str(&format!(" AND {start} >= ?"));
@@ -209,7 +206,7 @@ pub(crate) fn bars(connection: &Connection, query: &BarQuery<'_>) -> Result<Vec<
                 low: row.get::<_, Dec>(4)?.0,
                 close: row.get::<_, Dec>(5)?.0,
                 volume: row.get(6)?,
-                feed: row.get::<_, Wire<Feed>>(7)?.0,
+                feed: row.get::<_, FeedColumn>(7)?.0,
             })
         })?
         .collect::<duckdb::Result<Vec<_>>>()?;
@@ -271,7 +268,7 @@ fn is_visible(calendar: &Calendar, timeframe: Timeframe, bar: &Bar, as_of: Times
 fn visible_bars(
     connection: &Connection,
     calendar: &Calendar,
-    listings: &Listings,
+    listed_since: &BTreeMap<Symbol, Timestamp>,
     timeframe: Timeframe,
     symbols: Vec<Symbol>,
     count: usize,
@@ -284,7 +281,6 @@ fn visible_bars(
         Timeframe::Day => count + 1,
         Timeframe::Minute => (count + 1).div_ceil(MINUTES_PER_SESSION) + 1,
     };
-    let listed_since = listings_started(connection, calendar, listings, &symbols, as_of)?;
     let mut pending = symbols;
     let mut visible = BTreeMap::new();
     while !pending.is_empty() {
@@ -331,21 +327,20 @@ fn visible_bars(
 }
 
 fn listings_started(
-    connection: &Connection,
+    actions: &Actions,
     calendar: &Calendar,
     listings: &Listings,
     keys: &[Symbol],
     as_of: Timestamp,
-) -> Result<BTreeMap<Symbol, Timestamp>> {
+) -> BTreeMap<Symbol, Timestamp> {
     let mut started = BTreeMap::new();
-    let actions = listing_actions(
-        connection,
+    for action in listing_actions(
+        actions,
         calendar,
         keys,
         HISTORY_START,
         as_of.exchange_date(),
-    )?;
-    for action in actions {
+    ) {
         let taken_over = matches!(action.kind, CorporateActionKind::NameChange { .. })
             && listings.renamed_into(&action.symbol, action.ex_date);
         if let Some(since) = corporate_action_visible_at(action.ex_date, calendar)
@@ -354,16 +349,16 @@ fn listings_started(
             started.insert(action.symbol, since);
         }
     }
-    Ok(started)
+    started
 }
 
 fn listing_actions(
-    connection: &Connection,
+    actions: &Actions,
     calendar: &Calendar,
     keys: &[Symbol],
     from: NaiveDate,
     to: NaiveDate,
-) -> Result<Vec<CorporateAction>> {
+) -> Vec<CorporateAction> {
     let mut ended: BTreeMap<Symbol, Vec<(NaiveDate, &Symbol)>> = BTreeMap::new();
     for key in keys {
         if let Some((ticker, last)) = key.ended_listing() {
@@ -371,54 +366,56 @@ fn listing_actions(
             ended.entry(ticker).or_default().push((until, key));
         }
     }
+    let asked: BTreeSet<&Symbol> = keys.iter().collect();
     let stored: Vec<Symbol> = keys.iter().chain(ended.keys()).cloned().collect();
-    let mut actions = Vec::new();
-    for action in corporate_actions(connection, &unique(&stored), from, to)? {
+    let mut listed = Vec::new();
+    for action in actions.between(&stored, from, to) {
         let owner = ended.get(&action.symbol).and_then(|ends| {
             ends.iter()
                 .find(|(until, _)| action.ex_date <= *until)
                 .map(|(_, key)| (*key).clone())
         });
         if let Some(key) = owner {
-            actions.push(CorporateAction {
+            listed.push(CorporateAction {
                 symbol: key,
                 ..action.clone()
             });
         }
-        if keys.contains(&action.symbol) {
-            actions.push(action);
+        if asked.contains(&action.symbol) {
+            listed.push(action);
         }
     }
-    actions.sort_by(|a, b| (&a.symbol, a.ex_date).cmp(&(&b.symbol, b.ex_date)));
-    Ok(actions)
+    listed.sort_by(|a, b| (&a.symbol, a.ex_date).cmp(&(&b.symbol, b.ex_date)));
+    listed
 }
 
 pub(crate) fn traded_actions(
-    connection: &Connection,
+    actions: &Actions,
     calendar: &Calendar,
     listings: &Listings,
     symbols: &[Symbol],
     from: NaiveDate,
     to: NaiveDate,
-) -> Result<Vec<CorporateAction>> {
+) -> Vec<CorporateAction> {
     let symbols = unique(symbols);
     let renamed = |action: &CorporateAction| matches!(&action.kind, CorporateActionKind::NameChange { new_symbol } if *new_symbol != action.symbol);
     let resolved = resolve(listings, &symbols, from.pred_opt().unwrap_or(from));
     let keyed: Vec<CorporateAction> =
-        listing_actions(connection, calendar, &keys(&resolved), from, to)?
+        listing_actions(actions, calendar, &keys(&resolved), from, to)
             .into_iter()
             .filter(|action| !matches!(action.kind, CorporateActionKind::NameChange { .. }))
             .collect();
-    let mut actions = relabel(&resolved, keyed, |action| &mut action.symbol);
-    actions.extend(
-        corporate_actions(connection, &symbols, from, to)?
+    let mut traded = relabel(&resolved, keyed, |action| &mut action.symbol);
+    traded.extend(
+        actions
+            .between(&symbols, from, to)
             .into_iter()
             .filter(renamed),
     );
-    actions.sort_by(|a, b| {
+    traded.sort_by(|a, b| {
         (&a.symbol, a.ex_date, renamed(a)).cmp(&(&b.symbol, b.ex_date, renamed(b)))
     });
-    Ok(actions)
+    traded
 }
 
 fn to_f64(value: Decimal) -> f64 {
@@ -442,6 +439,7 @@ pub(crate) fn chart(
     connection: &Connection,
     calendar: &Calendar,
     listings: &Listings,
+    actions: &Actions,
     request: &ChartRequest,
 ) -> Result<ChartBars> {
     let Some(key) = listings.listing(&request.symbol, request.listed_on) else {
@@ -481,6 +479,7 @@ pub(crate) fn chart(
     let splits = adjustment_factors(
         connection,
         calendar,
+        actions,
         &keys,
         Adjustment::Split,
         request.from.exchange_date(),
@@ -508,6 +507,7 @@ pub(crate) fn history(
     connection: &Connection,
     calendar: &Calendar,
     listings: &Listings,
+    actions: &Actions,
     request: &HistoryRequest,
 ) -> Result<Vec<BarRow>> {
     let count = request.bars as usize;
@@ -516,12 +516,14 @@ pub(crate) fn history(
     }
     let on = listed_on(calendar, request.as_of);
     let resolved = resolve(listings, &unique(&request.symbols), on);
+    let keys = keys(&resolved);
+    let listed_since = listings_started(actions, calendar, listings, &keys, request.as_of);
     let visible = visible_bars(
         connection,
         calendar,
-        listings,
+        &listed_since,
         request.timeframe,
-        keys(&resolved),
+        keys,
         count,
         request.as_of,
     )?;
@@ -537,6 +539,7 @@ pub(crate) fn history(
     let factors = adjustment_factors(
         connection,
         calendar,
+        actions,
         &priced,
         request.adjust,
         earliest,
@@ -561,16 +564,19 @@ pub(crate) fn split_adjusted_closes(
     connection: &Connection,
     calendar: &Calendar,
     listings: &Listings,
+    actions: &Actions,
     symbols: &[Symbol],
     as_of: Timestamp,
 ) -> Result<BTreeMap<Symbol, Decimal>> {
     let resolved = resolve(listings, &unique(symbols), listed_on(calendar, as_of));
+    let keys = keys(&resolved);
+    let listed_since = listings_started(actions, calendar, listings, &keys, as_of);
     let visible = visible_bars(
         connection,
         calendar,
-        listings,
+        &listed_since,
         Timeframe::Day,
-        keys(&resolved),
+        keys,
         1,
         as_of,
     )?;
@@ -586,6 +592,7 @@ pub(crate) fn split_adjusted_closes(
     let factors = adjustment_factors(
         connection,
         calendar,
+        actions,
         &priced,
         Adjustment::Split,
         earliest,
@@ -605,6 +612,7 @@ pub(crate) fn split_adjusted_closes(
 fn adjustment_factors(
     connection: &Connection,
     calendar: &Calendar,
+    actions: &Actions,
     symbols: &[Symbol],
     adjustment: Adjustment,
     earliest_bar: NaiveDate,
@@ -617,7 +625,7 @@ fn adjustment_factors(
         return Ok(BTreeMap::new());
     }
     let actions: Vec<CorporateAction> =
-        listing_actions(connection, calendar, symbols, after, as_of.exchange_date())?
+        listing_actions(actions, calendar, symbols, after, as_of.exchange_date())
             .into_iter()
             .filter(|action| {
                 corporate_action_visible_at(action.ex_date, calendar)
@@ -740,26 +748,37 @@ fn daily_prices(
     Ok(rows)
 }
 
-pub(crate) fn corporate_actions(
-    connection: &Connection,
-    symbols: &[Symbol],
-    from: NaiveDate,
-    to: NaiveDate,
-) -> Result<Vec<CorporateAction>> {
-    if symbols.is_empty() {
-        return Ok(Vec::new());
+pub(crate) struct Actions(BTreeMap<Symbol, Vec<CorporateAction>>);
+
+impl Actions {
+    pub(crate) fn between(
+        &self,
+        symbols: &[Symbol],
+        from: NaiveDate,
+        to: NaiveDate,
+    ) -> Vec<CorporateAction> {
+        unique(symbols)
+            .iter()
+            .filter_map(|symbol| self.0.get(symbol))
+            .flat_map(|actions| {
+                actions
+                    .iter()
+                    .filter(|action| (from..=to).contains(&action.ex_date))
+                    .cloned()
+            })
+            .collect()
     }
-    let mut params = symbol_params(symbols);
-    params.push(Box::new(from));
-    params.push(Box::new(to));
-    select_actions(
-        connection,
-        &format!(
-            "symbol IN ({}) AND ex_date BETWEEN ? AND ?",
-            placeholders(symbols.len())
-        ),
-        params,
-    )
+}
+
+pub(crate) fn actions(connection: &Connection) -> Result<Actions> {
+    let mut grouped: BTreeMap<Symbol, Vec<CorporateAction>> = BTreeMap::new();
+    for action in select_actions(connection, "true", Params::new())? {
+        grouped
+            .entry(action.symbol.clone())
+            .or_default()
+            .push(action);
+    }
+    Ok(Actions(grouped))
 }
 
 pub(crate) fn action_disagreements(
@@ -776,8 +795,8 @@ pub(crate) fn action_disagreements(
         if symbols.is_empty() {
             return Ok(Vec::new());
         }
-        sql.push_str(&format!(" AND symbol IN ({})", placeholders(symbols.len())));
-        params.extend(symbol_params(symbols));
+        sql.push_str(&format!(" AND symbol {IN_SYMBOLS}"));
+        params.push(symbol_list(symbols));
     }
     sql.push_str(" ORDER BY symbol, ex_date, action");
     let mut statement = connection.prepare_cached(&sql)?;
@@ -850,14 +869,13 @@ pub(crate) fn fundamentals(
     }
     let sql = format!(
         "SELECT symbol, metric, period_type, period_start, period_end, value, unit, form, \
-         filed, available_at FROM fundamental_fact WHERE symbol IN ({}) AND metric IN ({}) \
+         filed, available_at FROM fundamental_fact WHERE symbol {IN_SYMBOLS} AND metric IN ({}) \
          AND period_type IS NOT NULL AND available_at <= ? \
          QUALIFY row_number() OVER (PARTITION BY symbol, metric, period_end, period_type, \
          period_start ORDER BY available_at DESC, filed DESC, accession DESC) = 1",
-        placeholders(symbols.len()),
         placeholders(metrics.len())
     );
-    let mut params = symbol_params(&symbols);
+    let mut params = vec![symbol_list(&symbols)];
     params.extend(
         metrics
             .into_iter()
@@ -910,6 +928,7 @@ pub(crate) fn average_daily_volume(
     connection: &Connection,
     calendar: &Calendar,
     listings: &Listings,
+    actions: &Actions,
     symbols: &[Symbol],
     before: NaiveDate,
     sessions: u32,
@@ -936,6 +955,7 @@ pub(crate) fn average_daily_volume(
     let factors = adjustment_factors(
         connection,
         calendar,
+        actions,
         &keys,
         Adjustment::Split,
         first.date,
@@ -1033,12 +1053,9 @@ pub(crate) fn index_universe(
         return Ok(Vec::new());
     }
     let sql = format!(
-        "SELECT DISTINCT symbol FROM bar_1d WHERE symbol IN ({}) AND date >= ? AND date < ?",
-        placeholders(keys.len())
+        "SELECT DISTINCT symbol FROM bar_1d WHERE symbol {IN_SYMBOLS} AND date >= ? AND date < ?"
     );
-    let mut params = symbol_params(&keys);
-    params.push(Box::new(first.date));
-    params.push(Box::new(before));
+    let params: Params = vec![symbol_list(&keys), Box::new(first.date), Box::new(before)];
     let mut statement = connection.prepare_cached(&sql)?;
     let priced = statement
         .query_map(params_from_iter(params.iter()), |row| {
@@ -1113,10 +1130,9 @@ pub(crate) fn instrument_profiles(
     let sql = format!(
         "SELECT i.symbol, i.name, i.exchange, i.asset_class, c.sic, c.sic_description \
          FROM instrument i LEFT JOIN company c ON c.symbol = i.symbol \
-         WHERE i.symbol IN ({}) ORDER BY i.symbol",
-        placeholders(symbols.len())
+         WHERE i.symbol {IN_SYMBOLS} ORDER BY i.symbol"
     );
-    let params = symbol_params(&symbols);
+    let params = [symbol_list(&symbols)];
     let mut statement = connection.prepare_cached(&sql)?;
     let profiles = statement
         .query_map(params_from_iter(params.iter()), |row| {
@@ -1144,15 +1160,13 @@ pub(crate) fn earnings_releases(
     }
     let sql = format!(
         "SELECT symbol, cik, accession, form, filed, report_date, accepted_at \
-         FROM earnings_release e WHERE symbol IN ({}) AND accepted_at <= ? \
+         FROM earnings_release e WHERE symbol {IN_SYMBOLS} AND accepted_at <= ? \
          AND NOT (form LIKE '%/A' AND EXISTS (SELECT 1 FROM earnings_release o \
          WHERE o.symbol = e.symbol AND o.report_date = e.report_date \
          AND o.accepted_at < e.accepted_at)) \
-         ORDER BY symbol, accepted_at, accession",
-        placeholders(symbols.len())
+         ORDER BY symbol, accepted_at, accession"
     );
-    let mut params = symbol_params(&symbols);
-    params.push(Box::new(Ts(as_of)));
+    let params: Params = vec![symbol_list(&symbols), Box::new(Ts(as_of))];
     let mut statement = connection.prepare_cached(&sql)?;
     let releases = statement
         .query_map(params_from_iter(params.iter()), |row| {
@@ -1210,15 +1224,13 @@ pub(crate) fn insider_trades(
     if symbols.is_empty() {
         return Ok(Vec::new());
     }
-    let visible = format!(
-        "f.symbol IN ({}) AND f.filed >= ? AND f.accepted_at < ?",
-        placeholders(symbols.len())
-    );
-    let params = || {
-        let mut params = symbol_params(&symbols);
-        params.push(Box::new(since));
-        params.push(Box::new(Ts(last_open)));
-        params
+    let visible = format!("f.symbol {IN_SYMBOLS} AND f.filed >= ? AND f.accepted_at < ?");
+    let params = || -> Params {
+        vec![
+            symbol_list(&symbols),
+            Box::new(since),
+            Box::new(Ts(last_open)),
+        ]
     };
     let mut statement = connection.prepare(&format!(
         "SELECT o.symbol, o.accession, o.owner_cik, o.name, o.director, o.officer, \
@@ -1300,17 +1312,18 @@ pub(crate) fn news(
     if symbols.is_empty() {
         return Ok(Vec::new());
     }
-    let mut statement = connection.prepare(&format!(
+    let mut statement = connection.prepare_cached(
         "SELECT id, array_to_string(symbols, ','), headline, summary, source, created_at, \
          updated_at, received_at, backfilled FROM news_article \
-         WHERE list_has_any(symbols, [{}]) AND created_at >= ? \
+         WHERE list_has_any(symbols, ?::VARCHAR[]) AND created_at >= ? \
          AND CASE WHEN backfilled THEN updated_at ELSE received_at END <= ? \
          ORDER BY created_at, id, updated_at",
-        vec!["?::VARCHAR"; symbols.len()].join(", ")
-    ))?;
-    let mut params = symbol_params(&symbols);
-    params.push(Box::new(Ts(from)));
-    params.push(Box::new(Ts(as_of)));
+    )?;
+    let params: Params = vec![
+        symbol_list(&symbols),
+        Box::new(Ts(from)),
+        Box::new(Ts(as_of)),
+    ];
     let articles = statement
         .query_map(params_from_iter(params.iter()), |row| {
             let symbols: String = row.get(1)?;
@@ -1618,16 +1631,15 @@ fn listing_bounds(
         })
         .collect();
     let sql = format!(
-        "WITH wanted (symbol) AS (VALUES {}), \
+        "WITH wanted (symbol) AS (SELECT unnest(?::VARCHAR[])), \
          first_bar AS (SELECT w.symbol, (SELECT min(d.date) FROM bar_1d d \
          WHERE d.symbol = w.symbol) AS first FROM wanted w) \
          SELECT f.symbol, coalesce(i.first_session, \
          CASE WHEN f.first IN ({}) THEN NULL ELSE f.first END), i.last_session \
          FROM first_bar f LEFT JOIN instrument i ON i.symbol = f.symbol",
-        vec!["(?)"; symbols.len()].join(", "),
         placeholders(floors.len().max(1))
     );
-    let mut params = symbol_params(symbols);
+    let mut params = vec![symbol_list(symbols)];
     params.extend(
         floors
             .iter()
@@ -1671,15 +1683,14 @@ pub(crate) fn coverage_gaps(
     if keys.is_empty() {
         return Ok(Vec::new());
     }
-    let mut params = symbol_params(&keys);
+    let mut params = vec![symbol_list(&keys)];
     let sql = match timeframe {
         Timeframe::Day => {
             params.push(Box::new(first.date));
             params.push(Box::new(last.date));
             format!(
                 "SELECT DISTINCT symbol, date FROM bar_1d \
-                 WHERE symbol IN ({}) AND date BETWEEN ? AND ?",
-                placeholders(keys.len())
+                 WHERE symbol {IN_SYMBOLS} AND date BETWEEN ? AND ?"
             )
         }
         Timeframe::Minute => {
@@ -1692,10 +1703,9 @@ pub(crate) fn coverage_gaps(
                 "SELECT DISTINCT b.symbol, c.date FROM bar_1m b \
                  JOIN calendar c ON b.start >= c.open AND b.start < c.close \
                  JOIN ingest_batch i ON i.id = b.batch_id \
-                 WHERE b.symbol IN ({}) AND b.start >= ? AND b.start < ? \
+                 WHERE b.symbol {IN_SYMBOLS} AND b.start >= ? AND b.start < ? \
                  AND c.date BETWEEN ? AND ? AND b.feed = 'sip' \
-                 AND i.created_at >= c.close + to_microseconds(?)",
-                placeholders(keys.len())
+                 AND i.created_at >= c.close + to_microseconds(?)"
             )
         }
     };
@@ -1838,6 +1848,7 @@ pub(crate) fn unpriced_members(
 pub(crate) fn unexplained_moves(
     connection: &Connection,
     calendar: &Calendar,
+    actions: &Actions,
     symbols: &[Symbol],
     from: NaiveDate,
     to: NaiveDate,
@@ -1850,13 +1861,10 @@ pub(crate) fn unexplained_moves(
         .previous_before(from)
         .map_or(from, |session| session.date);
     let sql = format!(
-        "SELECT symbol, date, open, close FROM bar_1d WHERE symbol IN ({}) \
-         AND date BETWEEN ? AND ? ORDER BY symbol, date",
-        placeholders(symbols.len())
+        "SELECT symbol, date, open, close FROM bar_1d WHERE symbol {IN_SYMBOLS} \
+         AND date BETWEEN ? AND ? ORDER BY symbol, date"
     );
-    let mut params = symbol_params(&symbols);
-    params.push(Box::new(start));
-    params.push(Box::new(to));
+    let params: Params = vec![symbol_list(&symbols), Box::new(start), Box::new(to)];
     let mut statement = connection.prepare_cached(&sql)?;
     let daily = statement
         .query_map(params_from_iter(params.iter()), |row| {
@@ -1868,11 +1876,11 @@ pub(crate) fn unexplained_moves(
             ))
         })?
         .collect::<duckdb::Result<Vec<_>>>()?;
-    let explained: BTreeSet<(Symbol, NaiveDate)> =
-        corporate_actions(connection, &symbols, from, to)?
-            .into_iter()
-            .map(|action| (action.symbol, action.ex_date))
-            .collect();
+    let explained: BTreeSet<(Symbol, NaiveDate)> = actions
+        .between(&symbols, from, to)
+        .into_iter()
+        .map(|action| (action.symbol, action.ex_date))
+        .collect();
     Ok(daily
         .windows(2)
         .filter_map(|pair| {
