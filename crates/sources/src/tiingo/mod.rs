@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fmt;
+use std::ops::RangeInclusive;
 use std::time::Duration;
 
 use buizz_core::market::{
@@ -24,7 +25,9 @@ pub const SYMBOLS_PER_MONTH: u32 = 350;
 pub const KEY_ENV: &str = "TIINGO_API_KEY";
 pub const URL_ENV: &str = "TIINGO_URL";
 const MIN_OVERLAP: usize = 20;
-const MAX_MEDIAN_DIFFERENCE: Decimal = Decimal::from_parts(5, 0, 0, false, 2);
+const MAX_MEDIAN_DIFFERENCE: Decimal = Decimal::from_parts(1, 0, 0, false, 2);
+const VOLUME_RATIOS: RangeInclusive<Decimal> =
+    Decimal::from_parts(5, 0, 0, false, 1)..=Decimal::from_parts(2, 0, 0, false, 0);
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct TiingoConfig {
@@ -76,9 +79,28 @@ pub struct TiingoDaily {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum OverlapVerdict {
-    Trusted { overlap: usize },
+    Trusted(Agreement),
     Insufficient { overlap: usize },
     Rejected { reason: String },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Agreement {
+    pub overlap: usize,
+    pub close_difference: Decimal,
+    pub volume_ratio: Decimal,
+}
+
+impl fmt::Display for Agreement {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "{} shared sessions, median close difference {}%, median volume ratio {}",
+            self.overlap,
+            (self.close_difference * Decimal::ONE_HUNDRED).round_dp(3),
+            self.volume_ratio.round_dp(3)
+        )
+    }
 }
 
 #[derive(Clone)]
@@ -210,37 +232,58 @@ pub fn normalize(
 }
 
 pub fn validate_overlap(primary: &[Bar], secondary: &[Bar]) -> OverlapVerdict {
-    let reference: HashMap<Timestamp, Decimal> = primary
+    let reference: HashMap<Timestamp, &Bar> = primary
         .iter()
         .filter(|bar| !bar.close.is_zero())
-        .map(|bar| (bar.start, bar.close))
+        .map(|bar| (bar.start, bar))
         .collect();
-    let mut differences: Vec<Decimal> = secondary
+    let shared: Vec<(&Bar, &Bar)> = secondary
         .iter()
-        .filter_map(|bar| {
-            let close = reference.get(&bar.start)?;
-            Some((bar.close - close).abs() / close)
-        })
+        .filter_map(|bar| Some((*reference.get(&bar.start)?, bar)))
         .collect();
-    let overlap = differences.len();
+    let overlap = shared.len();
     if overlap < MIN_OVERLAP {
         return OverlapVerdict::Insufficient { overlap };
     }
-    differences.sort();
-    let middle = overlap / 2;
-    let median = if overlap % 2 == 1 {
-        differences[middle]
-    } else {
-        (differences[middle - 1] + differences[middle]) / Decimal::TWO
+    let agreement = Agreement {
+        overlap,
+        close_difference: median(
+            shared
+                .iter()
+                .map(|(primary, secondary)| (secondary.close - primary.close).abs() / primary.close)
+                .collect(),
+        ),
+        volume_ratio: median(
+            shared
+                .iter()
+                .filter(|(primary, _)| primary.volume > 0)
+                .map(|(primary, secondary)| {
+                    Decimal::from(secondary.volume) / Decimal::from(primary.volume)
+                })
+                .collect(),
+        ),
     };
-    if median > MAX_MEDIAN_DIFFERENCE {
+    if agreement.close_difference > MAX_MEDIAN_DIFFERENCE
+        || !VOLUME_RATIOS.contains(&agreement.volume_ratio)
+    {
         return OverlapVerdict::Rejected {
             reason: format!(
-                "median close difference {}% over {overlap} shared sessions exceeds {}%",
-                (median * Decimal::ONE_HUNDRED).round_dp(2),
+                "{agreement}, beyond {}% or outside {}..={}",
                 MAX_MEDIAN_DIFFERENCE * Decimal::ONE_HUNDRED,
+                VOLUME_RATIOS.start(),
+                VOLUME_RATIOS.end()
             ),
         };
     }
-    OverlapVerdict::Trusted { overlap }
+    OverlapVerdict::Trusted(agreement)
+}
+
+fn median(mut values: Vec<Decimal>) -> Decimal {
+    values.sort();
+    let middle = values.len() / 2;
+    match values.len() {
+        0 => Decimal::ZERO,
+        count if count % 2 == 1 => values[middle],
+        _ => (values[middle - 1] + values[middle]) / Decimal::TWO,
+    }
 }

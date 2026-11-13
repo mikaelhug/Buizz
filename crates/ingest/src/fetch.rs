@@ -175,6 +175,18 @@ struct Attempt {
 }
 
 impl Attempt {
+    fn fetched(rows: usize, message: Option<String>) -> Self {
+        let status = if rows == 0 {
+            FetchStatus::Empty
+        } else {
+            FetchStatus::Ok
+        };
+        Self {
+            rows: rows as u64,
+            ..Self::of(status, message)
+        }
+    }
+
     fn of(status: FetchStatus, message: Option<String>) -> Self {
         Self {
             status,
@@ -242,16 +254,18 @@ impl Ingest {
         key: &FetchKey,
         rows: usize,
     ) -> Result<(), IngestError> {
-        let status = if rows == 0 {
-            FetchStatus::Empty
-        } else {
-            FetchStatus::Ok
-        };
-        let attempt = Attempt {
-            rows: rows as u64,
-            ..Attempt::of(status, None)
-        };
-        self.record(now, key, attempt).await
+        self.record(now, key, Attempt::fetched(rows, None)).await
+    }
+
+    pub(crate) async fn record_agreed(
+        &self,
+        now: Timestamp,
+        key: &FetchKey,
+        rows: usize,
+        agreement: String,
+    ) -> Result<(), IngestError> {
+        self.record(now, key, Attempt::fetched(rows, Some(agreement)))
+            .await
     }
 
     pub(crate) async fn record_rejection(

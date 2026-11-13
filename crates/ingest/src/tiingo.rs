@@ -161,18 +161,21 @@ impl Ingest {
                 .filter(|bar| (first..=window_end).contains(&bar.start.exchange_date()))
                 .cloned()
                 .collect();
-            let rejection = match validate_overlap(&alpaca_bars, &overlap) {
-                OverlapVerdict::Trusted { .. } => None,
-                OverlapVerdict::Insufficient { overlap } => Some(format!(
-                    "only {overlap} sessions overlap Alpaca, too few to trust Tiingo"
-                )),
-                OverlapVerdict::Rejected { reason } => Some(reason),
+            let agreement = match validate_overlap(&alpaca_bars, &overlap) {
+                OverlapVerdict::Trusted(agreement) => agreement,
+                OverlapVerdict::Insufficient { overlap } => {
+                    let reason =
+                        format!("only {overlap} sessions overlap Alpaca, too few to trust Tiingo");
+                    self.record_rejection(now, &key, &reason).await?;
+                    batch.failure(symbol.as_str(), &format!("Tiingo rejected, {reason}"));
+                    continue;
+                }
+                OverlapVerdict::Rejected { reason } => {
+                    self.record_rejection(now, &key, &reason).await?;
+                    batch.failure(symbol.as_str(), &format!("Tiingo rejected, {reason}"));
+                    continue;
+                }
             };
-            if let Some(reason) = rejection {
-                self.record_rejection(now, &key, &reason).await?;
-                batch.failure(symbol.as_str(), &format!("Tiingo rejected, {reason}"));
-                continue;
-            }
             let bars: Vec<Bar> = bars
                 .into_iter()
                 .filter(|bar| bar.start.exchange_date() < first)
@@ -203,7 +206,8 @@ impl Ingest {
                     },
                 )
                 .await?;
-            self.record_fetched(now, &key, fetched).await?;
+            self.record_agreed(now, &key, fetched, agreement.to_string())
+                .await?;
             batch.success(written.rows);
         }
         if probes > 0 && !self.stopping() {

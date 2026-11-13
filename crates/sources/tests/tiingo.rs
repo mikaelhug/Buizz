@@ -9,7 +9,7 @@ use buizz_core::market::{
 use buizz_core::time::Timestamp;
 use buizz_sources::http::SourceError;
 use buizz_sources::tiingo::{
-    OverlapVerdict, TiingoClient, TiingoConfig, normalize, validate_overlap,
+    Agreement, OverlapVerdict, TiingoClient, TiingoConfig, normalize, validate_overlap,
 };
 use chrono::{Datelike, NaiveDate, NaiveTime, Weekday};
 use rust_decimal::Decimal;
@@ -115,8 +115,24 @@ async fn overlap_gate_trusts_a_matching_tail_and_rejects_wrong_scale_or_split_ba
 
     assert_eq!(
         validate_overlap(&tiingo, &tiingo),
-        OverlapVerdict::Trusted { overlap: 25 }
+        OverlapVerdict::Trusted(Agreement {
+            overlap: 25,
+            close_difference: Decimal::ZERO,
+            volume_ratio: Decimal::ONE,
+        })
     );
+
+    let in_lots: Vec<Bar> = tiingo
+        .iter()
+        .map(|bar| Bar {
+            volume: bar.volume / 100,
+            ..bar.clone()
+        })
+        .collect();
+    assert!(matches!(
+        validate_overlap(&tiingo, &in_lots),
+        OverlapVerdict::Rejected { .. }
+    ));
 
     let wrong_scale: Vec<Bar> = tiingo
         .iter()
