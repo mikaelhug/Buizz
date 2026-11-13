@@ -219,6 +219,31 @@ fn parse_short_interest(
     Ok(rows.len())
 }
 
+fn listed_symbol(cqs: &str) -> Option<Symbol> {
+    let (issue, class) = cqs
+        .split_once('/')
+        .map_or((cqs, None), |(issue, class)| (issue, Some(class)));
+    let ticker = match issue.find(|letter: char| letter.is_ascii_lowercase()) {
+        None => issue.to_owned(),
+        Some(at) => {
+            let (root, rest) = issue.split_at(at);
+            let (kind, series) = rest.split_at(1);
+            let kind = match kind {
+                "p" => "PR",
+                "w" => "WI",
+                "r" => "RT",
+                _ => return None,
+            };
+            format!("{root}.{kind}{series}")
+        }
+    };
+    match class {
+        None => Some(Symbol::new(&ticker)),
+        Some("CL") => None,
+        Some(class) => Some(Symbol::new(&format!("{ticker}.{class}"))),
+    }
+}
+
 pub fn parse_short_volume(
     text: &str,
     date: NaiveDate,
@@ -258,12 +283,17 @@ pub fn parse_short_volume(
                 field(day)
             )));
         }
+        if field(symbol).is_empty() {
+            file.malformed_rows += 1;
+            continue;
+        }
+        let Some(listed) = listed_symbol(field(symbol)) else {
+            continue;
+        };
         let volume = |index: usize| field(index).parse::<Decimal>().ok();
         let record = (|| {
             Some(ShortVolumeRecord {
-                symbol: Some(field(symbol))
-                    .filter(|text| !text.is_empty())
-                    .map(Symbol::new)?,
+                symbol: listed,
                 date,
                 short_volume: volume(short)?,
                 short_exempt_volume: volume(exempt)?,
@@ -334,4 +364,31 @@ fn cell_date(cell: &str, year: i32) -> Result<NaiveDate, SourceError> {
         .zip(captures[2].parse().ok())
         .and_then(|(month, day)| NaiveDate::from_ymd_opt(year, month, day))
         .ok_or_else(|| decode(format!("schedule cell {:?}", cell.trim())))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_preferred_or_class_share_keeps_its_own_ticker() {
+        let file = parse_short_volume(
+            "Date|Symbol|ShortVolume|ShortExemptVolume|TotalVolume|Market\n\
+             20200326|CPK|6215|390|18644|Q,N\n\
+             20200326|CpK|71877|400|112848|B,Q,N\n\
+             20200326|BRK/B|1311986|11995|3581355|B,Q,N\n\
+             20200326|CARRw|500|0|900|Q\n\
+             20200326|GRXpA/CL|10|0|20|Q\n\
+             5\n",
+            NaiveDate::from_ymd_opt(2020, 3, 26).unwrap(),
+        )
+        .unwrap();
+        let symbols: Vec<&str> = file
+            .records
+            .iter()
+            .map(|record| record.symbol.as_str())
+            .collect();
+        assert_eq!(symbols, ["CPK", "C.PRK", "BRK.B", "CARR.WI"]);
+        assert_eq!(file.malformed_rows, 0);
+    }
 }
