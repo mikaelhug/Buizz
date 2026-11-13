@@ -2298,8 +2298,10 @@
           "fomc",
           "estimates",
           "current_reports",
+          "periodic_reports",
           "press_releases",
           "filing_documents",
+          "filing_sections",
           "short_interest",
           "short_volume"
         ]
@@ -4590,6 +4592,29 @@
           }
         }
       },
+      "Section": {
+        "type": "object",
+        "required": [
+          "key",
+          "start",
+          "end"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "start": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "end": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
       "Session": {
         "type": "object",
         "required": [
@@ -5115,7 +5140,8 @@
         "required": [
           "doc_id",
           "chars",
-          "truncated"
+          "truncated",
+          "sections"
         ],
         "properties": {
           "doc_id": {
@@ -5134,6 +5160,18 @@
           },
           "truncated": {
             "type": "boolean"
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Section"
+            }
+          },
+          "split_failure": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },

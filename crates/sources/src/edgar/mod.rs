@@ -16,6 +16,7 @@ mod exhibit;
 mod filings;
 mod normalize;
 mod ownership;
+mod sections;
 
 pub use exhibit::{
     IndexedDocument, exhibit_text, indexed_documents, is_text_document, press_release_document,
@@ -26,6 +27,7 @@ pub use filings::{
 };
 pub use normalize::normalize_company_facts;
 pub use ownership::normalize_ownership;
+pub use sections::{SPLITTER_VERSION, split_sections};
 
 pub const DATA_URL: &str = "https://data.sec.gov";
 pub const WWW_URL: &str = "https://www.sec.gov";
@@ -39,6 +41,8 @@ pub const ACCEPTED_FORMS: [&str; 8] = [
 ];
 pub const EARNINGS_FORMS: [&str; 2] = ["8-K", "8-K/A"];
 pub const INSIDER_FORMS: [&str; 2] = ["4", "4/A"];
+pub const PERIODIC_FORMS: [&str; 4] = ["10-K", "10-K/A", "10-Q", "10-Q/A"];
+pub const COMPANY_FORMS: [&str; 6] = ["8-K", "8-K/A", "10-K", "10-K/A", "10-Q", "10-Q/A"];
 const NOT_FOUND: u16 = 404;
 const SKIPPED_KINDS: [&str; 4] = ["GRAPHIC", "ZIP", "EX-101", "JSON"];
 const REFUSED: u16 = 403;

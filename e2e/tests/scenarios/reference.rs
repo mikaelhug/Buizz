@@ -10,10 +10,11 @@ use serde_json::{Value, json};
 use crate::fake::FakeProviders;
 use crate::spine::{Options, Spine};
 use crate::world::{
-    Company, Filing, World, decimal, recorded_earnings_insight, stamp, submissions,
+    Company, Filing, World, decimal, recorded_earnings_insight, repository, stamp, submissions,
 };
 
 const RESULTS: &str = "0009999001-24-000050";
+const QUARTERLY: &str = "0009999001-24-000045";
 
 fn constituents() -> String {
     let unpriced: String = (2..*SP500_MEMBERS.start())
@@ -72,6 +73,13 @@ fn world(mut world: World) -> World {
                 accepted: stamp("2024-11-29T14:00:00Z"),
             },
             Filing {
+                accession: QUARTERLY,
+                form: "10-Q",
+                items: "",
+                report_date: "2024-09-28",
+                accepted: stamp("2024-10-31T20:30:00Z"),
+            },
+            Filing {
                 accession: "0009999001-24-000049",
                 form: "8-K",
                 items: "8.01",
@@ -102,6 +110,25 @@ fn world(mut world: World) -> World {
             "<html><body><p>Beta Fixture reports third quarter results</p>\
              <table><tr><td>Revenue</td><td>$</td><td>1,250</td></tr></table></body></html>"
                 .to_owned(),
+        ),
+    ]);
+    let quarterly = format!("{}/{}", beta.cik, QUARTERLY.replace('-', ""));
+    let recorded = |name: &str| {
+        std::fs::read_to_string(
+            repository()
+                .join("crates/sources/fixtures/edgar")
+                .join(name),
+        )
+        .expect("a recorded 10-Q")
+    };
+    world.archives.extend([
+        (
+            format!("{quarterly}/{QUARTERLY}-index.htm"),
+            recorded("10q_index_sample.htm"),
+        ),
+        (
+            format!("{quarterly}/aapl-20260627.htm"),
+            recorded("10q_sample.htm"),
         ),
     ]);
     world.companies.push(Company {
@@ -155,10 +182,36 @@ async fn bots_see_index_membership_profiles_earnings_and_8k_events_as_of_their_c
         .expect("backfill progress")
         .iter()
         .find(|item| item["dataset"] == "filing_documents")
-        .expect("8-K documents report their backfill");
+        .expect("filing documents report their backfill");
     assert_eq!(
         documents["done"], documents["total"],
-        "every 8-K is read once, an unreadable one recorded as such: {documents}"
+        "every 8-K, 10-K and 10-Q is read once, an unreadable one recorded as such: {documents}"
+    );
+    let quarterly: Value = spine
+        .get(&format!("/api/data/text/document?id=edgar:{QUARTERLY}:1"))
+        .await;
+    let keys: Vec<&str> = quarterly["sections"]
+        .as_array()
+        .expect("the 10-Q's sections")
+        .iter()
+        .filter_map(|section| section["key"].as_str())
+        .collect();
+    assert_eq!(
+        keys,
+        [
+            "10-Q:I-1",
+            "10-Q:I-2",
+            "10-Q:I-3",
+            "10-Q:I-4",
+            "10-Q:II-1",
+            "10-Q:II-1A",
+            "10-Q:II-2",
+            "10-Q:II-3",
+            "10-Q:II-4",
+            "10-Q:II-5",
+            "10-Q:II-6",
+        ],
+        "the 10-Q is split into the items of both its parts, past its table of contents"
     );
     let stored: Vec<std::path::PathBuf> = spine
         .text_dirs()
@@ -168,8 +221,8 @@ async fn bots_see_index_membership_profiles_earnings_and_8k_events_as_of_their_c
         .collect();
     assert_eq!(
         stored.len(),
-        1,
-        "the readable 8-K's documents are one Parquet file on one volume: {stored:?}"
+        2,
+        "the readable 8-K and 10-Q, filed in different months, are one Parquet file each: {stored:?}"
     );
 
     let (run, reports) = backtest(&spine, "reference").await;

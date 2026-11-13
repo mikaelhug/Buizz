@@ -11,8 +11,9 @@ type Volume = Schemas["TextVolumeView"];
 type Listing = Schemas["TextListing"];
 type TextFile = Schemas["TextFileView"];
 type TextDocument = Schemas["TextDocumentView"];
+type Section = Schemas["Section"];
 
-const TEXT_JOBS = ["filing_documents"];
+const TEXT_JOBS = ["filing_documents", "filing_sections"];
 const EDGAR = "https://www.sec.gov/Archives/edgar/data";
 
 type Place = { volume: string; prefix: string };
@@ -283,10 +284,50 @@ function Reader({ document, onClose }: { document: TextDocument; onClose: () => 
       </header>
       <div className="reader-body">
         {text.error && <p className="muted">{text.error}</p>}
-        {text.data && (text.data.text ? <pre className="reader-text">{text.data.text}</pre> : <p className="muted">This document has no text: it is kept as filed only.</p>)}
+        {text.data?.split_failure && <p className="muted">Not split into items: {text.data.split_failure}.</p>}
+        {text.data && (text.data.text ? <SectionedText text={text.data.text} sections={text.data.sections} /> : <p className="muted">This document has no text: it is kept as filed only.</p>)}
         {text.data?.truncated && <p className="muted">Showing the first {fmt.integer(text.data.text?.length ?? 0)} of {fmt.integer(text.data.chars)} characters.</p>}
         {!text.data && !text.error && <p className="muted">Loading…</p>}
       </div>
     </dialog>
+  );
+}
+
+function SectionedText({ text, sections }: { text: string; sections: Section[] }) {
+  const anchors = useRef(new Map<string, HTMLElement>());
+  const first = sections[0];
+  if (!first) return <pre className="reader-text">{text}</pre>;
+  const chars = Array.from(text);
+  const lead = first.start;
+  return (
+    <>
+      <nav className="reader-sections" aria-label="Items">
+        {sections.map((section) => (
+          <button
+            key={section.key}
+            type="button"
+            className="btn btn-sm"
+            disabled={section.start >= chars.length}
+            title={`${fmt.integer(section.end - section.start)} characters`}
+            onClick={() => anchors.current.get(section.key)?.scrollIntoView({ block: "start" })}
+          >
+            {section.key.split(":")[1]}
+          </button>
+        ))}
+      </nav>
+      <pre className="reader-text">
+        {chars.slice(0, lead).join("")}
+        {sections.map((section) => (
+          <span
+            key={section.key}
+            ref={(element) => {
+              if (element) anchors.current.set(section.key, element);
+            }}
+          >
+            {chars.slice(section.start, section.end).join("")}
+          </span>
+        ))}
+      </pre>
+    </>
   );
 }

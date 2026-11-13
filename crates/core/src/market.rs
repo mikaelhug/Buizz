@@ -624,6 +624,31 @@ pub struct FilingText {
     pub outcome: Result<Vec<FilingDocument>, String>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct Section {
+    pub key: String,
+    pub start: u64,
+    pub end: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnsplitDocument {
+    pub doc_id: String,
+    pub content_hash: String,
+    pub kind: String,
+    pub published_at: Timestamp,
+    pub text: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DocumentSections {
+    pub doc_id: String,
+    pub content_hash: String,
+    pub published_at: Timestamp,
+    pub splitter_version: u32,
+    pub outcome: Result<Vec<Section>, String>,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct InsiderPlan {
     pub symbol: Symbol,
@@ -1178,14 +1203,16 @@ pub enum Dataset {
     Fomc,
     Estimates,
     CurrentReports,
+    PeriodicReports,
     PressReleases,
     FilingDocuments,
+    FilingSections,
     ShortInterest,
     ShortVolume,
 }
 
 impl Dataset {
-    pub const ALL: [Self; 22] = [
+    pub const ALL: [Self; 24] = [
         Self::Bars1d,
         Self::Bars1m,
         Self::CorporateActions,
@@ -1197,8 +1224,10 @@ impl Dataset {
         Self::SecFilings,
         Self::EarningsReleases,
         Self::CurrentReports,
+        Self::PeriodicReports,
         Self::PressReleases,
         Self::FilingDocuments,
+        Self::FilingSections,
         Self::InsiderTrades,
         Self::Estimates,
         Self::Rates,
@@ -1220,8 +1249,10 @@ impl Dataset {
             | Self::SecFilings
             | Self::EarningsReleases
             | Self::CurrentReports
+            | Self::PeriodicReports
             | Self::PressReleases
             | Self::FilingDocuments
+            | Self::FilingSections
             | Self::InsiderTrades
             | Self::Estimates => DataDomain::Filings,
             Self::Rates | Self::Macro | Self::Fomc => DataDomain::Macro,

@@ -821,7 +821,7 @@ export interface components {
             type: "action_disagreement";
         });
         /** @enum {string} */
-        Dataset: "instruments" | "calendar" | "bars1d" | "bars1m" | "corporate_actions" | "fundamentals" | "rates" | "companies" | "earnings_releases" | "sec_filings" | "index_membership" | "borrow" | "macro" | "insider_trades" | "news" | "fomc" | "estimates" | "current_reports" | "press_releases" | "filing_documents" | "short_interest" | "short_volume";
+        Dataset: "instruments" | "calendar" | "bars1d" | "bars1m" | "corporate_actions" | "fundamentals" | "rates" | "companies" | "earnings_releases" | "sec_filings" | "index_membership" | "borrow" | "macro" | "insider_trades" | "news" | "fomc" | "estimates" | "current_reports" | "periodic_reports" | "press_releases" | "filing_documents" | "filing_sections" | "short_interest" | "short_volume";
         DatasetSpine: {
             dataset: components["schemas"]["Dataset"];
             domain: components["schemas"]["DataDomain"];
@@ -1355,6 +1355,13 @@ export interface components {
             /** Format: int32 */
             passing: number;
         };
+        Section: {
+            key: string;
+            /** Format: int64 */
+            start: number;
+            /** Format: int64 */
+            end: number;
+        };
         Session: {
             /** Format: date */
             date: string;
@@ -1485,6 +1492,8 @@ export interface components {
             /** Format: int64 */
             chars: number;
             truncated: boolean;
+            sections: components["schemas"]["Section"][];
+            split_failure?: string | null;
         };
         TextDocumentView: {
             doc_id: string;

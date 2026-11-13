@@ -9,13 +9,13 @@ use buizz_core::api::{
 use buizz_core::listing::Listings;
 use buizz_core::market::{
     Adjustment, AdjustmentFactor, Bar, Borrow, BorrowAvailability, Calendar, Company,
-    CorporateAction, Coverage, DataSource, EarningsInsight, EarningsRelease, EstimateFact, Filing,
-    FilingText, FomcAnnouncement, FomcMeeting, FundamentalFact, FundamentalMetric,
-    FundamentalPoint, IndexHistory, InsiderFiling, InsiderPlan, InsiderTrade, Instrument,
-    InstrumentProfile, Liquidity, MacroObservation, MacroPoint, MacroSeries, NewsArticle,
-    PressCandidate, PressExhibit, PressRelease, RiskFreeRate, SecFiling, Session, ShortInterest,
-    ShortInterestRecord, ShortVolume, ShortVolumeRecord, StockIndex, Symbol, TextCandidate,
-    Timeframe, Watermarks,
+    CorporateAction, Coverage, DataSource, DocumentSections, EarningsInsight, EarningsRelease,
+    EstimateFact, Filing, FilingText, FomcAnnouncement, FomcMeeting, FundamentalFact,
+    FundamentalMetric, FundamentalPoint, IndexHistory, InsiderFiling, InsiderPlan, InsiderTrade,
+    Instrument, InstrumentProfile, Liquidity, MacroObservation, MacroPoint, MacroSeries,
+    NewsArticle, PressCandidate, PressExhibit, PressRelease, RiskFreeRate, SecFiling, Session,
+    ShortInterest, ShortInterestRecord, ShortVolume, ShortVolumeRecord, StockIndex, Symbol,
+    TextCandidate, Timeframe, UnsplitDocument, Watermarks,
 };
 use buizz_core::ops::{ActionDisagreement, CoverageGap, DataWarning};
 use buizz_core::protocol::BarRow;
@@ -696,6 +696,73 @@ impl MarketStore {
             .await
     }
 
+    pub async fn append_periodic_reports(
+        &self,
+        source: DataSource,
+        reports: Vec<Filing>,
+    ) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| write::periodic_reports(connection, source, reports))
+            .await
+    }
+
+    pub async fn append_document_sections(
+        &self,
+        source: DataSource,
+        documents: Vec<DocumentSections>,
+    ) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| write::document_sections(connection, source, documents))
+            .await
+    }
+
+    pub async fn unsplit_documents(
+        &self,
+        splitter_version: u32,
+        limit: usize,
+    ) -> Result<Vec<UnsplitDocument>> {
+        let volumes = Arc::clone(&self.text);
+        self.readers
+            .run(move |connection| {
+                let located = read::unsplit_documents(connection, splitter_version, limit)?;
+                let mut by_file: BTreeMap<(&str, &str), Vec<&read::UnsplitLocation>> =
+                    BTreeMap::new();
+                for location in &located {
+                    by_file
+                        .entry((location.volume.as_str(), location.path.as_str()))
+                        .or_default()
+                        .push(location);
+                }
+                let mut documents = Vec::with_capacity(located.len());
+                for ((volume, path), group) in by_file {
+                    let Some(root) = volumes.root(volume) else {
+                        continue;
+                    };
+                    let ids: Vec<&str> = group.iter().map(|doc| doc.doc_id.as_str()).collect();
+                    let mut texts = read::parquet_texts(connection, &root.join(path), &ids)?;
+                    documents.extend(group.into_iter().map(|location| {
+                        UnsplitDocument {
+                            text: texts
+                                .remove(&(location.doc_id.clone(), location.content_hash.clone()))
+                                .flatten(),
+                            doc_id: location.doc_id.clone(),
+                            content_hash: location.content_hash.clone(),
+                            kind: location.kind.clone(),
+                            published_at: location.published_at,
+                        }
+                    }));
+                }
+                Ok(documents)
+            })
+            .await
+    }
+
+    pub async fn split_progress(&self, splitter_version: u32) -> Result<(u64, u64)> {
+        self.readers
+            .run(move |connection| read::split_progress(connection, splitter_version))
+            .await
+    }
+
     pub async fn append_press_releases(
         &self,
         source: DataSource,
@@ -813,7 +880,11 @@ impl MarketStore {
                 })?;
                 let text = read::parquet_text(connection, &root.join(&path), &doc_id, &hash)?;
                 let chars = text.as_ref().map_or(0, |text| text.chars().count());
+                let (sections, split_failure) =
+                    read::document_sections(connection, &doc_id, &hash)?;
                 Ok(Some(TextDocumentText {
+                    sections,
+                    split_failure,
                     text: text.map(|text| text.chars().take(limit).collect()),
                     truncated: chars > limit,
                     chars: chars as u64,
@@ -1231,6 +1302,10 @@ impl MarketStore {
 
     pub async fn current_report_accessions(&self, symbol: Symbol) -> Result<BTreeSet<String>> {
         self.accessions("current_report", symbol).await
+    }
+
+    pub async fn periodic_report_accessions(&self, symbol: Symbol) -> Result<BTreeSet<String>> {
+        self.accessions("periodic_report", symbol).await
     }
 
     pub async fn insider_accessions(&self, symbol: Symbol) -> Result<BTreeSet<String>> {

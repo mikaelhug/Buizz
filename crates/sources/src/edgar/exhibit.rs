@@ -60,7 +60,7 @@ pub fn indexed_documents(index: &str) -> Vec<IndexedDocument> {
             let document = cells.get(2)?.split_whitespace().next()?.to_owned();
             let kind = cells.get(3)?.clone();
             Some(IndexedDocument {
-                sequence: cells.first()?.parse().unwrap_or(0),
+                sequence: cells.first()?.parse().ok()?,
                 description: cells.get(1).filter(|text| !text.is_empty()).cloned(),
                 document,
                 kind,

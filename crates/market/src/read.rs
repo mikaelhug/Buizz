@@ -10,7 +10,7 @@ use buizz_core::market::{
     FundamentalMetric, FundamentalPoint, HISTORY_FLOORS, HISTORY_START, IndexHistory, IndexMember,
     InsiderOwner, InsiderPlan, InsiderTrade, InsiderTransaction, Instrument, InstrumentProfile,
     Liquidity, MacroObservation, MacroPoint, MacroSeries, NewsArticle, PressCandidate,
-    PressRelease, RiskFreeRate, SIP_DELAY, Session, ShortInterest, ShortInterestRecord,
+    PressRelease, RiskFreeRate, SIP_DELAY, Section, Session, ShortInterest, ShortInterestRecord,
     ShortVolume, StockIndex, Symbol, TextCandidate, Timeframe,
 };
 use buizz_core::ops::{ActionDisagreement, CoverageGap, DataWarning, UNEXPLAINED_MOVE_THRESHOLD};
@@ -1395,7 +1395,8 @@ pub(crate) fn press_candidates(connection: &Connection) -> Result<Vec<PressCandi
 pub(crate) fn text_candidates(connection: &Connection) -> Result<Vec<TextCandidate>> {
     let mut statement = connection.prepare_cached(
         "SELECT c.cik, c.accession, any_value(c.form), any_value(c.accepted_at) \
-         FROM current_report c \
+         FROM (SELECT cik, accession, form, accepted_at FROM current_report \
+         UNION ALL SELECT cik, accession, form, accepted_at FROM periodic_report) c \
          WHERE NOT EXISTS (SELECT 1 FROM filing_text f WHERE f.accession = c.accession) \
          GROUP BY c.cik, c.accession ORDER BY any_value(c.accepted_at) DESC, c.accession",
     )?;
@@ -1525,10 +1526,111 @@ pub(crate) fn parquet_text(
 pub(crate) fn filing_text_progress(connection: &Connection) -> Result<(u64, u64)> {
     Ok(connection.query_row(
         "SELECT (SELECT count(*) FROM filing_text), \
-         (SELECT count(DISTINCT accession) FROM current_report)",
+         (SELECT count(*) FROM (SELECT accession FROM current_report \
+         UNION SELECT accession FROM periodic_report))",
         [],
         |row| Ok((row.get(0)?, row.get(1)?)),
     )?)
+}
+
+const PERIODIC_KINDS: &str = "('10-K', '10-K/A', '10-Q', '10-Q/A')";
+
+pub(crate) struct UnsplitLocation {
+    pub(crate) doc_id: String,
+    pub(crate) content_hash: String,
+    pub(crate) kind: String,
+    pub(crate) published_at: Timestamp,
+    pub(crate) volume: String,
+    pub(crate) path: String,
+}
+
+pub(crate) fn unsplit_documents(
+    connection: &Connection,
+    splitter_version: u32,
+    limit: usize,
+) -> Result<Vec<UnsplitLocation>> {
+    let mut statement = connection.prepare_cached(&format!(
+        "SELECT d.doc_id, d.content_hash, d.kind, d.published_at, f.volume, f.path \
+         FROM text_document d JOIN text_file f ON f.id = d.file_id \
+         WHERE d.kind IN {PERIODIC_KINDS} AND NOT EXISTS (SELECT 1 FROM section s \
+         WHERE s.doc_id = d.doc_id AND s.content_hash = d.content_hash \
+         AND s.splitter_version = ?) \
+         ORDER BY d.published_at DESC, d.doc_id LIMIT ?"
+    ))?;
+    let documents = statement
+        .query_map(params![splitter_version, limit as u64], |row| {
+            Ok(UnsplitLocation {
+                doc_id: row.get(0)?,
+                content_hash: row.get(1)?,
+                kind: row.get(2)?,
+                published_at: row.get::<_, Ts>(3)?.0,
+                volume: row.get(4)?,
+                path: row.get(5)?,
+            })
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    Ok(documents)
+}
+
+pub(crate) fn parquet_texts(
+    connection: &Connection,
+    file: &Path,
+    doc_ids: &[&str],
+) -> Result<BTreeMap<(String, String), Option<String>>> {
+    let quoted = file.to_string_lossy().replace('\'', "''");
+    let mut statement = connection.prepare(&format!(
+        "SELECT doc_id, content_hash, text FROM read_parquet('{quoted}') \
+         WHERE doc_id {IN_SYMBOLS}"
+    ))?;
+    let texts = statement
+        .query_map([text_list(doc_ids.iter().copied())], |row| {
+            Ok(((row.get(0)?, row.get(1)?), row.get(2)?))
+        })?
+        .collect::<duckdb::Result<BTreeMap<_, _>>>()?;
+    Ok(texts)
+}
+
+pub(crate) fn split_progress(connection: &Connection, splitter_version: u32) -> Result<(u64, u64)> {
+    Ok(connection.query_row(
+        &format!(
+            "SELECT count(*) FILTER (WHERE EXISTS (SELECT 1 FROM section s \
+             WHERE s.doc_id = d.doc_id AND s.content_hash = d.content_hash \
+             AND s.splitter_version = ?)), count(*) \
+             FROM text_document d WHERE d.kind IN {PERIODIC_KINDS}"
+        ),
+        [splitter_version],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?)
+}
+
+pub(crate) fn document_sections(
+    connection: &Connection,
+    doc_id: &str,
+    content_hash: &str,
+) -> Result<(Vec<Section>, Option<String>)> {
+    let mut statement = connection.prepare_cached(
+        "SELECT key, start_char, end_char, failure FROM section \
+         WHERE doc_id = ? AND content_hash = ? AND splitter_version = \
+         (SELECT max(splitter_version) FROM section WHERE doc_id = ? AND content_hash = ?) \
+         ORDER BY ordinal",
+    )?;
+    let mut sections = Vec::new();
+    let mut failure = None;
+    let rows = statement.query_map(params![doc_id, content_hash, doc_id, content_hash], |row| {
+        Ok((
+            row.get::<_, Option<String>>(0)?,
+            row.get::<_, Option<u64>>(1)?,
+            row.get::<_, Option<u64>>(2)?,
+            row.get::<_, Option<String>>(3)?,
+        ))
+    })?;
+    for row in rows {
+        match row? {
+            (Some(key), Some(start), Some(end), None) => sections.push(Section { key, start, end }),
+            (_, _, _, reason) => failure = reason.or(failure),
+        }
+    }
+    Ok((sections, failure))
 }
 
 pub(crate) fn unread_plans(connection: &Connection, from: Timestamp) -> Result<Vec<InsiderPlan>> {

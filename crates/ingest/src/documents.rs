@@ -6,7 +6,9 @@ use crate::fetch::{Batch, Work};
 use crate::{Ingest, IngestError};
 
 const FILINGS_PER_RUN: usize = 400;
+const DOCUMENTS_PER_RUN: usize = 3_000;
 const STORED_EVERY: usize = 25;
+const STORED_BYTES: usize = 128 << 20;
 const NOT_FOUND: u16 = 404;
 
 impl Ingest {
@@ -22,13 +24,15 @@ impl Ingest {
         }
         let candidates = self.market.text_candidates().await?;
         if candidates.is_empty() {
-            return Ok(Work::noop("every 8-K has its documents"));
+            return Ok(Work::noop("every filing has its documents"));
         }
         let mut left = candidates.len();
         let mut batch = Batch::default();
         let mut read: Vec<FilingText> = Vec::new();
+        let mut held = 0;
+        let mut fetched = 0;
         for candidate in candidates.into_iter().take(FILINGS_PER_RUN) {
-            if self.stopping() {
+            if self.stopping() || fetched >= DOCUMENTS_PER_RUN {
                 break;
             }
             left -= 1;
@@ -36,7 +40,16 @@ impl Ingest {
                 .filing_documents(candidate.cik, &candidate.accession)
                 .await
             {
-                Ok(documents) => Ok(documents),
+                Ok(documents) => {
+                    fetched += documents.len() + 1;
+                    held += documents
+                        .iter()
+                        .map(|document| {
+                            document.raw.len() + document.text.as_ref().map_or(0, String::len)
+                        })
+                        .sum::<usize>();
+                    Ok(documents)
+                }
                 Err(
                     error @ (SourceError::Decode(_)
                     | SourceError::Status {
@@ -61,8 +74,9 @@ impl Ingest {
                 retrieved_at: Timestamp::now(),
                 outcome,
             });
-            if read.len() == STORED_EVERY {
+            if read.len() == STORED_EVERY || held >= STORED_BYTES {
                 batch.success(self.store_filing_texts(std::mem::take(&mut read)).await?);
+                held = 0;
             }
         }
         if !read.is_empty() {

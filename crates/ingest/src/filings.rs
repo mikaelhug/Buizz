@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use buizz_core::market::{Company, DataSource, Dataset, EarningsRelease, Filing, Symbol};
 use buizz_core::time::Timestamp;
-use buizz_sources::edgar::{EARNINGS_FORMS, EdgarClient, Filings};
+use buizz_sources::edgar::{COMPANY_FORMS, EdgarClient, Filings};
 use buizz_sources::http::SourceError;
 
 use crate::facts::NO_CIK;
@@ -22,13 +22,22 @@ impl Ingest {
             Ok(tickers) => tickers,
             Err(error) => return self.source_failure(now, &map_key, &error).await,
         };
+        let walked = self
+            .state
+            .settled_symbols(DataSource::Edgar, Dataset::PeriodicReports)
+            .await?;
+        let unwalked: BTreeSet<Symbol> = tickers
+            .keys()
+            .filter(|symbol| !walked.contains(*symbol))
+            .cloned()
+            .collect();
         let (due, more) = self
             .companies_due(
                 now,
                 Dataset::CurrentReports,
                 &tickers,
-                &EARNINGS_FORMS,
-                &BTreeSet::new(),
+                &COMPANY_FORMS,
+                &unwalked,
             )
             .await?;
         if due.is_empty() {
@@ -54,15 +63,24 @@ impl Ingest {
                 without_cik += 1;
                 continue;
             };
-            let backfill = !self
-                .latest_fetch(DataSource::Edgar, Dataset::CurrentReports, &symbol)
-                .await?
-                .is_some_and(|fetch| read(&fetch));
+            let periodic_key = FetchKey::new(
+                DataSource::Edgar,
+                Dataset::PeriodicReports,
+                Some(&symbol),
+                None,
+            );
+            let backfill = unwalked.contains(&symbol)
+                || !self
+                    .latest_fetch(DataSource::Edgar, Dataset::CurrentReports, &symbol)
+                    .await?
+                    .is_some_and(|fetch| read(&fetch));
             match self.company_filings(edgar, &symbol, cik, backfill).await {
                 Ok((company, filings)) => {
                     let fetched = filings.reports.len() + 1;
+                    let periodic = filings.periodic.len();
                     let mut rows = self.new_releases(&symbol, filings.releases).await?;
                     rows += self.new_reports(&symbol, filings.reports).await?;
+                    rows += self.new_periodic_reports(&symbol, filings.periodic).await?;
                     if !stored.contains(&company) {
                         rows += self
                             .market
@@ -71,6 +89,9 @@ impl Ingest {
                             .rows;
                     }
                     self.record_fetched(now, &key, fetched).await?;
+                    if backfill {
+                        self.record_fetched(now, &periodic_key, periodic).await?;
+                    }
                     batch.success(rows);
                 }
                 Err(error) => {
@@ -110,6 +131,7 @@ impl Ingest {
                 let page = edgar.filings_page(symbol, cik, page).await?;
                 filings.releases.extend(page.releases);
                 filings.reports.extend(page.reports);
+                filings.periodic.extend(page.periodic);
             }
         }
         Ok((submissions.company, filings))
@@ -120,12 +142,7 @@ impl Ingest {
             .market
             .current_report_accessions(symbol.clone())
             .await?;
-        let fresh: Vec<Filing> = reports
-            .into_iter()
-            .filter(|report| {
-                report.filed >= self.config.history_start && !stored.contains(&report.accession)
-            })
-            .collect();
+        let fresh = self.unstored(reports, &stored);
         if fresh.is_empty() {
             return Ok(0);
         }
@@ -134,6 +151,35 @@ impl Ingest {
             .append_current_reports(DataSource::Edgar, fresh)
             .await?
             .rows)
+    }
+
+    async fn new_periodic_reports(
+        &self,
+        symbol: &Symbol,
+        reports: Vec<Filing>,
+    ) -> Result<u64, IngestError> {
+        let stored = self
+            .market
+            .periodic_report_accessions(symbol.clone())
+            .await?;
+        let fresh = self.unstored(reports, &stored);
+        if fresh.is_empty() {
+            return Ok(0);
+        }
+        Ok(self
+            .market
+            .append_periodic_reports(DataSource::Edgar, fresh)
+            .await?
+            .rows)
+    }
+
+    fn unstored(&self, reports: Vec<Filing>, stored: &BTreeSet<String>) -> Vec<Filing> {
+        reports
+            .into_iter()
+            .filter(|report| {
+                report.filed >= self.config.history_start && !stored.contains(&report.accession)
+            })
+            .collect()
     }
 
     async fn new_releases(

@@ -56,6 +56,7 @@ async fn an_empty_spine_backfills_backs_off_rejects_a_bad_tiingo_tail_and_restar
             ("insider_trades", ok),
             ("press_releases", ok),
             ("filing_documents", ok),
+            ("filing_sections", Some(JobOutcome::Noop)),
             ("rates", ok),
             ("borrow", ok),
             ("short_interest", Some(JobOutcome::Noop)),
@@ -81,8 +82,8 @@ async fn an_empty_spine_backfills_backs_off_rejects_a_bad_tiingo_tail_and_restar
     );
     assert_eq!(
         message(&jobs, "filings"),
-        "filings: 12 rows",
-        "the company, its 4 earnings releases and its 7 8-Ks"
+        "filings: 14 rows",
+        "the company, its 4 earnings releases, its 7 8-Ks and its 2 10-Qs"
     );
     assert_eq!(message(&jobs, "press_releases"), "press releases: 4 rows");
     assert_eq!(message(&jobs, "vix"), "vix: 8 rows");

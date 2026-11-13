@@ -3,7 +3,7 @@ use buizz_core::time::Timestamp;
 use chrono::NaiveDate;
 use serde::Deserialize;
 
-use super::{EARNINGS_FORMS, INSIDER_FORMS};
+use super::{EARNINGS_FORMS, INSIDER_FORMS, PERIODIC_FORMS};
 use crate::http::SourceError;
 
 const RESULTS_OF_OPERATIONS: &str = "2.02";
@@ -18,6 +18,7 @@ pub struct Submissions {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Filings {
     pub reports: Vec<Filing>,
+    pub periodic: Vec<Filing>,
     pub releases: Vec<EarningsRelease>,
     pub ownership: Vec<OwnershipFiling>,
 }
@@ -150,6 +151,21 @@ fn filings(symbol: &Symbol, cik: u32, columns: &Columns) -> Result<Filings, Sour
                 filed: columns.filed[row],
                 accepted_at: accepted_at()?,
                 document: columns.document.get(row).cloned().unwrap_or_default(),
+            });
+            continue;
+        }
+        if PERIODIC_FORMS.contains(&columns.form[row].as_str()) {
+            let accepted_at = accepted_at()?;
+            filings.periodic.push(Filing {
+                symbol: symbol.clone(),
+                cik,
+                accession: columns.accession[row].clone(),
+                form: columns.form[row].clone(),
+                filed: columns.filed[row],
+                report_date: columns.report_date[row].parse().ok(),
+                items: Vec::new(),
+                accepted_at,
+                available_at: accepted_at,
             });
             continue;
         }

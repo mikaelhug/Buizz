@@ -225,6 +225,13 @@
   overflow: auto;
 }
 
+.reader-sections {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+  margin-bottom: var(--sp-3);
+}
+
 .reader-text {
   margin: 0;
   font-family: var(--mono);

@@ -18,6 +18,7 @@ mod press;
 mod reference;
 mod schedule;
 mod sec_index;
+mod sections;
 mod snapshot;
 mod tiingo;
 
@@ -35,6 +36,7 @@ use buizz_core::ops::JobOutcome;
 use buizz_core::time::Timestamp;
 use buizz_market::{MarketError, MarketStore, Restored};
 use buizz_sources::Sources;
+use buizz_sources::edgar::SPLITTER_VERSION;
 use buizz_sources::http::SourceError;
 use buizz_state::{StateError, StateStore};
 use chrono::{NaiveDate, NaiveTime, TimeDelta};
@@ -263,6 +265,7 @@ impl Ingest {
             schedule::INSIDER_TRADES => self.insider_trades(now).await,
             schedule::PRESS_RELEASES => self.press_releases(now).await,
             schedule::FILING_DOCUMENTS => self.filing_documents(now).await,
+            schedule::FILING_SECTIONS => self.filing_sections().await,
             schedule::NEWS => self.news(now).await,
             schedule::INDEX_MEMBERSHIP => self.index_membership(now).await,
             schedule::RATES => self.rates(now).await,
@@ -343,7 +346,11 @@ impl Ingest {
             .map(|instrument| instrument.symbol)
             .filter(|symbol| priced_set.contains(symbol))
             .collect();
-        for dataset in [Dataset::Fundamentals, Dataset::CurrentReports] {
+        for dataset in [
+            Dataset::Fundamentals,
+            Dataset::CurrentReports,
+            Dataset::PeriodicReports,
+        ] {
             let read = self
                 .state
                 .settled_symbols(DataSource::Edgar, dataset)
@@ -359,6 +366,12 @@ impl Ingest {
             let narrow = |count: u64| u32::try_from(count).unwrap_or(u32::MAX);
             push(
                 Dataset::FilingDocuments,
+                DataSource::Edgar,
+                (narrow(done), narrow(total)),
+            );
+            let (done, total) = self.market.split_progress(SPLITTER_VERSION).await?;
+            push(
+                Dataset::FilingSections,
                 DataSource::Edgar,
                 (narrow(done), narrow(total)),
             );

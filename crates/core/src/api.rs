@@ -7,7 +7,8 @@ use serde_json::{Map, Value};
 use utoipa::{IntoParams, ToSchema};
 
 use crate::market::{
-    Coverage, DataDomain, DataSource, Dataset, Market, Session, Symbol, Timeframe, Watermarks,
+    Coverage, DataDomain, DataSource, Dataset, Market, Section, Session, Symbol, Timeframe,
+    Watermarks,
 };
 use crate::ops::{DataWarning, JobOutcome};
 use crate::order::{Fill, Order, OrderId, OrderUpdate};
@@ -447,6 +448,8 @@ pub struct TextDocumentText {
     pub text: Option<String>,
     pub chars: u64,
     pub truncated: bool,
+    pub sections: Vec<Section>,
+    pub split_failure: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]

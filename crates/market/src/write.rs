@@ -3,9 +3,9 @@ use std::ops::RangeInclusive;
 
 use buizz_core::market::{
     Bar, BorrowAvailability, Company, CorporateAction, CorporateActionKind, DataSource, Dataset,
-    EarningsInsight, EarningsRelease, EstimateFact, Filing, FilingDocument, FilingText,
-    FomcMeeting, FundamentalFact, IndexHistory, InsiderFiling, InsiderPlan, Instrument,
-    MacroObservation, NewsArticle, PressExhibit, RiskFreeRate, SecFiling, Session,
+    DocumentSections, EarningsInsight, EarningsRelease, EstimateFact, Filing, FilingDocument,
+    FilingText, FomcMeeting, FundamentalFact, IndexHistory, InsiderFiling, InsiderPlan, Instrument,
+    MacroObservation, NewsArticle, PressExhibit, RiskFreeRate, SecFiling, Section, Session,
     ShortInterestRecord, ShortVolumeRecord, Symbol, split_rates,
 };
 use buizz_core::ops::ActionDisagreement;
@@ -1431,6 +1431,88 @@ pub(crate) fn current_reports(
                     Ts(report.accepted_at),
                     batch_id,
                 ])? as u64;
+            }
+            Ok(rows)
+        },
+    )
+}
+
+pub(crate) fn periodic_reports(
+    connection: &mut Connection,
+    source: DataSource,
+    reports: Vec<Filing>,
+) -> Result<WriteSummary> {
+    let mut coverage = Coverage::new();
+    for report in &reports {
+        cover(&mut coverage, Some(&report.symbol), report.filed);
+    }
+    write_batch(
+        connection,
+        source,
+        Dataset::PeriodicReports,
+        coverage,
+        |transaction, batch_id| {
+            let mut statement = transaction.prepare_cached(
+                "INSERT OR IGNORE INTO main.periodic_report VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            )?;
+            let mut rows = 0;
+            for report in &reports {
+                rows += statement.execute(params![
+                    report.symbol.as_str(),
+                    report.cik,
+                    report.accession,
+                    report.form,
+                    report.filed,
+                    report.report_date,
+                    Ts(report.accepted_at),
+                    batch_id,
+                ])? as u64;
+            }
+            Ok(rows)
+        },
+    )
+}
+
+pub(crate) fn document_sections(
+    connection: &mut Connection,
+    source: DataSource,
+    documents: Vec<DocumentSections>,
+) -> Result<WriteSummary> {
+    let mut coverage = Coverage::new();
+    for document in &documents {
+        cover(&mut coverage, None, document.published_at.exchange_date());
+    }
+    write_batch(
+        connection,
+        source,
+        Dataset::FilingSections,
+        coverage,
+        |transaction, batch_id| {
+            let mut statement = transaction.prepare_cached(
+                "INSERT OR IGNORE INTO main.section VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            )?;
+            let mut rows = 0;
+            for document in &documents {
+                let rows_of: Vec<(Option<&Section>, Option<&str>)> = match &document.outcome {
+                    Ok(sections) => sections
+                        .iter()
+                        .map(|section| (Some(section), None))
+                        .collect(),
+                    Err(reason) => vec![(None, Some(reason.as_str()))],
+                };
+                for (ordinal, (section, failure)) in rows_of.into_iter().enumerate() {
+                    rows += statement.execute(params![
+                        document.doc_id,
+                        document.content_hash,
+                        document.splitter_version,
+                        u32::try_from(ordinal).unwrap_or(u32::MAX),
+                        section.map(|section| section.key.as_str()),
+                        section.map(|section| section.start),
+                        section.map(|section| section.end),
+                        failure,
+                        batch_id,
+                    ])? as u64;
+                }
             }
             Ok(rows)
         },
