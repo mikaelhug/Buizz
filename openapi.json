@@ -1191,6 +1191,44 @@
         }
       }
     },
+    "/api/studies": {
+      "post": {
+        "tags": [
+          "research"
+        ],
+        "operationId": "event_study",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventStudy"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/healthz": {
       "get": {
         "tags": [
@@ -1207,6 +1245,39 @@
   },
   "components": {
     "schemas": {
+      "AbnormalStats": {
+        "type": "object",
+        "properties": {
+          "mean": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "median": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "hit_rate": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "t_stat": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          }
+        }
+      },
       "ActionDisagreement": {
         "type": "object",
         "required": [
@@ -1819,6 +1890,35 @@
           }
         }
       },
+      "CurvePoint": {
+        "type": "object",
+        "required": [
+          "session",
+          "count",
+          "gross",
+          "net"
+        ],
+        "properties": {
+          "session": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "count": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "gross": {
+            "type": "number",
+            "format": "double"
+          },
+          "net": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
       "DataDomain": {
         "type": "string",
         "enum": [
@@ -2201,6 +2301,141 @@
           }
         }
       },
+      "EventOutcome": {
+        "type": "object",
+        "required": [
+          "symbol",
+          "at",
+          "returns"
+        ],
+        "properties": {
+          "symbol": {
+            "$ref": "#/components/schemas/Symbol"
+          },
+          "at": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "entry": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "benchmark": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Symbol"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "round_trip_cost": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "last_session": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "skipped": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/StudySkip"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "returns": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/HorizonReturn"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "EventStudy": {
+        "type": "object",
+        "required": [
+          "label",
+          "hash",
+          "trials",
+          "luck_t",
+          "cost",
+          "position",
+          "horizons",
+          "curve",
+          "events"
+        ],
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "hash": {
+            "type": "string"
+          },
+          "trials": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "luck_t": {
+            "type": "number",
+            "format": "double"
+          },
+          "data_through": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cost": {
+            "$ref": "#/components/schemas/CostModel"
+          },
+          "position": {
+            "type": "string"
+          },
+          "horizons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HorizonStats"
+            }
+          },
+          "curve": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CurvePoint"
+            }
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventOutcome"
+            }
+          }
+        }
+      },
       "EventsPage": {
         "type": "object",
         "required": [
@@ -2388,6 +2623,62 @@
           }
         },
         "additionalProperties": false
+      },
+      "HorizonReturn": {
+        "type": "object",
+        "required": [
+          "stock",
+          "benchmark"
+        ],
+        "properties": {
+          "stock": {
+            "type": "number",
+            "format": "double"
+          },
+          "benchmark": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "HorizonStats": {
+        "type": "object",
+        "required": [
+          "sessions",
+          "count",
+          "delisted",
+          "months",
+          "gross",
+          "net"
+        ],
+        "properties": {
+          "sessions": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "count": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "delisted": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "months": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "gross": {
+            "$ref": "#/components/schemas/AbnormalStats"
+          },
+          "net": {
+            "$ref": "#/components/schemas/AbnormalStats"
+          }
+        }
       },
       "JobOutcome": {
         "type": "string",
@@ -4496,6 +4787,70 @@
           "sp500"
         ]
       },
+      "StudyEvent": {
+        "type": "object",
+        "required": [
+          "symbol",
+          "at"
+        ],
+        "properties": {
+          "symbol": {
+            "$ref": "#/components/schemas/Symbol"
+          },
+          "at": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        },
+        "additionalProperties": false
+      },
+      "StudyRequest": {
+        "type": "object",
+        "required": [
+          "label",
+          "events"
+        ],
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StudyEvent"
+            }
+          },
+          "benchmark": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Symbol"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cost": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CostModel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "StudySkip": {
+        "type": "string",
+        "enum": [
+          "no_session",
+          "unknown_symbol",
+          "not_traded",
+          "benchmark_not_traded"
+        ]
+      },
       "SweepStarted": {
         "type": "object",
         "required": [
@@ -4815,6 +5170,9 @@
     },
     {
       "name": "league"
+    },
+    {
+      "name": "research"
     },
     {
       "name": "data"

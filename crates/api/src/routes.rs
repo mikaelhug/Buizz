@@ -1,7 +1,8 @@
+use axum::extract::DefaultBodyLimit;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
-use crate::{Api, auth, base_router, bots, data, events, runs};
+use crate::{Api, auth, base_router, bots, data, events, runs, studies};
 
 pub(crate) fn protected_routes() -> OpenApiRouter<Api> {
     base_router()
@@ -32,6 +33,11 @@ pub(crate) fn protected_routes() -> OpenApiRouter<Api> {
         .routes(routes!(data::data_feed))
         .routes(routes!(data::data_processes))
         .routes(routes!(events::events))
+        .merge(
+            base_router()
+                .routes(routes!(studies::event_study))
+                .layer(DefaultBodyLimit::max(studies::STUDY_BODY_LIMIT)),
+        )
 }
 
 pub(crate) fn public_routes() -> OpenApiRouter<Api> {

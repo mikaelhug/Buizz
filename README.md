@@ -40,6 +40,7 @@ The other bots in `bots/` need real data: set the provider keys below and start 
 | `buizz bots` | List bots with stage, timeframe and live variants |
 | `buizz backtest bots/<name> --from YYYY-MM-DD --to YYYY-MM-DD [--param key=value]...` | Backtest a bot, wait, print metrics and an order summary |
 | `buizz sweep bots/<name> [--preset 10y] --grid key=v1,v2,...` | Queue a backtest for every combination of param values; variants already run are skipped |
+| `buizz event-study <events.csv\|.jsonl> [--label name] [--benchmark SYM] [--cost field=value]...` | Measure net and gross abnormal returns 1, 5, 21 and 63 sessions after dated events (`symbol`, `at`), with clustering-robust t-statistics and the luck line over every study run (see [Event studies](docs/writing-a-bot.md#event-studies)) |
 
 `buizz` is the SDK's console script; run it with `uv run --frozen buizz` inside `sdk/python`. It talks to a running spine: `BUIZZ_URL` (default `http://127.0.0.1:8080`) `BUIZZ_ADMIN_USERNAME` (default `admin`) and `BUIZZ_ADMIN_PASSWORD` (the spine's admin login). `--param` values are parsed as JSON and fall back to strings. A `--param` key that is not in the bot's `bot.toml` params, or a `--cost` field that is not in the cost model, is refused before the run is queued. The spine runs the bot from its own `bots/` directory, so the argument only selects the folder name.
 
@@ -100,6 +101,6 @@ Failed logins are rate-limited per client address. Behind a reverse proxy the sp
 
 ## Docs
 
-- [Writing a bot](docs/writing-a-bot.md): folder layout, `bot.toml`, the SDK, fills, costs, risk and holdout rules, the headless loop
+- [Writing a bot](docs/writing-a-bot.md): folder layout, `bot.toml`, the SDK, fills, costs, risk and holdout rules, event studies, the headless loop
 - [Architecture](docs/architecture.md): components, the one event path, guarantees, data sources, on-disk state
 - [Bot protocol](docs/protocol.md): the WebSocket wire format between the spine and a bot

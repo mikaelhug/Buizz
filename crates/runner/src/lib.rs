@@ -3,6 +3,7 @@ mod drive;
 mod link;
 mod report;
 mod research;
+mod study;
 mod timeline;
 
 use std::collections::{BTreeMap, HashMap};

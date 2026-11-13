@@ -14,11 +14,13 @@ use rust_decimal::prelude::ToPrimitive;
 pub use crate::benchmark::buy_and_hold;
 pub use crate::live::{LiveInput, Source, backtest_curve, live, live_summary};
 pub use crate::research::{Screen, Screened, luck_sharpe, neighbourhood_sharpes, screen};
+pub use crate::study::{abnormal_stats, luck_t};
 
 mod benchmark;
 mod envelope;
 mod live;
 mod research;
+mod study;
 
 const TRADING_DAYS: f64 = CostModel::TRADING_DAYS_PER_YEAR as f64;
 const MIN_SPREAD: f64 = f64::EPSILON;
