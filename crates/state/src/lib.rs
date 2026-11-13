@@ -2,6 +2,7 @@ mod codec;
 mod db;
 mod jobs;
 mod runs;
+mod studies;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::RangeInclusive;
@@ -297,6 +298,21 @@ impl StateStore {
         let bot = bot.to_owned();
         self.db
             .read(move |connection| runs::trials(connection, &bot))
+            .await
+    }
+
+    pub async fn record_study(
+        &self,
+        label: &str,
+        hash: &str,
+        events: u32,
+        at: Timestamp,
+    ) -> Result<u32> {
+        let (label, hash) = (label.to_owned(), hash.to_owned());
+        self.db
+            .transaction(move |transaction| {
+                studies::record_study(transaction, &label, &hash, events, at)
+            })
             .await
     }
 

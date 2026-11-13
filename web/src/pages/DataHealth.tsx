@@ -9,6 +9,7 @@ import { Card, Stat } from "../ui/Kit";
 import { Info } from "../ui/Popover";
 import { StatusPill } from "../ui/Status";
 import { Ago, matches, SortHeader, type SortColumns, TableFilter, useFlash, useSort } from "../ui/Table";
+import { DataSpine } from "./DataSpine";
 import "../styles/data.css";
 
 const COVERAGE_ROWS_SHOWN = 200;
@@ -27,6 +28,30 @@ const TIMEFRAMES: Record<Schemas["Timeframe"], string> = { "1d": "Daily", "1m": 
 const share = (part: number, whole: number) => (whole > 0 ? Math.min(part / whole, 1) : 0);
 
 export function DataHealth() {
+  const [view, setView] = useQueryParam("view");
+  const details = view === "details";
+  return (
+    <div className="page-stack data-health">
+      <header className="page-head">
+        <div>
+          <h1>Data</h1>
+          <p className="page-question">Every source and dataset bots read: how far back it goes, how current it is and whether it is healthy.</p>
+        </div>
+        <span className="segmented data-views" role="group" aria-label="Data view">
+          <button type="button" className={details ? undefined : "active"} aria-pressed={!details} onClick={() => setView("")}>
+            Spine
+          </button>
+          <button type="button" className={details ? "active" : undefined} aria-pressed={details} onClick={() => setView("details")}>
+            Details
+          </button>
+        </span>
+      </header>
+      {details ? <Details /> : <DataSpine />}
+    </div>
+  );
+}
+
+function Details() {
   const health = useResource(() => must(api.GET("/api/data/health")), []);
   const jobs = useResource(() => must(api.GET("/api/data/jobs")), []);
   const feed = useResource(() => must(api.GET("/api/data/feed")), []);
@@ -50,18 +75,13 @@ export function DataHealth() {
   const stale = jobs.data?.filter((job) => job.stale).length ?? health.data?.stale_jobs;
 
   return (
-    <div className="page-stack data-health">
-      <header className="page-head">
-        <div>
-          <h1>Data</h1>
-          <p className="page-question">
-            {health.data
-              ? `Runs see daily bars through ${fmt.market(health.data.watermarks.day)} and minute bars through ${fmt.market(health.data.watermarks.minute)}.`
-              : "Is the data runs see complete and current?"}
-            <Info label="Watermarks">The latest daily and minute bars a run can see; a live run waits at the watermark for the next bar.</Info>
-          </p>
-        </div>
-      </header>
+    <>
+      <p className="data-watermarks">
+        {health.data
+          ? `Runs see daily bars through ${fmt.market(health.data.watermarks.day)} and minute bars through ${fmt.market(health.data.watermarks.minute)}.`
+          : "Loading what runs can see…"}
+        <Info label="Watermarks">The latest daily and minute bars a run can see; a live run waits at the watermark for the next bar.</Info>
+      </p>
       <DataSummary health={health.data} jobs={jobs.data} feed={feed.data} stale={stale} />
       <StaleFailure resource={health} />
       {health.data?.ingest_enabled === false && (
@@ -77,7 +97,7 @@ export function DataHealth() {
         <JobsPanel jobs={jobs} ingest={health.data?.ingest_enabled} />
         <CoveragePanel health={health} />
       </div>
-    </div>
+    </>
   );
 }
 

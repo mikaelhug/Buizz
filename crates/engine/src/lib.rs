@@ -20,7 +20,7 @@ use chrono::{Datelike, NaiveDate, TimeDelta};
 use rust_decimal::{Decimal, RoundingStrategy};
 use serde::{Deserialize, Serialize};
 
-pub const ENGINE_VERSION: u32 = 10;
+pub const ENGINE_VERSION: u32 = 11;
 
 #[derive(Debug, thiserror::Error)]
 pub enum EngineError {
@@ -1148,6 +1148,7 @@ mod tests {
             risk: RiskLimits::default(),
             seed: 1,
             benchmark: Symbol::new("SPY"),
+            hedge_benchmark: None,
             holdout: false,
         }
     }

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { Schemas } from "../api/client";
-import { fmt, label, tone } from "../lib/format";
+import { fmt, tone } from "../lib/format";
 import { href } from "../lib/route";
 import { Explain, Info } from "./Popover";
 import { StatusPill } from "./Status";
@@ -20,17 +20,11 @@ export type Column = {
 
 export type LiveKey =
   | "bot"
-  | "since"
   | "sessions"
   | "excess_cagr"
-  | "cagr"
-  | "benchmark_cagr"
   | "total_return"
-  | "benchmark_return"
   | "excess_return"
   | "max_drawdown"
-  | "volatility"
-  | "beta"
   | "confidence"
   | "verdict"
   | "sessions_needed"
@@ -104,14 +98,54 @@ const DECAY = "Live results usually fall short of their backtest: 26–58% decay
 
 const BREACH_NAMES: Record<Breach, string> = { excess: "excess return", drawdown: "drawdown", volatility: "volatility" };
 
+export const JUDGED_FROM_SESSION = 20;
+
 const VERDICT_ABOUT: Record<Schemas["LiveVerdict"], string> = {
-  incubating: "Fewer than 20 live sessions: too early to judge. Leaving the band counts only from session 20.",
-  tracking: "Inside the source backtest's envelope on every test, but not yet proven.",
+  incubating: `Too early to judge. Live results are compared with the backtest it came from once it has ${JUDGED_FROM_SESSION} sessions, and it joins the League ranking then.`,
+  tracking: "On track: inside the range its backtest predicts on every test, but not yet proven to beat SPY.",
   no_backtest:
-    "No completed backtest of this code and params outside the holdout, so there is no envelope to leave: this run is never falsified. Its live results alone can still prove it.",
-  falsified: "Outside the source backtest's envelope, so the backtest no longer describes this run. Nothing stops it automatically; retiring it stays your call.",
-  proven: "The probabilistic Sharpe of daily excess return over the benchmark reached 1 − 0.05 ÷ live runs started, and the run is inside its envelope.",
+    "No completed backtest of this code and params outside the holdout, so there is no range to compare with: it can never be off track. Its live results alone can still prove it.",
+  falsified: "Off track: outside the range its backtest predicts, so the backtest no longer describes it. Nothing stops it automatically; retiring it is your call.",
+  proven: "Beats SPY: the probabilistic Sharpe of its daily excess return over SPY reached 1 − 0.05 ÷ live runs started, and it is inside its backtest's range.",
 };
+
+const VERDICT_LABEL: Record<Exclude<Schemas["LiveVerdict"], "incubating">, string> = {
+  tracking: "On track",
+  no_backtest: "No backtest to compare",
+  falsified: "Off track",
+  proven: "Beats SPY",
+};
+
+const closeTime = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+const closeDay = new Intl.DateTimeFormat("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit" });
+
+export function firstClose(live: Live, long = false): string | undefined {
+  const session = live.first_session;
+  return session ? (long ? closeTime : closeDay).format(new Date(session.close)) : undefined;
+}
+
+export function sessionsOf(live: Live): number {
+  return live.run.live_stats?.sessions ?? 0;
+}
+
+export function verdictLabel(live: Live): string {
+  const verdict = live.run.live_stats?.verdict ?? "incubating";
+  if (verdict !== "incubating") {
+    return VERDICT_LABEL[verdict];
+  }
+  const sessions = sessionsOf(live);
+  const starts = firstClose(live);
+  return sessions === 0 ? (starts ? `Starts ${starts}` : "Starting") : `Day ${sessions} of ${JUDGED_FROM_SESSION}`;
+}
+
+export function verdictAbout(live: Live): string {
+  const verdict = live.run.live_stats?.verdict ?? "incubating";
+  const starts = firstClose(live, true);
+  if (verdict === "incubating" && sessionsOf(live) === 0) {
+    return `Live paper since ${live.run.config.start}. It trades for the first time at the close of ${starts ?? "the next session"}; after every close its equity is marked against SPY. ${VERDICT_ABOUT.incubating}`;
+  }
+  return VERDICT_ABOUT[verdict];
+}
 
 function EnvelopeTests({ live, stats }: { live: Live; stats: Stats }) {
   const envelope = stats.envelope;
@@ -158,18 +192,19 @@ function EnvelopeTests({ live, stats }: { live: Live; stats: Stats }) {
   );
 }
 
-function Verdict({ live }: { live: Live }) {
+export function Verdict({ live }: { live: Live }) {
   const stats = live.run.live_stats;
   const verdict = stats?.verdict ?? "incubating";
   const breaches = stats?.envelope?.breaches ?? [];
+  const text = verdictLabel(live);
   return (
-    <Explain label={`Verdict: ${label(verdict)}`} className={`pill pill-${verdict} explained`} trigger={label(verdict)}>
+    <Explain label={text} className={`pill pill-${verdict} explained`} trigger={text}>
       <p>
-        {VERDICT_ABOUT[verdict]}
+        {verdictAbout(live)}
         {verdict === "falsified" && ` Failed: ${breaches.map((breach) => BREACH_NAMES[breach]).join(", ")}.`}
       </p>
-      {stats && <EnvelopeTests live={live} stats={stats} />}
-      <p>{DECAY}</p>
+      {stats && stats.sessions > 0 && <EnvelopeTests live={live} stats={stats} />}
+      {verdict !== "incubating" && <p>{DECAY}</p>}
     </Explain>
   );
 }
@@ -182,11 +217,7 @@ export const LIVE_COLUMNS: Record<LiveKey, Column> = {
     value: (live) => live.run.bot,
     cell: (live) => <a href={href({ page: "bot", name: live.run.bot, run: live.run.id })}>{live.run.bot}</a>,
   },
-  since: {
-    label: "Live since",
-    value: (live) => Date.parse(live.run.created_at),
-    cell: (live) => <span className="num">{fmt.date(live.run.created_at)}</span>,
-  },
+
   sessions: {
     label: "Sessions",
     about: "Session closes since the run went live; paused sessions count, since the run keeps its positions marked while paused",
@@ -200,8 +231,6 @@ export const LIVE_COLUMNS: Record<LiveKey, Column> = {
     (stats) => stats.excess_cagr,
     (stats) => stats.excess_cagr_error,
   ),
-  cagr: annualizedColumn("CAGR", "Compound annual growth of equity since the run went live", (stats) => stats.cagr),
-  benchmark_cagr: annualizedColumn("SPY CAGR", "Compound annual growth of the benchmark over the same sessions", (stats) => stats.benchmark_cagr),
   total_return: {
     label: "Return",
     about: "Change in equity since the run went live, after every cost, through the latest session close",
@@ -209,14 +238,7 @@ export const LIVE_COLUMNS: Record<LiveKey, Column> = {
     value: (live) => stat(live, (stats) => stats.total_return),
     cell: (live) => <Signed value={stat(live, (stats) => stats.total_return)} />,
   },
-  benchmark_return: {
-    label: "SPY",
-    about:
-      "The bot's benchmark (SPY unless its bot.toml names another) bought at the close before the first live session and held to the same session close",
-    numeric: true,
-    value: (live) => stat(live, (stats) => stats.benchmark_return),
-    cell: (live) => <Signed value={stat(live, (stats) => stats.benchmark_return)} />,
-  },
+
   excess_return: {
     label: "Excess",
     about:
@@ -233,21 +255,8 @@ export const LIVE_COLUMNS: Record<LiveKey, Column> = {
     value: (live) => stat(live, (stats) => stats.max_drawdown),
     cell: (live) => <Signed value={negative(stat(live, (stats) => stats.max_drawdown))} />,
   },
-  volatility: {
-    label: "Vol",
-    about: "Annualised standard deviation of daily returns since the run went live",
-    numeric: true,
-    ascending: true,
-    value: (live) => stat(live, (stats) => stats.volatility),
-    cell: (live) => <span className="num">{fmt.percent(stat(live, (stats) => stats.volatility))}</span>,
-  },
-  beta: {
-    label: "Beta",
-    about: "How much of the daily moves followed the benchmark's: 1 moves with it, 0 ignores it",
-    numeric: true,
-    value: (live) => stat(live, (stats) => stats.beta),
-    cell: (live) => <span className="num">{fmt.ratio(stat(live, (stats) => stats.beta))}</span>,
-  },
+
+
   confidence: {
     label: "Confidence",
     about:
@@ -259,7 +268,7 @@ export const LIVE_COLUMNS: Record<LiveKey, Column> = {
   verdict: {
     label: "Verdict",
     about:
-      "Incubating until 20 live sessions. Then falsified once the run leaves its source backtest's envelope (excess return below the 5th percentile of the backtest's rolling windows of the same age, drawdown beyond their 95th percentile, or volatility above 1.5× the backtest's), proven once its confidence reaches 1 − 0.05 ÷ live runs started, no backtest when it has no source backtest, otherwise tracking. Click a verdict for its tests",
+      "Day N of 20 until 20 live sessions. Then off track once the run leaves the range its source backtest predicts (excess return below the 5th percentile of the backtest's rolling windows of the same age, drawdown beyond their 95th percentile, or volatility above 1.5× the backtest's), beats SPY once its confidence reaches 1 − 0.05 ÷ live runs started, no backtest to compare when it has no source backtest, otherwise on track. Click a verdict for its tests",
     value: (live) => stat(live, (stats) => stats.verdict) ?? "incubating",
     cell: (live) => <Verdict live={live} />,
   },

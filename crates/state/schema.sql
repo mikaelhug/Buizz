@@ -117,3 +117,11 @@ CREATE INDEX IF NOT EXISTS source_fetch_rate_limits ON source_fetch (source, ret
     WHERE status = 'rate_limited';
 
 CREATE TABLE IF NOT EXISTS market_reset (at INTEGER NOT NULL) STRICT;
+
+CREATE TABLE IF NOT EXISTS event_study (
+    label TEXT NOT NULL,
+    hash TEXT NOT NULL,
+    events INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (label, hash)
+) STRICT;

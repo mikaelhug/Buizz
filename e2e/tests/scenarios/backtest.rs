@@ -47,11 +47,11 @@ async fn cli_backtest(spine: &Spine, config: &RunConfig) -> (RunId, Vec<String>)
     (id, lines)
 }
 
-fn printed_metric(name: &str, value: &Value) -> String {
+fn printed_metric(value: &Value) -> String {
     match value.as_f64() {
-        Some(number) if value.is_f64() => format!("{name:<16} {number:.4}"),
-        _ if value.is_null() => format!("{name:<16} -"),
-        _ => format!("{name:<16} {value}"),
+        Some(number) if value.is_f64() => format!("{number:.4}"),
+        _ if value.is_null() => "-".to_owned(),
+        _ => value.to_string(),
     }
 }
 
@@ -232,8 +232,13 @@ async fn red_green_backtest_matches_the_hand_computation_from_the_cli_the_api_an
 
     let (cli_run, printed) = cli_backtest(&spine, &config).await;
     for (name, value) in expected["metrics"].as_object().expect("metrics") {
-        let line = printed_metric(name, value);
-        assert!(printed.contains(&line), "{line:?} in {printed:#?}");
+        let line = [name.as_str(), &printed_metric(value)];
+        assert!(
+            printed
+                .iter()
+                .any(|printed| printed.split_whitespace().eq(line)),
+            "{line:?} in {printed:#?}"
+        );
     }
     for line in [
         "orders: 7 (7 filled)",

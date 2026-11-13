@@ -1037,6 +1037,64 @@ pub enum Dataset {
     Estimates,
 }
 
+impl Dataset {
+    pub const ALL: [Self; 17] = [
+        Self::Bars1d,
+        Self::Bars1m,
+        Self::CorporateActions,
+        Self::Instruments,
+        Self::Calendar,
+        Self::IndexMembership,
+        Self::Companies,
+        Self::Fundamentals,
+        Self::SecFilings,
+        Self::EarningsReleases,
+        Self::InsiderTrades,
+        Self::Estimates,
+        Self::Rates,
+        Self::Macro,
+        Self::Fomc,
+        Self::News,
+        Self::Borrow,
+    ];
+
+    pub fn domain(self) -> DataDomain {
+        match self {
+            Self::Bars1d | Self::Bars1m | Self::CorporateActions => DataDomain::Prices,
+            Self::Instruments | Self::Calendar | Self::IndexMembership | Self::Companies => {
+                DataDomain::Reference
+            }
+            Self::Fundamentals
+            | Self::SecFilings
+            | Self::EarningsReleases
+            | Self::InsiderTrades
+            | Self::Estimates => DataDomain::Filings,
+            Self::Rates | Self::Macro | Self::Fomc => DataDomain::Macro,
+            Self::News | Self::Borrow => DataDomain::Alternative,
+        }
+    }
+}
+
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, ToSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum DataDomain {
+    Prices,
+    Reference,
+    Filings,
+    Macro,
+    Alternative,
+}
+
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, ToSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum Market {
+    Us,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct Coverage {
     pub dataset: Dataset,

@@ -86,6 +86,7 @@ pub struct IngestConfig {
 pub(crate) struct JobSpec {
     pub name: &'static str,
     pub source: Option<DataSource>,
+    pub datasets: &'static [Dataset],
     pub every: Duration,
 }
 

@@ -37,6 +37,7 @@ fn new_run(mode: Mode) -> NewRun {
             risk: RiskLimits::default(),
             seed: 7,
             benchmark: Symbol::new("SPY"),
+            hedge_benchmark: None,
             holdout: false,
         },
         status: RunStatus::Running,

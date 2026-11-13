@@ -7,6 +7,7 @@ mod extract;
 mod guard;
 mod routes;
 mod runs;
+mod studies;
 
 use std::net::IpAddr;
 use std::path::PathBuf;
@@ -165,6 +166,7 @@ async fn bot_socket(
         (name = "bots"),
         (name = "runs"),
         (name = "league"),
+        (name = "research"),
         (name = "data"),
         (name = "auth"),
         (name = "events"),

@@ -4,16 +4,26 @@ import { Explain } from "./Popover";
 
 type Status = Schemas["BotStatus"] | Schemas["RunStatus"] | Schemas["OrderStatus"] | Schemas["JobOutcome"];
 
-const STATUS_ABOUT: Partial<Record<Status, string>> = {
-  stopped: "The latest run ended at its drawdown stop: equity fell by the limit from its peak, every position was closed and the run ended.",
+const STATUS_TEXT: Partial<Record<Status, { text: string; about: string }>> = {
+  stopped: {
+    text: "drawdown stop",
+    about: "The latest run ended at its drawdown stop: equity fell by the limit from its peak, every position was closed and the run ended.",
+  },
+  error: { text: "last run failed", about: "The bot's latest run failed. Open the run and its Logs tab for the bot's output." },
+  idle: { text: "idle", about: "Nothing is running: no live paper run and no backtest in progress." },
+  backtesting: { text: "backtesting", about: "A backtest of this bot is queued or running; results appear as soon as it completes." },
 };
 
+export function statusText(status: Status): string {
+  return STATUS_TEXT[status]?.text ?? label(status);
+}
+
 export function StatusPill({ status }: { status: Status }) {
-  const about = STATUS_ABOUT[status];
+  const spec = STATUS_TEXT[status];
   const className = `pill pill-${status}`;
-  return about ? (
-    <Explain label={label(status)} className={`${className} explained`} trigger={label(status)}>
-      {about}
+  return spec ? (
+    <Explain label={spec.text} className={`${className} explained`} trigger={spec.text}>
+      {spec.about}
     </Explain>
   ) : (
     <span className={className}>{label(status)}</span>
@@ -22,10 +32,10 @@ export function StatusPill({ status }: { status: Status }) {
 
 const BADGES: Record<Schemas["RunBadge"], { text: string; about: string }> = {
   survivorship_biased: {
-    text: "Survivorship-biased",
+    text: "Survivorship bias",
     about: "The universe was picked from today's listings (a fixed symbol list, or a top dollar volume ranking while the store holds no delisted names), so names delisted before the run are missing and results look better than they would have.",
   },
-  holdout: { text: "Holdout", about: "Ran on the locked last 12 months, kept aside as an out-of-sample test." },
+  holdout: { text: "Holdout period", about: "Ran on the locked last 12 months, kept aside as an out-of-sample test." },
   data_warnings: { text: "Data warnings", about: "The run saw data warnings; the Positions & events tab lists them." },
   drawdown_stop: {
     text: "Drawdown stop",

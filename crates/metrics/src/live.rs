@@ -327,6 +327,8 @@ pub fn live_summary(mut run: RunSummary, started: u32) -> LiveSummary {
             .as_ref()
             .and_then(|stats| sessions_needed(stats, started)),
         run,
+        source: None,
+        first_session: None,
     }
 }
 

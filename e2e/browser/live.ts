@@ -44,10 +44,12 @@ async function pauseAndResumeThenStop(page: Page): Promise<{ paused: Released; r
   for (const name of ["tape_twin", "tape"]) {
     await row(name).getByRole("button", { name: `Actions for ${name}`, exact: true }).click();
     await page.getByRole("menuitem", { name: "Go live", exact: true }).click();
-    await pill(row(name), "incubating").waitFor();
+    await row(name).locator(".pill-incubating").waitFor();
   }
+  const live = page.getByRole("region", { name: "Live paper", exact: true });
+  await live.getByRole("link", { name: "tape", exact: true }).waitFor();
   const header = await list.locator("thead").textContent();
-  for (const column of ["Stage", "CAGR vs SPY", "vs total-return SPY"]) {
+  for (const column of ["CAGR vs SPY", "Status", "Backtest", "Equity vs SPY"]) {
     if (!header?.includes(column)) {
       throw new Error(`the bot list has no ${column} column: ${header}`);
     }

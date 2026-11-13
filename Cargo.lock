@@ -612,6 +612,7 @@ name = "buizz-runner"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "blake3",
  "buizz-core",
  "buizz-engine",
  "buizz-feed",
