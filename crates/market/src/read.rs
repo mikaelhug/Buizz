@@ -1682,9 +1682,13 @@ pub(crate) fn coverage_gaps(
         Timeframe::Day => {
             params.push(Box::new(first.date));
             params.push(Box::new(last.date));
+            params.extend(symbol_params(&keys));
+            params.push(Box::new(first.date));
+            params.push(Box::new(last.date));
             format!(
-                "SELECT DISTINCT symbol, date FROM bar_1d \
-                 WHERE symbol IN ({}) AND date BETWEEN ? AND ?",
+                "SELECT symbol, date FROM bar_1d WHERE symbol IN ({0}) AND date BETWEEN ? AND ? \
+                 UNION SELECT symbol, date FROM quiet_session \
+                 WHERE symbol IN ({0}) AND date BETWEEN ? AND ?",
                 placeholders(keys.len())
             )
         }
@@ -1749,6 +1753,36 @@ pub(crate) fn coverage_gaps(
         }
     }
     Ok(gaps)
+}
+
+pub(crate) fn long_silences(
+    connection: &Connection,
+    sessions: i64,
+) -> Result<Vec<(Symbol, NaiveDate)>> {
+    let mut statement = connection.prepare_cached(
+        "WITH session AS (SELECT date, row_number() OVER (ORDER BY date) AS ordinal FROM calendar), \
+         quiet AS (SELECT q.symbol, q.date, s.ordinal - row_number() OVER \
+           (PARTITION BY q.symbol ORDER BY q.date) AS island \
+           FROM quiet_session q JOIN session s USING (date) WHERE NOT contains(q.symbol, '@') \
+           AND NOT EXISTS (SELECT 1 FROM bar_1d b WHERE b.symbol = q.symbol AND b.date = q.date) \
+           AND NOT EXISTS (SELECT 1 FROM corporate_action a \
+             WHERE a.kind = 'name_change' AND a.other_symbol = q.symbol)), \
+         run AS (SELECT symbol, min(date) AS first, max(date) AS last FROM quiet \
+           GROUP BY symbol, island HAVING count(*) > ?), \
+         ended AS (SELECT r.symbol, r.last, max(b.date) AS traded FROM run r \
+           JOIN bar_1d b ON b.symbol = r.symbol AND b.date < r.first GROUP BY r.symbol, r.last) \
+         SELECT DISTINCT e.symbol, e.traded FROM ended e \
+         WHERE EXISTS (SELECT 1 FROM bar_1d b WHERE b.symbol = e.symbol AND b.date > e.last) \
+         AND NOT EXISTS (SELECT 1 FROM instrument i \
+           WHERE i.symbol = e.symbol || '@' || strftime(e.traded, '%Y-%m-%d')) \
+         ORDER BY e.symbol, e.traded",
+    )?;
+    let ended = statement
+        .query_map(params![sessions], |row| {
+            Ok((row.get::<_, Sym>(0)?.0, row.get::<_, NaiveDate>(1)?))
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    Ok(ended)
 }
 
 pub(crate) fn unpriced_members(
@@ -1818,7 +1852,9 @@ pub(crate) fn unpriced_members(
            FROM span s JOIN session c ON c.date BETWEEN s.lo AND s.hi \
            LEFT JOIN instrument i ON i.symbol = s.listing \
            WHERE (i.last_session IS NULL OR c.date <= i.last_session) \
-           AND NOT EXISTS (SELECT 1 FROM bar_1d b WHERE b.symbol = s.listing AND b.date = c.date)) \
+           AND NOT EXISTS (SELECT 1 FROM bar_1d b WHERE b.symbol = s.listing AND b.date = c.date) \
+           AND NOT EXISTS (SELECT 1 FROM quiet_session q \
+             WHERE q.symbol IN (s.listing, s.ticker) AND q.date = c.date)) \
          SELECT ticker, min(date) AS first, max(date) FROM missing \
          GROUP BY id, ticker, island ORDER BY ticker, first",
         vec!["(?, ?, CAST(? AS DATE), CAST(? AS DATE), ?)"; spans.len()].join(", ")

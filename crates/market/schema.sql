@@ -40,6 +40,14 @@ CREATE TABLE IF NOT EXISTS bar_1d (
     PRIMARY KEY (symbol, date)
 );
 
+CREATE TABLE IF NOT EXISTS quiet_session (
+    symbol VARCHAR NOT NULL,
+    date DATE NOT NULL,
+    source VARCHAR NOT NULL,
+    batch_id BIGINT NOT NULL,
+    PRIMARY KEY (symbol, date)
+);
+
 CREATE TABLE IF NOT EXISTS bar_1m (
     symbol VARCHAR NOT NULL,
     start TIMESTAMP NOT NULL,

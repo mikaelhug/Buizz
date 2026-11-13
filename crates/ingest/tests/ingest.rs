@@ -60,6 +60,11 @@ const ENDED_LAST_BAR: &str = "2016-03-31";
 const REUSED_FIRST_BAR: &str = "2016-04-20";
 const RENAMED: &str = "ANDV";
 const RENAMED_FIRST_BAR: &str = "2016-04-01";
+const SILENT: &str = "DOW";
+const HALTED: &str = "2016-03-03";
+const SILENT_FROM: &str = "2016-03-11";
+const SILENT_TO: &str = "2016-06-10";
+const SILENT_LAST_BAR: &str = "2016-07-29";
 
 #[derive(Default)]
 struct Fake {
@@ -190,8 +195,28 @@ async fn bars(State(fake): State<Arc<Fake>>, Query(params): Query<Params>) -> Re
         Some(asof) if asof != "-" => String::new(),
         _ => requested(RENAMED, date(RENAMED_FIRST_BAR), date(ALPACA_LAST_BAR)),
     };
+    let silent = match params["symbols"].split(',').any(|listed| listed == SILENT) {
+        true => weekdays(
+            date(&params["start"]).max(date(ALPACA_FIRST_BAR)),
+            date(&params["end"][..10]).min(date(SILENT_LAST_BAR)),
+        )
+        .into_iter()
+        .map(|day| {
+            let quiet = day == date(HALTED) || (date(SILENT_FROM)..=date(SILENT_TO)).contains(&day);
+            let (close, volume, trades) = match quiet {
+                true => (50, 0, 0),
+                false => (alpaca_close(day), 1000, 10),
+            };
+            format!(
+                r#"{{"t":"{day}T12:00:00Z","o":{close},"h":{close},"l":{close},"c":{close},"v":{volume},"n":{trades}}}"#
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(","),
+        false => String::new(),
+    };
     json(format!(
-        r#"{{"bars":{{"AAPL":[{aapl}],"SPY":[{spy}],"{DELISTED_MEMBER}":[{delisted}],"{REUSED}":[{reused}],"{RENAMED}":[{renamed}]}},"next_page_token":null}}"#
+        r#"{{"bars":{{"AAPL":[{aapl}],"SPY":[{spy}],"{DELISTED_MEMBER}":[{delisted}],"{REUSED}":[{reused}],"{RENAMED}":[{renamed}],"{SILENT}":[{silent}]}},"next_page_token":null}}"#
     ))
 }
 
@@ -727,6 +752,86 @@ async fn a_member_alpaca_lists_only_under_its_later_ticker_is_priced_under_its_e
             .collect::<Vec<_>>(),
         weekdays(date(ALPACA_FIRST_BAR), date(ALPACA_LAST_BAR)),
         "the March sessions it traded under its earlier ticker come from Alpaca's mapping as of its first day as ANDV"
+    );
+}
+
+#[tokio::test]
+async fn sessions_without_a_trade_are_not_prices_and_a_long_silence_ends_the_listing() {
+    let fake = Arc::new(Fake::default());
+    let url = serve_fakes(fake.clone()).await;
+    let directory = tempfile::tempdir().unwrap();
+    let (market, _state, ingest) = spine(directory.path(), &url).await;
+    let first_at = stamp("2024-07-05T21:00:00Z");
+    let mut members = sp500(&["SPY"]);
+    members.members.push(IndexMember {
+        index: StockIndex::Sp500,
+        symbol: Symbol::new(SILENT),
+        start: Some(date("2010-01-04")),
+        end: Some(date("2016-03-15")),
+    });
+    market
+        .replace_index_history(DataSource::Wikipedia, members, first_at.exchange_date())
+        .await
+        .unwrap();
+    ingest.tick(first_at).await.unwrap();
+
+    let ended = Symbol::ended(&Symbol::new(SILENT), date("2016-03-10"));
+    assert!(
+        market
+            .instruments()
+            .await
+            .unwrap()
+            .iter()
+            .any(|instrument| instrument.symbol == ended
+                && instrument.last_session == Some(date("2016-03-10")))
+    );
+    let sessions = |as_of: &'static str| {
+        let market = market.clone();
+        async move {
+            market
+                .history(HistoryRequest {
+                    symbols: vec![Symbol::new(SILENT)],
+                    timeframe: Timeframe::Day,
+                    bars: 100,
+                    adjust: Adjustment::Raw,
+                    as_of: stamp(as_of),
+                })
+                .await
+                .unwrap()
+                .iter()
+                .map(|row| row.start.exchange_date())
+                .collect::<Vec<_>>()
+        }
+    };
+    let traded_before = weekdays(date(ALPACA_FIRST_BAR), date("2016-03-10"))
+        .into_iter()
+        .filter(|day| *day != date(HALTED))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        sessions("2016-03-10T21:00:00Z").await,
+        traded_before,
+        "the halted session has no price and the listing ends at its last trade"
+    );
+    assert_eq!(
+        sessions("2016-07-29T21:00:00Z").await,
+        weekdays(date("2016-06-13"), date(SILENT_LAST_BAR)),
+        "trading after the long silence is another listing"
+    );
+    assert_eq!(
+        market
+            .unpriced_members(
+                StockIndex::Sp500,
+                date(ALPACA_FIRST_BAR),
+                date("2016-03-14")
+            )
+            .await
+            .unwrap()
+            .into_iter()
+            .filter(|gap| gap.symbol.as_str() == SILENT)
+            .map(|gap| (gap.from, gap.to))
+            .collect::<Vec<_>>(),
+        vec![],
+        "a halted session and the sessions after the last trade are not missing"
     );
 }
 

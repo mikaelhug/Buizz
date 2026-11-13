@@ -84,6 +84,7 @@ pub enum Tickers {
 
 pub struct BarPage {
     pub bars: Vec<Bar>,
+    pub quiet: Vec<(Symbol, NaiveDate)>,
     pub next: Option<String>,
 }
 
@@ -131,6 +132,7 @@ impl AlpacaClient {
     ) -> Result<BarPage, SourceError> {
         let empty = BarPage {
             bars: Vec::new(),
+            quiet: Vec::new(),
             next: None,
         };
         let to = match request.feed {
@@ -186,10 +188,8 @@ impl AlpacaClient {
         let next = page
             .take_next_page_token()
             .filter(|token| !token.is_empty());
-        Ok(BarPage {
-            bars: page.into_bars(request.timeframe, request.feed, calendar),
-            next,
-        })
+        let (bars, quiet) = page.into_bars(request.timeframe, request.feed, calendar);
+        Ok(BarPage { bars, quiet, next })
     }
 
     pub async fn news_page(

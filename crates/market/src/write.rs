@@ -304,6 +304,53 @@ pub(crate) fn daily_bars(
     )
 }
 
+pub(crate) fn quiet_sessions(
+    connection: &mut Connection,
+    source: DataSource,
+    sessions: Vec<(Symbol, NaiveDate)>,
+) -> Result<WriteSummary> {
+    let source_name = wire_name(&source);
+    write_batch(
+        connection,
+        source,
+        Dataset::Bars1d,
+        Coverage::new(),
+        |transaction, batch_id| {
+            let mut statement = transaction.prepare_cached(
+                "INSERT INTO main.quiet_session VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING",
+            )?;
+            let mut rows = 0;
+            for (symbol, date) in &sessions {
+                rows += statement.execute(params![symbol.as_str(), date, source_name, batch_id])?;
+            }
+            Ok(rows as u64)
+        },
+    )
+}
+
+pub(crate) fn ended_quiet_sessions(
+    connection: &mut Connection,
+    source: DataSource,
+    ticker: Symbol,
+    ended: Symbol,
+    last: NaiveDate,
+) -> Result<WriteSummary> {
+    write_batch(
+        connection,
+        source,
+        Dataset::Bars1d,
+        Coverage::new(),
+        |transaction, batch_id| {
+            let rows = transaction.execute(
+                "INSERT INTO main.quiet_session SELECT ?, date, source, ? FROM main.quiet_session \
+                 WHERE symbol = ? AND date <= ? ON CONFLICT DO NOTHING",
+                params![ended.as_str(), batch_id, ticker.as_str(), last],
+            )?;
+            Ok(rows as u64)
+        },
+    )
+}
+
 const SCATTERED_ROW_GROUPS_TOLERATED: i64 = 1;
 
 pub(crate) fn scattered_daily_row_groups(connection: &Connection) -> Result<i64> {

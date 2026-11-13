@@ -33,6 +33,7 @@ struct WireBar {
     #[serde(deserialize_with = "decimal")]
     c: Decimal,
     v: u64,
+    n: Option<u64>,
 }
 
 impl Paged for BarsPage {
@@ -42,34 +43,42 @@ impl Paged for BarsPage {
 }
 
 impl BarsPage {
-    pub fn into_bars(self, timeframe: Timeframe, feed: Feed, calendar: &Calendar) -> Vec<Bar> {
-        self.bars
-            .unwrap_or_default()
-            .into_iter()
-            .flat_map(|(symbol, bars)| {
-                let symbol = Symbol::new(&symbol);
-                bars.into_iter().filter_map(move |bar| {
-                    let session = calendar.session(bar.t.exchange_date())?;
-                    let start = match timeframe {
-                        Timeframe::Day => session.open,
-                        Timeframe::Minute if (session.open..session.close).contains(&bar.t) => {
-                            bar.t
-                        }
-                        Timeframe::Minute => return None,
-                    };
-                    Some(Bar {
-                        symbol: symbol.clone(),
-                        start,
-                        open: bar.o,
-                        high: bar.h,
-                        low: bar.l,
-                        close: bar.c,
-                        volume: bar.v,
-                        feed,
-                    })
-                })
-            })
-            .collect()
+    pub fn into_bars(
+        self,
+        timeframe: Timeframe,
+        feed: Feed,
+        calendar: &Calendar,
+    ) -> (Vec<Bar>, Vec<(Symbol, NaiveDate)>) {
+        let mut bars = Vec::new();
+        let mut quiet = Vec::new();
+        for (symbol, rows) in self.bars.unwrap_or_default() {
+            let symbol = Symbol::new(&symbol);
+            for bar in rows {
+                let Some(session) = calendar.session(bar.t.exchange_date()) else {
+                    continue;
+                };
+                let start = match timeframe {
+                    Timeframe::Day if bar.v == 0 || bar.n == Some(0) => {
+                        quiet.push((symbol.clone(), session.date));
+                        continue;
+                    }
+                    Timeframe::Day => session.open,
+                    Timeframe::Minute if (session.open..session.close).contains(&bar.t) => bar.t,
+                    Timeframe::Minute => continue,
+                };
+                bars.push(Bar {
+                    symbol: symbol.clone(),
+                    start,
+                    open: bar.o,
+                    high: bar.h,
+                    low: bar.l,
+                    close: bar.c,
+                    volume: bar.v,
+                    feed,
+                });
+            }
+        }
+        (bars, quiet)
     }
 }
 

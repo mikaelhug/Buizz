@@ -24,6 +24,7 @@ const INDEX_RANKS: usize = CORE_ETFS.len() + 1;
 const ALONE_PER_RUN: usize = 20;
 const RECOVERED_PER_RUN: usize = 20;
 const RECOVERY_RETRY: TimeDelta = TimeDelta::days(30);
+const HALT_SESSIONS: i64 = 60;
 
 impl Ingest {
     pub(crate) async fn daily_bars(&self, now: Timestamp) -> Result<Work, IngestError> {
@@ -152,6 +153,11 @@ impl Ingest {
                             for bar in &page.bars {
                                 *received.entry(bar.symbol.clone()).or_default() += 1;
                             }
+                            if !page.quiet.is_empty() {
+                                self.market
+                                    .record_quiet_sessions(DataSource::Alpaca, page.quiet)
+                                    .await?;
+                            }
                             let rows = self
                                 .market
                                 .upsert_bars(DataSource::Alpaca, Timeframe::Day, page.bars)
@@ -237,7 +243,68 @@ impl Ingest {
             .collect();
         self.settle_listing_ends(stored.values().cloned().collect(), &stored)
             .await?;
+        self.end_silent_listings(floor, &target, &mut batch).await?;
         Ok(batch.finish("daily bars"))
+    }
+
+    async fn end_silent_listings(
+        &self,
+        floor: NaiveDate,
+        target: &Session,
+        batch: &mut Batch,
+    ) -> Result<(), IngestError> {
+        let silences = self.market.long_silences(HALT_SESSIONS).await?;
+        if silences.is_empty() {
+            return Ok(());
+        }
+        let mut instruments = Vec::new();
+        let mut listings = Vec::new();
+        for (ticker, last) in silences {
+            let ended = Symbol::ended(&ticker, last);
+            self.market
+                .end_quiet_sessions(DataSource::Alpaca, ticker.clone(), ended.clone(), last)
+                .await?;
+            listings.extend(
+                self.market
+                    .bars_between(
+                        Timeframe::Day,
+                        vec![ticker],
+                        day_start(floor),
+                        day_start(last + TimeDelta::days(1)),
+                    )
+                    .await?
+                    .into_iter()
+                    .map(|bar| Bar {
+                        symbol: ended.clone(),
+                        ..bar
+                    }),
+            );
+            instruments.push(Instrument {
+                symbol: ended,
+                name: String::new(),
+                exchange: String::new(),
+                asset_class: AssetClass::Stock,
+                active: false,
+                shortable: false,
+                first_session: None,
+                last_session: Some(last),
+            });
+        }
+        self.market
+            .upsert_instruments(DataSource::Alpaca, instruments)
+            .await?;
+        let rows = self
+            .market
+            .upsert_bars(DataSource::Alpaca, Timeframe::Day, listings)
+            .await?
+            .rows;
+        batch.success(rows);
+        let withdrawn = self
+            .market
+            .withdraw_shadowed_bars(DataSource::Alpaca, floor, target.date)
+            .await?;
+        batch.success(withdrawn.rows);
+        Ok(())
     }
 
     async fn recover_listings(

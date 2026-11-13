@@ -428,6 +428,30 @@ impl MarketStore {
             .await
     }
 
+    pub async fn record_quiet_sessions(
+        &self,
+        source: DataSource,
+        sessions: Vec<(Symbol, NaiveDate)>,
+    ) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| write::quiet_sessions(connection, source, sessions))
+            .await
+    }
+
+    pub async fn end_quiet_sessions(
+        &self,
+        source: DataSource,
+        ticker: Symbol,
+        ended: Symbol,
+        last: NaiveDate,
+    ) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| {
+                write::ended_quiet_sessions(connection, source, ticker, ended, last)
+            })
+            .await
+    }
+
     pub async fn order_daily_bars(&self) -> Result<()> {
         self.writer.run(keep_daily_bars_ordered).await
     }
@@ -1034,6 +1058,12 @@ impl MarketStore {
                     connection, &calendar, &listings, &symbols, timeframe, from, to,
                 )
             })
+            .await
+    }
+
+    pub async fn long_silences(&self, sessions: i64) -> Result<Vec<(Symbol, NaiveDate)>> {
+        self.readers
+            .run(move |connection| read::long_silences(connection, sessions))
             .await
     }
 
