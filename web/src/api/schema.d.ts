@@ -228,6 +228,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/data/spine": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["data_spine"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/events": {
         parameters: {
             query?: never;
@@ -655,6 +671,8 @@ export interface components {
             /** Format: date */
             to: string;
         };
+        /** @enum {string} */
+        DataDomain: "prices" | "reference" | "filings" | "macro" | "alternative";
         DataHealth: {
             watermarks: components["schemas"]["Watermarks"];
             backfill: components["schemas"]["BackfillProgress"][];
@@ -666,6 +684,16 @@ export interface components {
         };
         /** @enum {string} */
         DataSource: "alpaca" | "alpaca_stream" | "tiingo" | "edgar" | "treasury" | "fred" | "fixture" | "wikipedia" | "interactive_brokers" | "nasdaq" | "cboe" | "federal_reserve" | "factset";
+        DataSpine: {
+            markets: components["schemas"]["Market"][];
+            datasets: components["schemas"]["DatasetSpine"][];
+            watermarks: components["schemas"]["Watermarks"];
+            ingest_enabled: boolean;
+            /** Format: date */
+            history_start: string;
+            /** Format: date */
+            today: string;
+        };
         DataWarning: (components["schemas"]["CoverageGap"] & {
             /** @enum {string} */
             type: "coverage_gap";
@@ -689,6 +717,11 @@ export interface components {
         });
         /** @enum {string} */
         Dataset: "instruments" | "calendar" | "bars1d" | "bars1m" | "corporate_actions" | "fundamentals" | "rates" | "companies" | "earnings_releases" | "sec_filings" | "index_membership" | "borrow" | "macro" | "insider_trades" | "news" | "fomc" | "estimates";
+        DatasetSpine: {
+            dataset: components["schemas"]["Dataset"];
+            domain: components["schemas"]["DataDomain"];
+            markets: components["schemas"]["MarketCoverage"][];
+        };
         /** @enum {string} */
         DesiredState: "running" | "paused" | "stopped";
         Envelope: {
@@ -769,6 +802,8 @@ export interface components {
         JobOutcome: "ok" | "partial" | "noop" | "waiting" | "backoff" | "failed";
         JobView: {
             name: string;
+            source?: components["schemas"]["DataSource"] | null;
+            datasets: components["schemas"]["Dataset"][];
             every: string;
             last_started?: components["schemas"]["Timestamp"] | null;
             last_finished?: components["schemas"]["Timestamp"] | null;
@@ -839,6 +874,21 @@ export interface components {
         LoginRequest: {
             username: string;
             password: string;
+        };
+        /** @enum {string} */
+        Market: "us";
+        MarketCoverage: {
+            market: components["schemas"]["Market"];
+            sources: components["schemas"]["SourceCoverage"][];
+            /** Format: int32 */
+            symbols: number;
+            /** Format: date */
+            first?: string | null;
+            /** Format: date */
+            last?: string | null;
+            updated_at?: components["schemas"]["Timestamp"] | null;
+            monthly: number[];
+            backfill: components["schemas"]["BackfillProgress"][];
         };
         Metrics: {
             /** Format: double */
@@ -1157,6 +1207,16 @@ export interface components {
         };
         /** @enum {string} */
         Side: "buy" | "sell";
+        SourceCoverage: {
+            source: components["schemas"]["DataSource"];
+            /** Format: int32 */
+            symbols: number;
+            /** Format: date */
+            first: string;
+            /** Format: date */
+            last: string;
+            updated_at: components["schemas"]["Timestamp"];
+        };
         SparkPoint: {
             at: components["schemas"]["Timestamp"];
             equity: string;
@@ -1717,6 +1777,25 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BotProcesses"];
+                };
+            };
+        };
+    };
+    data_spine: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataSpine"];
                 };
             };
         };

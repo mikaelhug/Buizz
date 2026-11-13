@@ -6,7 +6,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use utoipa::{IntoParams, ToSchema};
 
-use crate::market::{Coverage, DataSource, Dataset, Session, Symbol, Timeframe, Watermarks};
+use crate::market::{
+    Coverage, DataDomain, DataSource, Dataset, Market, Session, Symbol, Timeframe, Watermarks,
+};
 use crate::ops::{DataWarning, JobOutcome};
 use crate::order::{Fill, Order, OrderId, OrderUpdate};
 use crate::performance::{LivePoint, LiveStats, Metrics, RoundTrip};
@@ -378,8 +380,48 @@ pub struct DataHealth {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct DataSpine {
+    pub markets: Vec<Market>,
+    pub datasets: Vec<DatasetSpine>,
+    pub watermarks: Watermarks,
+    pub ingest_enabled: bool,
+    pub history_start: NaiveDate,
+    pub today: NaiveDate,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct DatasetSpine {
+    pub dataset: Dataset,
+    pub domain: DataDomain,
+    pub markets: Vec<MarketCoverage>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct MarketCoverage {
+    pub market: Market,
+    pub sources: Vec<SourceCoverage>,
+    pub symbols: u32,
+    pub first: Option<NaiveDate>,
+    pub last: Option<NaiveDate>,
+    pub updated_at: Option<Timestamp>,
+    pub monthly: Vec<u32>,
+    pub backfill: Vec<BackfillProgress>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct SourceCoverage {
+    pub source: DataSource,
+    pub symbols: u32,
+    pub first: NaiveDate,
+    pub last: NaiveDate,
+    pub updated_at: Timestamp,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct JobView {
     pub name: String,
+    pub source: Option<DataSource>,
+    pub datasets: Vec<Dataset>,
     pub every: String,
     pub last_started: Option<Timestamp>,
     pub last_finished: Option<Timestamp>,

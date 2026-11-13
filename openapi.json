@@ -516,6 +516,25 @@
         }
       }
     },
+    "/api/data/spine": {
+      "get": {
+        "tags": [
+          "data"
+        ],
+        "operationId": "data_spine",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataSpine"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/events": {
       "get": {
         "tags": [
@@ -1800,6 +1819,16 @@
           }
         }
       },
+      "DataDomain": {
+        "type": "string",
+        "enum": [
+          "prices",
+          "reference",
+          "filings",
+          "macro",
+          "alternative"
+        ]
+      },
       "DataHealth": {
         "type": "object",
         "required": [
@@ -1859,6 +1888,45 @@
           "federal_reserve",
           "factset"
         ]
+      },
+      "DataSpine": {
+        "type": "object",
+        "required": [
+          "markets",
+          "datasets",
+          "watermarks",
+          "ingest_enabled",
+          "history_start",
+          "today"
+        ],
+        "properties": {
+          "markets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Market"
+            }
+          },
+          "datasets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DatasetSpine"
+            }
+          },
+          "watermarks": {
+            "$ref": "#/components/schemas/Watermarks"
+          },
+          "ingest_enabled": {
+            "type": "boolean"
+          },
+          "history_start": {
+            "type": "string",
+            "format": "date"
+          },
+          "today": {
+            "type": "string",
+            "format": "date"
+          }
+        }
       },
       "DataWarning": {
         "oneOf": [
@@ -1981,6 +2049,28 @@
           "fomc",
           "estimates"
         ]
+      },
+      "DatasetSpine": {
+        "type": "object",
+        "required": [
+          "dataset",
+          "domain",
+          "markets"
+        ],
+        "properties": {
+          "dataset": {
+            "$ref": "#/components/schemas/Dataset"
+          },
+          "domain": {
+            "$ref": "#/components/schemas/DataDomain"
+          },
+          "markets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MarketCoverage"
+            }
+          }
+        }
       },
       "DesiredState": {
         "type": "string",
@@ -2314,12 +2404,29 @@
         "type": "object",
         "required": [
           "name",
+          "datasets",
           "every",
           "stale"
         ],
         "properties": {
           "name": {
             "type": "string"
+          },
+          "source": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DataSource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "datasets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Dataset"
+            }
           },
           "every": {
             "type": "string"
@@ -2622,6 +2729,76 @@
           },
           "password": {
             "type": "string"
+          }
+        }
+      },
+      "Market": {
+        "type": "string",
+        "enum": [
+          "us"
+        ]
+      },
+      "MarketCoverage": {
+        "type": "object",
+        "required": [
+          "market",
+          "sources",
+          "symbols",
+          "monthly",
+          "backfill"
+        ],
+        "properties": {
+          "market": {
+            "$ref": "#/components/schemas/Market"
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SourceCoverage"
+            }
+          },
+          "symbols": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "first": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "last": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "updated_at": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "monthly": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          "backfill": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BackfillProgress"
+            }
           }
         }
       },
@@ -3960,6 +4137,37 @@
           "buy",
           "sell"
         ]
+      },
+      "SourceCoverage": {
+        "type": "object",
+        "required": [
+          "source",
+          "symbols",
+          "first",
+          "last",
+          "updated_at"
+        ],
+        "properties": {
+          "source": {
+            "$ref": "#/components/schemas/DataSource"
+          },
+          "symbols": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "first": {
+            "type": "string",
+            "format": "date"
+          },
+          "last": {
+            "type": "string",
+            "format": "date"
+          },
+          "updated_at": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        }
       },
       "SparkPoint": {
         "type": "object",
