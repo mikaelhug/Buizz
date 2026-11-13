@@ -19,11 +19,15 @@ const DELISTINGS_PER_RUN: usize = 100;
 const LAST_TRADE_BEFORE: TimeDelta = TimeDelta::days(180);
 const LAST_TRADE_AFTER: TimeDelta = TimeDelta::days(30);
 
-fn quarter_of(date: NaiveDate) -> (i32, u32) {
+pub(crate) fn quarter_of(date: NaiveDate) -> (i32, u32) {
     (date.year(), date.month0() / 3 + 1)
 }
 
-fn quarter_span((year, quarter): (i32, u32)) -> (NaiveDate, NaiveDate) {
+pub(crate) fn next_quarter(quarter: (i32, u32)) -> (i32, u32) {
+    quarter_of(quarter_span(quarter).1 + TimeDelta::days(1))
+}
+
+pub(crate) fn quarter_span((year, quarter): (i32, u32)) -> (NaiveDate, NaiveDate) {
     let first =
         NaiveDate::from_ymd_opt(year, quarter * 3 - 2, 1).expect("a quarter starts on a date");
     let next = first
@@ -107,7 +111,7 @@ impl Ingest {
                     return Ok(false);
                 }
             }
-            quarter = quarter_of(span.1 + TimeDelta::days(1));
+            quarter = next_quarter(quarter);
         }
         Ok(true)
     }

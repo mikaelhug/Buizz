@@ -8,11 +8,12 @@ use buizz_core::market::{
     CorporateActionKind, Coverage, DataSource, Dataset, DelistingTally, EarningsInsight,
     EarningsRelease, EstimateFact, EstimateMetric, EstimateScope, EtfHolding, EtfShares, Filing,
     FomcAnnouncement, FomcMeeting, FundamentalMetric, FundamentalPoint, HISTORY_FLOORS,
-    HISTORY_START, IndexHistory, IndexMember, InsiderOwner, InsiderPlan, InsiderTrade,
-    InsiderTransaction, Instrument, InstrumentProfile, Liquidity, MacroObservation, MacroPoint,
-    MacroSeries, NewsArticle, OptionQuote, PendingDelisting, PressCandidate, PressRelease,
-    RiskFreeRate, SIP_DELAY, SecFiling, Section, Session, ShortInterest, ShortInterestRecord,
-    ShortVolume, StockIndex, Symbol, TextCandidate, Timeframe, TradingHalt, TradingHaltRecord,
+    HISTORY_START, IndexHistory, IndexMember, InsiderOwner, InsiderPlan, InsiderReport,
+    InsiderTrade, InsiderTransaction, Instrument, InstrumentProfile, Liquidity, MacroObservation,
+    MacroPoint, MacroSeries, NewsArticle, OptionQuote, PendingDelisting, PressCandidate,
+    PressRelease, RiskFreeRate, SIP_DELAY, SecFiling, Section, Session, ShortInterest,
+    ShortInterestRecord, ShortVolume, StockIndex, Symbol, TextCandidate, Timeframe, TradingHalt,
+    TradingHaltRecord,
 };
 use buizz_core::ops::{ActionDisagreement, CoverageGap, DataWarning, UNEXPLAINED_MOVE_THRESHOLD};
 use buizz_core::protocol::BarRow;
@@ -1678,6 +1679,95 @@ pub(crate) fn document_sections(
         }
     }
     Ok((sections, failure))
+}
+
+pub(crate) fn insider_quarters(connection: &Connection) -> Result<BTreeSet<NaiveDate>> {
+    let mut statement = connection.prepare_cached("SELECT quarter FROM insider_quarter")?;
+    let quarters = statement
+        .query_map([], |row| row.get(0))?
+        .collect::<duckdb::Result<_>>()?;
+    Ok(quarters)
+}
+
+pub(crate) fn insider_reports(
+    connection: &Connection,
+    accessions: &[String],
+) -> Result<BTreeMap<String, InsiderReport>> {
+    let listed = || text_list(accessions.iter().map(String::as_str));
+    let mut statement = connection.prepare_cached(
+        "SELECT accession, issuer_cik, plan_10b5_1 FROM insider_report \
+         WHERE accession IN (SELECT unnest(?::VARCHAR[]))",
+    )?;
+    let mut reports: BTreeMap<String, InsiderReport> = statement
+        .query_map([listed()], |row| {
+            let accession: String = row.get(0)?;
+            Ok((
+                accession.clone(),
+                InsiderReport {
+                    accession,
+                    issuer_cik: row.get(1)?,
+                    plan_10b5_1: row.get(2)?,
+                    owners: Vec::new(),
+                    transactions: Vec::new(),
+                },
+            ))
+        })?
+        .collect::<duckdb::Result<_>>()?;
+    let mut statement = connection.prepare_cached(
+        "SELECT accession, owner_cik, name, director, officer, ten_percent_owner, other, \
+         officer_title FROM insider_report_owner \
+         WHERE accession IN (SELECT unnest(?::VARCHAR[])) ORDER BY accession, owner_cik",
+    )?;
+    let owners = statement.query_map([listed()], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            InsiderOwner {
+                cik: row.get(1)?,
+                name: row.get(2)?,
+                director: row.get(3)?,
+                officer: row.get(4)?,
+                ten_percent_owner: row.get(5)?,
+                other: row.get(6)?,
+                officer_title: row.get(7)?,
+            },
+        ))
+    })?;
+    for owner in owners {
+        let (accession, owner) = owner?;
+        if let Some(report) = reports.get_mut(&accession) {
+            report.owners.push(owner);
+        }
+    }
+    let mut statement = connection.prepare_cached(
+        "SELECT accession, security, date, code, acquired, shares, price, shares_after, direct \
+         FROM insider_report_transaction \
+         WHERE accession IN (SELECT unnest(?::VARCHAR[])) ORDER BY accession, line",
+    )?;
+    let trades = statement.query_map([listed()], |row| {
+        let decimal = |index| -> duckdb::Result<Option<Decimal>> {
+            Ok(row.get::<_, Option<Dec>>(index)?.map(|amount| amount.0))
+        };
+        Ok((
+            row.get::<_, String>(0)?,
+            InsiderTransaction {
+                security: row.get(1)?,
+                date: row.get(2)?,
+                code: row.get(3)?,
+                acquired: row.get(4)?,
+                shares: decimal(5)?,
+                price: decimal(6)?,
+                shares_after: decimal(7)?,
+                direct: row.get(8)?,
+            },
+        ))
+    })?;
+    for trade in trades {
+        let (accession, trade) = trade?;
+        if let Some(report) = reports.get_mut(&accession) {
+            report.transactions.push(trade);
+        }
+    }
+    Ok(reports)
 }
 
 pub(crate) fn unread_plans(connection: &Connection, from: Timestamp) -> Result<Vec<InsiderPlan>> {

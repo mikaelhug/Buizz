@@ -55,6 +55,7 @@ const DATASETS: Record<Dataset, { name: string; caption: string }> = {
   listing_notices: { name: "Listing notices", caption: "8-K Item 3.01 exchange and rule, each with its quoted evidence" },
   earnings_guidance: { name: "Earnings guidance", caption: "Guidance in 8-K Item 2.02 releases, read by Claude Haiku and checked against its quote" },
   insider_trades: { name: "Insider trades", caption: "Form 4 purchases and sales" },
+  insider_data_sets: { name: "Insider data sets", caption: "SEC's quarterly Form 4 tables, kept by accession until each company's filing list dates them" },
   estimates: { name: "Analyst estimates", caption: "consensus earnings expectations" },
   rates: { name: "Treasury rates", caption: "the daily yield curve and the T-bill rate cash earns" },
   macro: { name: "Macro series", caption: "FRED series and the VIX term structure, with vintages" },
@@ -175,6 +176,7 @@ const UNITS: Record<Unit, string> = {
   settlements: "settlements",
   filings: "filings",
   sections: "sections",
+  quarters: "quarters",
 };
 
 function contractsOf(coverage: Coverage | undefined, source?: Source): Contract[] {

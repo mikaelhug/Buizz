@@ -382,6 +382,7 @@ pub enum ScopeUnit {
     Settlements,
     Filings,
     Sections,
+    Quarters,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]

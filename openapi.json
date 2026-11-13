@@ -2415,6 +2415,7 @@
           "borrow",
           "macro",
           "insider_trades",
+          "insider_data_sets",
           "news",
           "fomc",
           "estimates",
@@ -4788,7 +4789,8 @@
           "sessions",
           "settlements",
           "filings",
-          "sections"
+          "sections",
+          "quarters"
         ]
       },
       "Screening": {

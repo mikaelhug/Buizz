@@ -810,6 +810,15 @@ pub struct InsiderTransaction {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct InsiderReport {
+    pub accession: String,
+    pub issuer_cik: u32,
+    pub plan_10b5_1: Option<bool>,
+    pub owners: Vec<InsiderOwner>,
+    pub transactions: Vec<InsiderTransaction>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct InsiderFiling {
     pub symbol: Symbol,
     pub issuer_cik: u32,
@@ -1463,6 +1472,7 @@ pub enum Dataset {
     Borrow,
     Macro,
     InsiderTrades,
+    InsiderDataSets,
     News,
     Fomc,
     Estimates,
@@ -1482,7 +1492,7 @@ pub enum Dataset {
 }
 
 impl Dataset {
-    pub const ALL: [Self; 30] = [
+    pub const ALL: [Self; 31] = [
         Self::Bars1d,
         Self::Bars1m,
         Self::CorporateActions,
@@ -1504,6 +1514,7 @@ impl Dataset {
         Self::ListingNotices,
         Self::EarningsGuidance,
         Self::InsiderTrades,
+        Self::InsiderDataSets,
         Self::Estimates,
         Self::Rates,
         Self::Macro,
@@ -1537,6 +1548,7 @@ impl Dataset {
             | Self::ListingNotices
             | Self::EarningsGuidance
             | Self::InsiderTrades
+            | Self::InsiderDataSets
             | Self::Estimates => DataDomain::Filings,
             Self::Rates | Self::Macro | Self::Fomc => DataDomain::Macro,
             Self::News

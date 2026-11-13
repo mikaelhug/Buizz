@@ -340,6 +340,10 @@ impl Spine {
         serde_json::from_str(&text).unwrap_or_else(|error| panic!("POST {path}: {error}: {text}"))
     }
 
+    pub fn market_path(&self) -> PathBuf {
+        self.dir.path().join("data").join(buizz_market::FILE_NAME)
+    }
+
     pub fn text_dirs(&self) -> [std::path::PathBuf; 2] {
         ["text-a", "text-b"].map(|name| self.dir.path().join(name))
     }

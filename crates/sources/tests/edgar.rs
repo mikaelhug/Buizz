@@ -482,7 +482,8 @@ async fn a_form_4_gives_each_trade_with_its_insider_and_only_for_its_issuer() {
     let submissions = client.submissions(&apple, 320193).await.unwrap();
     let listed = &submissions.filings.ownership[0];
 
-    let filing = client.ownership(&apple, 320193, listed).await.unwrap();
+    let report = client.ownership(320193, listed).await.unwrap();
+    let filing = listed.dated(&apple, 320193, report);
     assert_eq!(filing.issuer_cik, 320193);
     assert_eq!(filing.accepted_at, listed.accepted_at);
     assert_eq!(
@@ -513,8 +514,11 @@ async fn a_form_4_gives_each_trade_with_its_insider_and_only_for_its_issuer() {
 
     assert_eq!(filing.plan_10b5_1, Some(true));
 
-    let about_another_issuer =
-        normalize_ownership(&Symbol::new("BRK.B"), 1067983, listed, FORM_4.as_bytes()).unwrap();
+    let about_another_issuer = listed.dated(
+        &Symbol::new("BRK.B"),
+        1067983,
+        normalize_ownership(&listed.accession, FORM_4.as_bytes()).unwrap(),
+    );
     assert_eq!(about_another_issuer.issuer_cik, 320193);
     assert!(
         about_another_issuer.transactions.is_empty(),

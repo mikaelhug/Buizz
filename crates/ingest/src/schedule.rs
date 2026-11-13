@@ -119,7 +119,7 @@ pub(crate) const JOBS: [JobSpec; 31] = [
     JobSpec {
         name: INSIDER_TRADES,
         source: Some(DataSource::Edgar),
-        datasets: &[Dataset::InsiderTrades],
+        datasets: &[Dataset::InsiderDataSets, Dataset::InsiderTrades],
         every: SIX_HOURS,
     },
     JobSpec {

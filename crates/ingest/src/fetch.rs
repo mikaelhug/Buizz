@@ -79,6 +79,10 @@ impl Batch {
         self.remaining = Some(what.into());
     }
 
+    pub fn attempted(&self) -> bool {
+        self.attempted > 0
+    }
+
     pub fn success(&mut self, rows: u64) {
         self.attempted += 1;
         self.rows += rows;

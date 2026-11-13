@@ -854,7 +854,7 @@ export interface components {
             type: "survivorship_gap";
         };
         /** @enum {string} */
-        Dataset: "instruments" | "calendar" | "bars1d" | "bars1m" | "corporate_actions" | "fundamentals" | "rates" | "companies" | "earnings_releases" | "sec_filings" | "index_membership" | "borrow" | "macro" | "insider_trades" | "news" | "fomc" | "estimates" | "current_reports" | "periodic_reports" | "press_releases" | "filing_documents" | "filing_sections" | "short_interest" | "short_volume" | "delistings" | "listing_notices" | "earnings_guidance" | "option_chains" | "trading_halts" | "etf_holdings";
+        Dataset: "instruments" | "calendar" | "bars1d" | "bars1m" | "corporate_actions" | "fundamentals" | "rates" | "companies" | "earnings_releases" | "sec_filings" | "index_membership" | "borrow" | "macro" | "insider_trades" | "insider_data_sets" | "news" | "fomc" | "estimates" | "current_reports" | "periodic_reports" | "press_releases" | "filing_documents" | "filing_sections" | "short_interest" | "short_volume" | "delistings" | "listing_notices" | "earnings_guidance" | "option_chains" | "trading_halts" | "etf_holdings";
         DatasetSpine: {
             dataset: components["schemas"]["Dataset"];
             domain: components["schemas"]["DataDomain"];
@@ -1402,7 +1402,7 @@ export interface components {
         /** @enum {string} */
         ScopeKind: "indexed" | "recorder" | "derived" | "on_demand";
         /** @enum {string} */
-        ScopeUnit: "symbols" | "series" | "lists" | "days" | "sessions" | "settlements" | "filings" | "sections";
+        ScopeUnit: "symbols" | "series" | "lists" | "days" | "sessions" | "settlements" | "filings" | "sections" | "quarters";
         Screening: {
             preset: components["schemas"]["PeriodPreset"];
             /** Format: int32 */

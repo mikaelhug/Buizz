@@ -2,13 +2,14 @@ use std::collections::BTreeMap;
 use std::time::Duration;
 
 use buizz_core::api::{DataHealth, JobView};
-use buizz_core::market::{DataSource, Dataset, Symbol};
+use buizz_core::market::{DataSource, Dataset, InsiderTrade, Symbol};
 use buizz_core::ops::{DataWarning, JobOutcome};
+use buizz_market::MarketStore;
 
 use crate::browser;
 use crate::fake::FakeProviders;
-use crate::spine::{Options, Spine, eventually};
-use crate::world::{World, date};
+use crate::spine::{Options, Spine, eventually, now};
+use crate::world::{World, date, repository};
 
 const QUIET_AFTER_RESTART: Duration = Duration::from_secs(2);
 
@@ -200,4 +201,62 @@ async fn an_empty_spine_backfills_backs_off_rejects_a_bad_tiingo_tail_and_restar
         again.iter().map(|job| job.last_started).collect::<Vec<_>>(),
         jobs.iter().map(|job| job.last_started).collect::<Vec<_>>()
     );
+}
+
+async fn stored_insider_trades(world: World) -> Vec<InsiderTrade> {
+    let fake = FakeProviders::serve(world).await;
+    let mut spine = Spine::start(
+        fake,
+        Options {
+            bots: &[],
+            tiingo: false,
+        },
+    )
+    .await;
+    let jobs = spine.ingested().await;
+    assert_eq!(
+        outcomes(&jobs)["insider_trades"],
+        Some(JobOutcome::Ok),
+        "{}",
+        message(&jobs, "insider_trades")
+    );
+    spine.stop().await;
+    MarketStore::open(&spine.market_path(), 1)
+        .await
+        .expect("the stopped spine's market store opens")
+        .insider_trades(vec![Symbol::new("AAPL")], date("2000-01-01"), now())
+        .await
+        .expect("insider trades read")
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_quarter_of_sec_insider_data_sets_gives_bots_the_trades_its_form_4_documents_give() {
+    let mut documents = World::recorded_sources();
+    documents.archives.insert(
+        "320193/000118143113036353/rrd384222.xml".to_owned(),
+        std::fs::read_to_string(
+            repository().join("crates/sources/fixtures/edgar/form4_2013_sample.xml"),
+        )
+        .expect("the recorded 2013 Form 4/A"),
+    );
+    for files in documents.insider_quarters.values_mut() {
+        for text in files.values_mut() {
+            text.truncate(text.find('\n').map_or(text.len(), |header| header + 1));
+        }
+    }
+    let read_from_documents = stored_insider_trades(documents).await;
+    let read_from_data_sets = stored_insider_trades(World::recorded_sources()).await;
+
+    let schiller = read_from_data_sets
+        .iter()
+        .find(|trade| trade.accession == "0001181431-13-036353")
+        .expect("the 2013 Form 4/A comes from the 2013 Q2 data set, whose XML is never served");
+    assert_eq!(schiller.form, "4/A");
+    assert_eq!(schiller.accepted_at.to_string(), "2013-06-22T01:45:37Z");
+    assert_eq!(
+        schiller.owners[0].officer_title.as_deref(),
+        Some("Senior Vice President")
+    );
+    assert_eq!(schiller.transaction.code, "F");
+    assert_eq!(read_from_data_sets, read_from_documents);
 }

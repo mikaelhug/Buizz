@@ -12,9 +12,9 @@ use buizz_core::market::{
     Company, CorporateAction, Coverage, DataSource, Dataset, DelistingCheck, DocumentSections,
     EarningsInsight, EarningsRelease, EstimateFact, EtfHolding, EtfHoldingsFile, EtfShares,
     EtfSharesRecord, Fact, Filing, FilingText, FomcAnnouncement, FomcMeeting, FundamentalFact,
-    FundamentalMetric, FundamentalPoint, IndexHistory, InsiderFiling, InsiderPlan, InsiderTrade,
-    Instrument, InstrumentProfile, Liquidity, MacroObservation, MacroPoint, MacroSeries,
-    ModelBatch, ModelRequest, ModelSpend, NewsArticle, OptionQuote, OptionQuoteRecord,
+    FundamentalMetric, FundamentalPoint, IndexHistory, InsiderFiling, InsiderPlan, InsiderReport,
+    InsiderTrade, Instrument, InstrumentProfile, Liquidity, MacroObservation, MacroPoint,
+    MacroSeries, ModelBatch, ModelRequest, ModelSpend, NewsArticle, OptionQuote, OptionQuoteRecord,
     PendingDelisting, PressCandidate, PressExhibit, PressRelease, RecipeSection, RecipeState,
     RecipeVersion, RiskFreeRate, SecFiling, Session, ShortInterest, ShortInterestRecord,
     ShortVolume, ShortVolumeRecord, StockIndex, Symbol, TextCandidate, Timeframe, TradingHalt,
@@ -1096,6 +1096,32 @@ impl MarketStore {
     pub async fn press_release_progress(&self) -> Result<AccessionProgress> {
         self.readers
             .run(|connection| read::press_release_progress(connection))
+            .await
+    }
+
+    pub async fn append_insider_quarter(
+        &self,
+        source: DataSource,
+        span: (NaiveDate, NaiveDate),
+        reports: Vec<InsiderReport>,
+    ) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| write::insider_quarter(connection, source, span, reports))
+            .await
+    }
+
+    pub async fn insider_quarters(&self) -> Result<BTreeSet<NaiveDate>> {
+        self.readers
+            .run(|connection| read::insider_quarters(connection))
+            .await
+    }
+
+    pub async fn insider_reports(
+        &self,
+        accessions: Vec<String>,
+    ) -> Result<BTreeMap<String, InsiderReport>> {
+        self.readers
+            .run(move |connection| read::insider_reports(connection, &accessions))
             .await
     }
 

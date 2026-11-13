@@ -5,9 +5,10 @@ use buizz_core::market::{
     Bar, BorrowAvailability, Company, CorporateAction, CorporateActionKind, DataSource, Dataset,
     DelistingCheck, DocumentSections, EarningsInsight, EarningsRelease, EstimateFact,
     EtfHoldingsFile, EtfSharesRecord, Filing, FilingDocument, FilingText, FomcMeeting,
-    FundamentalFact, IndexHistory, InsiderFiling, InsiderPlan, Instrument, MacroObservation,
-    NewsArticle, OptionQuoteRecord, PressExhibit, RiskFreeRate, SecFiling, Section, Session,
-    ShortInterestRecord, ShortVolumeRecord, Symbol, TradingHaltRecord, split_rates,
+    FundamentalFact, IndexHistory, InsiderFiling, InsiderPlan, InsiderReport, Instrument,
+    MacroObservation, NewsArticle, OptionQuoteRecord, PressExhibit, RiskFreeRate, SecFiling,
+    Section, Session, ShortInterestRecord, ShortVolumeRecord, Symbol, TradingHaltRecord,
+    split_rates,
 };
 use buizz_core::ops::ActionDisagreement;
 use buizz_core::time::Timestamp;
@@ -1570,6 +1571,87 @@ pub(crate) fn insider_filings(
             plans.flush()?;
             owners.flush()?;
             trades.flush()?;
+            Ok(rows)
+        },
+    )
+}
+
+pub(crate) fn insider_quarter(
+    connection: &mut Connection,
+    source: DataSource,
+    (first, last): (NaiveDate, NaiveDate),
+    reports: Vec<InsiderReport>,
+) -> Result<WriteSummary> {
+    let mut coverage = Coverage::new();
+    cover(&mut coverage, None, first);
+    cover(&mut coverage, None, last);
+    write_batch(
+        connection,
+        source,
+        Dataset::InsiderDataSets,
+        coverage,
+        |transaction, batch_id| {
+            let mut stored = transaction.prepare_cached(
+                "SELECT count(*) > 0 FROM main.insider_report WHERE accession = ?",
+            )?;
+            let mut known = BTreeSet::new();
+            for report in &reports {
+                if stored.query_row([&report.accession], |row| row.get::<_, bool>(0))? {
+                    known.insert(report.accession.as_str());
+                }
+            }
+            let mut filed = transaction.appender("insider_report")?;
+            let mut owners = transaction.appender("insider_report_owner")?;
+            let mut trades = transaction.appender("insider_report_transaction")?;
+            let mut rows = 0;
+            for report in &reports {
+                if !known.insert(report.accession.as_str()) {
+                    continue;
+                }
+                filed.append_row(params![
+                    report.accession,
+                    report.issuer_cik,
+                    report.plan_10b5_1,
+                    batch_id,
+                ])?;
+                for owner in &report.owners {
+                    owners.append_row(params![
+                        report.accession,
+                        owner.cik,
+                        owner.name,
+                        owner.director,
+                        owner.officer,
+                        owner.ten_percent_owner,
+                        owner.other,
+                        owner.officer_title,
+                        batch_id,
+                    ])?;
+                }
+                for (line, trade) in (0_u32..).zip(&report.transactions) {
+                    trades.append_row(params![
+                        report.accession,
+                        line,
+                        trade.security,
+                        trade.date,
+                        trade.code,
+                        trade.acquired,
+                        trade.shares.map(Dec),
+                        trade.price.map(Dec),
+                        trade.shares_after.map(Dec),
+                        trade.direct,
+                        batch_id,
+                    ])?;
+                }
+                rows += 1;
+            }
+            filed.flush()?;
+            owners.flush()?;
+            trades.flush()?;
+            drop((filed, owners, trades));
+            transaction.execute(
+                "INSERT OR IGNORE INTO main.insider_quarter VALUES (?, ?, ?)",
+                params![first, rows, batch_id],
+            )?;
             Ok(rows)
         },
     )

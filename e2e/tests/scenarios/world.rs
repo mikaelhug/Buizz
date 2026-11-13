@@ -128,6 +128,7 @@ pub struct World {
     pub finra: BTreeMap<String, String>,
     pub earnings_insight: Option<(String, Vec<u8>)>,
     pub archives: BTreeMap<String, String>,
+    pub insider_quarters: BTreeMap<(i32, u32), BTreeMap<String, String>>,
     pub released: Option<Timestamp>,
     pub streamed_from: Option<Timestamp>,
     pub claude: Vec<ClaudeAnswer>,
@@ -423,6 +424,18 @@ impl World {
             .into_iter()
             .map(|(path, file)| (path.to_owned(), read(file)))
             .collect(),
+            insider_quarters: BTreeMap::from([(
+                (2013, 2),
+                ["SUBMISSION.tsv", "REPORTINGOWNER.tsv", "NONDERIV_TRANS.tsv"]
+                    .into_iter()
+                    .map(|file| {
+                        (
+                            file.to_owned(),
+                            read(&format!("edgar/insider_2013q2/{file}")),
+                        )
+                    })
+                    .collect(),
+            )]),
             rates: parse_par_yield_csv(&read("treasury/par_yield_2025.csv"))
                 .expect("recorded yields"),
             macro_vintages: {

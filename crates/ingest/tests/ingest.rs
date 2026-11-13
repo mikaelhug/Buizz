@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::io::{Cursor, Write};
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -21,7 +22,7 @@ use buizz_market::{HistoryRequest, MarketStore};
 use buizz_sources::Sources;
 use buizz_sources::alpaca::{AlpacaClient, AlpacaConfig};
 use buizz_sources::cboe::{CboeClient, CboeConfig};
-use buizz_sources::edgar::{EdgarClient, EdgarConfig};
+use buizz_sources::edgar::{EdgarClient, EdgarConfig, INSIDER_QUARTERS_PAGE};
 use buizz_sources::tiingo::{TiingoClient, TiingoConfig};
 use buizz_sources::treasury::{TreasuryClient, TreasuryConfig};
 use buizz_state::StateStore;
@@ -40,6 +41,22 @@ const COMPANY_FACTS: &str = include_str!("../../sources/fixtures/edgar/companyfa
 const FORM_4: &str = include_str!("../../sources/fixtures/edgar/form4_sample.xml");
 const FILING_INDEX: &str = include_str!("../../sources/fixtures/edgar/filing_index_sample.htm");
 const EX_99: &str = include_str!("../../sources/fixtures/edgar/ex99_sample.htm");
+const INSIDER_QUARTER: &str =
+    "/files/structureddata/data/insider-transactions-data-sets/2024q2_form345.zip";
+const INSIDER_HEADERS: [(&str, &str); 3] = [
+    (
+        "SUBMISSION.tsv",
+        include_str!("../../sources/fixtures/edgar/insider_2013q2/SUBMISSION.tsv"),
+    ),
+    (
+        "REPORTINGOWNER.tsv",
+        include_str!("../../sources/fixtures/edgar/insider_2013q2/REPORTINGOWNER.tsv"),
+    ),
+    (
+        "NONDERIV_TRANS.tsv",
+        include_str!("../../sources/fixtures/edgar/insider_2013q2/NONDERIV_TRANS.tsv"),
+    ),
+];
 const NO_NEWS: &str = r#"{"news":[],"next_page_token":null}"#;
 const YIELDS: &str = include_str!("../../sources/fixtures/treasury/par_yield_2025.csv");
 const VIX: &str = include_str!("../../sources/fixtures/cboe/VIX_History.csv");
@@ -341,6 +358,17 @@ async fn cboe(State(fake): State<Arc<Fake>>, Path(file): Path<String>) -> Respon
     .into_response()
 }
 
+async fn insider_quarter() -> Vec<u8> {
+    let mut zip = zip::ZipWriter::new(Cursor::new(Vec::new()));
+    for (name, table) in INSIDER_HEADERS {
+        zip.start_file(name, zip::write::SimpleFileOptions::default())
+            .unwrap();
+        zip.write_all(table.lines().next().unwrap().as_bytes())
+            .unwrap();
+    }
+    zip.finish().unwrap().into_inner()
+}
+
 async fn serve_fakes(fake: Arc<Fake>) -> String {
     let router = Router::new()
         .route("/v2/calendar", get(calendar))
@@ -386,6 +414,11 @@ async fn serve_fakes(fake: Arc<Fake>) -> String {
             "/Archives/edgar/data/990001/000099000116000001/R1.htm",
             get(|| async { cover("GONE") }),
         )
+        .route(
+            INSIDER_QUARTERS_PAGE,
+            get(|| async { format!("<a href=\"{INSIDER_QUARTER}\">2024 Q2</a>") }),
+        )
+        .route(INSIDER_QUARTER, get(insider_quarter))
         .route(
             "/submissions/CIK0000320193.json",
             get(|| async { json(SUBMISSIONS.to_owned()) }),

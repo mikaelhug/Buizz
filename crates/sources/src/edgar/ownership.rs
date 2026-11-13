@@ -1,4 +1,4 @@
-use buizz_core::market::{InsiderFiling, InsiderOwner, InsiderTransaction, Symbol};
+use buizz_core::market::{InsiderFiling, InsiderOwner, InsiderReport, InsiderTransaction, Symbol};
 use chrono::NaiveDate;
 use roxmltree::{Document, Node};
 use rust_decimal::Decimal;
@@ -6,44 +6,58 @@ use rust_decimal::Decimal;
 use super::filings::OwnershipFiling;
 use crate::http::SourceError;
 
-pub fn normalize_ownership(
-    symbol: &Symbol,
-    issuer_cik: u32,
-    filing: &OwnershipFiling,
-    payload: &[u8],
-) -> Result<InsiderFiling, SourceError> {
+impl OwnershipFiling {
+    pub fn dated(&self, symbol: &Symbol, cik: u32, report: InsiderReport) -> InsiderFiling {
+        let InsiderReport {
+            issuer_cik,
+            plan_10b5_1,
+            owners,
+            transactions,
+            ..
+        } = report;
+        InsiderFiling {
+            symbol: symbol.clone(),
+            issuer_cik,
+            accession: self.accession.clone(),
+            form: self.form.clone(),
+            filed: self.filed,
+            accepted_at: self.accepted_at,
+            plan_10b5_1,
+            owners,
+            transactions: if issuer_cik == cik {
+                transactions
+            } else {
+                Vec::new()
+            },
+        }
+    }
+}
+
+pub fn normalize_ownership(accession: &str, payload: &[u8]) -> Result<InsiderReport, SourceError> {
     let undecodable = |error: &dyn std::fmt::Display| {
-        SourceError::Decode(format!("ownership document {}: {error}", filing.accession))
+        SourceError::Decode(format!("ownership document {accession}: {error}"))
     };
     let text = std::str::from_utf8(payload).map_err(|error| undecodable(&error))?;
     let document = Document::parse(text).map_err(|error| undecodable(&error))?;
     let root = document.root_element();
-    let reported_issuer = child(root, "issuer")
+    let issuer_cik = child(root, "issuer")
         .and_then(|issuer| text_of(issuer, "issuerCik"))
         .and_then(|cik| cik.parse::<u32>().ok())
         .ok_or_else(|| undecodable(&"no issuer CIK"))?;
-    let transactions = if reported_issuer == issuer_cik {
-        root.descendants()
-            .filter(|node| node.has_tag_name("nonDerivativeTransaction"))
-            .filter_map(transaction)
-            .collect()
-    } else {
-        Vec::new()
-    };
-    Ok(InsiderFiling {
-        symbol: symbol.clone(),
-        issuer_cik: reported_issuer,
-        accession: filing.accession.clone(),
-        form: filing.form.clone(),
-        filed: filing.filed,
-        accepted_at: filing.accepted_at,
+    Ok(InsiderReport {
+        accession: accession.to_owned(),
+        issuer_cik,
         plan_10b5_1: text_of(root, "aff10b5One").map(|text| truthy(&text)),
         owners: root
             .children()
             .filter(|node| node.has_tag_name("reportingOwner"))
             .filter_map(owner)
             .collect(),
-        transactions,
+        transactions: root
+            .descendants()
+            .filter(|node| node.has_tag_name("nonDerivativeTransaction"))
+            .filter_map(transaction)
+            .collect(),
     })
 }
 
@@ -63,7 +77,7 @@ fn value_at(node: Node<'_, '_>, path: &[&str]) -> Option<String> {
     text_of(found, "value")
 }
 
-fn truthy(text: &str) -> bool {
+pub(super) fn truthy(text: &str) -> bool {
     text == "1" || text.eq_ignore_ascii_case("true")
 }
 
@@ -71,7 +85,7 @@ fn flag(node: Node<'_, '_>, name: &str) -> bool {
     text_of(node, name).is_some_and(|text| truthy(&text))
 }
 
-fn amount(text: Option<String>) -> Option<Decimal> {
+pub(super) fn amount(text: Option<String>) -> Option<Decimal> {
     text?.replace(',', "").parse().ok()
 }
 

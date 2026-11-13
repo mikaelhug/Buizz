@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
 
 use buizz_core::market::{
-    Calendar, Exhibit, FilingDocument, FundamentalFact, InsiderFiling, PressExhibit, SecFiling,
+    Calendar, Exhibit, FilingDocument, FundamentalFact, InsiderReport, PressExhibit, SecFiling,
     Symbol,
 };
 use buizz_core::time::Timestamp;
@@ -15,6 +15,7 @@ use crate::http::{HttpClient, RateLimit, SourceError};
 mod concepts;
 mod exhibit;
 mod filings;
+mod insider_quarters;
 mod normalize;
 mod ownership;
 mod sections;
@@ -24,6 +25,10 @@ pub use exhibit::{IndexedDocument, cover_tickers, exhibit_text, press_release_do
 pub use filings::{
     Filings, FilingsPage, OwnershipFiling, Submissions, normalize_filings_page,
     normalize_submissions,
+};
+pub use insider_quarters::{
+    FIRST_INSIDER_QUARTER, INSIDER_QUARTERS_PAGE, InsiderQuarter, insider_quarter_links,
+    normalize_insider_quarter,
 };
 pub use normalize::normalize_company_facts;
 pub use ownership::normalize_ownership;
@@ -176,17 +181,35 @@ impl EdgarClient {
 
     pub async fn ownership(
         &self,
-        symbol: &Symbol,
         cik: u32,
         filing: &OwnershipFiling,
-    ) -> Result<InsiderFiling, SourceError> {
+    ) -> Result<InsiderReport, SourceError> {
         let document = filing.document.rsplit('/').next().unwrap_or_default();
         let url = format!(
             "{}/Archives/edgar/data/{cik}/{}/{document}",
             self.www_url,
             filing.accession.replace('-', "")
         );
-        normalize_ownership(symbol, cik, filing, &self.fetch(url).await?)
+        normalize_ownership(&filing.accession, &self.fetch(url).await?)
+    }
+
+    pub async fn insider_quarters(&self) -> Result<Vec<InsiderQuarter>, SourceError> {
+        let page = self
+            .fetch(format!("{}{INSIDER_QUARTERS_PAGE}", self.www_url))
+            .await?;
+        Ok(insider_quarter_links(&String::from_utf8_lossy(&page)))
+    }
+
+    pub async fn insider_quarter(
+        &self,
+        quarter: &InsiderQuarter,
+    ) -> Result<Vec<InsiderReport>, SourceError> {
+        let payload = self
+            .fetch(format!("{}{}", self.www_url, quarter.path))
+            .await?;
+        tokio::task::spawn_blocking(move || normalize_insider_quarter(&payload))
+            .await
+            .map_err(|error| SourceError::Decode(error.to_string()))?
     }
 
     pub async fn press_release(

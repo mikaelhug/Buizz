@@ -18,7 +18,10 @@ use buizz_sources::finra::{FIRST_SETTLEMENT, FIRST_SHORT_VOLUME};
 use buizz_state::{ContractHistory, SymbolFetches};
 use chrono::{NaiveDate, TimeDelta};
 
+use crate::delistings::{next_quarter, quarter_span};
+use crate::fetch::read;
 use crate::finra::settlement_dates;
+use crate::insiders::insider_quarters_due;
 use crate::macros::series_key;
 use crate::recipe::RECIPES;
 use crate::schedule::JOBS;
@@ -28,6 +31,7 @@ const PACE_WINDOW: TimeDelta = TimeDelta::days(30);
 const STALL_AFTER: TimeDelta = TimeDelta::days(3);
 const MIN_PACE_SPAN: TimeDelta = TimeDelta::hours(6);
 const SECONDS_PER_DAY: f64 = 86_400.0;
+const RECENT_LISTINGS: u32 = 20;
 
 #[derive(Clone, Copy)]
 enum Item {
@@ -505,7 +509,7 @@ impl Ingest {
             ),
             (
                 Dataset::InsiderTrades,
-                "active priced stocks, read from each company's Form 4 filings",
+                "active priced stocks, each company's Form 4 filings dated by its filing list, from SEC's quarterly data sets and single documents after them",
             ),
         ] {
             let fetched = self
@@ -529,6 +533,47 @@ impl Ingest {
                 ),
             );
         }
+
+        let (first, ended) = insider_quarters_due(start, today);
+        let read_quarters = self.market.insider_quarters().await?;
+        let listed_through = self
+            .state
+            .recent_fetches(
+                DataSource::Edgar,
+                Dataset::InsiderDataSets,
+                None,
+                RECENT_LISTINGS,
+            )
+            .await?
+            .into_iter()
+            .find(read)
+            .and_then(|fetch| fetch.requested_to)
+            .unwrap_or(quarter_span(ended).1);
+        let quarters: Vec<NaiveDate> =
+            std::iter::successors(Some(first), |quarter| Some(next_quarter(*quarter)))
+                .map(|quarter| quarter_span(quarter).0)
+                .take_while(|day| *day <= listed_through)
+                .collect();
+        measures.push(
+            Scope {
+                dataset: Dataset::InsiderDataSets,
+                source: DataSource::Edgar,
+                kind: ScopeKind::Indexed,
+                unit: ScopeUnit::Quarters,
+                scope:
+                    "every quarter of SEC's insider transactions data sets that it has published"
+                        .into(),
+                from: quarter_span(first).0,
+                to: listed_through,
+            }
+            .items(quarters.iter().map(|quarter| {
+                if read_quarters.contains(quarter) {
+                    Item::Done
+                } else {
+                    Item::Pending
+                }
+            })),
+        );
 
         measures.push(
             Scope {

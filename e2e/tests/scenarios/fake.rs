@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::io::{Cursor, Write};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
@@ -10,6 +11,7 @@ use axum::{Json, Router};
 use buizz_core::market::{AssetClass, Bar, CorporateActionKind, MacroSeries, Symbol};
 use buizz_core::time::Timestamp;
 use buizz_sources::alpaca_stream::SYMBOL_CAP;
+use buizz_sources::edgar::INSIDER_QUARTERS_PAGE;
 use buizz_sources::finra;
 use buizz_sources::nasdaq;
 use buizz_sources::ssga;
@@ -22,6 +24,7 @@ use tokio::sync::{broadcast, watch};
 use crate::world::World;
 
 const PAGE_ROWS: usize = 1000;
+const INSIDER_QUARTERS: &str = "/files/structureddata/data/insider-transactions-data-sets";
 const FOMC_CALENDAR: &str = include_str!("../../../crates/sources/fixtures/fed/fomccalendars.htm");
 const OPTION_CONTRACTS: &str =
     include_str!("../../../crates/sources/fixtures/alpaca/option_contracts.json");
@@ -128,6 +131,8 @@ impl FakeProviders {
             .route("/api/xbrl/companyfacts/{file}", get(company_facts))
             .route("/submissions/{file}", get(submissions))
             .route("/Archives/edgar/data/{*path}", get(archive))
+            .route(INSIDER_QUARTERS_PAGE, get(insider_quarters))
+            .route(&format!("{INSIDER_QUARTERS}/{{file}}"), get(insider_quarter))
             .route(
                 "/Archives/edgar/full-index/{year}/{quarter}/master.idx",
                 get(|| async { "CIK|Company Name|Form Type|Date Filed|File Name\n---\n" }),
@@ -538,6 +543,50 @@ async fn archive(State(fake): State<Arc<Fake>>, Path(path): Path<String>) -> Res
         || StatusCode::NOT_FOUND.into_response(),
         IntoResponse::into_response,
     )
+}
+
+async fn insider_quarters(State(fake): State<Arc<Fake>>) -> Response {
+    let links: String = fake
+        .world()
+        .insider_quarters
+        .keys()
+        .map(|(year, quarter)| {
+            format!("<a href=\"{INSIDER_QUARTERS}/{year}q{quarter}_form345.zip\">{year} Q{quarter}</a>\n")
+        })
+        .collect();
+    format!("<html><body>{links}</body></html>").into_response()
+}
+
+async fn insider_quarter(State(fake): State<Arc<Fake>>, Path(file): Path<String>) -> Response {
+    let world = fake.world();
+    let Some(files) = world
+        .insider_quarters
+        .iter()
+        .find_map(|((year, quarter), files)| {
+            (file == format!("{year}q{quarter}_form345.zip")).then_some(files)
+        })
+    else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    zipped(
+        files
+            .iter()
+            .map(|(name, text)| (name.as_str(), text.as_str())),
+    )
+    .into_response()
+}
+
+fn zipped<'a>(entries: impl IntoIterator<Item = (&'a str, &'a str)>) -> Vec<u8> {
+    let mut archive = zip::ZipWriter::new(Cursor::new(Vec::new()));
+    for (name, body) in entries {
+        archive
+            .start_file(name, zip::write::SimpleFileOptions::default())
+            .expect("a zip entry starts");
+        archive
+            .write_all(body.as_bytes())
+            .expect("a zip entry is written");
+    }
+    archive.finish().expect("the zip is finished").into_inner()
 }
 
 async fn submissions(State(fake): State<Arc<Fake>>, Path(file): Path<String>) -> Response {
@@ -1133,15 +1182,8 @@ fn xlsx(rows: &[Vec<&str>]) -> Vec<u8> {
     let shared = format!(
         r#"<?xml version="1.0" encoding="UTF-8"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">{shared}</sst>"#
     );
-    let mut archive = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
-    for (name, body) in [
-        ("xl/sharedStrings.xml", shared),
-        ("xl/worksheets/sheet1.xml", sheet),
-    ] {
-        archive
-            .start_file(name, zip::write::SimpleFileOptions::default())
-            .expect("a workbook entry");
-        std::io::Write::write_all(&mut archive, body.as_bytes()).expect("a workbook entry");
-    }
-    archive.finish().expect("a workbook").into_inner()
+    zipped([
+        ("xl/sharedStrings.xml", shared.as_str()),
+        ("xl/worksheets/sheet1.xml", sheet.as_str()),
+    ])
 }
