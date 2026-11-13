@@ -159,6 +159,13 @@ impl Ingest {
         let failures = self.state.failure_streaks(self.booted_at).await?;
         let limits = self.rate_limits().await?;
         let mut report = TickReport::default();
+        let mut lane = lane.to_vec();
+        lane.sort_by_key(|spec| {
+            latest
+                .iter()
+                .find(|run| run.job == spec.name)
+                .map(|run| run.started_at)
+        });
         for spec in lane {
             if self.stopping() {
                 break;
