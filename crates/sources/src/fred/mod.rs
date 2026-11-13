@@ -17,7 +17,6 @@ pub const RATE_LIMIT: RateLimit = RateLimit {
 pub const KEY_ENV: &str = "FRED_API_KEY";
 pub const URL_ENV: &str = "FRED_URL";
 const EARLIEST_VINTAGE: NaiveDate = NaiveDate::from_ymd_opt(1776, 7, 4).expect("valid date");
-const LATEST_VINTAGE: NaiveDate = NaiveDate::from_ymd_opt(9999, 12, 31).expect("valid date");
 const MAX_VINTAGES_PER_REQUEST: usize = 2000;
 const PAGE_LIMIT: usize = 100_000;
 const VINTAGE_DATE_PAGE_LIMIT: usize = 10_000;
@@ -48,11 +47,11 @@ impl FredConfig {
 }
 
 #[derive(Debug, Deserialize)]
-struct WireObservation {
-    realtime_start: NaiveDate,
-    realtime_end: NaiveDate,
-    date: NaiveDate,
-    value: String,
+pub struct WireObservation {
+    pub realtime_start: NaiveDate,
+    pub realtime_end: NaiveDate,
+    pub date: NaiveDate,
+    pub value: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -119,19 +118,12 @@ impl FredClient {
         series: MacroSeries,
     ) -> Result<Vec<MacroObservation>, SourceError> {
         let dates = self.vintage_dates_since(series, EARLIEST_VINTAGE).await?;
-        let starts: Vec<NaiveDate> = dates
-            .chunks(MAX_VINTAGES_PER_REQUEST)
-            .map(|chunk| chunk[0])
-            .collect();
         let mut observations: Vec<WireObservation> = Vec::new();
-        for (index, start) in starts.iter().enumerate() {
-            let end = starts
-                .get(index + 1)
-                .and_then(|next| next.pred_opt())
-                .unwrap_or(LATEST_VINTAGE);
-            observations.extend(self.observations(series, *start, end).await?);
+        for window in dates.chunks(MAX_VINTAGES_PER_REQUEST) {
+            let (start, end) = (window[0], window[window.len() - 1]);
+            observations.extend(self.observations(series, start, end).await?);
         }
-        normalize(series, stitch(observations))
+        normalize(series, stitch(observations, &dates))
     }
 
     async fn observations(
@@ -174,7 +166,12 @@ fn series_id(series: MacroSeries) -> Result<&'static str, SourceError> {
         .ok_or_else(|| SourceError::Decode(format!("{series:?} is not a FRED series")))
 }
 
-fn stitch(mut observations: Vec<WireObservation>) -> Vec<WireObservation> {
+fn stitch(mut observations: Vec<WireObservation>, vintages: &[NaiveDate]) -> Vec<WireObservation> {
+    let next_vintage = |after: NaiveDate| {
+        vintages
+            .get(vintages.partition_point(|vintage| *vintage <= after))
+            .copied()
+    };
     observations.sort_by_key(|observation| (observation.date, observation.realtime_start));
     let mut stitched: Vec<WireObservation> = Vec::with_capacity(observations.len());
     for observation in observations {
@@ -182,7 +179,7 @@ fn stitch(mut observations: Vec<WireObservation>) -> Vec<WireObservation> {
             Some(previous)
                 if previous.date == observation.date
                     && previous.value == observation.value
-                    && previous.realtime_end.succ_opt() == Some(observation.realtime_start) =>
+                    && next_vintage(previous.realtime_end) == Some(observation.realtime_start) =>
             {
                 previous.realtime_end = observation.realtime_end;
             }
@@ -192,7 +189,7 @@ fn stitch(mut observations: Vec<WireObservation>) -> Vec<WireObservation> {
     stitched
 }
 
-fn normalize(
+pub fn normalize(
     series: MacroSeries,
     observations: Vec<WireObservation>,
 ) -> Result<Vec<MacroObservation>, SourceError> {

@@ -664,8 +664,22 @@ async fn federal_reserve(Path(page): Path<String>) -> Response {
     }
 }
 
-async fn fred_vintage_dates() -> Response {
-    Json(json!({"vintage_dates": []})).into_response()
+async fn fred_vintage_dates(
+    State(fake): State<Arc<Fake>>,
+    Query(params): Query<Params>,
+) -> Response {
+    let series = param(&params, "series_id");
+    let since: NaiveDate = param(&params, "realtime_start")
+        .parse()
+        .unwrap_or(NaiveDate::MIN);
+    let dates: BTreeSet<NaiveDate> = fake
+        .world()
+        .macro_vintages
+        .iter()
+        .filter(|vintage| vintage.series.fred_id() == Some(series) && vintage.published >= since)
+        .map(|vintage| vintage.published)
+        .collect();
+    Json(json!({"count": dates.len(), "vintage_dates": dates})).into_response()
 }
 
 async fn fred(State(fake): State<Arc<Fake>>, Query(params): Query<Params>) -> Response {

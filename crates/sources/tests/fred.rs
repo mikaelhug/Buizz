@@ -66,13 +66,14 @@ async fn observations(
     alfred.requests.lock().unwrap().push(params.clone());
     let start = param(&params, "realtime_start", "1776-07-04");
     let end = param(&params, "realtime_end", FOREVER);
-    let vintages: BTreeSet<NaiveDate> = alfred
+    let mut counted: BTreeSet<NaiveDate> = alfred
         .rows
         .iter()
         .map(|row| row.start)
         .filter(|vintage| (start..=end).contains(vintage))
         .collect();
-    if vintages.len() > ALFRED_MAX_VINTAGES {
+    counted.insert(end);
+    if counted.len() > ALFRED_MAX_VINTAGES {
         return (
             StatusCode::BAD_REQUEST,
             Json(json!({"error_code": 400, "error_message": "too many vintage dates"})),
@@ -185,14 +186,17 @@ async fn every_vintage_is_fetched_across_pages_and_a_withdrawn_value_stays_missi
     for query in requests.iter() {
         assert_eq!(query["series_id"], "CPIAUCNS");
         assert_eq!(query["api_key"], "fred-key");
-        assert_eq!(query["realtime_end"], FOREVER);
+        assert_eq!(query["realtime_start"], "2024-09-11");
+        assert_eq!(query["realtime_end"], "2025-12-18");
     }
 }
 
 #[tokio::test]
 async fn a_daily_series_with_more_vintages_than_one_request_allows_keeps_each_first_publication() {
     let first = day("2005-06-28");
-    let vintages: Vec<NaiveDate> = (0..2500).map(|index| first + TimeDelta::days(index)).collect();
+    let vintages: Vec<NaiveDate> = (0..2500)
+        .map(|index| first + TimeDelta::days(index))
+        .collect();
     let revised = vintages[2200];
     let mut rows: Vec<Row> = vintages
         .windows(2)
