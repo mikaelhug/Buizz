@@ -621,7 +621,10 @@ impl Ingest {
                         if version.scope.exhibits.is_empty() {
                             String::new()
                         } else {
-                            format!(" through its {} exhibits", version.scope.exhibits.join(", "))
+                            format!(
+                                " through its {} exhibits",
+                                version.scope.exhibits.join(", ")
+                            )
                         },
                         version.recipe,
                         version.version

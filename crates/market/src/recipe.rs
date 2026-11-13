@@ -12,9 +12,7 @@ use duckdb::{Connection, Transaction, params, params_from_iter};
 use rust_decimal::Decimal;
 use serde_json::{Map, Number, Value};
 
-use crate::codec::{
-    Dec, IN_SYMBOLS, Params, Sym, Ts, Wire, symbol_list, text_list, wire_name,
-};
+use crate::codec::{Dec, IN_SYMBOLS, Params, Sym, Ts, Wire, symbol_list, text_list, wire_name};
 use crate::write::{Coverage, cover, write_batch};
 use crate::{AccessionProgress, MarketError, Result, WriteSummary};
 

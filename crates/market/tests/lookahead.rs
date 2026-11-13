@@ -1124,6 +1124,8 @@ async fn a_live_run_sees_a_fact_once_produced_and_a_backtest_from_its_filing() {
                 produced_at: "2026-11-09T15:00:00Z".parse().unwrap(),
                 input_hash: "hash".to_owned(),
             }],
+            None,
+            None,
         )
         .await
         .unwrap();

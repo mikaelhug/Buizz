@@ -116,12 +116,19 @@ fn main() {
             .expect("writing to a string");
         }
     }
-    out.push_str(
-        "    def facts(self, recipe: RecipeName, symbols: list[str], since: date) -> list[Fact]:\n        \
+    let returned = if recipes.len() > 1 {
+        "list[Any]"
+    } else {
+        "list[Fact]"
+    };
+    write!(
+        out,
+        "    def facts(self, recipe: RecipeName, symbols: list[str], since: date) -> {returned}:\n        \
          return self._facts(recipe, symbols, since)\n\n    \
          def _facts(self, recipe: str, symbols: list[str], since: date) -> list[Fact]:\n        \
          raise NotImplementedError\n",
-    );
+    )
+    .expect("writing to a string");
     let typing: Vec<&str> = [
         ("Any", "Any"),
         ("Literal", "Literal["),

@@ -395,7 +395,7 @@ async fn bots_see_index_membership_profiles_earnings_and_8k_events_as_of_their_c
             .map(|reproducibility| reproducibility.recipe_versions.clone()),
         Some(vec![RecipeRead {
             recipe: "listing_notice".to_owned(),
-            version: 1
+            version: 2
         }]),
         "the run records the recipe version it read, so it replays exactly"
     );
@@ -468,7 +468,7 @@ async fn bots_see_index_membership_profiles_earnings_and_8k_events_as_of_their_c
         .partition(|warning| warning.contains("listing_notice"));
     assert!(
         matches!(produced.as_slice(), [warning] if warning.starts_with(
-            "the bot read listing_notice version 1, whose facts were produced after their filings were public"
+            "the bot read listing_notice version 2, whose facts were produced after their filings were public"
         )),
         "a backtest reads facts produced long after the fact, and says so: {produced:?}"
     );
