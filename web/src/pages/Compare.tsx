@@ -342,7 +342,7 @@ function MetricTable({ entries }: { entries: Compared[] }) {
               <th scope="row">Badges</th>
               {entries.map((entry) => (
                 <td key={entry.run.id} className="r badges">
-                  <RunBadges badges={entry.run.badges} />
+                  <RunBadges run={entry.run} />
                 </td>
               ))}
             </tr>

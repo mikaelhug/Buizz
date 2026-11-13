@@ -2,7 +2,7 @@ use duckdb::{Connection, params};
 
 use crate::{MarketError, Result, SCHEMA};
 
-const MIGRATIONS: [&str; 8] = [
+const MIGRATIONS: [&str; 9] = [
     include_str!("../migrations/2_revisions.sql"),
     include_str!("../migrations/3_sec_filings.sql"),
     include_str!("../migrations/4_daily_watermark.sql"),
@@ -11,6 +11,7 @@ const MIGRATIONS: [&str; 8] = [
     include_str!("../migrations/7_earnings_insight.sql"),
     include_str!("../migrations/8_corporate_action_kinds.sql"),
     include_str!("../migrations/9_quiet_sessions.sql"),
+    include_str!("../migrations/10_rebackfill_corporate_actions.sql"),
 ];
 
 pub(crate) const LATEST: i64 = MIGRATIONS.len() as i64 + 1;
@@ -97,6 +98,32 @@ mod tests {
             .query_row("SELECT version FROM schema_version", [], |row| row.get(0))
             .unwrap();
         assert_eq!(version, LATEST);
+    }
+
+    #[test]
+    fn symbols_backfilled_before_every_action_kind_was_read_are_backfilled_again() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        migrate(&mut connection).unwrap();
+        connection
+            .execute_batch(&format!(
+                "UPDATE schema_version SET version = {}; \
+                 INSERT INTO coverage VALUES \
+                 ('corporate_actions', 'DD', 'alpaca', '2016-01-04', '2026-11-12', now()), \
+                 ('corporate_actions', '', 'alpaca', '2016-01-04', '2026-11-12', now()), \
+                 ('bars1d', 'DD', 'alpaca', '2016-01-04', '2026-11-12', now())",
+                LATEST - 1
+            ))
+            .unwrap();
+        migrate(&mut connection).unwrap();
+        let mut statement = connection
+            .prepare("SELECT dataset || ':' || symbol FROM coverage ORDER BY 1")
+            .unwrap();
+        let covered: Vec<String> = statement
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .collect::<duckdb::Result<_>>()
+            .unwrap();
+        assert_eq!(covered, ["bars1d:DD", "corporate_actions:"]);
     }
 
     #[test]

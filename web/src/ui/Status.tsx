@@ -23,7 +23,7 @@ export function StatusPill({ status }: { status: Status }) {
 const BADGES: Record<Schemas["RunBadge"], { text: string; about: string }> = {
   survivorship_biased: {
     text: "Survivorship-biased",
-    about: "The universe was built from today's listings, so names delisted before the run are missing and results look better than they would have.",
+    about: "The universe was picked from today's listings (a fixed symbol list, or a top dollar volume ranking while the store holds no delisted names), so names delisted before the run are missing and results look better than they would have.",
   },
   holdout: { text: "Holdout", about: "Ran on the locked last 12 months, kept aside as an out-of-sample test." },
   data_warnings: { text: "Data warnings", about: "The run saw data warnings; the Positions & events tab lists them." },
@@ -42,20 +42,24 @@ const BADGES: Record<Schemas["RunBadge"], { text: string; about: string }> = {
   },
 };
 
-function RunBadge({ badge }: { badge: Schemas["RunBadge"] }) {
+const INDEX_SURVIVORSHIP =
+  "Some index members have no prices for part of their membership, so the bot could not trade them then and results may look better than they would have. The Positions & events tab lists each gap.";
+
+function RunBadge({ badge, universe }: { badge: Schemas["RunBadge"]; universe: Schemas["UniverseSpec"] }) {
   const { text, about } = BADGES[badge];
+  const indexed = badge === "survivorship_biased" && "index" in universe;
   return (
     <Explain label={text} className={`badge badge-button badge-${badge}`} trigger={text}>
-      {about}
+      {indexed ? INDEX_SURVIVORSHIP : about}
     </Explain>
   );
 }
 
-export function RunBadges({ badges }: { badges: Schemas["RunBadge"][] }) {
+export function RunBadges({ run }: { run: Schemas["RunSummary"] }) {
   return (
     <>
-      {badges.map((badge) => (
-        <RunBadge key={badge} badge={badge} />
+      {run.badges.map((badge) => (
+        <RunBadge key={badge} badge={badge} universe={run.config.universe} />
       ))}
     </>
   );

@@ -260,7 +260,7 @@ function RunBar({ run, name, tab, botHash, recent, liveParams, gate, logsHref, r
         <RunPicker run={run} name={name} tab={tab} recent={recent} runsHref={runsHref} />
         <span className={`mode-badge mode-${run.mode}`}>{run.mode === "live" ? "Live paper" : "Backtest"}</span>
         <StatusPill status={run.status} />
-        <RunBadges badges={run.badges} />
+        <RunBadges run={run} />
         <Info label="Reproducibility">
           {repro.length > 0 ? (
             <>

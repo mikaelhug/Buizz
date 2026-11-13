@@ -297,7 +297,7 @@ function RunHistory({ selected, name }: { selected: number | undefined; name: st
                       <Ago at={run.created_at} />
                     </td>
                     <td className="badges">
-                      <RunBadges badges={run.badges} />
+                      <RunBadges run={run} />
                       {pending(run) && (
                         <button type="button" className="btn btn-xs btn-ghost" onClick={() => void cancel([run])}>
                           Cancel

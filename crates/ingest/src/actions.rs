@@ -96,7 +96,7 @@ impl Ingest {
             let fetched: Vec<CorporateAction> = fetched
                 .into_iter()
                 .filter(|action| {
-                    (from..=through).contains(&action.ex_date)
+                    (history_start..=through).contains(&action.ex_date)
                         && !matches!(action.kind, CorporateActionKind::NameChange { .. })
                 })
                 .map(|action| renames.rekey(action))

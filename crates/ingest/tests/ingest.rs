@@ -74,6 +74,7 @@ struct Fake {
     revised: AtomicBool,
     last_bars: Mutex<Params>,
     listed_later: AtomicBool,
+    filed_late: AtomicBool,
     action_requests: Mutex<Vec<Params>>,
     hits: Mutex<HashMap<&'static str, u32>>,
 }
@@ -231,14 +232,16 @@ async fn assets(State(fake): State<Arc<Fake>>) -> Response {
 
 async fn actions(State(fake): State<Arc<Fake>>, Query(params): Query<Params>) -> Response {
     fake.action_requests.lock().unwrap().push(params.clone());
-    json(
-        if params.contains_key("page_token") {
-            ACTIONS_PAGE_2
-        } else {
-            ACTIONS_PAGE_1
-        }
-        .to_owned(),
-    )
+    if params.contains_key("page_token") {
+        return json(ACTIONS_PAGE_2.to_owned());
+    }
+    let market_wide = !params.contains_key("symbols") && params["types"].contains(',');
+    if fake.filed_late.load(Ordering::SeqCst) && market_wide {
+        let late = r#""cash_dividends": [
+      {"symbol": "SPY", "rate": 1.4, "ex_date": "2020-03-20", "process_date": "2024-07-08"},"#;
+        return json(ACTIONS_PAGE_1.replacen(r#""cash_dividends": ["#, late, 1));
+    }
+    json(ACTIONS_PAGE_1.to_owned())
 }
 
 async fn tiingo(
@@ -1082,10 +1085,24 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
 
     fake.rate_limit_bars.store(false, Ordering::SeqCst);
     fake.listed_later.store(true, Ordering::SeqCst);
+    fake.filed_late.store(true, Ordering::SeqCst);
     fake.action_requests.lock().unwrap().clear();
     let inside_sip_delay = stamp("2024-07-10T20:10:00Z");
     let later = ingest.tick(inside_sip_delay).await.unwrap();
     assert!(later.ran.contains(&("bars_1d", JobOutcome::Ok)));
+    let filed_late = market
+        .corporate_actions(
+            vec![Symbol::new("SPY")],
+            date("2020-03-20"),
+            date("2020-03-20"),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        filed_late.len(),
+        1,
+        "an action Alpaca files years after its ex-date reaches a symbol already backfilled"
+    );
     assert!(fake.last_bars.lock().unwrap()["end"].starts_with("2024-07-09"));
     assert_eq!(
         market.watermarks().borrow().day,
