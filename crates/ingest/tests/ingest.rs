@@ -58,6 +58,8 @@ const DELISTED_MEMBER: &str = "K";
 const REUSED: &str = "STI";
 const ENDED_LAST_BAR: &str = "2016-03-31";
 const REUSED_FIRST_BAR: &str = "2016-04-20";
+const RENAMED: &str = "ANDV";
+const RENAMED_FIRST_BAR: &str = "2016-04-01";
 
 #[derive(Default)]
 struct Fake {
@@ -181,8 +183,15 @@ async fn bars(State(fake): State<Arc<Fake>>, Query(params): Query<Params>) -> Re
             .join(","),
         Some(_) => ended(),
     };
+    let renamed = match params.get("asof").map(String::as_str) {
+        Some(asof) if asof != "-" && date(asof) >= date(RENAMED_FIRST_BAR) => {
+            requested(RENAMED, date(ALPACA_FIRST_BAR), date(ALPACA_LAST_BAR))
+        }
+        Some(asof) if asof != "-" => String::new(),
+        _ => requested(RENAMED, date(RENAMED_FIRST_BAR), date(ALPACA_LAST_BAR)),
+    };
     json(format!(
-        r#"{{"bars":{{"AAPL":[{aapl}],"SPY":[{spy}],"{DELISTED_MEMBER}":[{delisted}],"{REUSED}":[{reused}]}},"next_page_token":null}}"#
+        r#"{{"bars":{{"AAPL":[{aapl}],"SPY":[{spy}],"{DELISTED_MEMBER}":[{delisted}],"{REUSED}":[{reused}],"{RENAMED}":[{renamed}]}},"next_page_token":null}}"#
     ))
 }
 
@@ -681,6 +690,43 @@ async fn a_member_whose_ticker_a_later_company_took_is_priced_as_alpaca_mapped_i
         closes("2016-04-29T21:00:00Z").await,
         weekdays(date(REUSED_FIRST_BAR), date(ALPACA_LAST_BAR)),
         "the company that took STI later"
+    );
+}
+
+#[tokio::test]
+async fn a_member_alpaca_lists_only_under_its_later_ticker_is_priced_under_its_earlier_one() {
+    let fake = Arc::new(Fake::default());
+    let url = serve_fakes(fake.clone()).await;
+    let directory = tempfile::tempdir().unwrap();
+    let (market, _state, ingest) = spine(directory.path(), &url).await;
+    let first_at = stamp("2024-07-05T21:00:00Z");
+    market
+        .replace_index_history(
+            DataSource::Wikipedia,
+            sp500(&["SPY", RENAMED]),
+            first_at.exchange_date(),
+        )
+        .await
+        .unwrap();
+    ingest.tick(first_at).await.unwrap();
+
+    let history = market
+        .history(HistoryRequest {
+            symbols: vec![Symbol::new(RENAMED)],
+            timeframe: Timeframe::Day,
+            bars: 100,
+            adjust: Adjustment::Raw,
+            as_of: stamp("2016-04-29T21:00:00Z"),
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        history
+            .iter()
+            .map(|row| row.start.exchange_date())
+            .collect::<Vec<_>>(),
+        weekdays(date(ALPACA_FIRST_BAR), date(ALPACA_LAST_BAR)),
+        "the March sessions it traded under its earlier ticker come from Alpaca's mapping as of its first day as ANDV"
     );
 }
 

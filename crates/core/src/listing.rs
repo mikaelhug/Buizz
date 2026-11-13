@@ -136,7 +136,30 @@ impl Listings {
             .is_some_and(|changes| changes.iter().any(|(date, _)| *date >= since))
     }
 
-    pub fn ticker(&self, symbol: &Symbol, on: NaiveDate, until: Option<NaiveDate>) -> Symbol {
+    pub fn ticker(
+        &self,
+        symbol: &Symbol,
+        on: NaiveDate,
+        since: Option<NaiveDate>,
+        until: Option<NaiveDate>,
+    ) -> Symbol {
+        if let Some(until) = until {
+            let (mut renamed, mut since) = (symbol.clone(), since);
+            let mut seen = BTreeSet::new();
+            while seen.insert(renamed.clone()) {
+                let Some((date, new)) = self.renamed_to.get(&renamed).and_then(|changes| {
+                    changes.iter().find(|(date, _)| {
+                        since.is_none_or(|since| since < *date) && *date <= on && *date < until
+                    })
+                }) else {
+                    break;
+                };
+                (renamed, since) = (new.clone(), Some(*date));
+            }
+            if renamed != *symbol {
+                return renamed;
+            }
+        }
         let (mut symbol, mut bound) = (symbol.clone(), until.unwrap_or(NaiveDate::MAX));
         let mut seen = BTreeSet::new();
         while seen.insert(symbol.clone()) {
@@ -157,7 +180,7 @@ impl Listings {
         let ticker = match key.ended_listing() {
             Some((ticker, last)) if on <= last => ticker,
             Some(_) => return None,
-            None => self.ticker(key, on, None),
+            None => self.ticker(key, on, None, None),
         };
         (self.listing(&ticker, on).as_ref() == Some(key)).then_some(ticker)
     }

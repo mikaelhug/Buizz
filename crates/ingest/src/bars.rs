@@ -4,7 +4,7 @@ use buizz_core::market::{
     AssetClass, Bar, Calendar, DataSource, Dataset, Feed, Instrument, Session, StockIndex, Symbol,
     Timeframe,
 };
-use buizz_core::ops::FetchStatus;
+use buizz_core::ops::{CoverageGap, FetchStatus};
 use buizz_core::time::Timestamp;
 use buizz_sources::alpaca::{AlpacaClient, BarsRequest, HISTORY_START, SIP_DELAY, Tickers};
 use buizz_sources::http::SourceError;
@@ -285,29 +285,6 @@ impl Ingest {
                 Some(&gap.symbol),
                 Some((gap.from, gap.to)),
             );
-            let ask = |tickers| listing_bars(alpaca, calendar, &gap.symbol, floor, target, tickers);
-            let (traded, mapped) =
-                match (ask(Tickers::AsTraded).await, ask(Tickers::On(gap.to)).await) {
-                    (Ok(traded), Ok(mapped)) => (traded, mapped),
-                    (Err(error), _) | (_, Err(error)) => {
-                        self.record_failure(now, &key, &error).await?;
-                        if batch.source_error(gap.symbol.as_str(), &error) {
-                            break;
-                        }
-                        continue;
-                    }
-                };
-            let traded: BTreeMap<Timestamp, Bar> =
-                traded.into_iter().map(|bar| (bar.start, bar)).collect();
-            let listing: Vec<Bar> = mapped
-                .into_iter()
-                .filter(|bar| traded.get(&bar.start) == Some(bar))
-                .collect();
-            let Some(final_bar) = listing.last().cloned() else {
-                self.record_fetched(now, &key, 0).await?;
-                continue;
-            };
-            let last = final_bar.start.exchange_date();
             let stored = |symbol: Symbol| async move {
                 let bars = self
                     .market
@@ -319,38 +296,65 @@ impl Ingest {
                         .collect::<BTreeMap<Timestamp, Bar>>(),
                 )
             };
-            let renamed = self
+            let listed = self
                 .market
                 .listings()
                 .listing(&gap.symbol, gap.from)
-                .filter(|listed| *listed != gap.symbol);
-            let still_listed = last >= target.date
-                || stored(gap.symbol.clone()).await?.get(&final_bar.start) == Some(&final_bar);
-            let stored_as = match renamed {
-                Some(renamed) => renamed,
-                None if still_listed => gap.symbol.clone(),
-                None => {
-                    let ended = Symbol::ended(&gap.symbol, last);
-                    self.market
-                        .upsert_instruments(
-                            DataSource::Alpaca,
-                            vec![Instrument {
-                                symbol: ended.clone(),
-                                name: String::new(),
-                                exchange: String::new(),
-                                asset_class: AssetClass::Stock,
-                                active: false,
-                                shortable: false,
-                                first_session: None,
-                                last_session: Some(last),
-                            }],
-                        )
-                        .await?;
-                    ended
+                .unwrap_or_else(|| gap.symbol.clone());
+            let held = stored(listed.clone()).await?;
+            let around = Around {
+                gap: &gap,
+                listed: &listed,
+                held: &held,
+            };
+            let found = match around.ask(alpaca, calendar, floor, target).await {
+                Ok(found) => found,
+                Err(error) => {
+                    self.record_failure(now, &key, &error).await?;
+                    if batch.source_error(gap.symbol.as_str(), &error) {
+                        break;
+                    }
+                    continue;
+                }
+            };
+            let (stored_as, bars) = match found {
+                Found::Nothing => {
+                    self.record_fetched(now, &key, 0).await?;
+                    continue;
+                }
+                Found::Former(bars) => (listed, bars),
+                Found::Listing(listing) => {
+                    let final_bar = listing.last().cloned().expect("a found listing has bars");
+                    let last = final_bar.start.exchange_date();
+                    let still_listed = last >= target.date
+                        || stored(gap.symbol.clone()).await?.last_key_value()
+                            == Some((&final_bar.start, &final_bar));
+                    let stored_as = if listed != gap.symbol || still_listed {
+                        listed
+                    } else {
+                        let ended = Symbol::ended(&gap.symbol, last);
+                        self.market
+                            .upsert_instruments(
+                                DataSource::Alpaca,
+                                vec![Instrument {
+                                    symbol: ended.clone(),
+                                    name: String::new(),
+                                    exchange: String::new(),
+                                    asset_class: AssetClass::Stock,
+                                    active: false,
+                                    shortable: false,
+                                    first_session: None,
+                                    last_session: Some(last),
+                                }],
+                            )
+                            .await?;
+                        ended
+                    };
+                    (stored_as, listing)
                 }
             };
             let present = stored(stored_as.clone()).await?;
-            let missing: Vec<Bar> = listing
+            let missing: Vec<Bar> = bars
                 .into_iter()
                 .filter(|bar| !present.contains_key(&bar.start))
                 .map(|bar| Bar {
@@ -406,6 +410,96 @@ fn refused_request(error: &SourceError) -> bool {
         SourceError::Decode(_) => true,
         SourceError::Status { status, .. } => REFUSED_REQUEST.contains(status),
         _ => false,
+    }
+}
+
+enum Found {
+    Nothing,
+    Listing(Vec<Bar>),
+    Former(Vec<Bar>),
+}
+
+struct Around<'a> {
+    gap: &'a CoverageGap,
+    listed: &'a Symbol,
+    held: &'a BTreeMap<Timestamp, Bar>,
+}
+
+impl Around<'_> {
+    fn as_listed(&self, bar: Bar) -> Bar {
+        Bar {
+            symbol: self.listed.clone(),
+            ..bar
+        }
+    }
+
+    fn in_gap(&self, bar: &Bar) -> bool {
+        (self.gap.from..=self.gap.to).contains(&bar.start.exchange_date())
+    }
+
+    fn ends_the_held(&self, listing: &[Bar]) -> bool {
+        let Some(last) = listing.last() else {
+            return false;
+        };
+        last.start.exchange_date() < self.gap.from
+            && self.held.range(..=last.start).all(|(start, bar)| {
+                listing
+                    .binary_search_by_key(start, |listed| listed.start)
+                    .is_ok_and(|index| self.as_listed(listing[index].clone()) == *bar)
+            })
+    }
+
+    async fn ask(
+        &self,
+        alpaca: &AlpacaClient,
+        calendar: &Calendar,
+        floor: NaiveDate,
+        target: &Session,
+    ) -> Result<Found, SourceError> {
+        let ask =
+            |tickers| listing_bars(alpaca, calendar, &self.gap.symbol, floor, target, tickers);
+        let traded: BTreeMap<Timestamp, Bar> = ask(Tickers::AsTraded)
+            .await?
+            .into_iter()
+            .map(|bar| (bar.start, bar))
+            .collect();
+        let before = self
+            .held
+            .range(..day_start(self.gap.from))
+            .next_back()
+            .map(|(start, _)| start.exchange_date());
+        for anchor in [Some(self.gap.to), before].into_iter().flatten() {
+            let listing: Vec<Bar> = ask(Tickers::On(anchor))
+                .await?
+                .into_iter()
+                .filter(|bar| traded.get(&bar.start) == Some(bar))
+                .collect();
+            if listing.iter().any(|bar| self.in_gap(bar)) || self.ends_the_held(&listing) {
+                return Ok(Found::Listing(listing));
+            }
+        }
+        let Some(after) = self
+            .held
+            .range(day_start(self.gap.to + TimeDelta::days(1))..)
+            .next()
+            .map(|(_, bar)| bar)
+        else {
+            return Ok(Found::Nothing);
+        };
+        let mapped: Vec<Bar> = ask(Tickers::On(after.start.exchange_date()))
+            .await?
+            .into_iter()
+            .map(|bar| self.as_listed(bar))
+            .collect();
+        if !mapped.contains(after) {
+            return Ok(Found::Nothing);
+        }
+        let former: Vec<Bar> = mapped.into_iter().filter(|bar| self.in_gap(bar)).collect();
+        Ok(if former.is_empty() {
+            Found::Nothing
+        } else {
+            Found::Former(former)
+        })
     }
 }
 

@@ -1006,19 +1006,25 @@ pub(crate) fn index_universe(
         return Ok(Vec::new());
     };
     let mut statement = connection.prepare_cached(
-        "SELECT symbol, end_date FROM index_member WHERE index_name = ? \
+        "SELECT symbol, start_date, end_date FROM index_member WHERE index_name = ? \
          AND (start_date IS NULL OR start_date <= ?) AND (end_date IS NULL OR ? < end_date)",
     )?;
     let members = statement
         .query_map(
             params![crate::codec::wire_name(&index), before, before],
-            |row| Ok((row.get::<_, Sym>(0)?.0, row.get::<_, Option<NaiveDate>>(1)?)),
+            |row| {
+                Ok((
+                    row.get::<_, Sym>(0)?.0,
+                    row.get::<_, Option<NaiveDate>>(1)?,
+                    row.get::<_, Option<NaiveDate>>(2)?,
+                ))
+            },
         )?
         .collect::<duckdb::Result<Vec<_>>>()?;
     let listed: BTreeSet<Listed> = members
         .into_iter()
-        .filter_map(|(symbol, end)| {
-            let ticker = listings.ticker(&symbol, before, end);
+        .filter_map(|(symbol, start, end)| {
+            let ticker = listings.ticker(&symbol, before, start, end);
             let key = listings.listing(&ticker, before)?;
             Some((ticker, key))
         })
@@ -1766,11 +1772,12 @@ pub(crate) fn unpriced_members(
         let first = member.start.unwrap_or(from).max(from);
         let mut tickers: Vec<(NaiveDate, Symbol)> = Vec::new();
         for session in calendar.between(first, last) {
-            let ticker = listings.ticker(&member.symbol, session.date, member.end);
+            let ticker = listings.ticker(&member.symbol, session.date, member.start, member.end);
             if tickers.last().is_none_or(|(_, current)| *current != ticker) {
                 tickers.push((session.date, ticker));
             }
         }
+        let mut member_spans = Vec::new();
         for (index, (start, ticker)) in tickers.iter().enumerate() {
             let end = tickers
                 .get(index + 1)
@@ -1779,15 +1786,26 @@ pub(crate) fn unpriced_members(
             let mut covered = *start;
             for (lo, hi, key) in listings.segments(ticker, *start, end) {
                 if covered < lo {
-                    spans.push((ticker.clone(), covered, lo.pred_opt().unwrap_or(lo), None));
+                    member_spans.push((ticker.clone(), covered, lo.pred_opt().unwrap_or(lo), None));
                 }
-                spans.push((ticker.clone(), lo, hi, Some(key)));
+                member_spans.push((ticker.clone(), lo, hi, Some(key)));
                 covered = hi.succ_opt().unwrap_or(hi);
             }
             if covered <= end {
-                spans.push((ticker.clone(), covered, end, None));
+                member_spans.push((ticker.clone(), covered, end, None));
             }
         }
+        let traded_until = member_spans
+            .iter()
+            .filter_map(|(_, _, _, key)| Some(key.as_ref()?.ended_listing()?.1))
+            .min()
+            .unwrap_or(NaiveDate::MAX);
+        spans.extend(
+            member_spans
+                .into_iter()
+                .filter(|(_, lo, _, _)| *lo <= traded_until)
+                .map(|(ticker, lo, hi, key)| (ticker, lo, hi.min(traded_until), key)),
+        );
     }
     if spans.is_empty() {
         return Ok(Vec::new());
