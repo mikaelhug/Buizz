@@ -12,4 +12,5 @@ mod recovery;
 mod reference;
 mod research;
 mod spine;
+mod study;
 mod world;

@@ -49,6 +49,26 @@ Equity points `E_1..E_n` are the session closes (n = 10) and `E_0` is the start 
 | beta | `cov(r_2..r_n, b) / var(b)`, ddof=1 | −0.617072… |
 | alpha | `(mean(r_2..r_n) − beta × mean(b)) × 252` | 0.638220… |
 
+## Event study
+
+`event_study.expected.json`. The fixture with BBB's bars ending at 2024-11-27 and BBB inactive, so its listing ends there. Benchmark SPY for every event; default costs; the daily watermark is the 2024-12-06 close, but no symbol has bars on 12-05 and 12-06, so the benchmark's missing bar leaves those sessions unmeasured.
+
+Rules applied (`core::visibility::open_auction_session`, `core::study::round_trip_cost`):
+
+- Entry is the open of the first session opening after `at`; exit for a horizon of h sessions is the close h − 1 sessions later, on `all`-adjusted prices: AAA's prices before its 2:1 split (ex 11-26) halve, BBB's before its 0.50 dividend (ex 11-25) are multiplied by `1 − 0.50 / 48.70`. After BBB's last session the last close (11-27, 48.50) stands.
+- Round trip cost = `2 × (0.0005 + round2_half_even(max(1.00, 0.005 × q)) / (q × open))` with `q = trunc(10,000 / raw open)`.
+- Abnormal return = stock return − SPY return; net subtracts the round trip.
+
+| Event `at` | Entry | Raw open | q, commission | Round trip | 1 session stock / SPY | 5 sessions stock / SPY |
+|---|---|---|---|---|---|---|
+| AAA 11-21 15:00Z | 11-22 | 198.00 | 50, 1.00 | 0.00120202 | 197/198 − 1 / 595.50/593.00 − 1 | 100.00/99.00 − 1 / 602.50/593.00 − 1 |
+| BBB 11-21 09:00 ET | 11-21 | 49.20 | 203, 1.02 | 0.00120425 | 48.80/49.20 − 1 / 593.10/590.50 − 1 | 48.50/(49.20 × 0.989733) − 1 / 598.80/590.50 − 1 |
+| AAA 12-02 14:30Z (the open itself) | 12-03 | 99.00 | 101, 1.00 | 0.00120002 | 101.00/99.00 − 1 / 603.90/603.40 − 1 | not measured |
+| ZZZ 11-22 15:00Z | 11-25 | — | — | — | skipped `not_traded` | |
+| BBB 11-25 15:00Z | 11-26 | 48.20 | 207, 1.04 | 0.00120847 | 48.60/48.20 − 1 / 600.40/597.90 − 1 | 48.50/48.20 − 1 (delisted, 11-27 close) / 603.90/597.90 − 1 |
+
+Per horizon: mean, median and hit rate (share above 0) over events; the t-statistic is over calendar-month means of entry (November: events 1, 2, 5; December: event 3) with `ceil((h − 1) / 21)` Newey-West lags, so for 1 session with two months `t = ȳ / √(γ₀ / 2)`, `γ₀ = Σ (y − ȳ)² / 2`; for 5 sessions there is one month and no t-statistic. The curve is the mean abnormal return after each session 1 to 9 over the events measured that far. A second study of the same events without a benchmark gives every event IWM (the fixture has no S&P 500 membership) and, with no IWM bars, skips them as `benchmark_not_traded`; it is the second distinct study, so the luck line is `√(2 ln 2)`.
+
 ## Lookahead boundaries
 
 `lookahead.expected.json` lists what a probe bot must and must not see: daily step clocks, raw/split/all-adjusted history around the split and dividend (the dividend factor is `1 − 0.50 / 48.70`), the BBB 10-Q filed 2024-11-27 becoming visible at the 2024-11-29 open, fills never on the decision bar, minute step counts per `wake`, the day order expiring at the 13:00 close which session an order decided at a session's last minute belongs to, the calendar a bot may see ahead (the 2024-11-29 early close, nothing past 366 days), past universes refused until the session before their date has closed and unchanged by later bars, and macro values (`macro.csv`: a CPI revision published 2024-11-26, a 10-year yield published 2024-12-02, weekly jobless claims released on Thursdays and on Wednesday 2024-11-27 before Thanksgiving, the Treasury rate of each date) only from the open after they were published.

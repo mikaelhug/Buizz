@@ -468,6 +468,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/studies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["event_study"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/healthz": {
         parameters: {
             query?: never;
@@ -488,6 +504,16 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AbnormalStats: {
+            /** Format: double */
+            mean?: number | null;
+            /** Format: double */
+            median?: number | null;
+            /** Format: double */
+            hit_rate?: number | null;
+            /** Format: double */
+            t_stat?: number | null;
+        };
         ActionDisagreement: {
             symbol: components["schemas"]["Symbol"];
             /** Format: date */
@@ -654,6 +680,16 @@ export interface components {
             /** Format: date */
             to: string;
         };
+        CurvePoint: {
+            /** Format: int32 */
+            session: number;
+            /** Format: int32 */
+            count: number;
+            /** Format: double */
+            gross: number;
+            /** Format: double */
+            net: number;
+        };
         DataHealth: {
             watermarks: components["schemas"]["Watermarks"];
             backfill: components["schemas"]["BackfillProgress"][];
@@ -719,6 +755,33 @@ export interface components {
             benchmark_metrics: components["schemas"]["Metrics"];
             interim_metrics?: components["schemas"]["Metrics"] | null;
         };
+        EventOutcome: {
+            symbol: components["schemas"]["Symbol"];
+            at: components["schemas"]["Timestamp"];
+            /** Format: date */
+            entry?: string | null;
+            benchmark?: components["schemas"]["Symbol"] | null;
+            /** Format: double */
+            round_trip_cost?: number | null;
+            /** Format: date */
+            last_session?: string | null;
+            skipped?: components["schemas"]["StudySkip"] | null;
+            returns: (components["schemas"]["HorizonReturn"] | null)[];
+        };
+        EventStudy: {
+            label: string;
+            hash: string;
+            /** Format: int32 */
+            trials: number;
+            /** Format: double */
+            luck_t: number;
+            data_through?: components["schemas"]["Timestamp"] | null;
+            cost: components["schemas"]["CostModel"];
+            position: string;
+            horizons: components["schemas"]["HorizonStats"][];
+            curve: components["schemas"]["CurvePoint"][];
+            events: components["schemas"]["EventOutcome"][];
+        };
         EventsPage: {
             items: components["schemas"]["RunEvent"][];
             /** Format: int64 */
@@ -763,6 +826,24 @@ export interface components {
         GateCheck: "not_completed" | "data_warnings" | "drawdown_stop" | "few_trades" | "no_edge" | "trails_benchmark" | "deeper_drawdown" | "inconsistent_edge";
         GoLive: {
             from_run?: components["schemas"]["RunId"] | null;
+        };
+        HorizonReturn: {
+            /** Format: double */
+            stock: number;
+            /** Format: double */
+            benchmark: number;
+        };
+        HorizonStats: {
+            /** Format: int32 */
+            sessions: number;
+            /** Format: int32 */
+            count: number;
+            /** Format: int32 */
+            delisted: number;
+            /** Format: int32 */
+            months: number;
+            gross: components["schemas"]["AbnormalStats"];
+            net: components["schemas"]["AbnormalStats"];
         };
         /** @enum {string} */
         JobOutcome: "ok" | "partial" | "noop" | "waiting" | "backoff" | "failed";
@@ -1220,6 +1301,18 @@ export interface components {
         };
         /** @enum {string} */
         StockIndex: "sp500";
+        StudyEvent: {
+            symbol: components["schemas"]["Symbol"];
+            at: components["schemas"]["Timestamp"];
+        };
+        StudyRequest: {
+            label: string;
+            events: components["schemas"]["StudyEvent"][];
+            benchmark?: components["schemas"]["Symbol"] | null;
+            cost?: components["schemas"]["CostModel"] | null;
+        };
+        /** @enum {string} */
+        StudySkip: "no_session" | "unknown_symbol" | "not_traded" | "benchmark_not_traded";
         SweepStarted: {
             period: components["schemas"]["Period"];
             queued: components["schemas"]["RunId"][];
@@ -2137,6 +2230,37 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    event_study: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudyRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventStudy"];
+                };
+            };
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };
