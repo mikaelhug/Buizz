@@ -1,4 +1,4 @@
-from buizz_bots.signals import Signal, SmaCache, breadth, credit, curve, labour, trend, valuation, vix_term
+from buizz_bots.signals import SmaCache, breadth, credit, curve, growth, labour, trend, valuation, vix_term, vote_share
 from buizz_bots.switch import drifted
 
 from buizz import Bot, Context, run
@@ -29,27 +29,26 @@ class TimingVote(Bot):
         cash: str = ctx.params["cash"]
         l_max = float(ctx.params["l_max"])
         band = float(ctx.params["band"])
-        votes: dict[str, Signal | None] = {
-            "trend": trend(ctx, asset),
-            "breadth": breadth(ctx, self.cache),
-            "credit": credit(ctx),
-            "vix": vix_term(ctx),
-            "labour": labour(ctx),
-            "curve": curve(ctx),
-            "valuation": valuation(ctx),
-        }
-        available = {name: vote for name, vote in votes.items() if vote is not None}
-        missing = ", ".join(name for name, vote in votes.items() if vote is None) or "none"
-        if not available:
+        found = vote_share(
+            {
+                "trend": trend(ctx, asset),
+                "breadth": breadth(ctx, self.cache),
+                "credit": credit(ctx),
+                "vix": vix_term(ctx),
+                "labour": labour(ctx),
+                "growth": growth(ctx),
+                "curve": curve(ctx),
+                "valuation": valuation(ctx),
+            }
+        )
+        if found is None:
             ctx.log("no condition has its data yet, no decision", level="warn")
             return
-        bullish = sum(vote.bullish for vote in available.values())
-        share = bullish / len(available)
+        share, tally = found
         weight = exposure(share, l_max, ctx.params["mapping"])
         targets = {asset: weight, cash: max(0.0, 1 - weight)}
-        tally = ", ".join(f"{name} {'+' if vote.bullish else '-'}" for name, vote in available.items())
-        summary = f"{bullish} of {len(available)} votes bullish ({tally}; missing {missing}), {asset} {weight:.2f}"
-        ctx.log(f"{summary}: " + "; ".join(vote.why for vote in available.values()))
+        summary = f"{asset} {weight:.2f}: {tally}"
+        ctx.log(summary)
         if not drifted(ctx, targets, band):
             return
         ctx.rebalance(
