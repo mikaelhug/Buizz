@@ -1178,6 +1178,79 @@ async fn reading_a_filing_again_replaces_the_facts_the_store_held_from_it() {
 }
 
 #[tokio::test]
+async fn a_filer_tagging_error_or_an_old_reporting_currency_never_reaches_a_bot() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = MarketStore::open(&dir.path().join(FILE_NAME), READERS)
+        .await
+        .unwrap();
+    let day = |month: u32, last: u32| NaiveDate::from_ymd_opt(2024, month, last).unwrap();
+    let instant = |metric, unit: &str, period_end, value: i64| FundamentalFact {
+        unit: unit.to_owned(),
+        metric: Some(metric),
+        period_start: None,
+        period_end,
+        value: Decimal::from(value),
+        ..future_filing()
+    };
+    let quarter = |metric, unit: &str, period_end: NaiveDate, value: i64| FundamentalFact {
+        period_start: Some(period_end - chrono::TimeDelta::days(90)),
+        ..instant(metric, unit, period_end, value)
+    };
+    let shares = FundamentalMetric::SharesOutstanding;
+    store
+        .append_fundamental_facts(
+            DataSource::Fixture,
+            vec![
+                instant(shares, "shares", day(3, 31), 500_000_000),
+                instant(shares, "shares", day(6, 30), 53_000_000_000_000_000),
+                instant(shares, "shares", day(9, 30), 502_000_000),
+                quarter(
+                    FundamentalMetric::EpsDiluted,
+                    "USD/shares",
+                    day(6, 30),
+                    498_000_000,
+                ),
+                quarter(FundamentalMetric::Revenue, "CNY", day(3, 31), 700_000_000),
+                quarter(FundamentalMetric::Revenue, "USD", day(6, 30), 100_000_000),
+                instant(
+                    FundamentalMetric::LongTermDebt,
+                    "USD",
+                    day(12, 31) + chrono::TimeDelta::days(3650),
+                    1,
+                ),
+            ],
+        )
+        .await
+        .unwrap();
+
+    let read: Vec<(FundamentalMetric, NaiveDate, String)> = store
+        .fundamentals(
+            vec![Symbol::new("BBB")],
+            vec![
+                shares,
+                FundamentalMetric::EpsDiluted,
+                FundamentalMetric::Revenue,
+                FundamentalMetric::LongTermDebt,
+            ],
+            "2025-01-01T00:00:00Z".parse().unwrap(),
+        )
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|point| (point.metric, point.period_end, point.unit))
+        .collect();
+    assert_eq!(
+        read,
+        vec![
+            (FundamentalMetric::Revenue, day(6, 30), "USD".to_owned()),
+            (shares, day(3, 31), "shares".to_owned()),
+            (shares, day(9, 30), "shares".to_owned()),
+        ],
+        "a share count tagged as EPS, a count 10^8 times its neighbours, a debt maturity filed as a period and revenue in the currency the filer left are all held back"
+    );
+}
+
+#[tokio::test]
 async fn a_live_run_sees_a_fact_once_produced_and_a_backtest_from_its_filing() {
     let (_dir, store) = november_2026().await;
     let accepted_at: Timestamp = "2026-11-05T23:30:00Z".parse().unwrap();

@@ -934,6 +934,11 @@ fn select_actions(
     Ok(rows.into_iter().flatten().collect())
 }
 
+const SHARE_JUMP: u32 = 100;
+const EPS_CEILING: u32 = 100_000;
+const EPS_CHECKED: u32 = 1_000;
+const EPS_RATIO: u32 = 100;
+
 pub(crate) fn fundamentals(
     connection: &Connection,
     symbols: &[Symbol],
@@ -951,20 +956,54 @@ pub(crate) fn fundamentals(
         return Ok(Vec::new());
     }
     let sql = format!(
-        "SELECT symbol, metric, period_type, period_start, period_end, value, unit, form, \
-         filed, available_at FROM fundamental_fact WHERE symbol {IN_SYMBOLS} AND metric IN ({}) \
-         AND period_type IS NOT NULL AND available_at <= ? \
-         QUALIFY row_number() OVER (PARTITION BY symbol, metric, period_end, period_type, \
-         period_start ORDER BY available_at DESC, filed DESC, accession DESC) = 1",
+        "WITH visible AS (SELECT symbol, metric, period_type, period_start, period_end, value, \
+           unit, form, filed, available_at, accession, \
+           CASE WHEN regexp_full_match(split_part(unit, '/', 1), '[A-Z]{{3}}') \
+             THEN split_part(unit, '/', 1) END AS currency \
+           FROM fundamental_fact WHERE symbol {IN_SYMBOLS} AND period_type IS NOT NULL \
+           AND period_end <= filed \
+           AND available_at <= ?), \
+         reporting AS (SELECT symbol, arg_max(currency, available_at) AS currency FROM visible \
+           WHERE currency IS NOT NULL GROUP BY symbol), \
+         latest AS (SELECT v.* FROM visible v LEFT JOIN reporting r USING (symbol) \
+           WHERE (v.metric IN ({}) OR v.metric IN ('net_income', 'shares_outstanding')) \
+           AND (v.currency IS NULL OR v.currency = r.currency) \
+           QUALIFY row_number() OVER (PARTITION BY v.symbol, v.metric, v.period_end, \
+           v.period_type, v.period_start ORDER BY v.available_at DESC, v.filed DESC, \
+           v.accession DESC) = 1), \
+         shares AS (SELECT symbol, period_type, period_start, period_end, value, \
+           lag(value) OVER w AS before, lead(value) OVER w AS after FROM latest \
+           WHERE metric = 'shares_outstanding' \
+           WINDOW w AS (PARTITION BY symbol ORDER BY period_end, period_start NULLS FIRST)) \
+         SELECT l.symbol, l.metric, l.period_type, l.period_start, l.period_end, l.value, l.unit, \
+         l.form, l.filed, l.available_at FROM latest l \
+         LEFT JOIN shares s ON l.metric = 'shares_outstanding' AND s.symbol = l.symbol \
+           AND s.period_type = l.period_type AND s.period_end = l.period_end \
+           AND s.period_start IS NOT DISTINCT FROM l.period_start \
+         LEFT JOIN latest n ON l.metric = 'eps_diluted' AND n.metric = 'net_income' \
+           AND n.symbol = l.symbol AND n.period_type = l.period_type \
+           AND n.period_end = l.period_end AND n.period_start IS NOT DISTINCT FROM l.period_start \
+         LEFT JOIN latest w ON l.metric = 'eps_diluted' AND w.metric = 'shares_outstanding' \
+           AND w.symbol = l.symbol AND w.period_end = l.period_end \
+           AND w.period_start IS NOT DISTINCT FROM l.period_start AND w.value > 0 \
+         WHERE l.metric IN ({}) \
+         AND NOT coalesce(s.value > 0 AND s.before > 0 AND s.after > 0 \
+           AND greatest(s.value / s.before, s.before / s.value) > {SHARE_JUMP} \
+           AND greatest(s.value / s.after, s.after / s.value) > {SHARE_JUMP}, false) \
+         AND NOT (l.metric = 'eps_diluted' AND (abs(l.value) >= {EPS_CEILING} \
+           OR coalesce(abs(l.value) >= {EPS_CHECKED} \
+             AND abs(l.value) > {EPS_RATIO} * abs(n.value / w.value), false)))",
+        placeholders(metrics.len()),
         placeholders(metrics.len())
     );
-    let mut params = vec![symbol_list(&symbols)];
-    params.extend(
-        metrics
-            .into_iter()
-            .map(|metric| Box::new(metric) as Box<dyn ToSql>),
-    );
-    params.push(Box::new(Ts(as_of)));
+    let mut params = vec![symbol_list(&symbols), Box::new(Ts(as_of)) as Box<dyn ToSql>];
+    for _ in 0..2 {
+        params.extend(
+            metrics
+                .iter()
+                .map(|metric| Box::new(metric.clone()) as Box<dyn ToSql>),
+        );
+    }
     let mut statement = connection.prepare_cached(&sql)?;
     let mut points = statement
         .query_map(params_from_iter(params.iter()), |row| {
