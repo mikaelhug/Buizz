@@ -36,13 +36,23 @@ impl Space {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct TextVolumes {
     volumes: Vec<TextVolume>,
+    fill_limit: f64,
+}
+
+impl Default for TextVolumes {
+    fn default() -> Self {
+        Self {
+            volumes: Vec::new(),
+            fill_limit: FILL_LIMIT,
+        }
+    }
 }
 
 impl TextVolumes {
-    pub fn open(roots: &[PathBuf]) -> Result<Self> {
+    pub fn open(roots: &[PathBuf], fill_limit: f64) -> Result<Self> {
         let mut volumes = Vec::new();
         for root in roots {
             let volume = identify(root)?;
@@ -61,7 +71,14 @@ impl TextVolumes {
             }
             volumes.push(volume);
         }
-        Ok(Self { volumes })
+        Ok(Self {
+            volumes,
+            fill_limit,
+        })
+    }
+
+    pub fn fill_limit(&self) -> f64 {
+        self.fill_limit
     }
 
     pub fn volumes(&self) -> &[TextVolume] {
@@ -89,7 +106,7 @@ impl TextVolumes {
         let mut roomiest: Option<(&TextVolume, u64)> = None;
         for volume in &self.volumes {
             let space = Self::space(volume)?;
-            if space.used_share() < FILL_LIMIT
+            if space.used_share() < self.fill_limit
                 && roomiest.is_none_or(|(_, available)| space.available > available)
             {
                 roomiest = Some((volume, space.available));
@@ -98,7 +115,7 @@ impl TextVolumes {
         roomiest.map(|(volume, _)| volume).ok_or_else(|| {
             MarketError::Text(format!(
                 "every text volume is at least {:.0}% full",
-                FILL_LIMIT * 100.0
+                self.fill_limit * 100.0
             ))
         })
     }

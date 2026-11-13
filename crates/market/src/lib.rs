@@ -282,8 +282,9 @@ impl MarketStore {
         })
     }
 
-    pub async fn with_text(mut self, roots: Vec<PathBuf>) -> Result<Self> {
-        let volumes = tokio::task::spawn_blocking(move || TextVolumes::open(&roots)).await??;
+    pub async fn with_text(mut self, roots: Vec<PathBuf>, fill_limit: f64) -> Result<Self> {
+        let volumes =
+            tokio::task::spawn_blocking(move || TextVolumes::open(&roots, fill_limit)).await??;
         let registered = volumes.clone();
         self.writer
             .run(move |connection| write::text_volumes(connection, &registered))
@@ -1003,7 +1004,7 @@ impl MarketStore {
                         mounted: mounted.is_some(),
                         total: space.map(|space| space.total),
                         available: space.map(|space| space.available),
-                        fill_limit: FILL_LIMIT,
+                        fill_limit: volumes.fill_limit(),
                         files: total.files,
                         bytes: total.bytes,
                         documents: total.documents,

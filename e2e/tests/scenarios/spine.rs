@@ -177,6 +177,7 @@ impl Spine {
             .env("FED_URL", url)
             .env("ANTHROPIC_API_KEY", "e2e-anthropic")
             .env("ANTHROPIC_URL", url)
+            .env("BUIZZ_TEXT_FILL_LIMIT", "1")
             .env(
                 "BUIZZ_TEXT_DIRS",
                 text_dirs

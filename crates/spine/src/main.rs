@@ -97,7 +97,7 @@ async fn serve() -> Result<()> {
         MARKET_READERS,
     )
     .await?
-    .with_text(config.text_dirs.clone())
+    .with_text(config.text_dirs.clone(), config.text_fill_limit)
     .await?;
     market
         .limit(config.duckdb_memory.clone(), config.duckdb_threads)

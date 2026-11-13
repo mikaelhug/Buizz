@@ -88,6 +88,7 @@ The spine (`cargo run -p buizz-spine`) reads these environment variables. Empty 
 | `BUIZZ_DUCKDB_MEMORY` | `1GB` | Memory the market store may use for queries and writes before it spills to `market.duckdb.tmp/` in the data directory |
 | `BUIZZ_DUCKDB_THREADS` | `2` | Threads the market store uses |
 | `BUIZZ_TEXT_DIRS` | unset | Comma-separated directories, usually one per disk, where filings are kept as filed and as text (see `docs/architecture.md`, Where state lives); unset, documents are not harvested |
+| `BUIZZ_TEXT_FILL_LIMIT` | `0.9` | Share of a text volume's disk above which it takes no new files; the e2e spines set 1, since their volumes share the developer's disk |
 | `BUIZZ_LIVE_SLOTS` | `2` | Live bot processes that may start and take their first step of a session at once; backtests run on one fewer than the CPUs |
 | `RUST_LOG` | `info` | Log filter |
 

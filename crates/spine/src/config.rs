@@ -26,6 +26,7 @@ pub struct Config {
     pub bind: SocketAddr,
     pub data_dir: PathBuf,
     pub text_dirs: Vec<PathBuf>,
+    pub text_fill_limit: f64,
     pub bots_dir: PathBuf,
     pub web_dir: Option<PathBuf>,
     pub fixture_dir: Option<PathBuf>,
@@ -84,6 +85,17 @@ fn admin_password(value: Option<String>) -> Result<String> {
         "BUIZZ_ADMIN_PASSWORD must be at least {MIN_ADMIN_PASSWORD_CHARS} characters, it has {length}"
     );
     Ok(password)
+}
+
+fn fill_limit(value: Option<String>) -> Result<f64> {
+    value.map_or(Ok(buizz_market::FILL_LIMIT), |share| {
+        share
+            .trim()
+            .parse::<f64>()
+            .ok()
+            .filter(|share| *share > 0.0 && *share <= 1.0)
+            .context("BUIZZ_TEXT_FILL_LIMIT must be a share of the volume above 0 and at most 1")
+    })
 }
 
 fn spend_cap(value: Option<String>) -> Result<Decimal> {
@@ -149,6 +161,7 @@ impl Config {
                         .collect()
                 })
                 .unwrap_or_default(),
+            text_fill_limit: fill_limit(var("BUIZZ_TEXT_FILL_LIMIT"))?,
             bots_dir: var_or("BUIZZ_BOTS_DIR", "bots").into(),
             web_dir: var("BUIZZ_WEB_DIR").map(PathBuf::from),
             fixture_dir: var("BUIZZ_FIXTURE_DIR").map(PathBuf::from),
