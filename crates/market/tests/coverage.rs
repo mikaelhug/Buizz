@@ -243,3 +243,87 @@ async fn a_member_is_priced_through_its_rename_and_not_missed_after_its_last_tra
         "FBHS trades as FBIN from its rename to its removal, and SPLS stopped trading before its removal"
     );
 }
+
+#[tokio::test]
+async fn a_ticker_renamed_into_a_ticker_an_ended_company_held_is_not_missed_after_its_rename() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = MarketStore::open(&dir.path().join(FILE_NAME), 1)
+        .await
+        .unwrap();
+    let noon = NaiveTime::from_hms_opt(12, 0, 0).unwrap();
+    let day = |text: &str| -> NaiveDate { text.parse().unwrap() };
+    let days: Vec<NaiveDate> = (0..10)
+        .map(|offset| day("2023-08-24") + TimeDelta::days(offset))
+        .filter(|date| chrono::Datelike::weekday(date).number_from_monday() <= 5)
+        .collect();
+    let sessions: Vec<Session> = days
+        .iter()
+        .map(|date| session(*date, Timestamp::at_exchange_time(*date, noon).unwrap()))
+        .collect();
+    store
+        .upsert_sessions(DataSource::Fixture, sessions.clone())
+        .await
+        .unwrap();
+    let (old, new) = (Symbol::new("ABC"), Symbol::new("COR"));
+    store
+        .upsert_bars(
+            DataSource::Fixture,
+            Timeframe::Day,
+            sessions
+                .iter()
+                .map(|session| bar(&new, session.open, Feed::Sip))
+                .collect(),
+        )
+        .await
+        .unwrap();
+    store
+        .upsert_instruments(
+            DataSource::Fixture,
+            vec![Instrument {
+                symbol: Symbol::ended(&new, day("2021-12-28")),
+                name: String::new(),
+                exchange: String::new(),
+                asset_class: AssetClass::Stock,
+                active: false,
+                shortable: false,
+                first_session: None,
+                last_session: Some(day("2021-12-28")),
+            }],
+        )
+        .await
+        .unwrap();
+    store
+        .replace_name_changes(
+            DataSource::Fixture,
+            vec![CorporateAction {
+                symbol: old.clone(),
+                ex_date: day("2023-08-30"),
+                kind: CorporateActionKind::NameChange {
+                    new_symbol: new.clone(),
+                },
+            }],
+            ActionWindow {
+                symbols: Vec::new(),
+                from: days[0],
+                through: days[days.len() - 1],
+                covered_to: None,
+            },
+        )
+        .await
+        .unwrap();
+
+    let gaps = store
+        .coverage_gaps(
+            vec![old, new],
+            Timeframe::Day,
+            days[0],
+            days[days.len() - 1],
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        gaps,
+        vec![],
+        "AmerisourceBergen traded as ABC until it became Cencora's COR, and nobody trades as ABC after"
+    );
+}
