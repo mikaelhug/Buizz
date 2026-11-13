@@ -177,15 +177,16 @@ async fn bots_see_index_membership_profiles_earnings_and_8k_events_as_of_their_c
     .await;
     spine.ingested().await;
     let health: Value = spine.get("/api/data/health").await;
-    let documents = health["backfill"]
+    let documents = health["contracts"]
         .as_array()
-        .expect("backfill progress")
+        .expect("coverage contracts")
         .iter()
         .find(|item| item["dataset"] == "filing_documents")
-        .expect("filing documents report their backfill");
+        .expect("filing documents measure their contract");
     assert_eq!(
-        documents["done"], documents["total"],
-        "every 8-K, 10-K and 10-Q is read once, an unreadable one recorded as such: {documents}"
+        (&documents["pending"], &documents["state"]),
+        (&Value::from(0), &Value::from("complete")),
+        "every 8-K, 10-K and 10-Q is read once, an unreadable one recorded as failed: {documents}"
     );
     let quarterly: Value = spine
         .get(&format!("/api/data/text/document?id=edgar:{QUARTERLY}:1"))

@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use buizz_core::market::{DataSource, Dataset, Symbol};
 use buizz_core::ops::{FetchStatus, JobOutcome, JobRun, SourceFetch};
@@ -7,7 +7,7 @@ use chrono::TimeDelta;
 use rusqlite::{Connection, OptionalExtension, Row, params};
 
 use crate::codec::{enum_text, int, read_enum, read_optional, read_timestamp, read_u64};
-use crate::{FetchUsage, Result};
+use crate::{ContractHistory, FetchUsage, Result, SymbolFetches};
 
 const TRANSIENT_BACKOFF: TimeDelta = TimeDelta::hours(6);
 const PERMANENT_BACKOFF: TimeDelta = TimeDelta::days(30);
@@ -222,22 +222,77 @@ pub fn recent_fetches(
     Ok(fetches)
 }
 
-pub fn settled_symbols(
+pub fn symbol_fetches(
     connection: &Connection,
     source: DataSource,
     dataset: Dataset,
-) -> Result<BTreeSet<Symbol>> {
+) -> Result<BTreeMap<Symbol, SymbolFetches>> {
     let mut statement = connection.prepare_cached(&format!(
-        "SELECT DISTINCT symbol FROM source_fetch WHERE source = ? AND dataset = ? \
-         AND symbol IS NOT NULL AND (status = 'rejected' \
-         OR (status IN ('ok', 'empty') AND at >= {RESET}))"
+        "SELECT f.symbol, max(f.status IN ('ok', 'empty') AND f.at >= {RESET}), \
+         (SELECT l.status FROM source_fetch l WHERE l.source = f.source AND l.dataset = f.dataset \
+         AND l.symbol = f.symbol ORDER BY l.at DESC, l.id DESC LIMIT 1) \
+         FROM source_fetch f WHERE f.source = ? AND f.dataset = ? AND f.symbol IS NOT NULL \
+         GROUP BY f.symbol"
     ))?;
     let symbols = statement
         .query_map(params![enum_text(&source)?, enum_text(&dataset)?], |row| {
-            Ok(Symbol::new(&row.get::<_, String>(0)?))
+            Ok((
+                Symbol::new(&row.get::<_, String>(0)?),
+                SymbolFetches {
+                    read: row.get(1)?,
+                    latest: read_enum(row, 2)?,
+                },
+            ))
         })?
         .collect::<rusqlite::Result<_>>()?;
     Ok(symbols)
+}
+
+pub fn track_contracts(
+    connection: &Connection,
+    at: Timestamp,
+    window: TimeDelta,
+    done: &[(Dataset, DataSource, u64)],
+) -> Result<BTreeMap<(Dataset, DataSource), ContractHistory>> {
+    let horizon = (at - window).nanos();
+    let mut histories = BTreeMap::new();
+    for (dataset, source, count) in done {
+        let (dataset_text, source_text) = (enum_text(dataset)?, enum_text(source)?);
+        let latest: Option<u64> = connection
+            .query_row(
+                "SELECT done FROM contract_progress WHERE dataset = ? AND source = ? \
+                 ORDER BY at DESC LIMIT 1",
+                params![dataset_text, source_text],
+                |row| read_u64(row, 0),
+            )
+            .optional()?;
+        if latest != Some(*count) {
+            connection.execute(
+                "INSERT OR REPLACE INTO contract_progress (dataset, source, at, done) \
+                 VALUES (?, ?, ?, ?)",
+                params![dataset_text, source_text, at.nanos(), int(*count)?],
+            )?;
+        }
+        connection.execute(
+            "DELETE FROM contract_progress WHERE dataset = ?1 AND source = ?2 AND at < \
+             (SELECT max(at) FROM contract_progress WHERE dataset = ?1 AND source = ?2 AND at <= ?3)",
+            params![dataset_text, source_text, horizon],
+        )?;
+        let history = connection.query_row(
+            "SELECT min(at), (SELECT done FROM contract_progress WHERE dataset = ?1 AND source = ?2 \
+             ORDER BY at LIMIT 1), max(at) FROM contract_progress WHERE dataset = ?1 AND source = ?2",
+            params![dataset_text, source_text],
+            |row| {
+                Ok(ContractHistory {
+                    base_at: read_timestamp(row, 0)?,
+                    base_done: read_u64(row, 1)?,
+                    moved_at: read_timestamp(row, 2)?,
+                })
+            },
+        )?;
+        histories.insert((*dataset, *source), history);
+    }
+    Ok(histories)
 }
 
 pub fn latest_rejections(

@@ -19,6 +19,9 @@ type Dataset = Schemas["Dataset"];
 type Domain = Schemas["DataDomain"];
 type Source = Schemas["DataSource"];
 type Market = Schemas["Market"];
+type Contract = Schemas["CoverageContract"];
+type ContractState = Schemas["ContractState"];
+type Unit = Schemas["ScopeUnit"];
 
 const DOMAINS: Record<Domain, { name: string; caption: string }> = {
   prices: { name: "Prices", caption: "what every backtest and live run trades on" },
@@ -147,12 +150,46 @@ function datasetSources(entry: DatasetSpine, jobs: Job[]): Source[] {
   return [...new Set([...stored, ...fed])];
 }
 
-type Fill = { done: number; total: number };
+const CONTRACT: Record<ContractState, { text: string; about: string }> = {
+  complete: { text: "complete", about: "Everything its scope expects is stored; failed items are quarantined and shown." },
+  filling: { text: "filling", about: "Its jobs are still reading what the scope expects; the end date comes from the pace measured over the last 30 days." },
+  stalled: { text: "stalled", about: "Something it expects is missing and nothing is moving: a job is failing or late, or no progress in three days." },
+};
 
-function fillOf(coverage: Coverage | undefined, source?: Source): Fill | undefined {
-  const items = (coverage?.backfill ?? []).filter((item) => source === undefined || item.source === source);
-  const total = items.reduce((sum, item) => sum + item.total, 0);
-  return total > 0 ? { done: items.reduce((sum, item) => sum + item.done, 0), total } : undefined;
+const CONTRACT_RANK: ContractState[] = ["stalled", "filling", "complete"];
+
+const UNITS: Record<Unit, string> = {
+  symbols: "symbols",
+  series: "series",
+  lists: "lists",
+  days: "days",
+  sessions: "sessions",
+  settlements: "settlements",
+  filings: "filings",
+};
+
+function contractsOf(coverage: Coverage | undefined, source?: Source): Contract[] {
+  return (coverage?.contracts ?? []).filter((item) => source === undefined || item.source === source);
+}
+
+function headline(contracts: Contract[]): Contract | undefined {
+  return contracts.toSorted((a, b) => CONTRACT_RANK.indexOf(a.state) - CONTRACT_RANK.indexOf(b.state) || (b.eta ?? "").localeCompare(a.eta ?? ""))[0];
+}
+
+const shortDate = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+const dayOf = (date: string) => shortDate.format(new Date(`${date}T00:00:00Z`));
+
+const DAYS_PER_MONTH = 30;
+
+function paceText(perDay: number, unit: Unit): string {
+  return perDay >= 1 ? `${fmt.integer(Math.round(perDay))} ${UNITS[unit]}/day` : `${fmt.integer(Math.round(perDay * DAYS_PER_MONTH))} ${UNITS[unit]}/month`;
+}
+
+function contractText(contract: Contract): string {
+  if (contract.state === "filling") {
+    return contract.eta ? `filling, done ${monthOf(contract.eta)}` : "filling, measuring pace";
+  }
+  return CONTRACT[contract.state].text;
 }
 
 function gapMonths(monthly: number[]): number[] {
@@ -187,7 +224,7 @@ function stopped(dataset: Dataset, coverage: Coverage | undefined, today: string
 const dayName = new Intl.DateTimeFormat("en-GB", { month: "short", year: "numeric", timeZone: "UTC" });
 const monthOf = (date: string) => dayName.format(new Date(`${date}T00:00:00Z`));
 
-const wholePercent = (fill: Fill) => `${Math.floor((fill.done / fill.total) * 100)}%`;
+const wholePercent = (contract: Contract) => `${Math.floor((contract.done / Math.max(1, contract.expected)) * 100)}%`;
 
 export function DataSpine() {
   const spine = useResource(() => must(api.GET("/api/data/spine")), []);
@@ -212,6 +249,14 @@ export function DataSpine() {
     } else if (event.type === "feed") {
       feed.mutate(() => event.slots);
       pulse(["bars1m", "source-alpaca_stream"]);
+    } else if (event.type === "contracts") {
+      spine.mutate((current) => ({
+        ...current,
+        datasets: current.datasets.map((entry) => ({
+          ...entry,
+          markets: entry.markets.map((market) => ({ ...market, contracts: event.contracts.filter((contract) => contract.dataset === entry.dataset) })),
+        })),
+      }));
     }
   });
 
@@ -294,8 +339,8 @@ export function DataSpine() {
               Symbols
             </span>
             <span role="columnheader">
-              Filled
-              <Info label="Filled">How far a dataset's history backfill has come, by the symbols its jobs plan to fetch. Red marks are months inside a dataset's range with no data at all.</Info>
+              Complete
+              <Info label="Complete">Each dataset declares its scope: the symbols, filings or days it should hold, from its source's own index, from when recording began, or from the layer below. The bar is how much of that scope is stored; filling shows the end date its measured pace gives, stalled means nothing is moving. Red marks are months inside a dataset's range with no data from any source.</Info>
             </span>
             <span role="columnheader">Status</span>
           </div>
@@ -375,12 +420,16 @@ function Summary({ data, states, sources, feed, health, onHealth }: SummaryProps
   const symbols = Math.max(0, ...data.datasets.flatMap((entry) => entry.markets.map((market) => market.symbols)));
   const connected = feed ? feed.connections.filter((connection) => connection.connected).length : 0;
   const present = HEALTH_SHOWN.filter((state) => count(state) > 0);
+  const contracts = data.datasets.flatMap((entry) => entry.markets.flatMap((market) => market.contracts));
+  const complete = contracts.filter((contract) => contract.state === "complete").length;
+  const stalled = contracts.filter((contract) => contract.state === "stalled").length;
   return (
     <section className="spine-summary" aria-label="Spine health">
       <dl className="summary-figures">
         <Figure value={fmt.integer(data.datasets.length)} label="datasets" />
         <Figure value={fmt.integer(sources)} label="sources" />
         <Figure value={fmt.integer(symbols)} label="symbols priced" />
+        <Figure value={`${fmt.integer(complete)}/${fmt.integer(contracts.length)}`} label={stalled > 0 ? `complete, ${fmt.integer(stalled)} stalled` : "complete"} />
         <Figure value={data.markets.map((market) => MARKETS[market].short).join(" · ")} label={data.markets.length === 1 ? "market" : "markets"} />
       </dl>
       <div className="summary-health">
@@ -527,7 +576,7 @@ type RowProps = {
 function Row({ entry, start, today, peak, health, jobs, sources, focus, pulses, feed, open, onToggle }: RowProps) {
   const text = DATASETS[entry.dataset];
   const coverage = entry.markets[0];
-  const fill = fillOf(coverage, focus);
+  const contract = headline(contractsOf(coverage, focus));
   const gaps = coverage ? gapMonths(coverage.monthly).length : 0;
   const stop = stopped(entry.dataset, coverage, today);
   const detail = `spine-detail-${entry.dataset}`;
@@ -552,7 +601,7 @@ function Row({ entry, start, today, peak, health, jobs, sources, focus, pulses, 
           {coverage?.first && <span className="leaf-range">{yearRange(coverage, today)}</span>}
         </span>
         <span role="cell" className="leaf-fill">
-          <FillMeter fill={fill} empty={!coverage?.first} gaps={gaps} stop={stop} />
+          <FillMeter contract={contract} empty={!coverage?.first} gaps={gaps} stop={stop} />
         </span>
         <span role="cell" className="leaf-state">
           <span className={`state-text health-${health}`}>{HEALTH[health].text}</span>
@@ -572,19 +621,30 @@ function Row({ entry, start, today, peak, health, jobs, sources, focus, pulses, 
   );
 }
 
-function FillMeter({ fill, empty, gaps, stop }: { fill: Fill | undefined; empty: boolean; gaps: number; stop: string | undefined }) {
-  if (empty) {
+function FillMeter({ contract, empty, gaps, stop }: { contract: Contract | undefined; empty: boolean; gaps: number; stop: string | undefined }) {
+  if (empty && !contract) {
     return <span className="fill-empty">empty</span>;
   }
   return (
     <span className="fill">
-      {fill ? (
-        <span className={fill.done >= fill.total ? "fill-meter full" : "fill-meter"} role="meter" aria-valuemin={0} aria-valuemax={fill.total} aria-valuenow={fill.done} aria-label={`Backfill ${fmt.integer(fill.done)} of ${fmt.integer(fill.total)}`}>
-          <span className="fill-meter-bar" style={{ width: `${(fill.done / fill.total) * 100}%` }} />
-          <span className="fill-meter-text num">{fill.done >= fill.total ? "100%" : wholePercent(fill)}</span>
-        </span>
+      {contract ? (
+        <>
+          <span
+            className={`fill-meter contract-${contract.state}`}
+            role="meter"
+            aria-valuemin={0}
+            aria-valuemax={contract.expected}
+            aria-valuenow={contract.done}
+            aria-label={`${fmt.integer(contract.done)} of ${fmt.integer(contract.expected)} ${UNITS[contract.unit]}, ${contractText(contract)}`}
+            title={contract.reason ?? CONTRACT[contract.state].about}
+          >
+            <span className="fill-meter-bar" style={{ width: `${(contract.done / Math.max(1, contract.expected)) * 100}%` }} />
+            <span className="fill-meter-text num">{contract.state === "complete" ? "100%" : wholePercent(contract)}</span>
+          </span>
+          <span className={`fill-state contract-${contract.state}`}>{contractText(contract)}</span>
+        </>
       ) : (
-        <span className="fill-untracked" title="This dataset's jobs report no backfill plan, so how complete it is cannot be measured here">
+        <span className="fill-untracked" title="No coverage contract is measured for this dataset on this spine">
           not tracked
         </span>
       )}
@@ -651,30 +711,25 @@ function Detail({ id, entry, jobs, start }: { id: string; entry: DatasetSpine; j
                   Symbols
                 </th>
                 <th scope="col">Covers</th>
-                <th scope="col">Backfill</th>
                 <th scope="col">Updated</th>
               </tr>
             </thead>
             <tbody>
-              {coverage.sources.map((item) => {
-                const fill = fillOf(coverage, item.source);
-                return (
-                  <tr key={item.source}>
-                    <th scope="row">{SOURCES[item.source].name}</th>
-                    <td className="num">{item.symbols > 0 ? fmt.integer(item.symbols) : "series"}</td>
-                    <td className="num">
-                      {item.first} → {item.last}
-                    </td>
-                    <td className="num">{fill ? `${fmt.integer(fill.done)} of ${fmt.integer(fill.total)} (${wholePercent(fill)})` : "—"}</td>
-                    <td>
-                      <Ago at={item.updated_at} />
-                    </td>
-                  </tr>
-                );
-              })}
+              {coverage.sources.map((item) => (
+                <tr key={item.source}>
+                  <th scope="row">{SOURCES[item.source].name}</th>
+                  <td className="num">{item.symbols > 0 ? fmt.integer(item.symbols) : "series"}</td>
+                  <td className="num">
+                    {item.first} → {item.last}
+                  </td>
+                  <td>
+                    <Ago at={item.updated_at} />
+                  </td>
+                </tr>
+              ))}
               {coverage.sources.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="muted">
+                  <td colSpan={4} className="muted">
                     Nothing stored yet{coverage.first ? "" : `; history starts ${monthAt(start, 0)}`}.
                   </td>
                 </tr>
@@ -682,6 +737,57 @@ function Detail({ id, entry, jobs, start }: { id: string; entry: DatasetSpine; j
             </tbody>
           </table>
         ))}
+        {entry.markets.map((coverage) =>
+          coverage.contracts.length > 0 ? (
+            <table key={`contract-${coverage.market}`} className="detail-table contract-table">
+              <thead>
+                <tr>
+                  <th scope="col">Scope</th>
+                  <th scope="col" className="num">
+                    Expected
+                  </th>
+                  <th scope="col" className="num">
+                    Done
+                  </th>
+                  <th scope="col" className="num">
+                    Failed
+                  </th>
+                  <th scope="col" className="num">
+                    Pending
+                  </th>
+                  <th scope="col">Complete through</th>
+                  <th scope="col">State</th>
+                </tr>
+              </thead>
+              <tbody>
+                {coverage.contracts.map((contract) => (
+                  <tr key={contract.source}>
+                    <th scope="row">
+                      {SOURCES[contract.source].name}
+                      <span className="contract-scope">
+                        {contract.kind.replace("_", " ")}: {contract.scope}, {contract.from} → {contract.to}
+                      </span>
+                    </th>
+                    <td className="num">
+                      {fmt.integer(contract.expected)} {UNITS[contract.unit]}
+                    </td>
+                    <td className="num">{fmt.integer(contract.done)}</td>
+                    <td className="num">{contract.failed > 0 ? fmt.integer(contract.failed) : "—"}</td>
+                    <td className="num">{contract.pending > 0 ? fmt.integer(contract.pending) : "—"}</td>
+                    <td className="num">{contract.complete_through ? dayOf(contract.complete_through) : "—"}</td>
+                    <td>
+                      <span className={`state-text contract-${contract.state}`} title={CONTRACT[contract.state].about}>
+                        {contractText(contract)}
+                      </span>
+                      {contract.per_day && contract.state === "filling" && <span className="muted num contract-pace"> {paceText(contract.per_day, contract.unit)}</span>}
+                      {contract.reason && <span className="contract-reason">{contract.reason}</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : null,
+        )}
         {jobs.length > 0 && (
           <ul className="source-jobs">
             {jobs.map((job) => {

@@ -610,14 +610,6 @@ export interface components {
         };
         /** @enum {string} */
         AssetClass: "stock" | "etf";
-        BackfillProgress: {
-            dataset: components["schemas"]["Dataset"];
-            source: components["schemas"]["DataSource"];
-            /** Format: int32 */
-            done: number;
-            /** Format: int32 */
-            total: number;
-        };
         BacktestGlance: {
             run_id: components["schemas"]["RunId"];
             preset?: components["schemas"]["PeriodPreset"] | null;
@@ -721,6 +713,8 @@ export interface components {
             above: number;
             per_share: string;
         };
+        /** @enum {string} */
+        ContractState: "complete" | "filling" | "stalled";
         CostModel: {
             /** @default 0.005 */
             commission_per_share: string;
@@ -758,6 +752,33 @@ export interface components {
             last: string;
             updated_at: components["schemas"]["Timestamp"];
         };
+        CoverageContract: {
+            dataset: components["schemas"]["Dataset"];
+            source: components["schemas"]["DataSource"];
+            kind: components["schemas"]["ScopeKind"];
+            unit: components["schemas"]["ScopeUnit"];
+            scope: string;
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            /** Format: int64 */
+            expected: number;
+            /** Format: int64 */
+            done: number;
+            /** Format: int64 */
+            failed: number;
+            /** Format: int64 */
+            pending: number;
+            /** Format: date */
+            complete_through?: string | null;
+            state: components["schemas"]["ContractState"];
+            /** Format: double */
+            per_day?: number | null;
+            /** Format: date */
+            eta?: string | null;
+            reason?: string | null;
+        };
         CoverageGap: {
             symbol: components["schemas"]["Symbol"];
             timeframe: components["schemas"]["Timeframe"];
@@ -780,7 +801,7 @@ export interface components {
         DataDomain: "prices" | "reference" | "filings" | "macro" | "alternative";
         DataHealth: {
             watermarks: components["schemas"]["Watermarks"];
-            backfill: components["schemas"]["BackfillProgress"][];
+            contracts: components["schemas"]["CoverageContract"][];
             coverage: components["schemas"]["Coverage"][];
             warnings: components["schemas"]["DataWarning"][];
             /** Format: int32 */
@@ -1038,7 +1059,7 @@ export interface components {
             last?: string | null;
             updated_at?: components["schemas"]["Timestamp"] | null;
             monthly: number[];
-            backfill: components["schemas"]["BackfillProgress"][];
+            contracts: components["schemas"]["CoverageContract"][];
         };
         Metrics: {
             /** Format: double */
@@ -1348,6 +1369,10 @@ export interface components {
             usage: components["schemas"]["BotUsage"];
             source_run?: components["schemas"]["RunId"] | null;
         };
+        /** @enum {string} */
+        ScopeKind: "indexed" | "recorder" | "derived" | "on_demand";
+        /** @enum {string} */
+        ScopeUnit: "symbols" | "series" | "lists" | "days" | "sessions" | "settlements" | "filings";
         Screening: {
             preset: components["schemas"]["PeriodPreset"];
             /** Format: int32 */
@@ -1440,6 +1465,10 @@ export interface components {
             slots: components["schemas"]["FeedSlots"];
             /** @enum {string} */
             type: "feed";
+        } | {
+            contracts: components["schemas"]["CoverageContract"][];
+            /** @enum {string} */
+            type: "contracts";
         } | {
             run_id: components["schemas"]["RunId"];
             usage: components["schemas"]["BotUsage"];

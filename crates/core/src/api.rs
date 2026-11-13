@@ -362,18 +362,66 @@ pub struct StartBacktest {
     pub allow_holdout: bool,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
-pub struct BackfillProgress {
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ScopeKind {
+    Indexed,
+    Recorder,
+    Derived,
+    OnDemand,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ScopeUnit {
+    Symbols,
+    Series,
+    Lists,
+    Days,
+    Sessions,
+    Settlements,
+    Filings,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ContractState {
+    Complete,
+    Filling,
+    Stalled,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct CoverageContract {
     pub dataset: Dataset,
     pub source: DataSource,
-    pub done: u32,
-    pub total: u32,
+    pub kind: ScopeKind,
+    pub unit: ScopeUnit,
+    pub scope: String,
+    pub from: NaiveDate,
+    pub to: NaiveDate,
+    pub expected: u64,
+    pub done: u64,
+    pub failed: u64,
+    pub pending: u64,
+    pub complete_through: Option<NaiveDate>,
+    pub state: ContractState,
+    pub per_day: Option<f64>,
+    pub eta: Option<NaiveDate>,
+    pub reason: Option<String>,
+}
+
+impl CoverageContract {
+    pub fn complete_for(&self, from: NaiveDate, to: NaiveDate) -> bool {
+        let (from, to) = (from.max(self.from), to.min(self.to));
+        from > to || self.complete_through.is_some_and(|through| through >= to)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct DataHealth {
     pub watermarks: Watermarks,
-    pub backfill: Vec<BackfillProgress>,
+    pub contracts: Vec<CoverageContract>,
     pub coverage: Vec<Coverage>,
     pub warnings: Vec<DataWarning>,
     pub stale_jobs: u32,
@@ -468,7 +516,7 @@ pub struct MarketCoverage {
     pub last: Option<NaiveDate>,
     pub updated_at: Option<Timestamp>,
     pub monthly: Vec<u32>,
-    pub backfill: Vec<BackfillProgress>,
+    pub contracts: Vec<CoverageContract>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -573,6 +621,9 @@ pub enum SpineEvent {
     Feed {
         slots: FeedSlots,
     },
+    Contracts {
+        contracts: Vec<CoverageContract>,
+    },
     Usage {
         run_id: RunId,
         usage: BotUsage,
@@ -590,6 +641,7 @@ impl SpineEvent {
             Self::Log { .. } => "log",
             Self::Job { .. } => "job",
             Self::Feed { .. } => "feed",
+            Self::Contracts { .. } => "contracts",
             Self::Usage { .. } => "usage",
         }
     }

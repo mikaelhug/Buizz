@@ -1,10 +1,12 @@
 use std::time::Duration;
 
 use axum::extract::ws::{Message, WebSocket};
-use buizz_core::market::{FundamentalMetric, HISTORY_START, MacroSeries, Symbol};
+use buizz_core::api::CoverageContract;
+use buizz_core::market::{Dataset, FundamentalMetric, HISTORY_START, MacroSeries, Symbol};
 use buizz_core::protocol::{
     self, Ack, BarBuffer, BotMessage, Data, DataResult, End, EndReason, ErrorCode, Hello,
-    PROTOCOL_VERSION, ProtocolError, Query, QueryRequest, Ready, SpineMessage, Step,
+    PROTOCOL_VERSION, ProtocolError, Query, QueryRequest, Ready, SeriesCompleteness, SpineMessage,
+    Step,
 };
 use buizz_core::run::{UNIVERSE_SESSIONS, UniverseSpec};
 use buizz_core::time::Timestamp;
@@ -73,6 +75,7 @@ impl BotLink {
         &mut self,
         step: Step,
         market: &MarketStore,
+        contracts: &[CoverageContract],
         session: SessionUniverse<'_>,
     ) -> Result<Ack, LinkError> {
         let (seq, clock) = (step.seq, step.clock);
@@ -81,11 +84,20 @@ impl BotLink {
             match self.receive().await? {
                 BotMessage::Query(Query { id, request }) => {
                     let asked = Asked::of(&request);
-                    let answer = match answer(market, request, clock, &session).await {
+                    let read = read_from(&request, clock.exchange_date());
+                    let answer = match answer(market, contracts, request, clock, &session).await {
                         Ok(result) => {
                             if let Some(asked) = asked {
                                 let unbacked = asked.unbacked(market, &result, clock).await;
                                 self.unbacked.extend(unbacked);
+                            }
+                            if let Some((dataset, from)) = read {
+                                self.unbacked.extend(incomplete(
+                                    contracts,
+                                    dataset,
+                                    from,
+                                    clock.exchange_date(),
+                                ));
                             }
                             SpineMessage::Data(Data { id, result })
                         }
@@ -233,12 +245,78 @@ impl Asked {
     }
 }
 
+fn read_from(request: &QueryRequest, today: NaiveDate) -> Option<(Dataset, NaiveDate)> {
+    match request {
+        QueryRequest::Fundamentals { .. } => Some((Dataset::Fundamentals, today)),
+        QueryRequest::Earnings { .. } => Some((Dataset::EarningsReleases, today)),
+        QueryRequest::Filings { since, .. } => Some((Dataset::CurrentReports, *since)),
+        QueryRequest::PressReleases { since, .. } => Some((Dataset::PressReleases, *since)),
+        QueryRequest::Macro { from, .. } => Some((Dataset::Macro, *from)),
+        QueryRequest::InsiderTrades { since, .. } => Some((Dataset::InsiderTrades, *since)),
+        QueryRequest::News { since, .. } => Some((Dataset::News, *since)),
+        QueryRequest::Fomc { from, .. } => Some((Dataset::Fomc, *from)),
+        QueryRequest::ShortInterest { since, .. } => Some((Dataset::ShortInterest, *since)),
+        QueryRequest::ShortVolume { since, .. } => Some((Dataset::ShortVolume, *since)),
+        QueryRequest::Borrow { since, .. } => Some((Dataset::Borrow, *since)),
+        _ => None,
+    }
+}
+
+fn incomplete(
+    contracts: &[CoverageContract],
+    dataset: Dataset,
+    from: NaiveDate,
+    to: NaiveDate,
+) -> Vec<(String, String)> {
+    contracts
+        .iter()
+        .filter(|contract| contract.dataset == dataset && !contract.complete_for(from, to))
+        .map(|contract| {
+            let dataset = name(&contract.dataset);
+            let source = name(&contract.source);
+            let through = contract
+                .complete_through
+                .map_or(String::new(), |through| format!(", complete through {through}"));
+            (
+                format!("coverage {dataset} {source}"),
+                format!(
+                    "the bot read {dataset} from {source} for {from} to {to}, which is not complete: {} of {} {} read{through}, {}",
+                    contract.done,
+                    contract.expected,
+                    name(&contract.unit),
+                    name(&contract.state),
+                ),
+            )
+        })
+        .collect()
+}
+
+fn completeness(
+    contracts: &[CoverageContract],
+    datasets: &[Dataset],
+    from: NaiveDate,
+    to: NaiveDate,
+) -> Vec<SeriesCompleteness> {
+    contracts
+        .iter()
+        .filter(|contract| datasets.contains(&contract.dataset))
+        .map(|contract| SeriesCompleteness {
+            dataset: contract.dataset,
+            source: contract.source,
+            complete: contract.complete_for(from, to),
+            complete_through: contract.complete_through,
+            state: contract.state,
+        })
+        .collect()
+}
+
 fn name<T: serde::Serialize + std::fmt::Debug>(value: &T) -> String {
     wire::name(value).unwrap_or_else(|_| format!("{value:?}"))
 }
 
 async fn answer(
     market: &MarketStore,
+    contracts: &[CoverageContract],
     request: QueryRequest,
     clock: Timestamp,
     session: &SessionUniverse<'_>,
@@ -415,6 +493,15 @@ async fn answer(
                 .await
                 .map_err(|error| error.to_string())?;
             Ok(DataResult::Borrow { snapshots })
+        }
+        QueryRequest::Completeness { datasets, from, to } => {
+            if from > to {
+                return Err(format!("completeness from {from} is after to {to}"));
+            }
+            let to = to.min(clock.exchange_date());
+            Ok(DataResult::Completeness {
+                series: completeness(contracts, &datasets, from, to),
+            })
         }
     }
 }

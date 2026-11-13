@@ -1,0 +1,16 @@
+{
+  "id": 15,
+  "result": {
+    "kind": "completeness",
+    "series": [
+      {
+        "complete": false,
+        "complete_through": "2020-10-31",
+        "dataset": "news",
+        "source": "alpaca",
+        "state": "filling"
+      }
+    ]
+  },
+  "type": "data"
+}

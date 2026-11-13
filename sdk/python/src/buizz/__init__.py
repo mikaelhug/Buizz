@@ -2,6 +2,7 @@ from buizz.bot import Bot
 from buizz.context import (
     Bar,
     Borrow,
+    Completeness,
     Context,
     EarningsRelease,
     Filing,
@@ -49,6 +50,7 @@ __all__ = [
     "Borrow",
     "Bot",
     "BuizzError",
+    "Completeness",
     "Context",
     "CorporateAction",
     "EarningsRelease",

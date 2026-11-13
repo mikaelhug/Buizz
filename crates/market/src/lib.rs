@@ -141,6 +141,13 @@ pub struct Export {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AccessionProgress {
+    pub expected: u64,
+    pub done: u64,
+    pub failed: u64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct WriteSummary {
     pub batch_id: i64,
     pub rows: u64,
@@ -757,7 +764,7 @@ impl MarketStore {
             .await
     }
 
-    pub async fn split_progress(&self, splitter_version: u32) -> Result<(u64, u64)> {
+    pub async fn split_progress(&self, splitter_version: u32) -> Result<AccessionProgress> {
         self.readers
             .run(move |connection| read::split_progress(connection, splitter_version))
             .await
@@ -900,9 +907,15 @@ impl MarketStore {
             .await
     }
 
-    pub async fn filing_text_progress(&self) -> Result<(u64, u64)> {
+    pub async fn filing_text_progress(&self) -> Result<AccessionProgress> {
         self.readers
             .run(|connection| read::filing_text_progress(connection))
+            .await
+    }
+
+    pub async fn press_release_progress(&self) -> Result<AccessionProgress> {
+        self.readers
+            .run(|connection| read::press_release_progress(connection))
             .await
     }
 

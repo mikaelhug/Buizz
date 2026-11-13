@@ -7,11 +7,13 @@ use serde::{Deserialize, Serialize};
 use serde_bytes::ByteBuf;
 use serde_json::{Map, Value};
 
+use crate::api::ContractState;
 use crate::ledger::Portfolio;
 use crate::market::{
-    Adjustment, Borrow, CorporateAction, EarningsRelease, Filing, FomcAnnouncement,
-    FundamentalMetric, FundamentalPoint, InsiderTrade, InstrumentProfile, MacroPoint, MacroSeries,
-    NewsArticle, PressRelease, Session, ShortInterest, ShortVolume, Symbol, Timeframe,
+    Adjustment, Borrow, CorporateAction, DataSource, Dataset, EarningsRelease, Filing,
+    FomcAnnouncement, FundamentalMetric, FundamentalPoint, InsiderTrade, InstrumentProfile,
+    MacroPoint, MacroSeries, NewsArticle, PressRelease, Session, ShortInterest, ShortVolume,
+    Symbol, Timeframe,
 };
 use crate::order::{Fill, Order, OrderId, OrderRequest, OrderType, OrderUpdate, Side};
 use crate::run::{LogLevel, Mode, RunId, UniverseSpec, Wake};
@@ -159,6 +161,11 @@ pub enum QueryRequest {
         symbols: Vec<Symbol>,
         since: NaiveDate,
     },
+    Completeness {
+        datasets: Vec<Dataset>,
+        from: NaiveDate,
+        to: NaiveDate,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -217,6 +224,18 @@ pub enum DataResult {
     Borrow {
         snapshots: Vec<Borrow>,
     },
+    Completeness {
+        series: Vec<SeriesCompleteness>,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SeriesCompleteness {
+    pub dataset: Dataset,
+    pub source: DataSource,
+    pub complete: bool,
+    pub complete_through: Option<NaiveDate>,
+    pub state: ContractState,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

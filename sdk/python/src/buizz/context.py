@@ -22,6 +22,8 @@ from buizz.wire import (
     BorrowResult,
     CalendarRequest,
     CalendarResult,
+    CompletenessRequest,
+    CompletenessResult,
     EarningsRequest,
     EarningsResult,
     Event,
@@ -384,6 +386,14 @@ class MacroPoint(msgspec.Struct, frozen=True):
     available_at: datetime
 
 
+class Completeness(msgspec.Struct, frozen=True):
+    dataset: str
+    source: str
+    complete: bool
+    complete_through: date | None
+    state: str
+
+
 class FomcAnnouncement(msgspec.Struct, frozen=True):
     date: date
     scheduled: bool
@@ -693,6 +703,13 @@ class Context:
             )
             for b in result.snapshots
         ]
+
+    def completeness(self, datasets: list[str], start: date, end: date) -> list[Completeness]:
+        self._current("ctx.completeness")
+        result = self._query(CompletenessRequest(texts("datasets", datasets), day("start", start), day("end", end)))
+        if not isinstance(result, CompletenessResult):
+            raise ProtocolError(f"completeness query answered with {type(result).__name__}")
+        return [Completeness(c.dataset, c.source, c.complete, c.complete_through, c.state) for c in result.series]
 
     def calendar(self, start: date, end: date) -> list[Session]:
         self._current("ctx.calendar")

@@ -4,7 +4,7 @@ mod jobs;
 mod runs;
 mod studies;
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::ops::RangeInclusive;
 use std::path::Path;
 use std::sync::Arc;
@@ -13,7 +13,7 @@ use buizz_core::api::{BotFootprint, BotUsage, RunSummary, Trials};
 
 use buizz_core::ledger::{LedgerEntry, Portfolio};
 use buizz_core::market::{DataSource, Dataset, Symbol};
-use buizz_core::ops::{JobOutcome, JobRun, SourceFetch};
+use buizz_core::ops::{FetchStatus, JobOutcome, JobRun, SourceFetch};
 use buizz_core::order::{Fill, Order, OrderId};
 use buizz_core::performance::{LiveStats, Metrics};
 use buizz_core::run::{
@@ -21,6 +21,7 @@ use buizz_core::run::{
     RunStatus,
 };
 use buizz_core::time::Timestamp;
+use chrono::TimeDelta;
 use rust_decimal::Decimal;
 
 use crate::db::Db;
@@ -54,6 +55,19 @@ pub type Result<T> = std::result::Result<T, StateError>;
 pub struct FetchUsage {
     pub requests: u64,
     pub symbols: u64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SymbolFetches {
+    pub read: bool,
+    pub latest: FetchStatus,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ContractHistory {
+    pub base_at: Timestamp,
+    pub base_done: u64,
+    pub moved_at: Timestamp,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -403,13 +417,24 @@ impl StateStore {
             .await
     }
 
-    pub async fn settled_symbols(
+    pub async fn symbol_fetches(
         &self,
         source: DataSource,
         dataset: Dataset,
-    ) -> Result<BTreeSet<Symbol>> {
+    ) -> Result<BTreeMap<Symbol, SymbolFetches>> {
         self.db
-            .read(move |connection| jobs::settled_symbols(connection, source, dataset))
+            .read(move |connection| jobs::symbol_fetches(connection, source, dataset))
+            .await
+    }
+
+    pub async fn track_contracts(
+        &self,
+        at: Timestamp,
+        window: TimeDelta,
+        done: Vec<(Dataset, DataSource, u64)>,
+    ) -> Result<BTreeMap<(Dataset, DataSource), ContractHistory>> {
+        self.db
+            .transaction(move |connection| jobs::track_contracts(connection, at, window, &done))
             .await
     }
 

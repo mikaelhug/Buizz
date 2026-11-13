@@ -17,7 +17,7 @@ const SHORT_VOLUME_FILES_PER_RUN: usize = 100;
 const SHORT_INTEREST_LATE_AFTER: TimeDelta = TimeDelta::days(7);
 const SHORT_VOLUME_LATE_AFTER: TimeDelta = TimeDelta::days(3);
 
-fn settlement_dates(calendar: &Calendar, through: NaiveDate) -> BTreeSet<NaiveDate> {
+pub(crate) fn settlement_dates(calendar: &Calendar, through: NaiveDate) -> BTreeSet<NaiveDate> {
     let mut months: BTreeMap<(i32, u32), (Option<NaiveDate>, NaiveDate)> = BTreeMap::new();
     for session in calendar.sessions() {
         let date = session.date;

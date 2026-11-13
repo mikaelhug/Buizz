@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 
 use buizz_core::market::{Company, DataSource, Dataset, EarningsRelease, Filing, Symbol};
+use buizz_core::ops::FetchStatus;
 use buizz_core::time::Timestamp;
 use buizz_sources::edgar::{COMPANY_FORMS, EdgarClient, Filings};
 use buizz_sources::http::SourceError;
@@ -24,11 +25,15 @@ impl Ingest {
         };
         let walked = self
             .state
-            .settled_symbols(DataSource::Edgar, Dataset::PeriodicReports)
+            .symbol_fetches(DataSource::Edgar, Dataset::PeriodicReports)
             .await?;
         let unwalked: BTreeSet<Symbol> = tickers
             .keys()
-            .filter(|symbol| !walked.contains(*symbol))
+            .filter(|symbol| {
+                !walked
+                    .get(*symbol)
+                    .is_some_and(|fetches| fetches.read || fetches.latest == FetchStatus::Rejected)
+            })
             .cloned()
             .collect();
         let (due, more) = self

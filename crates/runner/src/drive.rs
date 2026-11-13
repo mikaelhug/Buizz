@@ -1487,6 +1487,10 @@ impl Driver {
         };
         let sent_universe = universe_changed.then(|| universe.clone());
         let market = self.inner.market.clone();
+        let contracts = self.inner.ingest.contracts().await.unwrap_or_else(|error| {
+            tracing::warn!(%error, "cannot read the coverage contracts");
+            Vec::new()
+        });
         let asked = self.visible_through();
         let Some(link) = self.link.as_mut() else {
             return Ok(());
@@ -1498,7 +1502,7 @@ impl Driver {
                 date: data.date,
                 symbols: &data.universe_at,
             };
-            let mut answer = std::pin::pin!(link.step(step, &market, session_universe));
+            let mut answer = std::pin::pin!(link.step(step, &market, &contracts, session_universe));
             loop {
                 tokio::select! {
                     answered = &mut answer => break Some(answered),

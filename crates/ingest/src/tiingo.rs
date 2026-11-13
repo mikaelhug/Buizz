@@ -63,6 +63,11 @@ impl Ingest {
                 "Tiingo history: no Alpaca history to extend yet",
             ));
         };
+        if room == 0 {
+            return Ok(Work::waiting(
+                "Tiingo history: the free plan's request budget is used; it resumes as the window rolls",
+            ));
+        }
         let room = usize::try_from(room).unwrap_or(usize::MAX);
         let screened_from = PeriodPreset::TenYears.resolve(today).from;
         let listings = self.market.listings();

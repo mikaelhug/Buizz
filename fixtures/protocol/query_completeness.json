@@ -1,0 +1,12 @@
+{
+  "id": 15,
+  "request": {
+    "datasets": [
+      "news"
+    ],
+    "from": "2019-01-01",
+    "kind": "completeness",
+    "to": "2024-11-20"
+  },
+  "type": "query"
+}

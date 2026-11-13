@@ -30,7 +30,7 @@ use crate::codec::{
     ActionColumns, Dec, FeedColumn, IN_SYMBOLS, Params, Sym, Ts, Wire, placeholders, symbol_list,
     text_list, wire_name,
 };
-use crate::{ChartBars, ChartRequest, HistoryRequest, Result};
+use crate::{AccessionProgress, ChartBars, ChartRequest, HistoryRequest, Result};
 
 const MINUTES_PER_SESSION: usize = 390;
 
@@ -1523,13 +1523,36 @@ pub(crate) fn parquet_text(
     Ok(rows.next().transpose()?.flatten())
 }
 
-pub(crate) fn filing_text_progress(connection: &Connection) -> Result<(u64, u64)> {
+pub(crate) fn filing_text_progress(connection: &Connection) -> Result<AccessionProgress> {
     Ok(connection.query_row(
-        "SELECT (SELECT count(*) FROM filing_text), \
-         (SELECT count(*) FROM (SELECT accession FROM current_report \
-         UNION SELECT accession FROM periodic_report))",
+        "SELECT count(DISTINCT a.accession), count(DISTINCT a.accession) \
+         FILTER (WHERE f.accession IS NOT NULL AND f.failure IS NULL), \
+         count(DISTINCT a.accession) FILTER (WHERE f.failure IS NOT NULL) \
+         FROM (SELECT accession FROM current_report UNION SELECT accession FROM periodic_report) a \
+         LEFT JOIN filing_text f ON f.accession = a.accession",
         [],
-        |row| Ok((row.get(0)?, row.get(1)?)),
+        |row| {
+            Ok(AccessionProgress {
+                expected: row.get(0)?,
+                done: row.get(1)?,
+                failed: row.get(2)?,
+            })
+        },
+    )?)
+}
+
+pub(crate) fn press_release_progress(connection: &Connection) -> Result<AccessionProgress> {
+    Ok(connection.query_row(
+        "SELECT count(DISTINCT e.accession), count(DISTINCT p.accession), 0 \
+         FROM earnings_release e LEFT JOIN press_release p ON p.accession = e.accession",
+        [],
+        |row| {
+            Ok(AccessionProgress {
+                expected: row.get(0)?,
+                done: row.get(1)?,
+                failed: row.get(2)?,
+            })
+        },
     )?)
 }
 
@@ -1590,16 +1613,27 @@ pub(crate) fn parquet_texts(
     Ok(texts)
 }
 
-pub(crate) fn split_progress(connection: &Connection, splitter_version: u32) -> Result<(u64, u64)> {
+pub(crate) fn split_progress(
+    connection: &Connection,
+    splitter_version: u32,
+) -> Result<AccessionProgress> {
     Ok(connection.query_row(
         &format!(
-            "SELECT count(*) FILTER (WHERE EXISTS (SELECT 1 FROM section s \
-             WHERE s.doc_id = d.doc_id AND s.content_hash = d.content_hash \
-             AND s.splitter_version = ?)), count(*) \
-             FROM text_document d WHERE d.kind IN {PERIODIC_KINDS}"
+            "SELECT count(*), count(*) FILTER (WHERE split), count(*) FILTER (WHERE unsplittable AND NOT split) \
+             FROM (SELECT EXISTS (SELECT 1 FROM section s WHERE s.doc_id = d.doc_id \
+             AND s.content_hash = d.content_hash AND s.splitter_version = ? AND s.failure IS NULL) AS split, \
+             EXISTS (SELECT 1 FROM section s WHERE s.doc_id = d.doc_id \
+             AND s.content_hash = d.content_hash AND s.splitter_version = ? AND s.failure IS NOT NULL) AS unsplittable \
+             FROM text_document d WHERE d.kind IN {PERIODIC_KINDS})"
         ),
-        [splitter_version],
-        |row| Ok((row.get(0)?, row.get(1)?)),
+        [splitter_version, splitter_version],
+        |row| {
+            Ok(AccessionProgress {
+                expected: row.get(0)?,
+                done: row.get(1)?,
+                failed: row.get(2)?,
+            })
+        },
     )?)
 }
 

@@ -1,6 +1,7 @@
 mod actions;
 mod bars;
 mod borrow;
+mod contract;
 mod crosscheck;
 mod documents;
 mod estimates;
@@ -28,19 +29,16 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-use buizz_core::api::{BackfillProgress, JobView, SpineEvent};
-use buizz_core::market::{
-    AssetClass, Coverage, DataSource, Dataset, Instrument, StockIndex, Symbol,
-};
+use buizz_core::api::{CoverageContract, JobView, SpineEvent};
+use buizz_core::market::{Coverage, DataSource, Dataset, Instrument, StockIndex, Symbol};
 use buizz_core::ops::JobOutcome;
 use buizz_core::time::Timestamp;
 use buizz_market::{MarketError, MarketStore, Restored};
 use buizz_sources::Sources;
-use buizz_sources::edgar::SPLITTER_VERSION;
 use buizz_sources::http::SourceError;
 use buizz_state::{StateError, StateStore};
 use chrono::{NaiveDate, NaiveTime, TimeDelta};
-use tokio::sync::{Mutex, broadcast};
+use tokio::sync::{Mutex, broadcast, watch};
 use tokio::task::JoinHandle;
 
 use crate::fetch::Work;
@@ -110,6 +108,7 @@ pub struct Ingest {
     ran_since_boot: Arc<Mutex<BTreeSet<&'static str>>>,
     stopping: Arc<AtomicBool>,
     booted_at: Timestamp,
+    contracts: Arc<watch::Sender<Vec<CoverageContract>>>,
 }
 
 impl Ingest {
@@ -128,6 +127,7 @@ impl Ingest {
             ran_since_boot: Arc::default(),
             stopping: Arc::default(),
             booted_at: Timestamp::now(),
+            contracts: Arc::new(watch::Sender::new(Vec::new())),
         }
     }
 
@@ -177,6 +177,11 @@ impl Ingest {
             let views = self.job_views(finished).await?;
             if let Some(job) = views.into_iter().find(|view| view.name == spec.name) {
                 let _ = self.events.send(SpineEvent::Job { job });
+            }
+            if !spec.datasets.is_empty()
+                && let Err(error) = self.refresh_contracts(finished).await
+            {
+                tracing::error!(%error, "cannot measure the coverage contracts");
             }
         }
         Ok(report)
@@ -282,120 +287,6 @@ impl Ingest {
             schedule::TIINGO_HISTORY => self.tiingo_history(now).await,
             other => unreachable!("unscheduled job {other}"),
         }
-    }
-
-    pub async fn backfill_progress(&self) -> Result<Vec<BackfillProgress>, IngestError> {
-        let priced = self.priced_symbols().await?;
-        let coverage = self.market.coverage().await?;
-        let covered = |dataset: Dataset, source: DataSource| -> BTreeMap<&Symbol, &Coverage> {
-            coverage
-                .iter()
-                .filter(|row| row.dataset == dataset && row.source == source)
-                .filter_map(|row| Some((row.symbol.as_ref()?, row)))
-                .collect()
-        };
-        let count = |symbols: &mut dyn Iterator<Item = bool>| {
-            let (mut done, mut total) = (0_u32, 0_u32);
-            for settled in symbols {
-                total += 1;
-                done += u32::from(settled);
-            }
-            (done, total)
-        };
-        let mut progress = Vec::new();
-        let mut push = |dataset, source, (done, total): (u32, u32)| {
-            progress.push(BackfillProgress {
-                dataset,
-                source,
-                done,
-                total,
-            });
-        };
-        let bars = covered(Dataset::Bars1d, DataSource::Alpaca);
-        let checked = self
-            .state
-            .settled_symbols(DataSource::Alpaca, Dataset::Bars1d)
-            .await?;
-        push(
-            Dataset::Bars1d,
-            DataSource::Alpaca,
-            count(
-                &mut priced
-                    .iter()
-                    .map(|p| bars.contains_key(&p.symbol) || checked.contains(&p.symbol)),
-            ),
-        );
-        let actions = covered(Dataset::CorporateActions, DataSource::Alpaca);
-        let history_start = self.config.history_start;
-        push(
-            Dataset::CorporateActions,
-            DataSource::Alpaca,
-            count(&mut priced.iter().map(|p| {
-                actions
-                    .get(&p.symbol)
-                    .is_some_and(|row| row.first <= history_start)
-            })),
-        );
-        let priced_set: BTreeSet<&Symbol> = priced.iter().map(|p| &p.symbol).collect();
-        let stocks: BTreeSet<Symbol> = self
-            .market
-            .instruments()
-            .await?
-            .into_iter()
-            .filter(|instrument| instrument.active && instrument.asset_class == AssetClass::Stock)
-            .map(|instrument| instrument.symbol)
-            .filter(|symbol| priced_set.contains(symbol))
-            .collect();
-        for dataset in [
-            Dataset::Fundamentals,
-            Dataset::CurrentReports,
-            Dataset::PeriodicReports,
-        ] {
-            let read = self
-                .state
-                .settled_symbols(DataSource::Edgar, dataset)
-                .await?;
-            push(
-                dataset,
-                DataSource::Edgar,
-                count(&mut stocks.iter().map(|symbol| read.contains(symbol))),
-            );
-        }
-        if !self.market.text_volumes().volumes().is_empty() {
-            let (done, total) = self.market.filing_text_progress().await?;
-            let narrow = |count: u64| u32::try_from(count).unwrap_or(u32::MAX);
-            push(
-                Dataset::FilingDocuments,
-                DataSource::Edgar,
-                (narrow(done), narrow(total)),
-            );
-            let (done, total) = self.market.split_progress(SPLITTER_VERSION).await?;
-            push(
-                Dataset::FilingSections,
-                DataSource::Edgar,
-                (narrow(done), narrow(total)),
-            );
-        }
-        if let Some(floor) = bars.values().map(|row| row.first).min() {
-            let extended = self
-                .state
-                .settled_symbols(DataSource::Tiingo, Dataset::Bars1d)
-                .await?;
-            let calendar = self.market.calendar(history_start, floor).await?;
-            let candidates = priced.iter().filter(|p| {
-                bars.get(&p.symbol).is_some_and(|row| row.first == floor)
-                    && calendar
-                        .sessions()
-                        .first()
-                        .is_some_and(|first| first.date < floor)
-            });
-            push(
-                Dataset::Bars1d,
-                DataSource::Tiingo,
-                count(&mut candidates.map(|p| extended.contains(&p.symbol))),
-            );
-        }
-        Ok(progress)
     }
 
     async fn delivered_symbols(&self) -> Result<BTreeSet<Symbol>, IngestError> {

@@ -92,7 +92,7 @@ function Details() {
       <div className="data-panels">
         <FeedPanel feed={feed} />
         <WarningsPanel health={health} />
-        <BackfillPanel health={health} />
+        <ContractsPanel health={health} />
         <ProcessesPanel processes={processes} />
         <JobsPanel jobs={jobs} ingest={health.data?.ingest_enabled} />
         <CoveragePanel health={health} />
@@ -102,19 +102,20 @@ function Details() {
 }
 
 function DataSummary({ health, jobs, feed, stale }: { health: Schemas["DataHealth"] | undefined; jobs: Job[] | undefined; feed: Schemas["FeedSlots"] | undefined; stale: number | undefined }) {
-  const done = health?.backfill.reduce((sum, item) => sum + item.done, 0) ?? 0;
-  const total = health?.backfill.reduce((sum, item) => sum + item.total, 0) ?? 0;
-  const complete = health?.backfill.filter((item) => item.done >= item.total).length ?? 0;
+  const contracts = health?.contracts ?? [];
+  const complete = contracts.filter((item) => item.state === "complete").length;
+  const stalled = contracts.filter((item) => item.state === "stalled").length;
   const failing = jobs?.filter((job) => job.last_outcome === "failed").length ?? 0;
   const healthy = jobs?.filter((job) => !job.stale && job.last_outcome !== "failed").length;
   const warnings = health?.warnings.length;
   return (
     <div className="summary-cards">
-      <Card label="Backfill">
+      <Card label="Contracts">
         <Stat
-          label="Backfill"
-          value={total > 0 ? fmt.percent(done / total).replace(/\.00%$/, "%") : ABSENT}
-          sub={health ? `${fmt.integer(complete)} of ${fmt.integer(health.backfill.length)} datasets complete` : undefined}
+          label="Contracts"
+          value={health ? `${fmt.integer(complete)} of ${fmt.integer(contracts.length)} complete` : ABSENT}
+          tone={stalled > 0 ? "down" : undefined}
+          sub={health ? `${fmt.integer(contracts.length - complete - stalled)} filling · ${fmt.integer(stalled)} stalled` : undefined}
         />
       </Card>
       <Card label="Jobs">
@@ -317,22 +318,22 @@ function WarningsPanel({ health }: { health: Resource<Schemas["DataHealth"]> }) 
   );
 }
 
-function BackfillPanel({ health }: { health: Resource<Schemas["DataHealth"]> }) {
-  const rows = health.data?.backfill ?? [];
+function ContractsPanel({ health }: { health: Resource<Schemas["DataHealth"]> }) {
+  const rows = health.data?.contracts ?? [];
   return (
     <section className="panel">
       <header className="panel-head">
-        <h2>Backfill</h2>
-        <Info label="Backfill">How many symbols each first backfill has reached, out of those it covers</Info>
+        <h2>Contracts</h2>
+        <Info label="Contracts">Each dataset against its scope: done, failed and pending, with the end date its measured pace gives</Info>
       </header>
       {!health.data ? (
         health.error ? <Failure message={health.error} onRetry={health.reload} /> : <Loading />
       ) : rows.length === 0 ? (
-        <p className="empty">Nothing to backfill</p>
+        <p className="empty">Nothing measured yet</p>
       ) : (
         <ul className="backfill">
           {rows.map((row) => {
-            const done = row.done >= row.total;
+            const done = row.state === "complete";
             const name = `${label(row.dataset)} (${label(row.source)})`;
             return (
               <li key={`${row.dataset}-${row.source}`}>
@@ -340,10 +341,10 @@ function BackfillPanel({ health }: { health: Resource<Schemas["DataHealth"]> }) 
                   <span className="dataset">{label(row.dataset)}</span>
                   <span className="muted">{label(row.source)}</span>
                 </span>
-                <Meter value={row.done} max={row.total} name={name} tone={done ? "done" : "accent"} />
+                <Meter value={row.done} max={Math.max(1, row.expected)} name={name} tone={done ? "done" : "accent"} />
                 <span className="backfill-figure num">
-                  {fmt.integer(row.done)}/{fmt.integer(row.total)}
-                  <span className={done ? "up" : "muted"}>{done ? "Complete" : row.done === 0 ? "Not started" : fmt.percent(share(row.done, row.total))}</span>
+                  {fmt.integer(row.done)}/{fmt.integer(row.expected)}
+                  <span className={done ? "up" : row.state === "stalled" ? "down" : "muted"}>{done ? "Complete" : row.state === "stalled" ? "Stalled" : row.eta ? `ETA ${row.eta}` : fmt.percent(share(row.done, row.expected))}</span>
                 </span>
               </li>
             );

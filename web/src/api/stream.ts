@@ -13,6 +13,7 @@ const EVENT_TYPES: Record<SpineEvent["type"], true> = {
   log: true,
   job: true,
   feed: true,
+  contracts: true,
   usage: true,
 };
 

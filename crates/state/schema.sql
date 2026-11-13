@@ -125,3 +125,11 @@ CREATE TABLE IF NOT EXISTS event_study (
     created_at INTEGER NOT NULL,
     PRIMARY KEY (label, hash)
 ) STRICT;
+
+CREATE TABLE IF NOT EXISTS contract_progress (
+    dataset TEXT NOT NULL,
+    source TEXT NOT NULL,
+    at INTEGER NOT NULL,
+    done INTEGER NOT NULL,
+    PRIMARY KEY (dataset, source, at)
+) STRICT;

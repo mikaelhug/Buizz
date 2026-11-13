@@ -1,11 +1,12 @@
 use std::path::PathBuf;
 use std::str::FromStr;
 
+use buizz_core::api::ContractState;
 use buizz_core::market::{
-    Adjustment, Borrow, CorporateAction, CorporateActionKind, Feed, Filing, FomcAnnouncement,
-    FundamentalMetric, FundamentalPoint, InsiderOwner, InsiderTrade, InsiderTransaction,
-    MacroPoint, MacroSeries, NewsArticle, PeriodType, PressRelease, Session, ShortInterest,
-    ShortVolume, Symbol, Timeframe,
+    Adjustment, Borrow, CorporateAction, CorporateActionKind, DataSource, Dataset, Feed, Filing,
+    FomcAnnouncement, FundamentalMetric, FundamentalPoint, InsiderOwner, InsiderTrade,
+    InsiderTransaction, MacroPoint, MacroSeries, NewsArticle, PeriodType, PressRelease, Session,
+    ShortInterest, ShortVolume, Symbol, Timeframe,
 };
 use buizz_core::order::{
     Fill, OrderId, OrderRequest, OrderSize, OrderStatus, OrderType, OrderUpdate, Side, TimeInForce,
@@ -14,7 +15,7 @@ use buizz_core::order::{
 use buizz_core::protocol::{
     Ack, BarBuffer, BarRow, BotMessage, Data, DataResult, End, EndReason, ErrorCode, Hello,
     Holdings, LogLine, PROTOCOL_VERSION, PositionSnapshot, ProtocolError, Query, QueryRequest,
-    Ready, SpineMessage, Step, StepEvent, WorkingOrder, encode,
+    Ready, SeriesCompleteness, SpineMessage, Step, StepEvent, WorkingOrder, encode,
 };
 use buizz_core::run::{LogLevel, Mode, RunId, UniverseSpec, Wake};
 use buizz_core::time::Timestamp;
@@ -717,6 +718,36 @@ fn main() {
                     available: 3_500_000,
                     available_or_more: true,
                     available_at: at("2024-11-20T21:02:40Z"),
+                }],
+            },
+        }),
+    );
+
+    write(
+        &dir,
+        "query_completeness",
+        &BotMessage::Query(Query {
+            id: 15,
+            request: QueryRequest::Completeness {
+                datasets: vec![Dataset::News],
+                from: date("2019-01-01"),
+                to: date("2024-11-20"),
+            },
+        }),
+    );
+
+    write(
+        &dir,
+        "data_completeness",
+        &SpineMessage::Data(Data {
+            id: 15,
+            result: DataResult::Completeness {
+                series: vec![SeriesCompleteness {
+                    dataset: Dataset::News,
+                    source: DataSource::Alpaca,
+                    complete: false,
+                    complete_through: Some(date("2020-10-31")),
+                    state: ContractState::Filling,
                 }],
             },
         }),

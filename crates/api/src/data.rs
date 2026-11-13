@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use axum::Json;
 use axum::extract::{Path, Query, State};
 use buizz_core::api::{
-    ApiError, BackfillProgress, BotProcesses, DataHealth, DataSpine, DatasetSpine, FeedSlots,
+    ApiError, BotProcesses, CoverageContract, DataHealth, DataSpine, DatasetSpine, FeedSlots,
     JobView, MarketCoverage, SourceCoverage, TextBrowseQuery, TextDocumentQuery, TextDocumentText,
     TextDocumentView, TextListing, TextVolumeView,
 };
@@ -100,10 +100,10 @@ pub(crate) async fn data_health(State(app): State<AppState>) -> Result<Json<Data
         .iter()
         .filter(|job| job.stale)
         .count();
-    let backfill = app.ingest.backfill_progress().await?;
+    let contracts = app.ingest.contracts().await?;
     Ok(Json(DataHealth {
         watermarks,
-        backfill,
+        contracts,
         coverage,
         warnings,
         stale_jobs: u32::try_from(stale_jobs).unwrap_or(u32::MAX),
@@ -116,7 +116,7 @@ fn month_of(date: NaiveDate) -> i64 {
 }
 
 fn monthly(
-    ranges: &BTreeMap<Option<&Symbol>, (NaiveDate, NaiveDate)>,
+    spans: &BTreeMap<Option<&Symbol>, Vec<(NaiveDate, NaiveDate)>>,
     today: NaiveDate,
 ) -> Vec<u32> {
     let start = month_of(HISTORY_START);
@@ -127,9 +127,23 @@ fn monthly(
             .unwrap_or(0)
             .min(months.saturating_sub(1))
     };
-    for (first, last) in ranges.values() {
-        steps[index(*first)] += 1;
-        steps[index(*last) + 1] -= 1;
+    for symbol_spans in spans.values() {
+        let mut sorted: Vec<(usize, usize)> = symbol_spans
+            .iter()
+            .map(|(first, last)| (index(*first), index(*last)))
+            .collect();
+        sorted.sort_unstable();
+        let mut merged: Vec<(usize, usize)> = Vec::new();
+        for (first, last) in sorted {
+            match merged.last_mut() {
+                Some(previous) if first <= previous.1 + 1 => previous.1 = previous.1.max(last),
+                _ => merged.push((first, last)),
+            }
+        }
+        for (first, last) in merged {
+            steps[first] += 1;
+            steps[last + 1] -= 1;
+        }
     }
     steps
         .iter()
@@ -144,19 +158,16 @@ fn monthly(
 fn market_coverage(
     market: Market,
     rows: &[&Coverage],
-    backfill: Vec<BackfillProgress>,
+    contracts: Vec<CoverageContract>,
     today: NaiveDate,
 ) -> MarketCoverage {
-    let mut ranges: BTreeMap<Option<&Symbol>, (NaiveDate, NaiveDate)> = BTreeMap::new();
+    let mut spans: BTreeMap<Option<&Symbol>, Vec<(NaiveDate, NaiveDate)>> = BTreeMap::new();
     let mut sources: BTreeMap<DataSource, SourceCoverage> = BTreeMap::new();
     for row in rows {
-        ranges
+        spans
             .entry(row.symbol.as_ref())
-            .and_modify(|(first, last)| {
-                *first = (*first).min(row.first);
-                *last = (*last).max(row.last);
-            })
-            .or_insert((row.first, row.last));
+            .or_default()
+            .push((row.first, row.last));
         sources
             .entry(row.source)
             .and_modify(|source| {
@@ -175,14 +186,14 @@ fn market_coverage(
     }
     MarketCoverage {
         market,
-        symbols: u32::try_from(ranges.keys().filter(|symbol| symbol.is_some()).count())
+        symbols: u32::try_from(spans.keys().filter(|symbol| symbol.is_some()).count())
             .unwrap_or(u32::MAX),
-        first: ranges.values().map(|(first, _)| *first).min(),
-        last: ranges.values().map(|(_, last)| *last).max(),
+        first: rows.iter().map(|row| row.first).min(),
+        last: rows.iter().map(|row| row.last).max(),
         updated_at: rows.iter().map(|row| row.updated_at).max(),
-        monthly: monthly(&ranges, today),
+        monthly: monthly(&spans, today),
         sources: sources.into_values().collect(),
-        backfill,
+        contracts,
     }
 }
 
@@ -191,7 +202,7 @@ fn market_coverage(
 pub(crate) async fn data_spine(State(app): State<AppState>) -> Result<Json<DataSpine>, Failure> {
     let watermarks = *app.market.watermarks().borrow();
     let coverage = app.market.coverage().await?;
-    let backfill = app.ingest.backfill_progress().await?;
+    let contracts = app.ingest.contracts().await?;
     let today = Timestamp::now().exchange_date();
     let market = Market::Us;
     let datasets = Dataset::ALL
@@ -201,15 +212,15 @@ pub(crate) async fn data_spine(State(app): State<AppState>) -> Result<Json<DataS
                 .iter()
                 .filter(|row| row.dataset == dataset)
                 .collect();
-            let progress = backfill
+            let own = contracts
                 .iter()
-                .filter(|item| item.dataset == dataset)
+                .filter(|contract| contract.dataset == dataset)
                 .cloned()
                 .collect();
             DatasetSpine {
                 dataset,
                 domain: dataset.domain(),
-                markets: vec![market_coverage(market, &rows, progress, today)],
+                markets: vec![market_coverage(market, &rows, own, today)],
             }
         })
         .collect();
@@ -291,4 +302,39 @@ pub(crate) async fn text_document(
         .await?
         .map(Json)
         .ok_or_else(|| Failure::not_found(format!("document {}", query.id)))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use chrono::NaiveDate;
+
+    use super::{HISTORY_START, monthly};
+
+    #[test]
+    fn a_gap_between_two_sources_of_one_series_stays_empty() {
+        let date = |text: &str| NaiveDate::parse_from_str(text, "%Y-%m-%d").expect("a date");
+        let spans = BTreeMap::from([(
+            None,
+            vec![
+                (date("2015-01-01"), date("2020-10-31")),
+                (date("2026-11-12"), date("2026-11-13")),
+            ],
+        )]);
+        let months = monthly(&spans, date("2026-11-13"));
+        let at = |text: &str| {
+            let day = date(text);
+            usize::try_from(super::month_of(day) - super::month_of(HISTORY_START))
+                .expect("after start")
+        };
+        assert_eq!(
+            (
+                months[at("2020-10-01")],
+                months[at("2023-06-01")],
+                months[at("2026-11-01")]
+            ),
+            (1, 0, 1)
+        );
+    }
 }

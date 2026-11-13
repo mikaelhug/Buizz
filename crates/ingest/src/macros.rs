@@ -7,7 +7,7 @@ use chrono::{NaiveDate, TimeDelta};
 use crate::fetch::{Batch, FetchKey, Work, read};
 use crate::{Ingest, IngestError, schedule};
 
-fn series_key(series: MacroSeries) -> Symbol {
+pub(crate) fn series_key(series: MacroSeries) -> Symbol {
     Symbol::new(&format!("{series:?}"))
 }
 

@@ -453,6 +453,18 @@ class BorrowResult(msgspec.Struct, frozen=True, tag_field="kind", tag="borrow"):
     snapshots: list[BorrowFrame]
 
 
+class CompletenessFrame(msgspec.Struct, frozen=True):
+    dataset: str
+    source: str
+    complete: bool
+    complete_through: date | None
+    state: Literal["complete", "filling", "stalled"]
+
+
+class CompletenessResult(msgspec.Struct, frozen=True, tag_field="kind", tag="completeness"):
+    series: list[CompletenessFrame]
+
+
 type Result = (
     HistoryResult
     | FundamentalsResult
@@ -469,6 +481,7 @@ type Result = (
     | ShortInterestResult
     | ShortVolumeResult
     | BorrowResult
+    | CompletenessResult
 )
 
 
@@ -571,6 +584,12 @@ class FomcRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="fomc"):
     end: date = msgspec.field(name="to")
 
 
+class CompletenessRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="completeness"):
+    datasets: list[str]
+    start: date = msgspec.field(name="from")
+    end: date = msgspec.field(name="to")
+
+
 type Request = (
     HistoryRequest
     | FundamentalsRequest
@@ -587,6 +606,7 @@ type Request = (
     | ShortInterestRequest
     | ShortVolumeRequest
     | BorrowRequest
+    | CompletenessRequest
 )
 
 

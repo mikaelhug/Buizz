@@ -502,12 +502,55 @@ span.health-key {
   background: color-mix(in srgb, var(--warn) 55%, transparent);
 }
 
-.fill-meter.full {
+.fill-meter.contract-complete {
   background: var(--up-bg);
 }
 
-.fill-meter.full .fill-meter-bar {
+.fill-meter.contract-complete .fill-meter-bar {
   background: color-mix(in srgb, var(--up) 30%, transparent);
+}
+
+.fill-meter.contract-stalled {
+  background: var(--down-bg);
+}
+
+.fill-meter.contract-stalled .fill-meter-bar {
+  background: color-mix(in srgb, var(--down) 45%, transparent);
+}
+
+.fill-state {
+  font-size: var(--fs-2xs);
+  color: var(--muted);
+}
+
+.contract-complete.state-text,
+.fill-state.contract-complete {
+  color: var(--up);
+}
+
+.contract-filling.state-text {
+  color: var(--warn);
+}
+
+.contract-stalled.state-text,
+.fill-state.contract-stalled {
+  color: var(--down);
+}
+
+.contract-scope,
+.contract-reason {
+  display: block;
+  color: var(--muted);
+  font-size: var(--fs-2xs);
+  font-weight: normal;
+}
+
+.contract-reason {
+  color: var(--down);
+}
+
+.contract-table {
+  margin-top: var(--sp-2);
 }
 
 .fill-meter-text {
