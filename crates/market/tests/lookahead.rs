@@ -997,3 +997,51 @@ async fn a_ticker_names_the_company_that_traded_under_it_at_the_clock() {
         series("FB", &[100.0; 4])
     );
 }
+
+#[tokio::test]
+async fn reading_a_filing_again_replaces_the_facts_the_store_held_from_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = MarketStore::open(&dir.path().join(FILE_NAME), READERS)
+        .await
+        .unwrap();
+    let count = |period_end: NaiveDate, value: i64| FundamentalFact {
+        concept: "CommonStockSharesOutstanding".to_owned(),
+        unit: "shares".to_owned(),
+        metric: Some(FundamentalMetric::SharesOutstanding),
+        period_start: None,
+        period_end,
+        value: Decimal::from(value),
+        ..future_filing()
+    };
+    let (prior_year, quarter) = (
+        NaiveDate::from_ymd_opt(2023, 12, 31).unwrap(),
+        NaiveDate::from_ymd_opt(2024, 6, 30).unwrap(),
+    );
+    store
+        .append_fundamental_facts(
+            DataSource::Fixture,
+            vec![
+                count(prior_year, 492_025_443_000_000),
+                count(quarter, 498_143_219_000_000),
+            ],
+        )
+        .await
+        .unwrap();
+    store
+        .append_fundamental_facts(DataSource::Fixture, vec![count(quarter, 498_143_219)])
+        .await
+        .unwrap();
+
+    let held: Vec<(NaiveDate, Decimal)> = store
+        .fundamentals(
+            vec![Symbol::new("BBB")],
+            vec![FundamentalMetric::SharesOutstanding],
+            "2025-01-01T00:00:00Z".parse().unwrap(),
+        )
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|point| (point.period_end, point.value))
+        .collect();
+    assert_eq!(held, vec![(quarter, Decimal::from(498_143_219))]);
+}

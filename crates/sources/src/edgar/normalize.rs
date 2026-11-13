@@ -1,10 +1,11 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
 
 use buizz_core::market::{Calendar, FundamentalFact, FundamentalMetric, PeriodType, Symbol};
 use buizz_core::visibility::fundamental_visible_at;
-use chrono::NaiveDate;
+use chrono::{NaiveDate, TimeDelta};
 use rust_decimal::Decimal;
+use rust_decimal::prelude::ToPrimitive;
 use serde::{Deserialize, Deserializer, de};
 
 use super::concepts::{
@@ -14,8 +15,10 @@ use super::{ACCEPTED_FORMS, UnitKind};
 use crate::http::{SourceError, json_decimal};
 
 const SHARES_GAP_DAYS: i64 = 90;
-const SHARE_SCALE_MIN: i64 = 1_000;
 const SHARE_SCALE_REFERENCE_DAYS: i64 = 400;
+const SCALE_SHIFTS: [i32; 5] = [-2, -1, 0, 1, 2];
+const SAME_SCALE_ORDERS: f64 = 0.5;
+const MIN_EVIDENCE_CONCEPTS: usize = 2;
 
 #[derive(Deserialize)]
 struct CompanyFacts {
@@ -84,7 +87,7 @@ struct Collector<'a> {
     symbol: &'a Symbol,
     cik: u32,
     calendar: &'a Calendar,
-    cover_counts: Vec<(NaiveDate, Decimal)>,
+    share_counts: ShareCounts<'a>,
     facts: Vec<FundamentalFact>,
     claimed: HashMap<Claim, (&'static str, &'static str)>,
 }
@@ -106,11 +109,27 @@ pub fn normalize_company_facts(
     let company: CompanyFacts =
         serde_json::from_slice(payload).map_err(|error| SourceError::Decode(error.to_string()))?;
     let lookup = |taxonomy: &str, concept: &str| company.facts.get(taxonomy)?.0.get(concept);
+    let fallbacks: Vec<(&str, &str)> = WEIGHTED_AVERAGE_SHARES
+        .iter()
+        .map(|concept| (US_GAAP, *concept))
+        .chain([(DEI, COVER_PAGE_SHARES)])
+        .collect();
+    let share_concepts = [(US_GAAP, US_GAAP_PRIMARY), (IFRS, IFRS_PRIMARY)]
+        .into_iter()
+        .flat_map(|(taxonomy, table)| {
+            table
+                .iter()
+                .filter(|(_, _, kind)| *kind == UnitKind::Shares)
+                .map(move |(concept, _, _)| (taxonomy, *concept))
+        })
+        .chain(fallbacks.iter().copied());
     let mut collector = Collector {
         symbol,
         cik,
         calendar,
-        cover_counts: cover_counts(lookup(DEI, COVER_PAGE_SHARES)),
+        share_counts: ShareCounts::new(share_concepts.filter_map(|(taxonomy, concept)| {
+            Some((taxonomy, concept, lookup(taxonomy, concept)?))
+        })),
         facts: Vec::new(),
         claimed: HashMap::new(),
     };
@@ -132,13 +151,9 @@ pub fn normalize_company_facts(
         }
     }
 
-    let fallbacks = WEIGHTED_AVERAGE_SHARES
-        .iter()
-        .map(|concept| (US_GAAP, *concept))
-        .chain([(DEI, COVER_PAGE_SHARES)]);
     for (taxonomy, concept) in fallbacks {
         if let Some(node) = lookup(taxonomy, concept) {
-            let covered = collector.covered_share_periods();
+            let covered = collector.covered_share_periods(taxonomy == DEI);
             collector.emit(
                 &Source {
                     taxonomy,
@@ -180,10 +195,11 @@ fn drop_repeated_values(mut facts: Vec<FundamentalFact>) -> Vec<FundamentalFact>
 }
 
 impl Collector<'_> {
-    fn covered_share_periods(&self) -> Vec<NaiveDate> {
+    fn covered_share_periods(&self, instants: bool) -> Vec<NaiveDate> {
         self.facts
             .iter()
             .filter(|fact| fact.metric == Some(FundamentalMetric::SharesOutstanding))
+            .filter(|fact| !instants || fact.period_start.is_none())
             .map(|fact| fact.period_end)
             .collect()
     }
@@ -204,8 +220,12 @@ impl Collector<'_> {
             let Some(mut value) = json_decimal(&observation.val) else {
                 continue;
             };
-            if source.kind == UnitKind::Shares && source.taxonomy != DEI {
-                value = to_whole_shares(value, observation.end, &self.cover_counts);
+            if source.kind == UnitKind::Shares {
+                value = self.share_counts.whole(ReportedCount {
+                    period: (observation.start, observation.end),
+                    concept: (source.taxonomy, source.concept),
+                    value,
+                });
             }
             if let Some(covered) = clear_of
                 && !covered
@@ -282,51 +302,120 @@ fn period_type(observation: &Observation) -> Option<PeriodType> {
     }
 }
 
-fn cover_counts(node: Option<&Concept>) -> Vec<(NaiveDate, Decimal)> {
-    let mut counts: Vec<_> = node
-        .and_then(|concept| concept.units.get("shares"))
-        .into_iter()
-        .flatten()
-        .filter_map(|observation| Some((observation.end, json_decimal(&observation.val)?)))
-        .filter(|(_, value)| *value > Decimal::ZERO)
-        .collect();
-    counts.sort();
-    counts
+type ConceptKey<'a> = (&'a str, &'a str);
+type Period = (Option<NaiveDate>, NaiveDate);
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct ReportedCount<'a> {
+    period: Period,
+    concept: ConceptKey<'a>,
+    value: Decimal,
 }
 
-fn to_whole_shares(
-    value: Decimal,
-    period_end: NaiveDate,
-    cover: &[(NaiveDate, Decimal)],
-) -> Decimal {
-    if value <= Decimal::ZERO {
-        return value;
+struct Evidence<'a> {
+    count: ReportedCount<'a>,
+    first_filed: NaiveDate,
+    magnitude: f64,
+}
+
+struct ShareCounts<'a>(BTreeMap<ReportedCount<'a>, i32>);
+
+impl<'a> ShareCounts<'a> {
+    fn new(concepts: impl Iterator<Item = (&'a str, &'a str, &'a Concept)>) -> Self {
+        let mut first_filed: BTreeMap<ReportedCount<'a>, NaiveDate> = BTreeMap::new();
+        for (taxonomy, concept, node) in concepts {
+            for observation in node.units.get("shares").into_iter().flatten() {
+                let Some(value) = json_decimal(&observation.val) else {
+                    continue;
+                };
+                let count = ReportedCount {
+                    period: (observation.start, observation.end),
+                    concept: (taxonomy, concept),
+                    value,
+                };
+                let first = first_filed.entry(count).or_insert(observation.filed);
+                *first = (*first).min(observation.filed);
+            }
+        }
+        let evidence: Vec<Evidence<'a>> = first_filed
+            .into_iter()
+            .filter_map(|(count, first_filed)| {
+                Some(Evidence {
+                    count,
+                    first_filed,
+                    magnitude: magnitude(count.value)?,
+                })
+            })
+            .collect();
+        Self(
+            evidence
+                .iter()
+                .map(|own| (own.count, scale_shift(&evidence, own)))
+                .collect(),
+        )
     }
-    let Some((cover_end, cover_count)) = cover
+
+    fn whole(&self, reported: ReportedCount<'_>) -> Decimal {
+        let shift = self.0.get(&reported).copied().unwrap_or(0);
+        if shift == 0 {
+            return reported.value;
+        }
+        let factor = Decimal::from(1000_i64.pow(shift.unsigned_abs()));
+        let whole = if shift < 0 {
+            reported.value / factor
+        } else {
+            reported.value * factor
+        };
+        whole.normalize()
+    }
+}
+
+fn scale_shift(evidence: &[Evidence], own: &Evidence) -> i32 {
+    let window = TimeDelta::days(SHARE_SCALE_REFERENCE_DAYS);
+    let known: Vec<&Evidence> = evidence
         .iter()
-        .min_by_key(|(end, _)| (*end - period_end).num_days().abs())
-    else {
-        return value;
-    };
-    if (*cover_end - period_end).num_days().abs() > SHARE_SCALE_REFERENCE_DAYS {
-        return value;
+        .filter(|item| {
+            item.count != own.count
+                && item.first_filed <= own.first_filed
+                && (item.count.period.1 - own.count.period.1).abs() <= window
+        })
+        .collect();
+    let concepts: BTreeSet<ConceptKey> = known.iter().map(|item| item.count.concept).collect();
+    if concepts.len() < MIN_EVIDENCE_CONCEPTS {
+        return 0;
     }
-    let ratio = cover_count / value;
-    if ratio < Decimal::from(SHARE_SCALE_MIN) {
-        return value;
+    let mut scores = [0.0; SCALE_SHIFTS.len()];
+    for concept in concepts {
+        let support = SCALE_SHIFTS.map(|shift| {
+            known
+                .iter()
+                .filter(|item| {
+                    item.count.concept == concept
+                        && (item.magnitude - own.magnitude - f64::from(3 * shift)).abs()
+                            <= SAME_SCALE_ORDERS
+                })
+                .count() as f64
+        });
+        let total: f64 = support.iter().sum();
+        if total > 0.0 {
+            for (score, agreeing) in scores.iter_mut().zip(support) {
+                *score += agreeing / total;
+            }
+        }
     }
-    let mut lower = Decimal::ONE;
-    while ratio >= lower * Decimal::TEN {
-        lower *= Decimal::TEN;
+    let best = scores.iter().copied().fold(0.0, f64::max);
+    let leaders: Vec<i32> = SCALE_SHIFTS
+        .into_iter()
+        .zip(scores)
+        .filter(|(_, score)| *score == best)
+        .map(|(shift, _)| shift)
+        .collect();
+    match leaders[..] {
+        [shift] => shift,
+        _ => 0,
     }
-    let upper = lower * Decimal::TEN;
-    let factor = if ratio / lower <= upper / ratio {
-        lower
-    } else {
-        upper
-    };
-    if (ratio - factor).abs() / factor > Decimal::new(1, 1) {
-        return value;
-    }
-    (value * factor).normalize()
+}
+
+fn magnitude(value: Decimal) -> Option<f64> {
+    (value > Decimal::ZERO).then(|| value.to_f64().map(f64::log10))?
 }

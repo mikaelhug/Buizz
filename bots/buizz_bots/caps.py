@@ -9,6 +9,8 @@ from buizz_bots.fundamentals import adjusted_shares, traded_today
 DOLLAR_VOLUME_SESSIONS = 20
 MIN_HISTORY_DAYS = 40
 LISTED_MISSING = 20
+MIN_DAILY_TURNOVER = 1e-4
+MAX_DAILY_TURNOVER = 1.0
 
 Identity = tuple[date, date, str]
 
@@ -25,6 +27,14 @@ def market_caps(
         if shares is None:
             continue
         recent = slice(-DOLLAR_VOLUME_SESSIONS, None)
+        turnover = float(np.mean(split[symbol].volume[recent])) / shares
+        if not MIN_DAILY_TURNOVER <= turnover <= MAX_DAILY_TURNOVER:
+            ctx.log(
+                f"{symbol} share count {float(count.value):,.0f} on {count.period_end} (filed {count.filed}) "
+                f"not used: {DOLLAR_VOLUME_SESSIONS}-session average volume is {turnover:.1e} of it",
+                level="warn",
+            )
+            continue
         line = (
             float(np.mean(history.close[recent] * history.volume[recent])),
             symbol,

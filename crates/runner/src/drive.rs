@@ -32,7 +32,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::{OwnedSemaphorePermit, mpsc, watch};
 
 use crate::commit::Committer;
-use crate::link::{BotLink, LinkError};
+use crate::link::{BotLink, LinkError, SessionUniverse};
 use crate::timeline::{Point, Timeline};
 use crate::{Inner, gate_symbols, report};
 
@@ -1465,7 +1465,13 @@ impl Driver {
             return Ok(());
         };
         let answered = {
-            let mut answer = std::pin::pin!(link.step(step, &market));
+            let data = self.timeline.session();
+            let session_universe = SessionUniverse {
+                spec: &self.run.config.universe,
+                date: data.date,
+                symbols: &data.universe_at,
+            };
+            let mut answer = std::pin::pin!(link.step(step, &market, session_universe));
             loop {
                 tokio::select! {
                     answered = &mut answer => break Some(answered),

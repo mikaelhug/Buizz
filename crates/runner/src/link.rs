@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use axum::extract::ws::{Message, WebSocket};
-use buizz_core::market::{FundamentalMetric, HISTORY_START, MacroSeries};
+use buizz_core::market::{FundamentalMetric, HISTORY_START, MacroSeries, Symbol};
 use buizz_core::protocol::{
     self, Ack, BarBuffer, BotMessage, Data, DataResult, End, EndReason, ErrorCode, Hello,
     PROTOCOL_VERSION, ProtocolError, Query, QueryRequest, Ready, SpineMessage, Step,
@@ -11,6 +11,7 @@ use buizz_core::time::Timestamp;
 use buizz_core::visibility::calendar_known_through;
 use buizz_core::wire;
 use buizz_market::{HistoryRequest, MarketStore};
+use chrono::NaiveDate;
 
 const MAX_HISTORY_BARS: u32 = 10_000;
 const MAX_UNIVERSE_SYMBOLS: u32 = 10_000;
@@ -23,6 +24,12 @@ pub(crate) enum LinkError {
     Timeout(Duration),
     #[error("{1}")]
     Violation(ErrorCode, String),
+}
+
+pub(crate) struct SessionUniverse<'a> {
+    pub spec: &'a UniverseSpec,
+    pub date: Option<NaiveDate>,
+    pub symbols: &'a [Symbol],
 }
 
 pub(crate) struct BotLink {
@@ -66,6 +73,7 @@ impl BotLink {
         &mut self,
         step: Step,
         market: &MarketStore,
+        session: SessionUniverse<'_>,
     ) -> Result<Ack, LinkError> {
         let (seq, clock) = (step.seq, step.clock);
         self.send(&SpineMessage::Step(Box::new(step))).await?;
@@ -73,7 +81,7 @@ impl BotLink {
             match self.receive().await? {
                 BotMessage::Query(Query { id, request }) => {
                     let asked = Asked::of(&request);
-                    let answer = match answer(market, request, clock).await {
+                    let answer = match answer(market, request, clock, &session).await {
                         Ok(result) => {
                             if let Some(asked) = asked {
                                 let unbacked = asked.unbacked(market, &result, clock).await;
@@ -233,6 +241,7 @@ async fn answer(
     market: &MarketStore,
     request: QueryRequest,
     clock: Timestamp,
+    session: &SessionUniverse<'_>,
 ) -> Result<DataResult, String> {
     match request {
         QueryRequest::History {
@@ -295,10 +304,14 @@ async fn answer(
             if known > clock {
                 return Err(format!("the universe of {date} is known from {known}"));
             }
-            let symbols = market
-                .universe(&universe, date, UNIVERSE_SESSIONS)
-                .await
-                .map_err(|error| error.to_string())?;
+            let symbols = if *session.spec == universe && session.date == Some(date) {
+                session.symbols.to_vec()
+            } else {
+                market
+                    .universe(&universe, date, UNIVERSE_SESSIONS)
+                    .await
+                    .map_err(|error| error.to_string())?
+            };
             let reliable_from = match universe {
                 UniverseSpec::Index { index } => market
                     .index_history(index)

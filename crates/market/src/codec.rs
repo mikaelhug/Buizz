@@ -94,6 +94,19 @@ pub(crate) fn feed_name(feed: Feed) -> &'static str {
     }
 }
 
+pub(crate) struct FeedColumn(pub Feed);
+
+impl FromSql for FeedColumn {
+    fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
+        let name = value.as_str()?;
+        [Feed::Sip, Feed::Iex]
+            .into_iter()
+            .find(|feed| feed_name(*feed) == name)
+            .map(Self)
+            .ok_or(FromSqlError::InvalidType)
+    }
+}
+
 #[derive(Default)]
 pub(crate) struct ActionColumns {
     pub kind: &'static str,
@@ -205,9 +218,13 @@ pub(crate) fn placeholders(count: usize) -> String {
 
 pub(crate) type Params = Vec<Box<dyn ToSql>>;
 
-pub(crate) fn symbol_params(symbols: &[Symbol]) -> Params {
-    symbols
-        .iter()
-        .map(|symbol| Box::new(symbol.as_str().to_owned()) as Box<dyn ToSql>)
-        .collect()
+pub(crate) const IN_SYMBOLS: &str = "IN (SELECT unnest(?::VARCHAR[]))";
+
+pub(crate) fn symbol_list(symbols: &[Symbol]) -> Box<dyn ToSql> {
+    Box::new(Value::List(
+        symbols
+            .iter()
+            .map(|symbol| Value::Text(symbol.as_str().to_owned()))
+            .collect(),
+    ))
 }
