@@ -259,28 +259,36 @@ impl Ingest {
         if silences.is_empty() {
             return Ok(());
         }
+        let mut ends: BTreeMap<Symbol, BTreeSet<NaiveDate>> = BTreeMap::new();
+        let keys = self
+            .market
+            .instruments()
+            .await?
+            .into_iter()
+            .map(|instrument| instrument.symbol);
+        for (ticker, last) in keys.filter_map(|key| key.ended_listing()) {
+            ends.entry(ticker).or_default().insert(last);
+        }
+        for (ticker, last, _) in &silences {
+            ends.entry(ticker.clone()).or_default().insert(*last);
+        }
         let mut instruments = Vec::new();
         let mut listings = Vec::new();
-        for (ticker, last) in silences {
+        for (ticker, last, resumed) in silences {
+            let from = ends
+                .get(&ticker)
+                .and_then(|lasts| lasts.range(..last).next_back())
+                .map_or(floor, |previous| *previous + TimeDelta::days(1));
             let ended = Symbol::ended(&ticker, last);
             self.market
-                .end_quiet_sessions(DataSource::Alpaca, ticker.clone(), ended.clone(), last)
+                .end_quiet_sessions(
+                    DataSource::Alpaca,
+                    ticker.clone(),
+                    ended.clone(),
+                    from..=resumed - TimeDelta::days(1),
+                )
                 .await?;
-            listings.extend(
-                self.market
-                    .bars_between(
-                        Timeframe::Day,
-                        vec![ticker],
-                        day_start(floor),
-                        day_start(last + TimeDelta::days(1)),
-                    )
-                    .await?
-                    .into_iter()
-                    .map(|bar| Bar {
-                        symbol: ended.clone(),
-                        ..bar
-                    }),
-            );
+            listings.extend(self.listed_as(&ticker, &ended, from, last).await?);
             instruments.push(Instrument {
                 symbol: ended,
                 name: String::new(),
@@ -307,6 +315,43 @@ impl Ingest {
             .await?;
         batch.success(withdrawn.rows);
         Ok(())
+    }
+
+    pub(crate) async fn listed_as(
+        &self,
+        ticker: &Symbol,
+        listing: &Symbol,
+        from: NaiveDate,
+        through: NaiveDate,
+    ) -> Result<Vec<Bar>, IngestError> {
+        let held: BTreeSet<Timestamp> = self
+            .market
+            .bars_between(
+                Timeframe::Day,
+                vec![listing.clone()],
+                day_start(from),
+                day_start(through + TimeDelta::days(1)),
+            )
+            .await?
+            .into_iter()
+            .map(|bar| bar.start)
+            .collect();
+        Ok(self
+            .market
+            .bars_between(
+                Timeframe::Day,
+                vec![ticker.clone()],
+                day_start(from),
+                day_start(through + TimeDelta::days(1)),
+            )
+            .await?
+            .into_iter()
+            .filter(|bar| !held.contains(&bar.start))
+            .map(|bar| Bar {
+                symbol: listing.clone(),
+                ..bar
+            })
+            .collect())
     }
 
     async fn recover_listings(

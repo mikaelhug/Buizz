@@ -3,6 +3,7 @@ mod bars;
 mod borrow;
 mod contract;
 mod crosscheck;
+mod curated;
 mod delistings;
 mod documents;
 mod estimates;

@@ -76,6 +76,7 @@ const SOURCES: Record<Source, { name: string; caption: string }> = {
   federal_reserve: { name: "Federal Reserve", caption: "FOMC calendar" },
   factset: { name: "FactSet", caption: "S&P 500 earnings insight" },
   finra: { name: "FINRA", caption: "short interest and short sale volume" },
+  curated: { name: "Curated", caption: "ticker links and actions checked by hand" },
 };
 
 const MARKETS: Record<Market, { name: string; short: string }> = {

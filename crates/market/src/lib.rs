@@ -497,11 +497,11 @@ impl MarketStore {
         source: DataSource,
         ticker: Symbol,
         ended: Symbol,
-        last: NaiveDate,
+        span: RangeInclusive<NaiveDate>,
     ) -> Result<WriteSummary> {
         self.writer
             .run(move |connection| {
-                write::ended_quiet_sessions(connection, source, ticker, ended, last)
+                write::ended_quiet_sessions(connection, source, ticker, ended, span)
             })
             .await
     }
@@ -1632,7 +1632,28 @@ impl MarketStore {
             .await
     }
 
-    pub async fn long_silences(&self, sessions: i64) -> Result<Vec<(Symbol, NaiveDate)>> {
+    pub async fn ex_date_prices(
+        &self,
+        wanted: Vec<(Symbol, NaiveDate)>,
+    ) -> Result<BTreeMap<(Symbol, NaiveDate), (Decimal, Decimal)>> {
+        self.readers
+            .run(move |connection| read::ex_date_prices(connection, &wanted))
+            .await
+    }
+
+    pub async fn split_like_jumps(
+        &self,
+        traded_at_least: Decimal,
+    ) -> Result<Vec<(Symbol, NaiveDate)>> {
+        self.readers
+            .run(move |connection| read::split_like_jumps(connection, traded_at_least))
+            .await
+    }
+
+    pub async fn long_silences(
+        &self,
+        sessions: i64,
+    ) -> Result<Vec<(Symbol, NaiveDate, NaiveDate)>> {
         self.readers
             .run(move |connection| read::long_silences(connection, sessions))
             .await

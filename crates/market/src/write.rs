@@ -336,7 +336,7 @@ pub(crate) fn ended_quiet_sessions(
     source: DataSource,
     ticker: Symbol,
     ended: Symbol,
-    last: NaiveDate,
+    span: RangeInclusive<NaiveDate>,
 ) -> Result<WriteSummary> {
     write_batch(
         connection,
@@ -346,8 +346,18 @@ pub(crate) fn ended_quiet_sessions(
         |transaction, batch_id| {
             let rows = transaction.execute(
                 "INSERT INTO main.quiet_session SELECT ?, date, source, ? FROM main.quiet_session \
-                 WHERE symbol = ? AND date <= ? ON CONFLICT DO NOTHING",
-                params![ended.as_str(), batch_id, ticker.as_str(), last],
+                 WHERE symbol = ? AND date BETWEEN ? AND ? ON CONFLICT DO NOTHING",
+                params![
+                    ended.as_str(),
+                    batch_id,
+                    ticker.as_str(),
+                    span.start(),
+                    span.end()
+                ],
+            )?;
+            transaction.execute(
+                "DELETE FROM main.quiet_session WHERE symbol = ? AND date BETWEEN ? AND ?",
+                params![ticker.as_str(), span.start(), span.end()],
             )?;
             Ok(rows as u64)
         },
@@ -428,8 +438,24 @@ pub(crate) fn shadowed_bars(
                  WHERE r.superseded_by = ? AND r.symbol = b.symbol AND r.date = b.date)",
                 params![batch_id],
             )?;
+            let ended = "FROM main.quiet_session q JOIN shadow_span s ON q.symbol = s.ticker \
+                 AND q.date BETWEEN s.lo AND s.hi WHERE starts_with(s.listing, s.ticker || '@')";
+            let quiet = transaction.execute(
+                &format!(
+                    "INSERT INTO main.quiet_session SELECT s.listing, q.date, q.source, ? {ended} \
+                     ON CONFLICT DO NOTHING"
+                ),
+                params![batch_id],
+            )?;
+            transaction.execute(
+                &format!(
+                    "DELETE FROM main.quiet_session WHERE (symbol, date) IN \
+                     (SELECT q.symbol, q.date {ended})"
+                ),
+                [],
+            )?;
             transaction.execute("DELETE FROM shadow_span", [])?;
-            Ok(withdrawn as u64)
+            Ok((withdrawn + quiet) as u64)
         },
     )
 }

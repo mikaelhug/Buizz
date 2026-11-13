@@ -1,18 +1,20 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use buizz_core::market::{
-    Bar, CorporateAction, DataSource, Dataset, StockIndex, Symbol, Timeframe,
+    Bar, Calendar, CorporateAction, CorporateActionKind, DataSource, Dataset, StockIndex, Symbol,
+    Timeframe,
 };
-use buizz_core::ops::FetchStatus;
+use buizz_core::ops::{ActionDisagreement, ActionVerdict, CheckedAction, FetchStatus};
 use buizz_core::run::PeriodPreset;
 use buizz_core::time::Timestamp;
 use buizz_market::ActionWindow;
 use buizz_sources::tiingo::{
-    OverlapVerdict, REQUESTS_PER_DAY, SYMBOLS_PER_MONTH, normalize, validate_overlap,
+    OverlapVerdict, REQUESTS_PER_DAY, SYMBOLS_PER_MONTH, TiingoClient, normalize, validate_overlap,
 };
 use chrono::{NaiveDate, TimeDelta};
+use rust_decimal::Decimal;
 
-use crate::crosscheck::cross_check;
+use crate::crosscheck::{Adoption, SplitEvidence, checked_as, cross_check, split_evidence};
 use crate::fetch::{Batch, FetchKey, Work, read, waiting};
 use crate::{Ingest, IngestError, Priced, day_start};
 
@@ -22,6 +24,9 @@ const MONTH: TimeDelta = TimeDelta::days(30);
 const DAY: TimeDelta = TimeDelta::days(1);
 const LOOKBACK: TimeDelta = TimeDelta::days(365);
 const REJECTION_RETRY: TimeDelta = TimeDelta::days(365);
+const PROBE_REACH: TimeDelta = TimeDelta::days(14);
+const PROBES_REMEMBERED: u32 = 50;
+const LIQUID_DOLLAR_VOLUME: Decimal = Decimal::from_parts(1_000_000, 0, 0, false, 0);
 
 enum Candidate {
     Untried,
@@ -113,7 +118,10 @@ impl Ingest {
             }
         }
         let mut batch = Batch::default();
-        for (symbol, first) in untried.into_iter().chain(rejected).take(room) {
+        let extending: Vec<(Symbol, NaiveDate)> =
+            untried.into_iter().chain(rejected).take(room).collect();
+        let probes = room - extending.len();
+        for (symbol, first) in extending {
             if self.stopping() {
                 break;
             }
@@ -198,6 +206,10 @@ impl Ingest {
             self.record_fetched(now, &key, fetched).await?;
             batch.success(written.rows);
         }
+        if probes > 0 && !self.stopping() {
+            self.probe_split_jumps(now, tiingo, &calendar, probes, &mut batch)
+                .await?;
+        }
         Ok(batch.finish("Tiingo history"))
     }
 
@@ -222,37 +234,151 @@ impl Ingest {
             )
             .await?;
         let check = cross_check(&stored, tiingo, &bars);
-        for (date, adopted) in check.adopted_splits {
-            let window = ActionWindow {
+        let mut adopted: BTreeMap<NaiveDate, Vec<Adoption>> = BTreeMap::new();
+        for adoption in check.adopted {
+            adopted.entry(adoption.ex_date).or_default().push(adoption);
+        }
+        for (date, adoptions) in adopted {
+            let window = || ActionWindow {
                 symbols: vec![symbol.clone()],
                 from: date,
                 through: date,
                 covered_to: None,
             };
-            match adopted {
-                Some(split) => {
-                    self.market
-                        .replace_corporate_actions(DataSource::Tiingo, vec![split], window)
-                        .await?
-                }
-                None => {
-                    let kept = stored
-                        .iter()
-                        .filter(|action| {
-                            action.ex_date == date && action.kind.share_ratio().is_none()
-                        })
-                        .cloned()
-                        .collect();
-                    self.market
-                        .replace_corporate_actions(DataSource::Alpaca, kept, window)
-                        .await?
-                }
-            };
+            let taken: Vec<CorporateAction> = adoptions
+                .iter()
+                .flat_map(|adoption| adoption.tiingo.iter().cloned())
+                .collect();
+            if !taken.is_empty() {
+                self.market
+                    .replace_corporate_actions(DataSource::Tiingo, taken, window())
+                    .await?;
+            }
+            let kept = stored
+                .iter()
+                .filter(|action| {
+                    action.ex_date == date
+                        && !adoptions
+                            .iter()
+                            .any(|adoption| checked_as(action, adoption.action))
+                })
+                .cloned()
+                .collect();
+            self.market
+                .replace_corporate_actions(DataSource::Alpaca, kept, window())
+                .await?;
         }
         if !check.disagreements.is_empty() {
             self.market
                 .record_action_disagreements(DataSource::Tiingo, check.disagreements)
                 .await?;
+        }
+        Ok(())
+    }
+
+    async fn probe_split_jumps(
+        &self,
+        now: Timestamp,
+        tiingo: &TiingoClient,
+        calendar: &Calendar,
+        budget: usize,
+        batch: &mut Batch,
+    ) -> Result<(), IngestError> {
+        let jumps = self.market.split_like_jumps(LIQUID_DOLLAR_VOLUME).await?;
+        let mut probed = 0;
+        for (symbol, date) in jumps {
+            if probed == budget || self.stopping() {
+                break;
+            }
+            let tried = self
+                .state
+                .recent_fetches(
+                    DataSource::Tiingo,
+                    Dataset::CorporateActions,
+                    Some(symbol.clone()),
+                    PROBES_REMEMBERED,
+                )
+                .await?
+                .iter()
+                .any(|fetch| {
+                    fetch.requested_from == Some(date) && (read(fetch) || fetch.at + MONTH > now)
+                });
+            if tried {
+                continue;
+            }
+            probed += 1;
+            let key = FetchKey::new(
+                DataSource::Tiingo,
+                Dataset::CorporateActions,
+                Some(&symbol),
+                Some((date, date)),
+            );
+            let rows = match tiingo
+                .daily(&symbol, date - PROBE_REACH, date + PROBE_REACH)
+                .await
+            {
+                Ok(rows) => rows,
+                Err(error) => {
+                    self.record_failure(now, &key, &error).await?;
+                    if batch.source_error(symbol.as_str(), &error) {
+                        break;
+                    }
+                    continue;
+                }
+            };
+            let (_, actions) = normalize(&symbol, &rows, calendar);
+            let bars = self
+                .market
+                .bars_between(
+                    Timeframe::Day,
+                    vec![symbol.clone()],
+                    day_start(date - PROBE_REACH),
+                    day_start(date + PROBE_REACH),
+                )
+                .await?;
+            let split = actions.into_iter().find(|action| {
+                action.ex_date == date
+                    && matches!(action.kind, CorporateActionKind::Split { .. })
+                    && action
+                        .kind
+                        .share_ratio()
+                        .is_some_and(|(old_rate, new_rate)| {
+                            split_evidence(&bars, date, new_rate / old_rate, Decimal::ZERO, &[])
+                                == SplitEvidence::Shown
+                        })
+            });
+            let found = usize::from(split.is_some());
+            if let Some(split) = split {
+                let ratio = split
+                    .kind
+                    .share_ratio()
+                    .map(|(old_rate, new_rate)| new_rate / old_rate);
+                let window = ActionWindow {
+                    symbols: vec![symbol.clone()],
+                    from: date,
+                    through: date,
+                    covered_to: None,
+                };
+                let written = self
+                    .market
+                    .replace_corporate_actions(DataSource::Tiingo, vec![split], window)
+                    .await?;
+                self.market
+                    .record_action_disagreements(
+                        DataSource::Tiingo,
+                        vec![ActionDisagreement {
+                            symbol: symbol.clone(),
+                            ex_date: date,
+                            action: CheckedAction::Split,
+                            alpaca: None,
+                            tiingo: ratio,
+                            kept: ActionVerdict::Tiingo,
+                        }],
+                    )
+                    .await?;
+                batch.success(written.rows);
+            }
+            self.record_fetched(now, &key, found).await?;
         }
         Ok(())
     }

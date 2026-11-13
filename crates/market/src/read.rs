@@ -22,7 +22,7 @@ use buizz_core::visibility::{
     published_before, published_visible_at,
 };
 use chrono::{NaiveDate, NaiveTime};
-use duckdb::types::Type;
+use duckdb::types::{Type, Value};
 use duckdb::{Connection, ToSql, params, params_from_iter};
 use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
@@ -34,6 +34,7 @@ use crate::codec::{
 use crate::{AccessionProgress, ChartBars, ChartRequest, HistoryRequest, Result};
 
 const MINUTES_PER_SESSION: usize = 390;
+const EX_DATE_REACH_DAYS: i32 = 7;
 
 fn sip_delay_micros() -> i64 {
     i64::try_from(SIP_DELAY.as_micros()).expect("the SIP delay fits in microseconds")
@@ -2524,31 +2525,97 @@ pub(crate) fn coverage_gaps(
     Ok(gaps)
 }
 
+pub(crate) fn ex_date_prices(
+    connection: &Connection,
+    wanted: &[(Symbol, NaiveDate)],
+) -> Result<BTreeMap<(Symbol, NaiveDate), (Decimal, Decimal)>> {
+    if wanted.is_empty() {
+        return Ok(BTreeMap::new());
+    }
+    let mut statement = connection.prepare_cached(
+        "WITH wanted AS (SELECT unnest(?::VARCHAR[]) AS symbol, \
+           unnest(?::VARCHAR[])::DATE AS ex_date), \
+         near AS (SELECT w.symbol, w.ex_date, b.date, b.open, b.close FROM wanted w \
+           JOIN bar_1d b ON b.symbol = w.symbol \
+           AND b.date BETWEEN w.ex_date - ? * 2 AND w.ex_date + ?), \
+         priced AS (SELECT symbol, ex_date, arg_max(close, date) FILTER (date < ex_date) AS close, \
+           arg_min(open, date) FILTER (date >= ex_date) AS open FROM near GROUP BY symbol, ex_date) \
+         SELECT symbol, ex_date, close, open FROM priced WHERE close > 0 AND open > 0",
+    )?;
+    let params: Params = vec![
+        text_list(wanted.iter().map(|(symbol, _)| symbol.as_str())),
+        Box::new(Value::List(
+            wanted
+                .iter()
+                .map(|(_, date)| Value::Text(date.to_string()))
+                .collect(),
+        )),
+        Box::new(EX_DATE_REACH_DAYS * 2),
+        Box::new(EX_DATE_REACH_DAYS),
+    ];
+    let prices = statement
+        .query_map(params_from_iter(params.iter()), |row| {
+            Ok((
+                (row.get::<_, Sym>(0)?.0, row.get::<_, NaiveDate>(1)?),
+                (row.get::<_, Dec>(2)?.0, row.get::<_, Dec>(3)?.0),
+            ))
+        })?
+        .collect::<duckdb::Result<_>>()?;
+    Ok(prices)
+}
+
+pub(crate) fn split_like_jumps(
+    connection: &Connection,
+    traded_at_least: Decimal,
+) -> Result<Vec<(Symbol, NaiveDate)>> {
+    let mut statement = connection.prepare_cached(
+        "WITH b AS (SELECT symbol, date, open, lag(close) OVER w AS previous, \
+           avg(close * volume) OVER (w ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING) AS traded \
+           FROM bar_1d WHERE NOT contains(symbol, '@') WINDOW w AS (PARTITION BY symbol ORDER BY date)), \
+         jump AS (SELECT symbol, date, abs(ln(previous / open)) AS moved, traded FROM b \
+           WHERE previous > 0 AND open > 0 AND traded >= ? AND abs(ln(previous / open)) > ln(1.4)), \
+         ratio AS (SELECT ln(unnest([2, 3, 4, 5, 8, 10, 15, 20, 25, 30, 40, 50, 100])) AS logged) \
+         SELECT j.symbol, j.date FROM jump j \
+         WHERE EXISTS (SELECT 1 FROM ratio r WHERE abs(j.moved - r.logged) < 0.02) \
+         AND NOT EXISTS (SELECT 1 FROM corporate_action a WHERE a.symbol = j.symbol \
+           AND a.ex_date BETWEEN j.date - 5 AND j.date + 5 \
+           AND a.kind IN ('split', 'stock_dividend', 'spin_off', 'stock_merger')) \
+         ORDER BY j.traded DESC, j.symbol, j.date",
+    )?;
+    let jumps = statement
+        .query_map(params![Dec(traded_at_least)], |row| {
+            Ok((row.get::<_, Sym>(0)?.0, row.get::<_, NaiveDate>(1)?))
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    Ok(jumps)
+}
+
 pub(crate) fn long_silences(
     connection: &Connection,
     sessions: i64,
-) -> Result<Vec<(Symbol, NaiveDate)>> {
+) -> Result<Vec<(Symbol, NaiveDate, NaiveDate)>> {
     let mut statement = connection.prepare_cached(
         "WITH session AS (SELECT date, row_number() OVER (ORDER BY date) AS ordinal FROM calendar), \
-         quiet AS (SELECT q.symbol, q.date, s.ordinal - row_number() OVER \
-           (PARTITION BY q.symbol ORDER BY q.date) AS island \
-           FROM quiet_session q JOIN session s USING (date) WHERE NOT contains(q.symbol, '@') \
-           AND NOT EXISTS (SELECT 1 FROM bar_1d b WHERE b.symbol = q.symbol AND b.date = q.date) \
-           AND NOT EXISTS (SELECT 1 FROM corporate_action a \
-             WHERE a.kind = 'name_change' AND a.other_symbol = q.symbol)), \
-         run AS (SELECT symbol, min(date) AS first, max(date) AS last FROM quiet \
-           GROUP BY symbol, island HAVING count(*) > ?), \
-         ended AS (SELECT r.symbol, r.last, max(b.date) AS traded FROM run r \
-           JOIN bar_1d b ON b.symbol = r.symbol AND b.date < r.first GROUP BY r.symbol, r.last) \
-         SELECT DISTINCT e.symbol, e.traded FROM ended e \
-         WHERE EXISTS (SELECT 1 FROM bar_1d b WHERE b.symbol = e.symbol AND b.date > e.last) \
-         AND NOT EXISTS (SELECT 1 FROM instrument i \
-           WHERE i.symbol = e.symbol || '@' || strftime(e.traded, '%Y-%m-%d')) \
-         ORDER BY e.symbol, e.traded",
+         event AS (SELECT symbol, date, true AS traded FROM bar_1d WHERE NOT contains(symbol, '@') \
+           UNION ALL SELECT other_symbol, ex_date, false FROM corporate_action \
+           WHERE kind = 'name_change' AND other_symbol <> symbol AND NOT contains(other_symbol, '@')), \
+         apart AS (SELECT e.symbol, lag(e.date) OVER w AS last, e.date AS resumed, \
+           lag(e.traded) OVER w AS traded, s.ordinal - lag(s.ordinal) OVER w AS sessions \
+           FROM event e JOIN session s USING (date) \
+           WINDOW w AS (PARTITION BY e.symbol ORDER BY e.date, e.traded)) \
+         SELECT a.symbol, a.last, min(a.resumed) FROM apart a WHERE a.traded AND a.sessions > ? + 1 \
+         AND (NOT EXISTS (SELECT 1 FROM instrument i \
+           WHERE i.symbol = a.symbol || '@' || strftime(a.last, '%Y-%m-%d')) \
+         OR EXISTS (SELECT 1 FROM quiet_session q WHERE q.symbol = a.symbol AND q.date < a.resumed)) \
+         GROUP BY a.symbol, a.last ORDER BY a.symbol, a.last",
     )?;
     let ended = statement
         .query_map(params![sessions], |row| {
-            Ok((row.get::<_, Sym>(0)?.0, row.get::<_, NaiveDate>(1)?))
+            Ok((
+                row.get::<_, Sym>(0)?.0,
+                row.get::<_, NaiveDate>(1)?,
+                row.get::<_, NaiveDate>(2)?,
+            ))
         })?
         .collect::<duckdb::Result<Vec<_>>>()?;
     Ok(ended)

@@ -809,7 +809,7 @@ export interface components {
             ingest_enabled: boolean;
         };
         /** @enum {string} */
-        DataSource: "alpaca" | "alpaca_stream" | "tiingo" | "edgar" | "treasury" | "fred" | "fixture" | "wikipedia" | "interactive_brokers" | "nasdaq" | "cboe" | "federal_reserve" | "factset" | "finra";
+        DataSource: "alpaca" | "alpaca_stream" | "tiingo" | "edgar" | "treasury" | "fred" | "fixture" | "wikipedia" | "interactive_brokers" | "nasdaq" | "cboe" | "federal_reserve" | "factset" | "finra" | "curated";
         DataSpine: {
             markets: components["schemas"]["Market"][];
             datasets: components["schemas"]["DatasetSpine"][];

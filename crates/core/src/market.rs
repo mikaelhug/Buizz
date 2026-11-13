@@ -1209,6 +1209,7 @@ pub enum DataSource {
     FederalReserve,
     Factset,
     Finra,
+    Curated,
 }
 
 #[derive(

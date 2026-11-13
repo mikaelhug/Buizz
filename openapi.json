@@ -2208,7 +2208,8 @@
           "cboe",
           "federal_reserve",
           "factset",
-          "finra"
+          "finra",
+          "curated"
         ]
       },
       "DataSpine": {

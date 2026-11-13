@@ -11,7 +11,9 @@ use buizz_sources::alpaca::{ACTIONS_SYMBOLS_PER_REQUEST, AlpacaClient};
 use chrono::{NaiveDate, TimeDelta};
 use rust_decimal::Decimal;
 
-use crate::crosscheck::refuted_by_prices;
+use crate::crosscheck::{
+    SplitEvidence, checked_as, repeated_dividends, split_evidence, unpriced_dividend,
+};
 use crate::fetch::{Batch, FetchKey, Work};
 use crate::{Ingest, IngestError, day_start};
 
@@ -21,8 +23,8 @@ const ANNOUNCED_HORIZON: TimeDelta = TimeDelta::days(90);
 const BACKFILL_REQUESTS_PER_RUN: usize = 40;
 const SPLIT_WINDOW: TimeDelta = TimeDelta::days(14);
 
-struct TiingoSplits {
-    checks: BTreeMap<(Symbol, NaiveDate), ActionDisagreement>,
+struct TiingoChecks {
+    checks: BTreeMap<(Symbol, NaiveDate, CheckedAction), ActionDisagreement>,
     checked_through: BTreeMap<Symbol, NaiveDate>,
 }
 
@@ -61,7 +63,7 @@ impl Ingest {
             return Ok(batch.finish("corporate actions"));
         }
         let renames = Listings::new(&self.market.actions_reaching_other_symbols().await?, [], []);
-        let tiingo = self.tiingo_splits(history_start, through).await?;
+        let tiingo = self.tiingo_checks(history_start, through).await?;
         let covered = self
             .symbol_coverage(Dataset::CorporateActions, DataSource::Alpaca)
             .await?;
@@ -125,7 +127,7 @@ impl Ingest {
                 .filter(|action| members.contains(&action.symbol))
                 .collect();
             let count = fetched.len();
-            let (fetched, refuted) = self.without_refuted_splits(fetched, today, &tiingo).await?;
+            let (fetched, rejected) = self.vetted(fetched, today, &tiingo).await?;
             let summary = self
                 .market
                 .replace_corporate_actions(
@@ -139,9 +141,9 @@ impl Ingest {
                     },
                 )
                 .await?;
-            if !refuted.is_empty() {
+            if !rejected.is_empty() {
                 self.market
-                    .record_action_disagreements(DataSource::Alpaca, refuted)
+                    .record_action_disagreements(DataSource::Alpaca, rejected)
                     .await?;
             }
             self.record_fetched(now, &key, count).await?;
@@ -186,19 +188,19 @@ impl Ingest {
         Ok(distributed)
     }
 
-    async fn tiingo_splits(
+    async fn tiingo_checks(
         &self,
         from: NaiveDate,
         through: NaiveDate,
-    ) -> Result<TiingoSplits, IngestError> {
+    ) -> Result<TiingoChecks, IngestError> {
         let checks = self
             .market
             .action_disagreements(None, from, through)
             .await?
             .into_iter()
             .filter_map(|warning| match warning {
-                DataWarning::ActionDisagreement(check) if check.action == CheckedAction::Split => {
-                    Some(((check.symbol.clone(), check.ex_date), check))
+                DataWarning::ActionDisagreement(check) => {
+                    Some(((check.symbol.clone(), check.ex_date, check.action), check))
                 }
                 _ => None,
             })
@@ -209,81 +211,133 @@ impl Ingest {
             .into_iter()
             .map(|(symbol, coverage)| (symbol, coverage.updated_at.exchange_date()))
             .collect();
-        Ok(TiingoSplits {
+        Ok(TiingoChecks {
             checks,
             checked_through,
         })
     }
 
-    async fn without_refuted_splits(
+    async fn vetted(
         &self,
         actions: Vec<CorporateAction>,
         today: NaiveDate,
-        tiingo: &TiingoSplits,
+        tiingo: &TiingoChecks,
     ) -> Result<(Vec<CorporateAction>, Vec<ActionDisagreement>), IngestError> {
-        let mut refuted = Vec::new();
-        let mut dropped = HashSet::new();
+        let mut rejected = Vec::new();
+        let mut dropped = repeated_dividends(&actions);
+        let mut moved: BTreeMap<usize, NaiveDate> = BTreeMap::new();
+        let taken_by_tiingo = |action: &CorporateAction, checked: CheckedAction| {
+            tiingo
+                .checks
+                .get(&(action.symbol.clone(), action.ex_date, checked))
+                .is_some_and(|check| check.kept == ActionVerdict::Tiingo)
+        };
+        let wanted: Vec<(Symbol, NaiveDate)> = actions
+            .iter()
+            .filter(|action| {
+                action.ex_date <= today
+                    && matches!(action.kind, CorporateActionKind::CashDividend { .. })
+            })
+            .map(|action| (action.symbol.clone(), action.ex_date))
+            .collect();
+        let prices = self.market.ex_date_prices(wanted).await?;
         for (index, action) in actions.iter().enumerate() {
-            let Some((old_rate, new_rate)) = action.kind.share_ratio() else {
-                continue;
-            };
-            if action.ex_date > today || !matches!(action.kind, CorporateActionKind::Split { .. }) {
+            if dropped.contains(&index) {
                 continue;
             }
-            let check = tiingo.checks.get(&(action.symbol.clone(), action.ex_date));
-            if check.is_some_and(|check| check.kept == ActionVerdict::Tiingo) {
+            if checked_as(action, CheckedAction::Split)
+                && taken_by_tiingo(action, CheckedAction::Split)
+            {
                 dropped.insert(index);
                 continue;
             }
-            let tiingo_split = match check {
-                Some(check) => check.tiingo.is_some(),
-                None => tiingo
-                    .checked_through
-                    .get(&action.symbol)
-                    .is_some_and(|through| action.ex_date <= *through),
-            };
-            if tiingo_split {
-                continue;
-            }
-            let bars = self
-                .market
-                .bars_between(
-                    Timeframe::Day,
-                    vec![action.symbol.clone()],
-                    day_start(action.ex_date - SPLIT_WINDOW),
-                    day_start(action.ex_date + SPLIT_WINDOW),
-                )
-                .await?;
-            let distributed = self.distributed(&actions, action).await?;
-            let ratio = new_rate / old_rate;
-            let other_splits: Vec<NaiveDate> = actions
-                .iter()
-                .filter(|other| {
-                    other.symbol == action.symbol
-                        && other.ex_date != action.ex_date
-                        && matches!(other.kind, CorporateActionKind::Split { .. })
-                })
-                .map(|other| other.ex_date)
-                .collect();
-            if refuted_by_prices(&bars, action.ex_date, ratio, distributed, &other_splits) {
-                dropped.insert(index);
-                refuted.push(ActionDisagreement {
-                    symbol: action.symbol.clone(),
-                    ex_date: action.ex_date,
-                    action: CheckedAction::Split,
-                    alpaca: Some(ratio),
-                    tiingo: None,
-                    kept: ActionVerdict::Prices,
-                });
+            match action.kind {
+                CorporateActionKind::CashDividend { rate } => {
+                    if taken_by_tiingo(action, CheckedAction::CashDividend) {
+                        dropped.insert(index);
+                    } else if let Some((close, open)) =
+                        prices.get(&(action.symbol.clone(), action.ex_date))
+                        && unpriced_dividend(rate, *close, *open)
+                    {
+                        dropped.insert(index);
+                        rejected.push(ActionDisagreement {
+                            symbol: action.symbol.clone(),
+                            ex_date: action.ex_date,
+                            action: CheckedAction::CashDividend,
+                            alpaca: Some(rate),
+                            tiingo: None,
+                            kept: ActionVerdict::Prices,
+                        });
+                    }
+                }
+                CorporateActionKind::Split { old_rate, new_rate } if action.ex_date <= today => {
+                    let tiingo_split = match tiingo.checks.get(&(
+                        action.symbol.clone(),
+                        action.ex_date,
+                        CheckedAction::Split,
+                    )) {
+                        Some(check) => check.tiingo.is_some(),
+                        None => tiingo
+                            .checked_through
+                            .get(&action.symbol)
+                            .is_some_and(|through| action.ex_date <= *through),
+                    };
+                    if tiingo_split {
+                        continue;
+                    }
+                    let bars = self
+                        .market
+                        .bars_between(
+                            Timeframe::Day,
+                            vec![action.symbol.clone()],
+                            day_start(action.ex_date - SPLIT_WINDOW),
+                            day_start(action.ex_date + SPLIT_WINDOW),
+                        )
+                        .await?;
+                    let distributed = self.distributed(&actions, action).await?;
+                    let ratio = new_rate / old_rate;
+                    let other_splits: Vec<NaiveDate> = actions
+                        .iter()
+                        .filter(|other| {
+                            other.symbol == action.symbol
+                                && other.ex_date != action.ex_date
+                                && matches!(other.kind, CorporateActionKind::Split { .. })
+                        })
+                        .map(|other| other.ex_date)
+                        .collect();
+                    let evidence =
+                        split_evidence(&bars, action.ex_date, ratio, distributed, &other_splits);
+                    match evidence {
+                        SplitEvidence::Shown | SplitEvidence::Unclear => continue,
+                        SplitEvidence::Moved(date) => {
+                            moved.insert(index, date);
+                        }
+                        SplitEvidence::Refuted => {
+                            dropped.insert(index);
+                        }
+                    }
+                    rejected.push(ActionDisagreement {
+                        symbol: action.symbol.clone(),
+                        ex_date: action.ex_date,
+                        action: CheckedAction::Split,
+                        alpaca: Some(ratio),
+                        tiingo: None,
+                        kept: ActionVerdict::Prices,
+                    });
+                }
+                _ => {}
             }
         }
         let kept = actions
             .into_iter()
             .enumerate()
             .filter(|(index, _)| !dropped.contains(index))
-            .map(|(_, action)| action)
+            .map(|(index, action)| CorporateAction {
+                ex_date: moved.get(&index).copied().unwrap_or(action.ex_date),
+                ..action
+            })
             .collect();
-        Ok((kept, refuted))
+        Ok((kept, rejected))
     }
 
     async fn name_changes(
@@ -393,6 +447,7 @@ impl Ingest {
             .await?;
         self.record_fetched(now, &key, count).await?;
         batch.success(summary.rows);
+        batch.success(self.curate().await?);
         let withdrawn = self
             .market
             .withdraw_shadowed_bars(DataSource::Alpaca, history_start, today)
