@@ -317,13 +317,18 @@ impl<'a> ShareCounts<'a> {
     fn new(concepts: impl Iterator<Item = (&'a str, &'a str, &'a Concept)>) -> Self {
         let distinct: BTreeSet<ReportedCount<'a>> = concepts
             .filter_map(|(taxonomy, concept, node)| {
-                Some(node.units.get("shares")?.iter().filter_map(move |observation| {
-                    Some(ReportedCount {
-                        period: (observation.start, observation.end),
-                        concept: (taxonomy, concept),
-                        value: json_decimal(&observation.val)?,
-                    })
-                }))
+                Some(
+                    node.units
+                        .get("shares")?
+                        .iter()
+                        .filter_map(move |observation| {
+                            Some(ReportedCount {
+                                period: (observation.start, observation.end),
+                                concept: (taxonomy, concept),
+                                value: json_decimal(&observation.val)?,
+                            })
+                        }),
+                )
             })
             .flatten()
             .collect();
@@ -344,8 +349,12 @@ impl<'a> ShareCounts<'a> {
         };
         let end = reported.period.1;
         let window = TimeDelta::days(SHARE_SCALE_REFERENCE_DAYS);
-        let from = self.0.partition_point(|(count, _)| count.period.1 < end - window);
-        let to = self.0.partition_point(|(count, _)| count.period.1 <= end + window);
+        let from = self
+            .0
+            .partition_point(|(count, _)| count.period.1 < end - window);
+        let to = self
+            .0
+            .partition_point(|(count, _)| count.period.1 <= end + window);
         let others: Vec<&(ReportedCount, f64)> = self.0[from..to]
             .iter()
             .filter(|(count, _)| {
@@ -362,8 +371,7 @@ impl<'a> ShareCounts<'a> {
                     .iter()
                     .filter(|(count, other)| {
                         count.concept == concept
-                            && (other - magnitude - f64::from(3 * shift)).abs()
-                                <= SAME_SCALE_ORDERS
+                            && (other - magnitude - f64::from(3 * shift)).abs() <= SAME_SCALE_ORDERS
                     })
                     .count() as f64
             });
