@@ -534,7 +534,7 @@ fn insider_filing(accession: &str, form: &str, accepted_at: &str, price: i64) ->
 }
 
 #[tokio::test]
-async fn an_insider_trade_is_seen_from_the_next_open_and_its_amendment_is_a_later_fact() {
+async fn an_insider_trade_is_seen_from_the_next_open_and_its_amendment_replaces_it_from_its_own() {
     let (_dir, store) = november_2026().await;
     let original = insider_filing("0001140361-26-042149", "4", "2026-11-05T23:30:13Z", 32575);
     let amendment = insider_filing("0001140361-26-043001", "4/A", "2026-11-09T15:00:00Z", 32757);
@@ -587,15 +587,13 @@ async fn an_insider_trade_is_seen_from_the_next_open_and_its_amendment_is_a_late
     );
     assert_eq!(
         seen("2026-11-10T14:30:00Z").await,
-        [
-            original_seen,
-            (
-                "4/A".to_owned(),
-                Decimal::new(32757, 2),
-                "2026-11-10T14:30:00Z".to_owned(),
-                None
-            )
-        ]
+        [(
+            "4/A".to_owned(),
+            Decimal::new(32757, 2),
+            "2026-11-10T14:30:00Z".to_owned(),
+            None
+        )],
+        "the amended sale is one sale, not a second one"
     );
 }
 

@@ -1894,12 +1894,23 @@ pub(crate) fn insider_trades(
         owners.entry(filing).or_default().push(owner);
     }
     let mut statement = connection.prepare(&format!(
-        "SELECT f.symbol, f.accession, f.form, f.filed, f.accepted_at, t.security, t.date, \
+        "WITH owners AS (SELECT symbol, accession, \
+           string_agg(CAST(owner_cik AS VARCHAR), ',' ORDER BY owner_cik) AS ciks \
+           FROM insider_owner GROUP BY symbol, accession), \
+         filing AS (SELECT f.*, o.ciks FROM insider_filing f \
+           LEFT JOIN owners o ON o.symbol = f.symbol AND o.accession = f.accession \
+           WHERE {visible}) \
+         SELECT f.symbol, f.accession, f.form, f.filed, f.accepted_at, t.security, t.date, \
          t.code, t.acquired, t.shares, t.price, t.shares_after, t.direct, p.plan_10b5_1 \
          FROM insider_transaction t \
-         JOIN insider_filing f ON f.symbol = t.symbol AND f.accession = t.accession \
+         JOIN filing f ON f.symbol = t.symbol AND f.accession = t.accession \
          LEFT JOIN insider_plan p ON p.symbol = f.symbol AND p.accession = f.accession \
-         WHERE {visible} ORDER BY f.symbol, f.accepted_at, f.accession, t.line"
+         WHERE NOT EXISTS (SELECT 1 FROM filing a JOIN insider_transaction r \
+           ON r.symbol = a.symbol AND r.accession = a.accession \
+           WHERE a.form = '4/A' AND a.symbol = f.symbol AND a.ciks = f.ciks \
+           AND a.accepted_at > f.accepted_at AND r.security = t.security AND r.date = t.date \
+           AND r.code = t.code AND r.acquired = t.acquired AND r.direct = t.direct) \
+         ORDER BY f.symbol, f.accepted_at, f.accession, t.line"
     ))?;
     let trades = statement
         .query_map(params_from_iter(params().iter()), |row| {
