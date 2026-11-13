@@ -12,6 +12,9 @@ use crate::fake::FakeProviders;
 use crate::spine::{Options, Spine, eventually, now};
 use crate::world::{World, decimal, stamp};
 
+const SETUP_ALLOWANCE: TimeDelta = TimeDelta::minutes(10);
+const LIVE_AHEAD_OF_DECISION: TimeDelta = TimeDelta::minutes(1);
+
 #[tokio::test(flavor = "multi_thread")]
 async fn a_full_stream_refuses_a_run_an_oversized_order_is_rejected_and_a_drawdown_stops_the_run() {
     let spine = Spine::start(
@@ -121,15 +124,23 @@ async fn a_full_stream_refuses_a_run_an_oversized_order_is_rejected_and_a_drawdo
 async fn a_second_stream_account_admits_a_31st_symbol_and_a_before_close_bot_decides_on_rest_minutes_without_a_slot()
  {
     let fake = FakeProviders::serve_stream_accounts(World::live_closing(now()), 2).await;
-    let spine = Spine::start(
+    let mut spine = Spine::start_behind(
         fake,
         Options {
             bots: &["tape", "wide", "auction"],
             tiingo: false,
         },
+        SETUP_ALLOWANCE,
     )
     .await;
     spine.ingested().await;
+    let decided_at = spine
+        .fake
+        .world(|world| world.live_session().close - TimeDelta::minutes(10));
+    spine.stop().await;
+    spine
+        .restart_later(decided_at - LIVE_AHEAD_OF_DECISION - spine.now())
+        .await;
 
     let tape: RunSummary = spine.post("/api/bots/tape/live", json!({})).await;
     let wide: RunSummary = spine.post("/api/bots/wide/live", json!({})).await;
@@ -174,10 +185,7 @@ async fn a_second_stream_account_admits_a_31st_symbol_and_a_before_close_bot_dec
     })
     .await;
 
-    let (open, decided_at) = spine.fake.world(|world| {
-        let session = world.live_session();
-        (session.open, session.close - TimeDelta::minutes(10))
-    });
+    let open = spine.fake.world(|world| world.live_session().open);
     let so_far: Vec<Bar> = spine.fake.world(|world| {
         world
             .minute

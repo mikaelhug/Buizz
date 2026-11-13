@@ -90,6 +90,10 @@ fn bot_dir(name: &str) -> PathBuf {
 
 impl Spine {
     pub async fn start(fake: FakeProviders, options: Options) -> Self {
+        Self::start_behind(fake, options, TimeDelta::zero()).await
+    }
+
+    pub async fn start_behind(fake: FakeProviders, options: Options, behind: TimeDelta) -> Self {
         let dir = tempfile::Builder::new()
             .prefix("buizz-e2e-")
             .tempdir()
@@ -112,7 +116,7 @@ impl Spine {
             fake,
             options,
             dir,
-            clock_shift: TimeDelta::zero(),
+            clock_shift: -behind,
             child: None,
             client: Client::new(),
             cookie: String::new(),
@@ -267,6 +271,10 @@ impl Spine {
                 .expect("the copied bot file");
         }
         copy
+    }
+
+    pub fn now(&self) -> Timestamp {
+        now() + self.clock_shift
     }
 
     pub async fn restart_later(&mut self, by: TimeDelta) {
