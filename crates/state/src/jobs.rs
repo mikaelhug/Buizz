@@ -101,6 +101,15 @@ pub fn last_job_success(connection: &Connection, job: &str) -> Result<Option<Job
         .optional()?)
 }
 
+pub fn first_job_start(connection: &Connection, job: &str) -> Result<Option<Timestamp>> {
+    let nanos: Option<i64> = connection.query_row(
+        &format!("SELECT min(started_at) FROM job_run WHERE job = ? AND started_at >= {RESET}"),
+        [job],
+        |row| row.get(0),
+    )?;
+    Ok(nanos.map(Timestamp::from_nanos))
+}
+
 fn retry_after(fetch: &SourceFetch) -> Option<Timestamp> {
     fetch
         .retry_after

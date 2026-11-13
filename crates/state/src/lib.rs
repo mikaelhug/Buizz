@@ -371,6 +371,13 @@ impl StateStore {
             .await
     }
 
+    pub async fn first_job_start(&self, job: &str) -> Result<Option<Timestamp>> {
+        let job = job.to_owned();
+        self.db
+            .read(move |connection| jobs::first_job_start(connection, &job))
+            .await
+    }
+
     pub async fn failure_streaks(
         &self,
         unfinished_before: Timestamp,

@@ -328,10 +328,17 @@ pub(crate) fn view(
     failures: u32,
     limited_until: Option<Timestamp>,
     success: Option<&JobRun>,
+    first_due: Timestamp,
     now: Timestamp,
 ) -> JobView {
-    let healthy_since = success.map(|run| run.finished_at.unwrap_or(run.started_at));
     let stale_after = delta(spec.every) * STALE_AFTER_INTERVALS;
+    let stale = match success {
+        Some(run) => now - run.finished_at.unwrap_or(run.started_at) > stale_after,
+        None => {
+            latest.is_some_and(|run| run.outcome == Some(JobOutcome::Failed))
+                || now - first_due > stale_after
+        }
+    };
     JobView {
         name: spec.name.to_owned(),
         source: spec.source,
@@ -342,7 +349,7 @@ pub(crate) fn view(
         last_outcome: latest.and_then(|run| run.outcome),
         last_message: latest.and_then(|run| run.message.clone()),
         next_due: due_at(spec, latest, failures, limited_until),
-        stale: healthy_since.is_none_or(|since| now - since > stale_after),
+        stale,
     }
 }
 
@@ -379,5 +386,34 @@ mod tests {
         let retry = |failures| due_at(bars, Some(&killed), failures, None).unwrap() - started_at;
         assert_eq!(retry(1), TimeDelta::minutes(5));
         assert_eq!(retry(3), TimeDelta::minutes(20));
+    }
+
+    #[test]
+    fn a_job_on_its_first_run_is_not_late_until_three_intervals_pass() {
+        let booted = Timestamp::from_nanos(1_000_000_000);
+        let fails = JOBS
+            .iter()
+            .find(|spec| spec.name == FAILS_TO_DELIVER)
+            .unwrap();
+        let running = JobRun {
+            id: 1,
+            job: FAILS_TO_DELIVER.to_owned(),
+            started_at: booted,
+            finished_at: None,
+            outcome: None,
+            rows: 0,
+            message: None,
+        };
+        let stale = |latest: Option<&JobRun>, after: TimeDelta| {
+            view(fails, latest, 0, None, None, booted, booted + after).stale
+        };
+        assert!(!stale(None, TimeDelta::hours(1)));
+        assert!(!stale(Some(&running), TimeDelta::hours(1)));
+        assert!(stale(Some(&running), TimeDelta::days(4)));
+        let failed = JobRun {
+            outcome: Some(JobOutcome::Failed),
+            ..running
+        };
+        assert!(stale(Some(&failed), TimeDelta::hours(1)));
     }
 }

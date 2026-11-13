@@ -219,7 +219,20 @@ impl Ingest {
             let streak = failures.get(spec.name).copied().unwrap_or(0);
             let limited = spec.source.and_then(|source| limits.get(&source).copied());
             let success = self.state.last_job_success(spec.name).await?;
-            let view = schedule::view(&spec, previous, streak, limited, success.as_ref(), now);
+            let first_due = self
+                .state
+                .first_job_start(spec.name)
+                .await?
+                .unwrap_or(self.booted_at);
+            let view = schedule::view(
+                &spec,
+                previous,
+                streak,
+                limited,
+                success.as_ref(),
+                first_due,
+                now,
+            );
             views.push(JobView {
                 stale: self.config.enabled && view.stale,
                 ..view
