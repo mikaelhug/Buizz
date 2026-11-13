@@ -700,6 +700,7 @@ dependencies = [
  "blake3",
  "buizz-core",
  "nix",
+ "serde_json",
  "tempfile",
  "thiserror",
  "tokio",

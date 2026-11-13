@@ -75,7 +75,9 @@ pub struct Screening {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct Trials {
     pub variants: u32,
+    pub params: u32,
     pub runs: u32,
+    pub unversioned_runs: u32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]

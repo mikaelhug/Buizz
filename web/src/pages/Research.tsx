@@ -140,9 +140,13 @@ export function Research({ name, preset: requested, defaults, live }: Props) {
             <span className="muted"> · {fmt.integer(trials.runs)} runs</span>
           </span>
           <Info label="Trials">
-            {fmt.integer(trials.variants)} distinct trials from {fmt.integer(trials.runs)} runs of {name}, live runs and failed backtests included: each params combination
-            counts once per code version, and a newer code version that reproduced an earlier result exactly on the same period counts as the same trial. The more
-            variants tried, the higher the best one climbs by luck alone.
+            {fmt.integer(trials.variants)} trials from {fmt.integer(trials.runs)} runs of {name}, live runs and failed backtests included: {fmt.integer(trials.params)}{" "}
+            {trials.params === 1 ? "parameter set" : "parameter sets"}, plus {fmt.integer(trials.variants - trials.params)} for parameter sets run again after {name}'s own
+            code changed. Its own code is its folder (bot.toml without the description, notes left out) and the buizz_bots modules it imports, so a rerun after a data
+            fix, an engine change or an edit to shared code it does not import is the same trial.
+            {trials.unversioned_runs > 0 &&
+              ` ${fmt.integer(trials.unversioned_runs)} of the runs predate code versioning and count as one trial per parameter set, joined with that set's later trials.`}{" "}
+            The more trials, the higher the best one climbs by luck alone.
           </Info>
         </div>
         <div className="research-actions">

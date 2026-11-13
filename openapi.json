@@ -3308,6 +3308,12 @@
           "bot_hash": {
             "type": "string"
           },
+          "behaviour_hash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "engine_version": {
             "type": "string"
           },
@@ -4352,7 +4358,9 @@
         "type": "object",
         "required": [
           "variants",
-          "runs"
+          "params",
+          "runs",
+          "unversioned_runs"
         ],
         "properties": {
           "variants": {
@@ -4360,7 +4368,17 @@
             "format": "int32",
             "minimum": 0
           },
+          "params": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
           "runs": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "unversioned_runs": {
             "type": "integer",
             "format": "int32",
             "minimum": 0

@@ -722,6 +722,7 @@ impl Runner {
                 status,
                 desired: DesiredState::Running,
                 bot_hash: spec.content_hash.clone(),
+                behaviour_hash: spec.behaviour_hash.clone(),
                 engine_version: ENGINE_VERSION.to_string(),
                 badges: badges.clone(),
                 created_at,

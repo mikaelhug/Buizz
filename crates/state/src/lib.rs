@@ -60,6 +60,7 @@ pub struct NewRun {
     pub status: RunStatus,
     pub desired: DesiredState,
     pub bot_hash: String,
+    pub behaviour_hash: String,
     pub engine_version: String,
     pub data_watermark: Option<Timestamp>,
     pub badges: Vec<RunBadge>,

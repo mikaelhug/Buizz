@@ -648,6 +648,7 @@ pub struct RunEvent {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct Reproducibility {
     pub bot_hash: String,
+    pub behaviour_hash: Option<String>,
     pub engine_version: String,
     pub seed: u64,
     pub data_watermark: Option<Timestamp>,
