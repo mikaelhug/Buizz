@@ -20,6 +20,7 @@ const OVERLAP_WINDOW_DAYS: i64 = 45;
 const SYMBOLS_PER_RUN: u64 = 3;
 const MONTH: TimeDelta = TimeDelta::days(30);
 const DAY: TimeDelta = TimeDelta::days(1);
+const LOOKBACK: TimeDelta = TimeDelta::days(365);
 const REJECTION_RETRY: TimeDelta = TimeDelta::days(365);
 
 enum Candidate {
@@ -65,9 +66,13 @@ impl Ingest {
         let room = usize::try_from(room).unwrap_or(usize::MAX);
         let screened_from = PeriodPreset::TenYears.resolve(today).from;
         let listings = self.market.listings();
-        let blocking: Vec<Symbol> = self
+        let lookback: Vec<Symbol> = self
             .market
-            .unpriced_members(StockIndex::Sp500, screened_from, alpaca_floor - DAY)
+            .unpriced_members(
+                StockIndex::Sp500,
+                screened_from - LOOKBACK,
+                screened_from.min(alpaca_floor) - DAY,
+            )
             .await?
             .into_iter()
             .map(|gap| {
@@ -80,7 +85,7 @@ impl Ingest {
         let mut seen = BTreeSet::new();
         let mut untried = Vec::new();
         let mut rejected = Vec::new();
-        for symbol in blocking
+        for symbol in lookback
             .into_iter()
             .chain(priced.into_iter().map(|Priced { symbol, .. }| symbol))
         {

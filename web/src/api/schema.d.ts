@@ -260,6 +260,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/periods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["periods"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/runs": {
         parameters: {
             query?: never;
@@ -945,6 +961,11 @@ export interface components {
             unrealized_pnl: string;
             realized_pnl: string;
             weight: string;
+        };
+        PresetPeriod: {
+            preset: components["schemas"]["PeriodPreset"];
+            period: components["schemas"]["Period"];
+            shortened: boolean;
         };
         PresetResearch: {
             preset: components["schemas"]["PeriodPreset"];
@@ -1718,6 +1739,25 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["League"];
+                };
+            };
+        };
+    };
+    periods: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresetPeriod"][];
                 };
             };
         };

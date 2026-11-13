@@ -2,6 +2,7 @@ import { useState } from "react";
 import { api, errorMessage, must, type Schemas } from "../api/client";
 import { Modal } from "../ui/Dialog";
 import { Info } from "../ui/Popover";
+import { PresetDates } from "../ui/PresetDates";
 import { notify } from "../ui/Toaster";
 
 type Props = {
@@ -111,6 +112,7 @@ export function BacktestDialog({ name, holdoutRuns, risk, onStarted, onClose }: 
           );
         })}
       </div>
+      {!custom && <PresetDates preset={holdout ? "holdout" : choice} className="dialog-message muted" />}
       {custom && (
         <div className="period-range">
           <label>
