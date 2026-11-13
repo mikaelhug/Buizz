@@ -667,6 +667,7 @@ pub struct UnsplitDocument {
     pub doc_id: String,
     pub content_hash: String,
     pub kind: String,
+    pub items: Vec<String>,
     pub published_at: Timestamp,
     pub text: Option<String>,
 }

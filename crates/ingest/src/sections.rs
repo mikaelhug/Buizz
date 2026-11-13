@@ -44,7 +44,7 @@ impl Ingest {
 fn split(document: UnsplitDocument) -> DocumentSections {
     DocumentSections {
         outcome: match &document.text {
-            Some(text) => split_sections(&document.kind, text),
+            Some(text) => split_sections(&document.kind, &document.items, text),
             None => Err("the document has no text".to_owned()),
         },
         doc_id: document.doc_id,

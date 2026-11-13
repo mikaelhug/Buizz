@@ -315,11 +315,12 @@ function Facts({ facts }: { facts: Record<string, unknown>[] }) {
 }
 
 function SectionedText({ text, sections }: { text: string; sections: Section[] }) {
-  const anchors = useRef(new Map<string, HTMLElement>());
+  const anchors = useRef(new Map<number, HTMLElement>());
   const first = sections[0];
   if (!first) return <pre className="reader-text">{text}</pre>;
   const chars = Array.from(text);
-  const lead = first.start;
+  const starts = [...new Set(sections.map((section) => section.start))];
+  const tail = Math.max(...sections.map((section) => section.end));
   return (
     <>
       <nav className="reader-sections" aria-label="Items">
@@ -330,24 +331,25 @@ function SectionedText({ text, sections }: { text: string; sections: Section[] }
             className="btn btn-sm"
             disabled={section.start >= chars.length}
             title={`${fmt.integer(section.end - section.start)} characters`}
-            onClick={() => anchors.current.get(section.key)?.scrollIntoView({ block: "start" })}
+            onClick={() => anchors.current.get(section.start)?.scrollIntoView({ block: "start" })}
           >
             {section.key.split(":")[1]}
           </button>
         ))}
       </nav>
       <pre className="reader-text">
-        {chars.slice(0, lead).join("")}
-        {sections.map((section) => (
+        {chars.slice(0, first.start).join("")}
+        {starts.map((start, index) => (
           <span
-            key={section.key}
+            key={start}
             ref={(element) => {
-              if (element) anchors.current.set(section.key, element);
+              if (element) anchors.current.set(start, element);
             }}
           >
-            {chars.slice(section.start, section.end).join("")}
+            {chars.slice(start, starts[index + 1] ?? tail).join("")}
           </span>
         ))}
+        {chars.slice(tail).join("")}
       </pre>
     </>
   );

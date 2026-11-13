@@ -7,8 +7,8 @@ use buizz_core::market::{
 };
 use buizz_core::time::Timestamp;
 use buizz_sources::edgar::{
-    EdgarClient, EdgarConfig, RATE_LIMIT, normalize_company_facts, normalize_daily_index,
-    normalize_ownership,
+    EdgarClient, EdgarConfig, RATE_LIMIT, exhibit_text, normalize_company_facts,
+    normalize_daily_index, normalize_ownership, split_sections,
 };
 use buizz_sources::http::SourceError;
 use chrono::{Datelike, NaiveDate, NaiveTime, TimeDelta, Weekday};
@@ -612,5 +612,134 @@ async fn an_earnings_release_is_the_text_of_the_first_press_release_exhibit_in_i
             "Products\t$\t82,904\t$\t73,716\t$\t355,533\t$\t307,003",
         ],
         "a table keeps one line per row with its non-empty cells tab-separated"
+    );
+}
+
+fn current_report_items(
+    form: &str,
+    document: &str,
+    items: &str,
+    filed: &str,
+) -> Result<Vec<(String, String)>, String> {
+    let text = exhibit_text(document, filed.as_bytes());
+    let listed: Vec<String> = items.split(',').map(str::to_owned).collect();
+    let chars: Vec<char> = text.chars().collect();
+    Ok(split_sections(form, &listed, &text)?
+        .into_iter()
+        .map(|section| {
+            let body: String = chars[section.start as usize..section.end as usize]
+                .iter()
+                .collect();
+            (section.key, body.trim().to_owned())
+        })
+        .collect())
+}
+
+#[test]
+fn an_8k_is_cut_into_the_items_its_filing_lists() {
+    let heading_blocks = r#"<html><body>
+<div style="text-align:center"><b>UNITED STATES SECURITIES AND EXCHANGE COMMISSION</b></div>
+<div>FORM 8-K</div>
+<table><tr><td>&#9744;</td><td>Written communications pursuant to Rule 425 under the Securities Act</td></tr></table>
+<div><span style="font-weight:bold">Item 1.01</span><span style="font-weight:bold"> Entry into a Material Definitive Agreement.</span></div>
+<div>On May 4, 2023, the Company entered into a credit agreement. The information set forth under Item 2.03 of this Current Report is incorporated herein by reference.</div>
+<div><span style="font-weight:bold">Item 2.03 Creation of a Direct Financial Obligation.</span></div>
+<div>The credit agreement provides for a $500 million revolving facility.</div>
+<div><span style="font-weight:bold">Item 9.01 Financial Statements and Exhibits.</span></div>
+<table><tr><td>Exhibit No.</td><td>Description</td></tr><tr><td>10.1</td><td>Credit Agreement</td></tr></table>
+<div style="text-align:center"><b>SIGNATURES</b></div>
+<div>Pursuant to the requirements of the Securities Exchange Act of 1934, the registrant has duly caused this report to be signed.</div>
+</body></html>"#;
+    assert_eq!(
+        current_report_items("8-K", "a8-k.htm", "1.01,2.03,9.01", heading_blocks),
+        Ok(vec![
+            (
+                "8-K:1.01".to_owned(),
+                "Item 1.01 Entry into a Material Definitive Agreement.\nOn May 4, 2023, the Company entered into a credit agreement. The information set forth under Item 2.03 of this Current Report is incorporated herein by reference.".to_owned()
+            ),
+            (
+                "8-K:2.03".to_owned(),
+                "Item 2.03 Creation of a Direct Financial Obligation.\nThe credit agreement provides for a $500 million revolving facility.".to_owned()
+            ),
+            (
+                "8-K:9.01".to_owned(),
+                "Item 9.01 Financial Statements and Exhibits.\nExhibit No.\tDescription\n10.1\tCredit Agreement".to_owned()
+            ),
+        ]),
+        "headings in their own blocks, a cross-reference inside a sentence is not one, and the signatures are left out"
+    );
+
+    let bold_paragraphs = r#"<html><body>
+<p><b>Item 5.02 Departure of Directors or Certain Officers.</b> On March 3, 2015, Jane Roe notified the Board that she will retire as Chief Financial Officer.</p>
+<p><b>Item 8.01</b> <b>Other Events.</b> The Board declared a quarterly dividend.</p>
+<p>SIGNATURE</p>
+</body></html>"#;
+    assert_eq!(
+        current_report_items("8-K/A", "form8ka.htm", "5.02", bold_paragraphs),
+        Ok(vec![(
+            "8-K:5.02".to_owned(),
+            "Item 5.02 Departure of Directors or Certain Officers. On March 3, 2015, Jane Roe notified the Board that she will retire as Chief Financial Officer.".to_owned()
+        )]),
+        "a heading in bold at the start of a paragraph, and a heading of an item the filing does not list still ends the one before"
+    );
+
+    let table_rows = r#"<html><body>
+<table><tr><td><b>Item 2.02.</b></td><td><b>Results of Operations and Financial Condition.</b></td></tr></table>
+<p>On July 25, 2019, the Company issued a press release announcing its results.</p>
+<table><tr><td><b>Item 9.01.</b></td><td><b>Financial Statements and Exhibits.</b></td></tr></table>
+<p>99.1 Press release dated July 25, 2019.</p>
+</body></html>"#;
+    assert_eq!(
+        current_report_items("8-K", "d8k.htm", "2.02,9.01", table_rows),
+        Ok(vec![
+            (
+                "8-K:2.02".to_owned(),
+                "Item 2.02.\tResults of Operations and Financial Condition.\nOn July 25, 2019, the Company issued a press release announcing its results.".to_owned()
+            ),
+            (
+                "8-K:9.01".to_owned(),
+                "Item 9.01.\tFinancial Statements and Exhibits.\n99.1 Press release dated July 25, 2019.".to_owned()
+            ),
+        ]),
+        "a heading set as a table row"
+    );
+
+    let plain_2005 = "<DOCUMENT>\n<TYPE>8-K\n<TEXT>\n                       SECURITIES AND EXCHANGE COMMISSION\n\n\
+SECTION 2 - FINANCIAL INFORMATION\n\n\
+ITEM 2.02.  RESULTS OF OPERATIONS AND FINANCIAL CONDITION.\n\n\
+     On February 10, 2005, the Registrant issued a press release\n\
+announcing its fourth quarter results.\n\n\
+ITEMS 7.01 AND 9.01  REGULATION FD DISCLOSURE; FINANCIAL STATEMENTS AND EXHIBITS.\n\n\
+     (c) Exhibits. 99.1 Press release.\n\n\
+                                   SIGNATURE\n\n\
+     Pursuant to the requirements of the Securities Exchange Act of 1934\n</TEXT>\n</DOCUMENT>\n";
+    assert_eq!(
+        current_report_items("8-K", "form8k.txt", "2.02,7.01,9.01", plain_2005),
+        Ok(vec![
+            (
+                "8-K:2.02".to_owned(),
+                "ITEM 2.02.  RESULTS OF OPERATIONS AND FINANCIAL CONDITION.\n\nOn February 10, 2005, the Registrant issued a press release\nannouncing its fourth quarter results.".to_owned()
+            ),
+            (
+                "8-K:7.01".to_owned(),
+                "ITEMS 7.01 AND 9.01  REGULATION FD DISCLOSURE; FINANCIAL STATEMENTS AND EXHIBITS.\n\n(c) Exhibits. 99.1 Press release.".to_owned()
+            ),
+            (
+                "8-K:9.01".to_owned(),
+                "ITEMS 7.01 AND 9.01  REGULATION FD DISCLOSURE; FINANCIAL STATEMENTS AND EXHIBITS.\n\n(c) Exhibits. 99.1 Press release.".to_owned()
+            ),
+        ]),
+        "a 2005 plain-text filing in capitals, where a combined heading gives each of its items the same span"
+    );
+
+    assert_eq!(
+        current_report_items(
+            "8-K",
+            "form8k.htm",
+            "5.07",
+            "<p>The annual meeting was held on May 1, 2012.</p>"
+        ),
+        Err("no heading for items 5.07 (found none)".to_owned()),
+        "an 8-K whose listed items cannot be found says so"
     );
 }

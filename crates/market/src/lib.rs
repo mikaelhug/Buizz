@@ -749,6 +749,7 @@ impl MarketStore {
                     doc_id: location.doc_id,
                     content_hash: location.content_hash,
                     kind: location.kind,
+                    items: location.items,
                     published_at: location.published_at,
                 })
                 .collect())

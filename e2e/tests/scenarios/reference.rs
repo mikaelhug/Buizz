@@ -276,6 +276,14 @@ async fn bots_see_index_membership_profiles_earnings_and_8k_events_as_of_their_c
         "the Item 3.01 notice's exchange and rule are read by code, pass every check with their \
          quote, and are served from the typed view of the current version"
     );
+    let release: Value = spine
+        .get(&format!("/api/data/text/document?id=edgar:{RESULTS}:1"))
+        .await;
+    assert_eq!(
+        release["sections"],
+        json!([{"key": "8-K:2.02", "start": 0, "end": 105}]),
+        "the 8-K's main document is cut at its Item 2.02 heading; the 9.01 it lists has none"
+    );
     let stored: Vec<std::path::PathBuf> = spine
         .text_dirs()
         .iter()

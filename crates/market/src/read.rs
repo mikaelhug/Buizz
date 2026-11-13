@@ -1558,12 +1558,15 @@ pub(crate) fn press_release_progress(connection: &Connection) -> Result<Accessio
     )?)
 }
 
-const PERIODIC_KINDS: &str = "('10-K', '10-K/A', '10-Q', '10-Q/A')";
+const SPLIT_SCOPE: &str = "(d.kind IN ('10-K', '10-K/A', '10-Q', '10-Q/A') \
+     OR (d.kind IN ('8-K', '8-K/A') AND EXISTS (SELECT 1 FROM current_report c \
+     WHERE c.accession = d.accession AND len(c.items) > 0)))";
 
 pub(crate) struct UnsplitLocation {
     pub(crate) doc_id: String,
     pub(crate) content_hash: String,
     pub(crate) kind: String,
+    pub(crate) items: Vec<String>,
     pub(crate) published_at: Timestamp,
     pub(crate) volume: String,
     pub(crate) path: String,
@@ -1575,9 +1578,11 @@ pub(crate) fn unsplit_documents(
     limit: usize,
 ) -> Result<Vec<UnsplitLocation>> {
     let mut statement = connection.prepare_cached(&format!(
-        "SELECT d.doc_id, d.content_hash, d.kind, d.published_at, f.volume, f.path \
+        "SELECT d.doc_id, d.content_hash, d.kind, \
+         coalesce((SELECT array_to_string(any_value(c.items), ',') FROM current_report c \
+         WHERE c.accession = d.accession), ''), d.published_at, f.volume, f.path \
          FROM text_document d JOIN text_file f ON f.id = d.file_id \
-         WHERE d.kind IN {PERIODIC_KINDS} AND NOT EXISTS (SELECT 1 FROM section s \
+         WHERE {SPLIT_SCOPE} AND NOT EXISTS (SELECT 1 FROM section s \
          WHERE s.doc_id = d.doc_id AND s.content_hash = d.content_hash \
          AND s.splitter_version = ?) \
          ORDER BY d.published_at DESC, d.doc_id LIMIT ?"
@@ -1588,9 +1593,15 @@ pub(crate) fn unsplit_documents(
                 doc_id: row.get(0)?,
                 content_hash: row.get(1)?,
                 kind: row.get(2)?,
-                published_at: row.get::<_, Ts>(3)?.0,
-                volume: row.get(4)?,
-                path: row.get(5)?,
+                items: row
+                    .get::<_, String>(3)?
+                    .split(',')
+                    .filter(|item| !item.is_empty())
+                    .map(str::to_owned)
+                    .collect(),
+                published_at: row.get::<_, Ts>(4)?.0,
+                volume: row.get(5)?,
+                path: row.get(6)?,
             })
         })?
         .collect::<duckdb::Result<Vec<_>>>()?;
@@ -1626,7 +1637,7 @@ pub(crate) fn split_progress(
              AND s.content_hash = d.content_hash AND s.splitter_version = ? AND s.failure IS NULL) AS split, \
              EXISTS (SELECT 1 FROM section s WHERE s.doc_id = d.doc_id \
              AND s.content_hash = d.content_hash AND s.splitter_version = ? AND s.failure IS NOT NULL) AS unsplittable \
-             FROM text_document d WHERE d.kind IN {PERIODIC_KINDS})"
+             FROM text_document d WHERE {SPLIT_SCOPE})"
         ),
         [splitter_version, splitter_version],
         |row| {

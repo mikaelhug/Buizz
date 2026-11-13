@@ -580,7 +580,7 @@ impl Ingest {
                     source: DataSource::Edgar,
                     kind: ScopeKind::Derived,
                     unit: ScopeUnit::Filings,
-                    scope: "every stored 10-K and 10-Q document, split by the current splitter"
+                    scope: "every stored 10-K, 10-Q and 8-K main document (8-Ks that list items), split by the current splitter"
                         .into(),
                     from: start,
                     to: today,

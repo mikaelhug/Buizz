@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::sync::LazyLock;
 
 use buizz_core::market::Section;
@@ -22,6 +23,16 @@ static ITEM: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"^\s*(?i:items?)\s+(\d{1,2})([a-cA-C])?(?:\s*[.:\-–—)]|\t|\s*$|\s+[A-Z\["“'(])"#)
         .expect("item heading")
 });
+static CURRENT_ITEM: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r#"^\s*(?i:items?)\s*(\d{1,2}\.\d{2}(?:[\s,;&]*(?i:and\s+)?(?i:items?\s*)?\d{1,2}\.\d{2})*)(?:\s*[.:\-–—()]|\t|\s*$|\s+[A-Z\["“'(])"#,
+    )
+    .expect("current report item heading")
+});
+static ITEM_CODE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\d{1,2}\.\d{2}").expect("item code"));
+static SIGNATURES: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)^\s*signatures?\s*$").expect("signature heading"));
 static PART: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?i)^\s*part\s+(ii|i)\b").expect("part heading"));
 
@@ -30,8 +41,9 @@ struct Heading {
     rank: usize,
 }
 
-pub fn split_sections(form: &str, text: &str) -> Result<Vec<Section>, String> {
+pub fn split_sections(form: &str, listed: &[String], text: &str) -> Result<Vec<Section>, String> {
     let (base, items): (&str, &[&str]) = match form.trim_end_matches("/A") {
+        "8-K" => return split_current_report(listed, text),
         "10-K" => ("10-K", &ANNUAL_ITEMS),
         "10-Q" => ("10-Q", &QUARTERLY_ITEMS),
         other => return Err(format!("no splitter for form {other}")),
@@ -135,4 +147,56 @@ fn best_chain(headings: &[Heading], end: u64) -> Vec<usize> {
     }
     chain.reverse();
     chain
+}
+
+fn split_current_report(listed: &[String], text: &str) -> Result<Vec<Section>, String> {
+    if listed.is_empty() {
+        return Err("the filing lists no items".to_owned());
+    }
+    let mut headings: Vec<(u64, Vec<String>)> = Vec::new();
+    let mut seen = BTreeSet::new();
+    let mut offset = 0u64;
+    for line in text.split_inclusive('\n') {
+        if !headings.is_empty() && SIGNATURES.is_match(line) {
+            break;
+        }
+        if let Some(found) = CURRENT_ITEM.captures(line) {
+            let codes: Vec<String> = ITEM_CODE
+                .find_iter(&found[1])
+                .map(|code| code.as_str().trim_start_matches('0').to_owned())
+                .filter(|code| seen.insert(code.clone()))
+                .collect();
+            if !codes.is_empty() {
+                headings.push((offset, codes));
+            }
+        }
+        offset += line.chars().count() as u64;
+    }
+    let sections: Vec<Section> = headings
+        .iter()
+        .enumerate()
+        .flat_map(|(position, (start, codes))| {
+            let end = headings.get(position + 1).map_or(offset, |next| next.0);
+            codes
+                .iter()
+                .filter(|code| listed.contains(code))
+                .map(move |code| Section {
+                    key: format!("8-K:{code}"),
+                    start: *start,
+                    end,
+                })
+        })
+        .collect();
+    if sections.is_empty() {
+        return Err(format!(
+            "no heading for items {} (found {})",
+            listed.join(", "),
+            if seen.is_empty() {
+                "none".to_owned()
+            } else {
+                seen.into_iter().collect::<Vec<_>>().join(", ")
+            }
+        ));
+    }
+    Ok(sections)
 }
