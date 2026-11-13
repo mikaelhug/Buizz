@@ -3,6 +3,7 @@ import type { Schemas } from "../api/client";
 import { exchangeWallSeconds, fmt, tone } from "../lib/format";
 import type { MonthRange } from "./Metrics";
 import { Info, Popover } from "./Popover";
+import { ScaleSwatches } from "./Kit";
 
 type Point = Schemas["SparkPoint"];
 type Month = { strategy: number; benchmark: number | undefined };
@@ -124,7 +125,7 @@ function Legend({ scale }: { scale: number }) {
   return (
     <div className="monthly-legend">
       <span className="num">−{bound}</span>
-      <span className="monthly-scale" aria-hidden="true" />
+      <ScaleSwatches />
       <span className="num">+{bound}</span>
       <span className="visually-hidden">Cell colour runs from red for a loss of {bound} or more, through clear at zero, to green for a gain of {bound} or more.</span>
     </div>

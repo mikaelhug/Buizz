@@ -520,11 +520,16 @@
   font-size: var(--fs-xs);
 }
 
-.monthly-scale {
-  width: 96px;
-  height: 8px;
-  border-radius: var(--r-pill);
-  background: linear-gradient(90deg, color-mix(in srgb, var(--down) 55%, transparent), transparent 50%, color-mix(in srgb, var(--up) 55%, transparent));
+.scale-swatches {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.scale-swatch {
+  width: 16px;
+  height: 10px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--tone) var(--strength), transparent);
   box-shadow: inset 0 0 0 1px var(--border);
 }
 

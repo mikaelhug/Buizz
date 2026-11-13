@@ -35,3 +35,15 @@ export function EmptyState({ title, children, action }: { title: string; childre
     </div>
   );
 }
+
+const SCALE_STEPS = [-1, -0.5, 0, 0.5, 1] as const;
+
+export function ScaleSwatches() {
+  return (
+    <span className="scale-swatches" aria-hidden="true">
+      {SCALE_STEPS.map((step) => (
+        <span key={step} className="scale-swatch" style={{ ["--strength" as string]: `${Math.abs(step) * 55}%`, ["--tone" as string]: step < 0 ? "var(--down)" : "var(--up)" }} />
+      ))}
+    </span>
+  );
+}

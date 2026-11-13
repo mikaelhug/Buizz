@@ -8,7 +8,7 @@ import { useFrameBatch } from "../lib/useFrameBatch";
 import { useResource } from "../lib/useResource";
 import { useStored } from "../lib/stored";
 import { Failure, Loading, StaleFailure } from "../ui/Feedback";
-import { Stat } from "../ui/Kit";
+import { ScaleSwatches, Stat } from "../ui/Kit";
 import { MetricValue } from "../ui/Metrics";
 import { OverflowMenu } from "../ui/Menu";
 import { Info } from "../ui/Popover";
@@ -402,7 +402,7 @@ function Heatmap({ name, variants, axes, plateau }: { name: string; variants: Va
         </span>
         <span className="monthly-legend">
           <span>below 0</span>
-          <span className="monthly-scale" aria-hidden="true" />
+          <ScaleSwatches />
           <span>above 0</span>
         </span>
       </header>
