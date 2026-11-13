@@ -96,6 +96,7 @@ pub struct World {
     pub wikipedia: BTreeMap<String, String>,
     pub borrow: Option<Vec<u8>>,
     pub earnings_insight: Option<(String, Vec<u8>)>,
+    pub archives: BTreeMap<String, String>,
     pub released: Option<Timestamp>,
     pub streamed_from: Option<Timestamp>,
 }
@@ -357,6 +358,23 @@ impl World {
             .collect(),
             borrow: Some(read("ibkr/usa.txt").into_bytes()),
             earnings_insight: Some(recorded_earnings_insight()),
+            archives: [
+                (
+                    "320193/000114036126042149/form4.xml",
+                    "edgar/form4_sample.xml",
+                ),
+                (
+                    "320193/000032019326000024/0000320193-26-000024-index.htm",
+                    "edgar/filing_index_sample.htm",
+                ),
+                (
+                    "320193/000032019326000024/a8-kex991q4202609262026.htm",
+                    "edgar/ex99_sample.htm",
+                ),
+            ]
+            .into_iter()
+            .map(|(path, file)| (path.to_owned(), read(file)))
+            .collect(),
             rates: parse_par_yield_csv(&read("treasury/par_yield_2025.csv"))
                 .expect("recorded yields"),
             macro_vintages: {

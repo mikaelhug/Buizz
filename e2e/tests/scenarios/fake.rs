@@ -104,12 +104,7 @@ impl FakeProviders {
             .route("/dynamic/SymDir/nasdaqtraded.txt", get(symbol_directory))
             .route("/api/xbrl/companyfacts/{file}", get(company_facts))
             .route("/submissions/{file}", get(submissions))
-            .route(
-                "/Archives/edgar/data/320193/000114036126042149/form4.xml",
-                get(|| async {
-                    include_str!("../../../crates/sources/fixtures/edgar/form4_sample.xml")
-                }),
-            )
+            .route("/Archives/edgar/data/{*path}", get(archive))
             .route("/w/api.php", get(wikipedia))
             .route(
                 "/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv/{year}/all",
@@ -502,6 +497,13 @@ async fn symbol_directory(State(fake): State<Arc<Fake>>) -> Response {
          File Creation Time: 1111202618:02|||||\n"
     )
     .into_response()
+}
+
+async fn archive(State(fake): State<Arc<Fake>>, Path(path): Path<String>) -> Response {
+    fake.world().archives.get(&path).cloned().map_or_else(
+        || StatusCode::NOT_FOUND.into_response(),
+        IntoResponse::into_response,
+    )
 }
 
 async fn submissions(State(fake): State<Arc<Fake>>, Path(file): Path<String>) -> Response {

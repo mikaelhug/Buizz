@@ -1,4 +1,4 @@
-use buizz_core::market::{Company, EarningsRelease, Symbol};
+use buizz_core::market::{Company, EarningsRelease, Filing, Symbol};
 use buizz_core::time::Timestamp;
 use chrono::NaiveDate;
 use serde::Deserialize;
@@ -17,6 +17,7 @@ pub struct Submissions {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Filings {
+    pub reports: Vec<Filing>,
     pub releases: Vec<EarningsRelease>,
     pub ownership: Vec<OwnershipFiling>,
 }
@@ -152,21 +153,38 @@ fn filings(symbol: &Symbol, cik: u32, columns: &Columns) -> Result<Filings, Sour
             });
             continue;
         }
-        let announces_results = EARNINGS_FORMS.contains(&columns.form[row].as_str())
-            && columns.items[row]
-                .split(',')
-                .any(|item| item.trim() == RESULTS_OF_OPERATIONS);
-        if !announces_results {
+        if !EARNINGS_FORMS.contains(&columns.form[row].as_str()) {
             continue;
         }
-        filings.releases.push(EarningsRelease {
+        let items: Vec<String> = columns.items[row]
+            .split(',')
+            .map(str::trim)
+            .filter(|item| !item.is_empty())
+            .map(str::to_owned)
+            .collect();
+        let accepted_at = accepted_at()?;
+        let report_date = columns.report_date[row].parse().ok();
+        if items.iter().any(|item| item == RESULTS_OF_OPERATIONS) {
+            filings.releases.push(EarningsRelease {
+                symbol: symbol.clone(),
+                cik,
+                accession: columns.accession[row].clone(),
+                form: columns.form[row].clone(),
+                filed: columns.filed[row],
+                report_date,
+                accepted_at,
+            });
+        }
+        filings.reports.push(Filing {
             symbol: symbol.clone(),
             cik,
             accession: columns.accession[row].clone(),
             form: columns.form[row].clone(),
             filed: columns.filed[row],
-            report_date: columns.report_date[row].parse().ok(),
-            accepted_at: accepted_at()?,
+            report_date,
+            items,
+            accepted_at,
+            available_at: accepted_at,
         });
     }
     Ok(filings)

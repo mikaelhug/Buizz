@@ -220,11 +220,15 @@ pub(crate) type Params = Vec<Box<dyn ToSql>>;
 
 pub(crate) const IN_SYMBOLS: &str = "IN (SELECT unnest(?::VARCHAR[]))";
 
-pub(crate) fn symbol_list(symbols: &[Symbol]) -> Box<dyn ToSql> {
+pub(crate) fn text_list<'a>(texts: impl IntoIterator<Item = &'a str>) -> Box<dyn ToSql> {
     Box::new(Value::List(
-        symbols
-            .iter()
-            .map(|symbol| Value::Text(symbol.as_str().to_owned()))
+        texts
+            .into_iter()
+            .map(|text| Value::Text(text.to_owned()))
             .collect(),
     ))
+}
+
+pub(crate) fn symbol_list(symbols: &[Symbol]) -> Box<dyn ToSql> {
+    text_list(symbols.iter().map(Symbol::as_str))
 }

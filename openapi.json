@@ -2157,7 +2157,9 @@
           "insider_trades",
           "news",
           "fomc",
-          "estimates"
+          "estimates",
+          "current_reports",
+          "press_releases"
         ]
       },
       "DatasetSpine": {

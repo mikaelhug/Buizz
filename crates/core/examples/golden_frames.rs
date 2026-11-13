@@ -2,9 +2,9 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 use buizz_core::market::{
-    Adjustment, CorporateAction, CorporateActionKind, Feed, FomcAnnouncement, FundamentalMetric,
-    FundamentalPoint, InsiderOwner, InsiderTrade, InsiderTransaction, MacroPoint, MacroSeries,
-    NewsArticle, PeriodType, Session, Symbol, Timeframe,
+    Adjustment, CorporateAction, CorporateActionKind, Feed, Filing, FomcAnnouncement,
+    FundamentalMetric, FundamentalPoint, InsiderOwner, InsiderTrade, InsiderTransaction,
+    MacroPoint, MacroSeries, NewsArticle, PeriodType, PressRelease, Session, Symbol, Timeframe,
 };
 use buizz_core::order::{
     Fill, OrderId, OrderRequest, OrderSize, OrderStatus, OrderType, OrderUpdate, Side, TimeInForce,
@@ -474,6 +474,7 @@ fn main() {
                     filed: date("2024-11-19"),
                     accepted_at: at("2024-11-19T22:30:14Z"),
                     available_at: at("2024-11-20T14:30:00Z"),
+                    plan_10b5_1: Some(false),
                     owners: vec![InsiderOwner {
                         cik: 1214156,
                         name: "Doe Jane".to_owned(),
@@ -554,6 +555,72 @@ fn main() {
                     scheduled: true,
                     statement_at: Some(at("2024-12-18T19:00:00Z")),
                     available_at: at("2024-01-01T05:00:00Z"),
+                }],
+            },
+        }),
+    );
+
+    write(
+        &dir,
+        "query_filings",
+        &BotMessage::Query(Query {
+            id: 10,
+            request: QueryRequest::Filings {
+                symbols: vec![bbb.clone()],
+                since: date("2024-11-01"),
+                items: Some(vec!["2.02".to_owned(), "4.02".to_owned()]),
+            },
+        }),
+    );
+
+    write(
+        &dir,
+        "data_filings",
+        &SpineMessage::Data(Data {
+            id: 10,
+            result: DataResult::Filings {
+                filings: vec![Filing {
+                    symbol: bbb.clone(),
+                    cik: 9_999_001,
+                    accession: "0009999001-24-000050".to_owned(),
+                    form: "8-K".to_owned(),
+                    filed: date("2024-11-20"),
+                    report_date: Some(date("2024-11-20")),
+                    items: vec!["2.02".to_owned(), "9.01".to_owned()],
+                    accepted_at: at("2024-11-20T21:05:12Z"),
+                    available_at: at("2024-11-20T21:05:12Z"),
+                }],
+            },
+        }),
+    );
+
+    write(
+        &dir,
+        "query_press_releases",
+        &BotMessage::Query(Query {
+            id: 11,
+            request: QueryRequest::PressReleases {
+                symbols: vec![bbb.clone()],
+                since: date("2024-11-01"),
+                accessions: None,
+            },
+        }),
+    );
+
+    write(
+        &dir,
+        "data_press_releases",
+        &SpineMessage::Data(Data {
+            id: 11,
+            result: DataResult::PressReleases {
+                releases: vec![PressRelease {
+                    symbol: bbb.clone(),
+                    accession: "0009999001-24-000050".to_owned(),
+                    accepted_at: at("2024-11-20T21:05:12Z"),
+                    available_at: at("2024-11-20T21:05:12Z"),
+                    exhibit: "EX-99.1".to_owned(),
+                    text: "Beta Fixture reports third quarter results\n\nRevenue\t$\t1,250"
+                        .to_owned(),
                 }],
             },
         }),

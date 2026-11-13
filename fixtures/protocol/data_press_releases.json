@@ -1,0 +1,17 @@
+{
+  "id": 11,
+  "result": {
+    "kind": "press_releases",
+    "releases": [
+      {
+        "accepted_at": 1732136712000000000,
+        "accession": "0009999001-24-000050",
+        "available_at": 1732136712000000000,
+        "exhibit": "EX-99.1",
+        "symbol": "BBB",
+        "text": "Beta Fixture reports third quarter results\n\nRevenue\t$\t1,250"
+      }
+    ]
+  },
+  "type": "data"
+}

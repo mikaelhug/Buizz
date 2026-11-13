@@ -4,10 +4,11 @@ use buizz_core::listing::Listings;
 use buizz_core::market::{
     Adjustment, AdjustmentFactor, AssetClass, Bar, Calendar, Company, CorporateAction,
     CorporateActionKind, Coverage, DataSource, Dataset, EarningsInsight, EarningsRelease,
-    EstimateFact, EstimateMetric, EstimateScope, FomcAnnouncement, FomcMeeting, FundamentalMetric,
-    FundamentalPoint, HISTORY_FLOORS, HISTORY_START, IndexHistory, IndexMember, InsiderOwner,
-    InsiderTrade, InsiderTransaction, Instrument, InstrumentProfile, MacroObservation, MacroPoint,
-    MacroSeries, NewsArticle, RiskFreeRate, SIP_DELAY, Session, StockIndex, Symbol, Timeframe,
+    EstimateFact, EstimateMetric, EstimateScope, Filing, FomcAnnouncement, FomcMeeting,
+    FundamentalMetric, FundamentalPoint, HISTORY_FLOORS, HISTORY_START, IndexHistory, IndexMember,
+    InsiderOwner, InsiderPlan, InsiderTrade, InsiderTransaction, Instrument, InstrumentProfile,
+    MacroObservation, MacroPoint, MacroSeries, NewsArticle, PressCandidate, PressRelease,
+    RiskFreeRate, SIP_DELAY, Session, StockIndex, Symbol, Timeframe,
 };
 use buizz_core::ops::{ActionDisagreement, CoverageGap, DataWarning, UNEXPLAINED_MOVE_THRESHOLD};
 use buizz_core::protocol::BarRow;
@@ -24,7 +25,7 @@ use rust_decimal::prelude::ToPrimitive;
 
 use crate::codec::{
     ActionColumns, Dec, FeedColumn, IN_SYMBOLS, Params, Sym, Ts, Wire, placeholders, symbol_list,
-    wire_name,
+    text_list, wire_name,
 };
 use crate::{ChartBars, ChartRequest, HistoryRequest, Result};
 
@@ -1196,28 +1197,149 @@ pub(crate) fn earnings_releases(
     Ok(releases)
 }
 
-pub(crate) fn earnings_accessions(
+pub(crate) fn accessions(
     connection: &Connection,
+    table: &str,
     symbol: &Symbol,
 ) -> Result<BTreeSet<String>> {
     let mut statement =
-        connection.prepare_cached("SELECT accession FROM earnings_release WHERE symbol = ?")?;
+        connection.prepare_cached(&format!("SELECT accession FROM {table} WHERE symbol = ?"))?;
     let accessions = statement
         .query_map([symbol.as_str()], |row| row.get(0))?
         .collect::<duckdb::Result<_>>()?;
     Ok(accessions)
 }
 
-pub(crate) fn insider_accessions(
+pub(crate) fn filings(
     connection: &Connection,
-    symbol: &Symbol,
-) -> Result<BTreeSet<String>> {
-    let mut statement =
-        connection.prepare_cached("SELECT accession FROM insider_filing WHERE symbol = ?")?;
-    let accessions = statement
-        .query_map([symbol.as_str()], |row| row.get(0))?
-        .collect::<duckdb::Result<_>>()?;
-    Ok(accessions)
+    symbols: &[Symbol],
+    since: NaiveDate,
+    items: Option<&[String]>,
+    as_of: Timestamp,
+) -> Result<Vec<Filing>> {
+    let symbols = unique(symbols);
+    if symbols.is_empty() {
+        return Ok(Vec::new());
+    }
+    let sql = format!(
+        "SELECT symbol, cik, accession, form, filed, report_date, array_to_string(items, ','), \
+         accepted_at FROM current_report WHERE symbol {IN_SYMBOLS} AND filed >= ? \
+         AND accepted_at <= ? AND (? OR list_has_any(items, ?::VARCHAR[])) \
+         ORDER BY symbol, accepted_at, accession"
+    );
+    let params: Params = vec![
+        symbol_list(&symbols),
+        Box::new(since),
+        Box::new(Ts(as_of)),
+        Box::new(items.is_none()),
+        text_list(items.unwrap_or_default().iter().map(String::as_str)),
+    ];
+    let mut statement = connection.prepare_cached(&sql)?;
+    let filings = statement
+        .query_map(params_from_iter(params.iter()), |row| {
+            let items: String = row.get(6)?;
+            let accepted_at = row.get::<_, Ts>(7)?.0;
+            Ok(Filing {
+                symbol: row.get::<_, Sym>(0)?.0,
+                cik: row.get(1)?,
+                accession: row.get(2)?,
+                form: row.get(3)?,
+                filed: row.get(4)?,
+                report_date: row.get(5)?,
+                items: items
+                    .split(',')
+                    .filter(|item| !item.is_empty())
+                    .map(str::to_owned)
+                    .collect(),
+                accepted_at,
+                available_at: accepted_at,
+            })
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    Ok(filings)
+}
+
+pub(crate) fn press_releases(
+    connection: &Connection,
+    symbols: &[Symbol],
+    since: NaiveDate,
+    accessions: Option<&[String]>,
+    as_of: Timestamp,
+) -> Result<Vec<PressRelease>> {
+    let symbols = unique(symbols);
+    if symbols.is_empty() {
+        return Ok(Vec::new());
+    }
+    let sql = format!(
+        "SELECT e.symbol, p.accession, p.accepted_at, p.exhibit, p.text FROM press_release p \
+         JOIN earnings_release e ON e.accession = p.accession \
+         WHERE e.symbol {IN_SYMBOLS} AND e.filed >= ? AND p.accepted_at <= ? \
+         AND p.text IS NOT NULL AND (? OR p.accession IN (SELECT unnest(?::VARCHAR[]))) \
+         ORDER BY e.symbol, p.accepted_at, p.accession"
+    );
+    let params: Params = vec![
+        symbol_list(&symbols),
+        Box::new(since),
+        Box::new(Ts(as_of)),
+        Box::new(accessions.is_none()),
+        text_list(accessions.unwrap_or_default().iter().map(String::as_str)),
+    ];
+    let mut statement = connection.prepare_cached(&sql)?;
+    let releases = statement
+        .query_map(params_from_iter(params.iter()), |row| {
+            let accepted_at = row.get::<_, Ts>(2)?.0;
+            Ok(PressRelease {
+                symbol: row.get::<_, Sym>(0)?.0,
+                accession: row.get(1)?,
+                accepted_at,
+                available_at: accepted_at,
+                exhibit: row.get(3)?,
+                text: row.get(4)?,
+            })
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    Ok(releases)
+}
+
+pub(crate) fn press_candidates(connection: &Connection) -> Result<Vec<PressCandidate>> {
+    let mut statement = connection.prepare_cached(
+        "SELECT e.symbol, e.cik, e.accession, e.accepted_at FROM earnings_release e \
+         WHERE NOT EXISTS (SELECT 1 FROM press_release p WHERE p.accession = e.accession) \
+         ORDER BY e.accepted_at DESC, e.accession, e.symbol",
+    )?;
+    let candidates = statement
+        .query_map([], |row| {
+            Ok(PressCandidate {
+                symbol: row.get::<_, Sym>(0)?.0,
+                cik: row.get(1)?,
+                accession: row.get(2)?,
+                accepted_at: row.get::<_, Ts>(3)?.0,
+            })
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    Ok(candidates)
+}
+
+pub(crate) fn unread_plans(connection: &Connection, from: Timestamp) -> Result<Vec<InsiderPlan>> {
+    let mut statement = connection.prepare_cached(
+        "SELECT f.symbol, f.accession, f.filed FROM insider_filing f WHERE f.accepted_at >= ? \
+         AND EXISTS (SELECT 1 FROM insider_owner o \
+         WHERE o.symbol = f.symbol AND o.accession = f.accession) \
+         AND NOT EXISTS (SELECT 1 FROM insider_plan p \
+         WHERE p.symbol = f.symbol AND p.accession = f.accession) \
+         ORDER BY f.symbol, f.filed, f.accession",
+    )?;
+    let unread = statement
+        .query_map([Ts(from)], |row| {
+            Ok(InsiderPlan {
+                symbol: row.get::<_, Sym>(0)?.0,
+                accession: row.get(1)?,
+                filed: row.get(2)?,
+                plan_10b5_1: None,
+            })
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    Ok(unread)
 }
 
 pub(crate) fn insider_trades(
@@ -1271,9 +1393,10 @@ pub(crate) fn insider_trades(
     }
     let mut statement = connection.prepare(&format!(
         "SELECT f.symbol, f.accession, f.form, f.filed, f.accepted_at, t.security, t.date, \
-         t.code, t.acquired, t.shares, t.price, t.shares_after, t.direct \
+         t.code, t.acquired, t.shares, t.price, t.shares_after, t.direct, p.plan_10b5_1 \
          FROM insider_transaction t \
          JOIN insider_filing f ON f.symbol = t.symbol AND f.accession = t.accession \
+         LEFT JOIN insider_plan p ON p.symbol = f.symbol AND p.accession = f.accession \
          WHERE {visible} ORDER BY f.symbol, f.accepted_at, f.accession, t.line"
     ))?;
     let trades = statement
@@ -1295,6 +1418,7 @@ pub(crate) fn insider_trades(
                 filed: row.get(3)?,
                 accepted_at,
                 available_at: filing_visible_at(accepted_at, calendar).unwrap_or(last_open),
+                plan_10b5_1: row.get(13)?,
                 transaction: InsiderTransaction {
                     security: row.get(5)?,
                     date: row.get(6)?,

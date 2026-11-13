@@ -40,6 +40,8 @@ const DATASETS: Record<Dataset, { name: string; caption: string }> = {
   fundamentals: { name: "Financial statements", caption: "XBRL facts from 10-K and 10-Q filings, as filed" },
   sec_filings: { name: "SEC filings", caption: "every filing with the time it was accepted" },
   earnings_releases: { name: "Earnings releases", caption: "8-K Item 2.02 filing times" },
+  current_reports: { name: "8-K events", caption: "every 8-K with its item codes and acceptance time" },
+  press_releases: { name: "Earnings press releases", caption: "the text of each earnings release, as filed" },
   insider_trades: { name: "Insider trades", caption: "Form 4 purchases and sales" },
   estimates: { name: "Analyst estimates", caption: "consensus earnings expectations" },
   rates: { name: "Treasury rates", caption: "the daily yield curve and the T-bill rate cash earns" },

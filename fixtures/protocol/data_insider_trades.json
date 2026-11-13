@@ -20,6 +20,7 @@
             "ten_percent_owner": false
           }
         ],
+        "plan_10b5_1": false,
         "symbol": "BBB",
         "transaction": {
           "acquired": true,
