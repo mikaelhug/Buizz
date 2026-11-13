@@ -19,7 +19,7 @@ const PROCESS_DATE_SLACK: TimeDelta = TimeDelta::days(30);
 const REFRESH_WINDOW: TimeDelta = TimeDelta::days(90);
 const ANNOUNCED_HORIZON: TimeDelta = TimeDelta::days(90);
 const BACKFILL_REQUESTS_PER_RUN: usize = 40;
-const SPLIT_LOOKBACK: TimeDelta = TimeDelta::days(14);
+const SPLIT_WINDOW: TimeDelta = TimeDelta::days(14);
 
 struct TiingoSplits {
     checks: BTreeMap<(Symbol, NaiveDate), ActionDisagreement>,
@@ -240,8 +240,8 @@ impl Ingest {
                 .bars_between(
                     Timeframe::Day,
                     vec![action.symbol.clone()],
-                    day_start(action.ex_date - SPLIT_LOOKBACK),
-                    day_start(action.ex_date + TimeDelta::days(1)),
+                    day_start(action.ex_date - SPLIT_WINDOW),
+                    day_start(action.ex_date + SPLIT_WINDOW),
                 )
                 .await?;
             let distributed = self.distributed(&actions, action).await?;

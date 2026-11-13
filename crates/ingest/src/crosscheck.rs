@@ -128,12 +128,24 @@ pub(crate) fn refuted_by_prices(
     let Some((close, open)) = around(bars, date).filter(|(close, _)| *close > distributed) else {
         return false;
     };
+    let distance = |moved: Decimal, ratio: Decimal| {
+        (moved / ratio).to_f64().map(|relative| relative.ln().abs())
+    };
     let moved = (close - distributed) / open;
-    let distance = |ratio: Decimal| (moved / ratio).to_f64().map(|relative| relative.ln().abs());
-    match (distance(ratio), distance(Decimal::ONE)) {
+    let refuted = match (distance(moved, ratio), distance(moved, Decimal::ONE)) {
         (Some(split), Some(none)) => split - none > CORROBORATED_LOG_DISTANCE,
         _ => false,
-    }
+    };
+    let shown_on_another_session = bars.windows(2).any(|pair| {
+        let moved = pair[0].close / pair[1].open;
+        pair[1].start.exchange_date() != date
+            && !pair[1].open.is_zero()
+            && match (distance(moved, ratio), distance(moved, Decimal::ONE)) {
+                (Some(split), Some(none)) => split <= CORROBORATED_LOG_DISTANCE && split < none,
+                _ => false,
+            }
+    });
+    refuted && !shown_on_another_session
 }
 
 fn around(bars: &[Bar], date: NaiveDate) -> Option<(Decimal, Decimal)> {
@@ -184,6 +196,15 @@ mod tests {
             ];
             refuted_by_prices(&bars, date("2020-04-03"), dec(ratio), dec(distributed))
         };
+        let misdated = [
+            bar("2025-02-26", 102, 102),
+            bar("2025-02-27", 102, 102),
+            bar("2025-02-28", 21, 21),
+        ];
+        assert!(
+            !refuted_by_prices(&misdated, date("2025-02-27"), dec("5"), Decimal::ZERO),
+            "a 5-for-1 the prices show a session away from Alpaca's ex-date is a real split"
+        );
         assert!(
             refuted(86, 51, "0.5", "0"),
             "RTX's 1-for-2 on the day UTX spun off CARR and OTIS: 86 to 51 is no 1-for-2"
