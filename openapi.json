@@ -2431,7 +2431,9 @@
           "earnings_guidance",
           "option_chains",
           "trading_halts",
-          "etf_holdings"
+          "etf_holdings",
+          "fails_to_deliver",
+          "page_views"
         ]
       },
       "DatasetSpine": {
@@ -4788,6 +4790,8 @@
           "days",
           "sessions",
           "settlements",
+          "files",
+          "articles",
           "filings",
           "sections",
           "quarters"

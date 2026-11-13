@@ -341,6 +341,8 @@ fn read_from(request: &QueryRequest, today: NaiveDate) -> Option<(Dataset, Naive
         QueryRequest::OptionChains { since, .. } => Some((Dataset::OptionChains, *since)),
         QueryRequest::TradingHalts { since, .. } => Some((Dataset::TradingHalts, *since)),
         QueryRequest::EtfHoldings { since, .. } => Some((Dataset::EtfHoldings, *since)),
+        QueryRequest::FailsToDeliver { since, .. } => Some((Dataset::FailsToDeliver, *since)),
+        QueryRequest::PageViews { since, .. } => Some((Dataset::PageViews, *since)),
         QueryRequest::Facts { recipe, since, .. } => RECIPES
             .iter()
             .find(|known| known.name == recipe)
@@ -603,6 +605,20 @@ async fn answer(
                 .await
                 .map_err(|error| error.to_string())?;
             Ok(DataResult::EtfHoldings { holdings, shares })
+        }
+        QueryRequest::FailsToDeliver { symbols, since } => {
+            let fails = market
+                .fails_to_deliver(symbols, since, clock)
+                .await
+                .map_err(|error| error.to_string())?;
+            Ok(DataResult::FailsToDeliver { fails })
+        }
+        QueryRequest::PageViews { symbols, since } => {
+            let views = market
+                .page_views(symbols, since, clock)
+                .await
+                .map_err(|error| error.to_string())?;
+            Ok(DataResult::PageViews { views })
         }
         QueryRequest::Completeness { datasets, from, to } => {
             if from > to {

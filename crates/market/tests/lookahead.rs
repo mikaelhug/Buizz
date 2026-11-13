@@ -1,10 +1,12 @@
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use buizz_core::market::{
     Adjustment, AssetClass, Bar, CorporateAction, CorporateActionKind, DataSource, Dataset, Fact,
-    FactStatus, Feed, Filing, FundamentalFact, FundamentalMetric, IndexHistory, IndexMember,
-    InsiderFiling, InsiderOwner, InsiderTransaction, Instrument, NewsArticle, PeriodType,
-    RecipeScope, RecipeState, RecipeVersion, Session, StockIndex, Symbol, Timeframe,
+    FactStatus, FailToDeliverRecord, Feed, Filing, FundamentalFact, FundamentalMetric,
+    IndexHistory, IndexMember, InsiderFiling, InsiderOwner, InsiderTransaction, Instrument,
+    NewsArticle, PeriodType, RecipeScope, RecipeState, RecipeVersion, Session, StockIndex, Symbol,
+    Timeframe, TitleViews,
 };
 use buizz_core::protocol::BarRow;
 use buizz_core::run::UniverseSpec;
@@ -863,18 +865,22 @@ async fn a_ticker_names_the_company_that_traded_under_it_at_the_clock() {
         )
         .await
         .unwrap();
-    let member = |symbol: &str, end: Option<&str>| IndexMember {
+    let member = |symbol: &str, end: Option<&str>, article: &str| IndexMember {
         index: StockIndex::Sp500,
         symbol: Symbol::new(symbol),
         start: Some("2026-11-02".parse().unwrap()),
         end: end.map(|date| date.parse().unwrap()),
+        article: Some(article.to_owned()),
     };
     store
         .replace_index_history(
             DataSource::Fixture,
             IndexHistory {
                 index: StockIndex::Sp500,
-                members: vec![member("META", None), member("STI", Some("2026-11-05"))],
+                members: vec![
+                    member("META", None, "Meta Platforms"),
+                    member("STI", Some("2026-11-05"), "SunTrust Banks"),
+                ],
                 changes: 2,
                 reliable_from: None,
             },
@@ -977,6 +983,125 @@ async fn a_ticker_names_the_company_that_traded_under_it_at_the_clock() {
     assert_eq!(
         class("2026-11-12T21:00:00Z").await,
         [(Symbol::new("FB"), AssetClass::Etf)]
+    );
+
+    let day = |text: &str| -> NaiveDate { text.parse().unwrap() };
+    let viewed = |title: &str, date: &str, views: u64| TitleViews {
+        title: title.to_owned(),
+        date: day(date),
+        views,
+        published: day(date) + TimeDelta::days(1),
+    };
+    store
+        .append_page_views(
+            DataSource::Wikipedia,
+            BTreeMap::from([(
+                "Meta Platforms".to_owned(),
+                BTreeSet::from(["Facebook, Inc.".to_owned(), "Meta Platforms".to_owned()]),
+            )]),
+            vec![
+                viewed("Facebook, Inc.", "2026-11-04", 900),
+                viewed("Meta Platforms", "2026-11-04", 100),
+                viewed("Meta Platforms", "2026-11-09", 700),
+            ],
+        )
+        .await
+        .unwrap();
+    let views = |symbol: &'static str, clock: &'static str| {
+        let store = store.clone();
+        async move {
+            store
+                .page_views(
+                    vec![Symbol::new(symbol)],
+                    day("2026-11-02"),
+                    clock.parse().unwrap(),
+                )
+                .await
+                .unwrap()
+                .into_iter()
+                .map(|row| {
+                    (
+                        row.symbol.to_string(),
+                        row.date.to_string(),
+                        row.views,
+                        row.available_at.to_string(),
+                    )
+                })
+                .collect::<Vec<_>>()
+        }
+    };
+    let row = |symbol: &str, date: &str, views: u64, at: &str| {
+        (symbol.to_owned(), date.to_owned(), views, at.to_owned())
+    };
+    assert!(views("FB", "2026-11-05T14:29:59Z").await.is_empty());
+    assert_eq!(
+        views("FB", "2026-11-05T14:30:00Z").await,
+        [row("FB", "2026-11-04", 1000, "2026-11-05T14:30:00Z")],
+        "a day's views count every title the article had and show from the next morning's open"
+    );
+    assert_eq!(
+        views("META", "2026-11-12T21:00:00Z").await,
+        [
+            row("META", "2026-11-04", 1000, "2026-11-05T14:30:00Z"),
+            row("META", "2026-11-09", 700, "2026-11-10T14:30:00Z"),
+        ]
+    );
+    assert!(
+        views("FB", "2026-11-12T21:00:00Z").await.is_empty(),
+        "the fund that took the FB ticker has no company article"
+    );
+
+    let failed =
+        |symbol: &str, settlement: &str, quantity: u64, published: &str| FailToDeliverRecord {
+            symbol: Symbol::new(symbol),
+            settlement: day(settlement),
+            cusip: "30303M102".to_owned(),
+            quantity,
+            price: None,
+            published: day(published),
+        };
+    store
+        .append_fails_to_deliver(
+            DataSource::Edgar,
+            "cnsfails202611a".to_owned(),
+            day("2026-11-12"),
+            vec![
+                failed("FB", "2026-11-03", 500, "2026-11-06"),
+                failed("META", "2026-11-09", 300, "2026-11-11"),
+            ],
+        )
+        .await
+        .unwrap();
+    let fails = |clock: &'static str| {
+        let store = store.clone();
+        async move {
+            store
+                .fails_to_deliver(
+                    vec![Symbol::new("META")],
+                    day("2026-11-02"),
+                    clock.parse().unwrap(),
+                )
+                .await
+                .unwrap()
+                .into_iter()
+                .map(|row| {
+                    (
+                        row.symbol.to_string(),
+                        row.quantity,
+                        row.available_at.to_string(),
+                    )
+                })
+                .collect::<Vec<_>>()
+        }
+    };
+    assert!(fails("2026-11-09T14:29:59Z").await.is_empty());
+    assert_eq!(
+        fails("2026-11-12T21:00:00Z").await,
+        [
+            ("META".to_owned(), 500, "2026-11-09T14:30:00Z".to_owned()),
+            ("META".to_owned(), 300, "2026-11-12T14:30:00Z".to_owned()),
+        ],
+        "fails filed under FB before the rename belong to the company, each from the open after its file was public"
     );
 
     let withdrawn = store

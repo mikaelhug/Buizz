@@ -1,0 +1,16 @@
+{
+  "id": 21,
+  "result": {
+    "kind": "page_views",
+    "views": [
+      {
+        "article": "Alpha Fixture Inc.",
+        "available_at": 1732026600000000000,
+        "date": "2024-11-18",
+        "symbol": "AAA",
+        "views": 18342
+      }
+    ]
+  },
+  "type": "data"
+}

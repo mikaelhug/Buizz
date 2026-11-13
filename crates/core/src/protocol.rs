@@ -11,9 +11,10 @@ use crate::api::ContractState;
 use crate::ledger::Portfolio;
 use crate::market::{
     Adjustment, Borrow, CorporateAction, DataSource, Dataset, EarningsRelease, EtfHolding,
-    EtfShares, FactStatus, Filing, FomcAnnouncement, FundamentalMetric, FundamentalPoint,
-    InsiderTrade, InstrumentProfile, MacroPoint, MacroSeries, NewsArticle, OptionQuote,
-    PressRelease, Session, ShortInterest, ShortVolume, Symbol, Timeframe, TradingHalt,
+    EtfShares, FactStatus, FailToDeliver, Filing, FomcAnnouncement, FundamentalMetric,
+    FundamentalPoint, InsiderTrade, InstrumentProfile, MacroPoint, MacroSeries, NewsArticle,
+    OptionQuote, PageViews, PressRelease, Session, ShortInterest, ShortVolume, Symbol, Timeframe,
+    TradingHalt,
 };
 use crate::order::{Fill, Order, OrderId, OrderRequest, OrderType, OrderUpdate, Side};
 use crate::run::{LogLevel, Mode, RunId, UniverseSpec, Wake};
@@ -173,6 +174,14 @@ pub enum QueryRequest {
         etfs: Vec<Symbol>,
         since: NaiveDate,
     },
+    FailsToDeliver {
+        symbols: Vec<Symbol>,
+        since: NaiveDate,
+    },
+    PageViews {
+        symbols: Vec<Symbol>,
+        since: NaiveDate,
+    },
     Completeness {
         datasets: Vec<Dataset>,
         from: NaiveDate,
@@ -250,6 +259,12 @@ pub enum DataResult {
     EtfHoldings {
         holdings: Vec<EtfHolding>,
         shares: Vec<EtfShares>,
+    },
+    FailsToDeliver {
+        fails: Vec<FailToDeliver>,
+    },
+    PageViews {
+        views: Vec<PageViews>,
     },
     Completeness {
         series: Vec<SeriesCompleteness>,

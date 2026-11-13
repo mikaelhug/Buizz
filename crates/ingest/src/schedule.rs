@@ -31,8 +31,11 @@ pub(crate) const TRADING_HALTS: &str = "trading_halts";
 pub(crate) const ETF_HOLDINGS: &str = "etf_holdings";
 pub(crate) const SHORT_INTEREST: &str = "short_interest";
 pub(crate) const SHORT_VOLUME: &str = "short_volume";
+pub(crate) const FAILS_TO_DELIVER: &str = "fails_to_deliver";
+pub(crate) const PAGE_VIEWS: &str = "page_views";
 pub(crate) const MACRO: &str = "macro";
 pub(crate) const VIX: &str = "vix";
+pub(crate) const PUT_CALL: &str = "put_call";
 pub(crate) const FOMC: &str = "fomc";
 pub(crate) const STATE_SNAPSHOT: &str = "state_snapshot";
 pub(crate) const MARKET_SNAPSHOT: &str = "market_snapshot";
@@ -50,7 +53,7 @@ const SHORT_RETRY: Duration = HOUR;
 const FIRST_FAILURE_RETRY: Duration = Duration::from_secs(5 * 60);
 const STALE_AFTER_INTERVALS: i32 = 3;
 
-pub(crate) const JOBS: [JobSpec; 31] = [
+pub(crate) const JOBS: [JobSpec; 34] = [
     JobSpec {
         name: CALENDAR,
         source: Some(DataSource::Alpaca),
@@ -189,6 +192,18 @@ pub(crate) const JOBS: [JobSpec; 31] = [
         every: DAY,
     },
     JobSpec {
+        name: FAILS_TO_DELIVER,
+        source: Some(DataSource::Edgar),
+        datasets: &[Dataset::FailsToDeliver],
+        every: DAY,
+    },
+    JobSpec {
+        name: PAGE_VIEWS,
+        source: Some(DataSource::Wikipedia),
+        datasets: &[Dataset::PageViews],
+        every: DAY,
+    },
+    JobSpec {
         name: MACRO,
         source: Some(DataSource::Fred),
         datasets: &[Dataset::Macro],
@@ -202,6 +217,12 @@ pub(crate) const JOBS: [JobSpec; 31] = [
     },
     JobSpec {
         name: VIX,
+        source: Some(DataSource::Cboe),
+        datasets: &[Dataset::Macro],
+        every: DAY,
+    },
+    JobSpec {
+        name: PUT_CALL,
         source: Some(DataSource::Cboe),
         datasets: &[Dataset::Macro],
         every: DAY,

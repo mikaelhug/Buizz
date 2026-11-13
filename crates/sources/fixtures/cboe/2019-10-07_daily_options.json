@@ -1,0 +1,28 @@
+{
+  "ratios": [
+    {
+      "name": "TOTAL PUT/CALL RATIO",
+      "value": "1.05"
+    },
+    {
+      "name": "INDEX PUT/CALL RATIO",
+      "value": "1.05"
+    },
+    {
+      "name": "EXCHANGE TRADED PRODUCTS PUT/CALL RATIO",
+      "value": "1.89"
+    },
+    {
+      "name": "EQUITY PUT/CALL RATIO",
+      "value": "0.70"
+    },
+    {
+      "name": "CBOE VOLATILITY INDEX (VIX) PUT/CALL RATIO",
+      "value": "0.16"
+    },
+    {
+      "name": "SPX + SPXW PUT/CALL RATIO",
+      "value": "1.75"
+    }
+  ]
+}

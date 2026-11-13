@@ -1,0 +1,11 @@
+{
+  "id": 21,
+  "request": {
+    "kind": "page_views",
+    "since": "2024-11-18",
+    "symbols": [
+      "AAA"
+    ]
+  },
+  "type": "query"
+}

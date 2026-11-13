@@ -1,0 +1,18 @@
+{
+  "id": 20,
+  "result": {
+    "fails": [
+      {
+        "available_at": 1733149800000000000,
+        "cusip": "000000AA1",
+        "price": "41.27",
+        "published": "2024-11-29",
+        "quantity": 125400,
+        "settlement": "2024-11-04",
+        "symbol": "AAA"
+      }
+    ],
+    "kind": "fails_to_deliver"
+  },
+  "type": "data"
+}

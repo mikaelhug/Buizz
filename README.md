@@ -72,13 +72,14 @@ The spine (`cargo run -p buizz-spine`) reads these environment variables. Empty 
 | `SEC_USER_AGENT` | unset | Enables SEC EDGAR fundamentals, SIC codes and earnings releases, and Wikipedia's S&P 500 membership; the SEC requires a contact in the User-Agent, for example `name email@example.com`, and the same contact goes into the Wikipedia and FactSet User-Agents, which it also enables |
 | `SEC_DATA_URL`, `SEC_WWW_URL` | `https://data.sec.gov`, `https://www.sec.gov` | EDGAR endpoints |
 | `TREASURY_URL` | `https://home.treasury.gov` | US Treasury rates endpoint |
-| `WIKIPEDIA_URL` | `https://en.wikipedia.org` | MediaWiki endpoint for S&P 500 membership |
+| `WIKIPEDIA_URL` | `https://en.wikipedia.org` | MediaWiki endpoint for S&P 500 membership and company article titles |
+| `WIKIMEDIA_URL` | `https://wikimedia.org` | Wikimedia REST endpoint for daily page views |
 | `NASDAQ_TRADER_URL` | `https://www.nasdaqtrader.com` | NASDAQ Trader's symbol directory, read daily to tell ETFs from stocks, and its trade halt feed, read every 5 minutes by the `trading_halts` job |
 | `SSGA_URL` | `https://www.ssga.com` | State Street's SPDR fund files, read daily by the `etf_holdings` job for holdings and shares outstanding; free, no key |
 | `IBKR_FTP_ADDRESS` | `ftp2.interactivebrokers.com:21` | Interactive Brokers' public short stock FTP server, read daily by the `borrow` job |
 | `FRED_API_KEY` | unset | Enables the FRED macro series for bots (`ctx.macro`); a free key from fred.stlouisfed.org. Without it the `macro` job reports that FRED is not configured |
 | `FRED_URL` | `https://api.stlouisfed.org` | FRED endpoint |
-| `CBOE_URL` | `https://cdn.cboe.com` | CBOE endpoint for the daily VIX and VIX3M history files |
+| `CBOE_URL` | `https://cdn.cboe.com` | CBOE endpoint for the index history files and the put/call ratios |
 | `FED_URL` | `https://www.federalreserve.gov` | Federal Reserve Board site, read for the FOMC meeting calendar |
 | `ANTHROPIC_API_KEY` | unset | Enables Claude Haiku 5.5 for reading facts out of 8-K text; a key from the Claude Console (a Claude subscription is not one). Never logged. Without it the client is unconfigured |
 | `ANTHROPIC_MONTHLY_CAP_USD` | `5` | Dollars the `recipe_facts` job may commit to the Anthropic API per calendar month (UTC): what the store's ledger says was spent this month plus the worst case of every open batch and of each request before it is sent. Raise it for the 8-K history fill (about $235 through the Batch API) |

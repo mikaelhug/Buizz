@@ -11,14 +11,15 @@ use buizz_core::market::{
     ALPACA_HISTORY_START, Adjustment, AdjustmentFactor, Bar, Borrow, BorrowAvailability, Calendar,
     Company, CorporateAction, Coverage, DataSource, Dataset, DelistingCheck, DocumentSections,
     EarningsInsight, EarningsRelease, EstimateFact, EtfHolding, EtfHoldingsFile, EtfShares,
-    EtfSharesRecord, Fact, Filing, FilingText, FomcAnnouncement, FomcMeeting, FundamentalFact,
-    FundamentalMetric, FundamentalPoint, IndexHistory, InsiderFiling, InsiderPlan, InsiderReport,
-    InsiderTrade, Instrument, InstrumentProfile, Liquidity, MacroObservation, MacroPoint,
-    MacroSeries, ModelBatch, ModelRequest, ModelSpend, NewsArticle, OptionQuote, OptionQuoteRecord,
+    EtfSharesRecord, Fact, FailToDeliver, FailToDeliverRecord, Filing, FilingText,
+    FomcAnnouncement, FomcMeeting, FundamentalFact, FundamentalMetric, FundamentalPoint,
+    IndexHistory, InsiderFiling, InsiderPlan, InsiderReport, InsiderTrade, Instrument,
+    InstrumentProfile, Liquidity, MacroObservation, MacroPoint, MacroSeries, ModelBatch,
+    ModelRequest, ModelSpend, NewsArticle, OptionQuote, OptionQuoteRecord, PageViews,
     PendingDelisting, PressCandidate, PressExhibit, PressRelease, RecipeSection, RecipeState,
     RecipeVersion, RiskFreeRate, SecFiling, Session, ShortInterest, ShortInterestRecord,
-    ShortVolume, ShortVolumeRecord, StockIndex, Symbol, TextCandidate, Timeframe, TradingHalt,
-    TradingHaltRecord, UnsplitDocument, Watermarks,
+    ShortVolume, ShortVolumeRecord, StockIndex, Symbol, TextCandidate, Timeframe, TitleViews,
+    TradingHalt, TradingHaltRecord, UnsplitDocument, Watermarks,
 };
 use buizz_core::ops::{
     ActionDisagreement, CoverageGap, DataWarning, UNPRICED_DELISTINGS_TOLERATED,
@@ -59,7 +60,7 @@ pub struct EtfDates {
 
 pub(crate) const SCHEMA: &str = include_str!("../schema.sql");
 pub const FILE_NAME: &str = "market.duckdb";
-const APPENDED: [(&str, &str); 28] = [
+const APPENDED: [(&str, &str); 31] = [
     ("ingest_batch", "id"),
     ("borrow_availability", "batch_id"),
     ("option_quote", "batch_id"),
@@ -88,6 +89,9 @@ const APPENDED: [(&str, &str); 28] = [
     ("model_batch", "batch_id"),
     ("model_request", "batch_id"),
     ("model_spend", "batch_id"),
+    ("fails_to_deliver", "batch_id"),
+    ("article_title", "batch_id"),
+    ("page_views", "batch_id"),
 ];
 const REPLACED: [&str; 2] = ["index_member", "index_history"];
 pub const TIMESTAMP_RESOLUTION: TimeDelta = TimeDelta::microseconds(1);
@@ -1174,6 +1178,31 @@ impl MarketStore {
             .await
     }
 
+    pub async fn append_fails_to_deliver(
+        &self,
+        source: DataSource,
+        file: String,
+        downloaded: NaiveDate,
+        records: Vec<FailToDeliverRecord>,
+    ) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| {
+                write::fails_to_deliver(connection, source, &file, downloaded, records)
+            })
+            .await
+    }
+
+    pub async fn append_page_views(
+        &self,
+        source: DataSource,
+        titles: BTreeMap<String, BTreeSet<String>>,
+        views: Vec<TitleViews>,
+    ) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| write::page_views(connection, source, titles, views))
+            .await
+    }
+
     pub async fn append_news(
         &self,
         source: DataSource,
@@ -1745,6 +1774,54 @@ impl MarketStore {
     pub async fn short_interest_settlements(&self) -> Result<BTreeSet<NaiveDate>> {
         self.readers
             .run(|connection| read::short_interest_settlements(connection))
+            .await
+    }
+
+    pub async fn fails_to_deliver(
+        &self,
+        symbols: Vec<Symbol>,
+        since: NaiveDate,
+        as_of: Timestamp,
+    ) -> Result<Vec<FailToDeliver>> {
+        let (calendar, listings) = (self.shared.calendar(), self.shared.listings());
+        self.readers
+            .run(move |connection| {
+                let on = read::listed_on(&calendar, as_of);
+                let spans = read::spans(&listings, &symbols, on, since, as_of.exchange_date());
+                read::fails_to_deliver(connection, &calendar, &spans, since, as_of)
+            })
+            .await
+    }
+
+    pub async fn fails_to_deliver_files(&self) -> Result<BTreeSet<String>> {
+        self.readers
+            .run(|connection| read::fails_to_deliver_files(connection))
+            .await
+    }
+
+    pub async fn page_views(
+        &self,
+        symbols: Vec<Symbol>,
+        since: NaiveDate,
+        as_of: Timestamp,
+    ) -> Result<Vec<PageViews>> {
+        let (calendar, listings) = (self.shared.calendar(), self.shared.listings());
+        self.readers
+            .run(move |connection| {
+                read::page_views(connection, &calendar, &listings, &symbols, since, as_of)
+            })
+            .await
+    }
+
+    pub async fn article_titles(&self) -> Result<BTreeMap<String, BTreeSet<String>>> {
+        self.readers
+            .run(|connection| read::article_titles(connection))
+            .await
+    }
+
+    pub async fn page_views_through(&self) -> Result<BTreeMap<String, NaiveDate>> {
+        self.readers
+            .run(|connection| read::page_views_through(connection))
             .await
     }
 

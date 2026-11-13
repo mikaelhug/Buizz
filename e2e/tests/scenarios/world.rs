@@ -127,6 +127,9 @@ pub struct World {
     pub borrow: Option<Vec<u8>>,
     pub finra: BTreeMap<String, String>,
     pub earnings_insight: Option<(String, Vec<u8>)>,
+    pub put_call: Option<(String, String)>,
+    pub fails_to_deliver: Option<(String, Vec<u8>)>,
+    pub page_views: BTreeMap<String, u64>,
     pub archives: BTreeMap<String, String>,
     pub insider_quarters: BTreeMap<(i32, u32), BTreeMap<String, String>>,
     pub released: Option<Timestamp>,
@@ -407,6 +410,21 @@ impl World {
             .collect(),
             borrow: Some(read("ibkr/usa.txt").into_bytes()),
             earnings_insight: Some(recorded_earnings_insight()),
+            put_call: Some((
+                read("cboe/totalpc.csv"),
+                read("cboe/2019-10-07_daily_options.json"),
+            )),
+            fails_to_deliver: Some((
+                "cnsfails202406b".to_owned(),
+                std::fs::read(
+                    repository().join("crates/sources/fixtures/edgar/cnsfails202406b.zip"),
+                )
+                .expect("recorded fails-to-deliver file"),
+            )),
+            page_views: BTreeMap::from([
+                ("Apple Inc.".to_owned(), 41_000),
+                ("Meta Platforms".to_owned(), 52_000),
+            ]),
             archives: [
                 (
                     "320193/000114036126042149/form4.xml",

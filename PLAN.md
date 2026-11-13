@@ -66,12 +66,13 @@ Also on `Context`: `history(symbols, tf, bars, adjust)`, `fundamentals(symbols, 
 |---|---|---|
 | Alpaca (free plan) | Daily + 1m history since 2016, calendar, assets, corporate actions, real-time IEX minute bars | Primary. ~30-symbol stream cap, managed by a feed manager with visible slots |
 | Tiingo | Daily history before 2016 | Gated by the overlap check; raw close + split/dividend factors, never `adjClose` |
-| Wikipedia | Point-in-time S&P 500 membership | Rebuilt from the constituents and change-log articles (CC BY-SA) |
+| Wikipedia | Point-in-time S&P 500 membership, daily page views of each member's article since 2015-07-01 | Membership rebuilt from the constituents and change-log articles (CC BY-SA); views from the Wikimedia REST API, summed over the titles an article was moved from |
 | Interactive Brokers | Short availability, recorded daily | Public FTP file; not used by runs yet |
 | SEC EDGAR | Point-in-time fundamentals, SIC codes, earnings-release times, 8-K texts and the typed facts recipes read from them (`ctx.facts`) | Raw XBRL facts plus canonical metrics; submissions; one version per recipe serves bots, and each run records the versions it read |
 | US Treasury | Risk-free rate for Sharpe and bots | |
 | FRED | Macro series for bots (T-bill, 10-year, Moody's Aaa/Baa, CPI-U, unemployment, real-time Sahm rule, daily 10-year and spreads, weekly jobless claims, industrial production, building permits, advance retail sales) with every ALFRED vintage | Free API key |
-| CBOE | Daily VIX (from its 2003 methodology) and VIX3M closes for bots | Free history files |
+| CBOE | Daily VIX (from its 2003 methodology), VIX3M, VIX9D, VVIX, SKEW, COR1M and COR3M closes, each from its launch, and the total, equity and index put/call ratios since 2006-11 for bots | Free history files and daily market statistics |
+| SEC fails-to-deliver | Outstanding settlement fails per security since 2004 for bots | Twice-monthly files without a stated date: published on the download date or an assumed later date |
 | Federal Reserve Board | FOMC meeting calendar for bots | Public pages |
 
 Verified limits: Alpaca Basic 200 calls/min, history since 2016 minus the latest 15 minutes, 30 IEX stream symbols, minute bars include extended hours (filter to the session); Tiingo free 50 req/h, 1000/day, 500 symbols/month; EDGAR 10 req/s with a contact User-Agent. EODHD is dropped (its free tier adds nothing here).

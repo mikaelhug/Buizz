@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Path, Query, State};
 use axum::http::{StatusCode, header};
-use axum::response::{IntoResponse, Response};
+use axum::response::{Html, IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use buizz_core::market::{AssetClass, Bar, CorporateActionKind, MacroSeries, Symbol};
@@ -145,6 +145,20 @@ impl FakeProviders {
             .route("/fred/series/observations", get(fred))
             .route("/fred/series/vintagedates", get(fred_vintage_dates))
             .route("/api/global/us_indices/daily_prices/{file}", get(cboe))
+            .route(
+                "/resources/options/volume_and_call_put_ratios/{file}",
+                get(cboe_put_call_archive),
+            )
+            .route(
+                "/data/us/options/market_statistics/daily/{file}",
+                get(cboe_daily_options),
+            )
+            .route(edgar::FAILS_PAGE, get(fails_page))
+            .route("/files/data/fails-deliver-data/{file}", get(fails_file))
+            .route(
+                "/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/{title}/daily/{from}/{to}",
+                get(page_views),
+            )
             .route("/monetarypolicy/{page}", get(federal_reserve))
             .route(finra::SCHEDULE_PATH, get(|| async { FINRA_SCHEDULE }))
             .route(finra::SHORT_INTEREST_PATH, post(finra_short_interest))
@@ -643,6 +657,16 @@ async fn wikipedia(State(fake): State<Arc<Fake>>, Query(params): Query<Params>) 
         return limited;
     }
     let world = fake.world();
+    if param(&params, "action") == "query" {
+        let pages: Vec<Value> = param(&params, "titles")
+            .split('|')
+            .map(|title| match world.page_views.contains_key(title) {
+                true => json!({"title": title}),
+                false => json!({"title": title, "missing": true}),
+            })
+            .collect();
+        return Json(json!({"query": {"pages": pages}})).into_response();
+    }
     match world.wikipedia.get(param(&params, "page")) {
         Some(wikitext) => {
             Json(json!({"parse": {"title": param(&params, "page"), "wikitext": wikitext}}))
@@ -745,15 +769,16 @@ async fn treasury(State(fake): State<Arc<Fake>>, Path(year): Path<i32>) -> Respo
 
 async fn cboe(State(fake): State<Arc<Fake>>, Path(file): Path<String>) -> Response {
     let series = match file.as_str() {
-        "VIX_History.csv" => MacroSeries::Vix,
-        "VIX3M_History.csv" => MacroSeries::Vix3m,
+        "VIX_History.csv" => Some(MacroSeries::Vix),
+        "VIX3M_History.csv" => Some(MacroSeries::Vix3m),
+        _ if file.ends_with("_History.csv") => None,
         _ => return StatusCode::NOT_FOUND.into_response(),
     };
     let closes: BTreeMap<NaiveDate, String> = fake
         .world()
         .macro_vintages
         .iter()
-        .filter(|close| close.series == series)
+        .filter(|close| Some(close.series) == series)
         .filter_map(|close| Some((close.date, close.value?.to_string())))
         .collect();
     let mut csv = "DATE,OPEN,HIGH,LOW,CLOSE\n".to_owned();
@@ -764,6 +789,68 @@ async fn cboe(State(fake): State<Arc<Fake>>, Path(file): Path<String>) -> Respon
         ));
     }
     csv.into_response()
+}
+
+async fn cboe_put_call_archive(State(fake): State<Arc<Fake>>) -> Response {
+    let world = fake.world();
+    match (&world.put_call, world.sessions.last()) {
+        (Some((archive, _)), _) => archive.clone().into_response(),
+        (None, Some(last)) => format!(
+            "Cboe put/call ratios\nDATE,CALLS,PUTS,TOTAL,P/C Ratio\n{},100,80,180,0.80\n",
+            last.date.format("%m/%d/%Y")
+        )
+        .into_response(),
+        (None, None) => StatusCode::FORBIDDEN.into_response(),
+    }
+}
+
+async fn cboe_daily_options(State(fake): State<Arc<Fake>>) -> Response {
+    match &fake.world().put_call {
+        Some((_, daily)) => daily.clone().into_response(),
+        None => StatusCode::FORBIDDEN.into_response(),
+    }
+}
+
+async fn fails_page(State(fake): State<Arc<Fake>>) -> Response {
+    let links = fake
+        .world()
+        .fails_to_deliver
+        .iter()
+        .map(|(name, _)| {
+            format!("<a href=\"/files/data/fails-deliver-data/{name}.zip\">{name}</a>")
+        })
+        .collect::<String>();
+    Html(format!("<html><body>{links}</body></html>")).into_response()
+}
+
+async fn fails_file(State(fake): State<Arc<Fake>>, Path(file): Path<String>) -> Response {
+    match &fake.world().fails_to_deliver {
+        Some((name, archive)) if file == format!("{name}.zip") => archive.clone().into_response(),
+        _ => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+async fn page_views(
+    State(fake): State<Arc<Fake>>,
+    Path((title, from, to)): Path<(String, String, String)>,
+) -> Response {
+    let Some(views) = fake
+        .world()
+        .page_views
+        .get(&title.replace('_', " "))
+        .copied()
+    else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let day = |text: &str| NaiveDate::parse_from_str(text, "%Y%m%d").expect("a pageviews date");
+    let (from, to) = (day(&from), day(&to));
+    let items: Vec<Value> = from
+        .iter_days()
+        .take_while(|date| *date <= to)
+        .filter(|date| date.year() == 2024 && date.month() == 6)
+        .map(|date| json!({"timestamp": format!("{}00", date.format("%Y%m%d")), "views": views}))
+        .collect();
+    Json(json!({"items": items})).into_response()
 }
 
 async fn finra_short_interest(State(fake): State<Arc<Fake>>, Json(query): Json<Value>) -> Response {

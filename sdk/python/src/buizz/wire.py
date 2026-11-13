@@ -37,6 +37,14 @@ type MacroSeries = Literal[
     "rsafs",
     "vix",
     "vix3m",
+    "vix9d",
+    "vvix",
+    "skew",
+    "cor1m",
+    "cor3m",
+    "put_call_total",
+    "put_call_equity",
+    "put_call_index",
     "sp500_forward_pe",
     "sp500_forward_pe_5y_avg",
     "sp500_forward_pe_10y_avg",
@@ -526,6 +534,32 @@ class EtfHoldingsResult(msgspec.Struct, frozen=True, tag_field="kind", tag="etf_
     shares: list[EtfSharesFrame]
 
 
+class FailToDeliverFrame(msgspec.Struct, frozen=True):
+    symbol: str
+    settlement: date
+    cusip: str
+    quantity: int
+    price: Decimal | None
+    published: date
+    available_at: int
+
+
+class FailsToDeliverResult(msgspec.Struct, frozen=True, tag_field="kind", tag="fails_to_deliver"):
+    fails: list[FailToDeliverFrame]
+
+
+class PageViewsFrame(msgspec.Struct, frozen=True):
+    symbol: str
+    article: str
+    date: date
+    views: int
+    available_at: int
+
+
+class PageViewsResult(msgspec.Struct, frozen=True, tag_field="kind", tag="page_views"):
+    views: list[PageViewsFrame]
+
+
 class CompletenessFrame(msgspec.Struct, frozen=True):
     dataset: str
     source: str
@@ -570,6 +604,8 @@ type Result = (
     | OptionChainsResult
     | TradingHaltsResult
     | EtfHoldingsResult
+    | FailsToDeliverResult
+    | PageViewsResult
     | CompletenessResult
     | FactsResult
 )
@@ -668,6 +704,16 @@ class EtfHoldingsRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="etf
     since: date
 
 
+class FailsToDeliverRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="fails_to_deliver"):
+    symbols: list[str]
+    since: date
+
+
+class PageViewsRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="page_views"):
+    symbols: list[str]
+    since: date
+
+
 class CalendarRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="calendar"):
     start: date = msgspec.field(name="from")
     end: date = msgspec.field(name="to")
@@ -720,6 +766,8 @@ type Request = (
     | OptionChainsRequest
     | TradingHaltsRequest
     | EtfHoldingsRequest
+    | FailsToDeliverRequest
+    | PageViewsRequest
     | CompletenessRequest
     | FactsRequest
 )

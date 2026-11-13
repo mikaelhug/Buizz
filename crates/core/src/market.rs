@@ -871,6 +871,8 @@ pub struct IndexMember {
     pub symbol: Symbol,
     pub start: Option<NaiveDate>,
     pub end: Option<NaiveDate>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub article: Option<String>,
 }
 
 impl IndexMember {
@@ -1014,6 +1016,26 @@ pub struct OptionQuote {
     pub rho: Option<Decimal>,
     pub available_at: Timestamp,
 }
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FailToDeliverRecord {
+    pub symbol: Symbol,
+    pub settlement: NaiveDate,
+    pub cusip: String,
+    pub quantity: u64,
+    pub price: Option<Decimal>,
+    pub published: NaiveDate,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FailToDeliver {
+    pub symbol: Symbol,
+    pub settlement: NaiveDate,
+    pub cusip: String,
+    pub quantity: u64,
+    pub price: Option<Decimal>,
+    pub published: NaiveDate,
+    pub available_at: Timestamp,
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TradingHaltRecord {
@@ -1087,6 +1109,29 @@ pub struct EtfShares {
     pub net_assets: Decimal,
     pub available_at: Timestamp,
 }
+pub struct CompanyArticle {
+    pub symbol: Symbol,
+    pub article: String,
+    pub start: Option<NaiveDate>,
+    pub end: Option<NaiveDate>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TitleViews {
+    pub title: String,
+    pub date: NaiveDate,
+    pub views: u64,
+    pub published: NaiveDate,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PageViews {
+    pub symbol: Symbol,
+    pub article: String,
+    pub date: NaiveDate,
+    pub views: u64,
+    pub available_at: Timestamp,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct RiskFreeRate {
@@ -1132,6 +1177,22 @@ pub enum MacroSeries {
     Vix,
     #[serde(rename = "vix3m")]
     Vix3m,
+    #[serde(rename = "vix9d")]
+    Vix9d,
+    #[serde(rename = "vvix")]
+    Vvix,
+    #[serde(rename = "skew")]
+    Skew,
+    #[serde(rename = "cor1m")]
+    Cor1m,
+    #[serde(rename = "cor3m")]
+    Cor3m,
+    #[serde(rename = "put_call_total")]
+    PutCallTotal,
+    #[serde(rename = "put_call_equity")]
+    PutCallEquity,
+    #[serde(rename = "put_call_index")]
+    PutCallIndex,
     #[serde(rename = "sp500_forward_pe")]
     Sp500ForwardPe,
     #[serde(rename = "sp500_forward_pe_5y_avg")]
@@ -1186,11 +1247,30 @@ impl MacroSeries {
         Self::Permit,
         Self::Rsafs,
     ];
-    pub const CBOE: [Self; 2] = [Self::Vix, Self::Vix3m];
+    pub const CBOE: [Self; 7] = [
+        Self::Vix,
+        Self::Vix3m,
+        Self::Vix9d,
+        Self::Vvix,
+        Self::Skew,
+        Self::Cor1m,
+        Self::Cor3m,
+    ];
+    pub const PUT_CALL: [Self; 3] = [Self::PutCallTotal, Self::PutCallEquity, Self::PutCallIndex];
 
     pub fn fred_id(self) -> Option<&'static str> {
         match self {
-            Self::Treasury3m | Self::Vix | Self::Vix3m => None,
+            Self::Treasury3m
+            | Self::Vix
+            | Self::Vix3m
+            | Self::Vix9d
+            | Self::Vvix
+            | Self::Skew
+            | Self::Cor1m
+            | Self::Cor3m
+            | Self::PutCallTotal
+            | Self::PutCallEquity
+            | Self::PutCallIndex => None,
             Self::Tb3ms => Some("TB3MS"),
             Self::Gs10 => Some("GS10"),
             Self::Aaa => Some("AAA"),
@@ -1246,7 +1326,15 @@ impl MacroSeries {
             | Self::Permit
             | Self::Rsafs
             | Self::Vix
-            | Self::Vix3m => None,
+            | Self::Vix3m
+            | Self::Vix9d
+            | Self::Vvix
+            | Self::Skew
+            | Self::Cor1m
+            | Self::Cor3m
+            | Self::PutCallTotal
+            | Self::PutCallEquity
+            | Self::PutCallIndex => None,
             Self::Sp500ForwardPe => sector(EstimateScope::Sp500),
             Self::Sp500ForwardPe5yAvg => {
                 Some((EstimateMetric::ForwardPe5yAvg, EstimateScope::Sp500))
@@ -1489,10 +1577,12 @@ pub enum Dataset {
     OptionChains,
     TradingHalts,
     EtfHoldings,
+    FailsToDeliver,
+    PageViews,
 }
 
 impl Dataset {
-    pub const ALL: [Self; 31] = [
+    pub const ALL: [Self; 33] = [
         Self::Bars1d,
         Self::Bars1m,
         Self::CorporateActions,
@@ -1524,6 +1614,8 @@ impl Dataset {
         Self::ShortInterest,
         Self::ShortVolume,
         Self::TradingHalts,
+        Self::FailsToDeliver,
+        Self::PageViews,
     ];
 
     pub fn domain(self) -> DataDomain {
@@ -1555,7 +1647,9 @@ impl Dataset {
             | Self::Borrow
             | Self::ShortInterest
             | Self::ShortVolume
-            | Self::TradingHalts => DataDomain::Alternative,
+            | Self::TradingHalts
+            | Self::FailsToDeliver
+            | Self::PageViews => DataDomain::Alternative,
         }
     }
 }

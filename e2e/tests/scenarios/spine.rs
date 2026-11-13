@@ -169,6 +169,7 @@ impl Spine {
             .env("TREASURY_URL", url)
             .env("NASDAQ_TRADER_URL", url)
             .env("WIKIPEDIA_URL", url)
+            .env("WIKIMEDIA_URL", url)
             .env("IBKR_FTP_ADDRESS", &self.fake.ftp_address)
             .env("FRED_API_KEY", "e2e-fred")
             .env("FRED_URL", url)

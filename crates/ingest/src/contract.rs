@@ -5,15 +5,17 @@ use buizz_core::api::{
     ScopeUnit, SpineEvent,
 };
 use buizz_core::market::{
-    ALPACA_HISTORY_START, Calendar, Coverage, DataSource, Dataset, MacroSeries, RecipeState, Symbol,
+    ALPACA_HISTORY_START, Calendar, Coverage, DataSource, Dataset, MacroSeries, RecipeState,
+    StockIndex, Symbol,
 };
 use buizz_core::ops::{FetchStatus, JobOutcome};
 use buizz_core::time::Timestamp;
 use buizz_core::visibility::short_interest_published;
 use buizz_market::AccessionProgress;
 use buizz_sources::alpaca::NEWS_HISTORY_START;
-use buizz_sources::edgar::SPLITTER_VERSION;
+use buizz_sources::edgar::{SPLITTER_VERSION, fails_file_settlements, published_fails_files};
 use buizz_sources::finra::{FIRST_SETTLEMENT, FIRST_SHORT_VOLUME};
+use buizz_sources::wikipedia::FIRST_PAGE_VIEWS;
 use buizz_state::{ContractHistory, SymbolFetches};
 use chrono::{NaiveDate, TimeDelta};
 
@@ -24,6 +26,7 @@ use crate::insiders::insider_quarters_due;
 use crate::macros::series_key;
 use crate::recipe::RECIPES;
 use crate::schedule::JOBS;
+use crate::views::company_articles;
 use crate::{Ingest, IngestError};
 
 const PACE_WINDOW: TimeDelta = TimeDelta::days(30);
@@ -31,6 +34,7 @@ const STALL_AFTER: TimeDelta = TimeDelta::days(3);
 const MIN_PACE_SPAN: TimeDelta = TimeDelta::hours(6);
 const SECONDS_PER_DAY: f64 = 86_400.0;
 const RECENT_LISTINGS: u32 = 20;
+const PAGE_VIEWS_SETTLE: TimeDelta = TimeDelta::days(2);
 
 #[derive(Clone, Copy)]
 enum Item {
@@ -699,6 +703,10 @@ impl Ingest {
                 series(Dataset::Rates, DataSource::Treasury).map(|row| row.last),
             ),
         );
+        let cboe: Vec<MacroSeries> = MacroSeries::CBOE
+            .into_iter()
+            .chain(MacroSeries::PUT_CALL)
+            .collect();
         for (source, wanted, scope) in [
             (
                 DataSource::Fred,
@@ -707,8 +715,8 @@ impl Ingest {
             ),
             (
                 DataSource::Cboe,
-                &MacroSeries::CBOE[..],
-                "the VIX and VIX3M closes, current",
+                &cboe[..],
+                "every CBOE volatility, skew and correlation index from its launch and the put/call ratios from 2006-11-01, current",
             ),
         ] {
             let fetched = self.state.symbol_fetches(source, Dataset::Macro).await?;
@@ -844,6 +852,60 @@ impl Ingest {
                 &calendar,
                 series(Dataset::ShortVolume, DataSource::Finra).map(|row| row.last),
             ),
+        );
+        let stored = self.market.fails_to_deliver_files().await?;
+        let expected = published_fails_files(today);
+        measures.push(
+            Scope {
+                dataset: Dataset::FailsToDeliver,
+                source: DataSource::Edgar,
+                kind: ScopeKind::Indexed,
+                unit: ScopeUnit::Files,
+                scope: "every SEC fails-to-deliver file from 2004".into(),
+                from: fails_file_settlements(expected.first().map_or("", String::as_str))
+                    .map_or(today, |(first, _)| first),
+                to: expected
+                    .last()
+                    .and_then(|name| fails_file_settlements(name))
+                    .map_or(today, |(_, last)| last),
+            }
+            .items(expected.iter().map(|name| {
+                if stored.contains(name) {
+                    Item::Done
+                } else {
+                    Item::Pending
+                }
+            })),
+        );
+        let articles = self
+            .market
+            .index_history(StockIndex::Sp500)
+            .await?
+            .map(|history| company_articles(&history))
+            .unwrap_or_default();
+        let titles = self.market.article_titles().await?;
+        let read_through = self.market.page_views_through().await?;
+        let settled = yesterday - PAGE_VIEWS_SETTLE;
+        measures.push(
+            Scope {
+                dataset: Dataset::PageViews,
+                source: DataSource::Wikipedia,
+                kind: ScopeKind::Indexed,
+                unit: ScopeUnit::Articles,
+                scope: "the Wikipedia article of every S&P 500 member since 2015-07-01".into(),
+                from: FIRST_PAGE_VIEWS,
+                to: yesterday,
+            }
+            .items(articles.iter().map(|article| {
+                let Some(names) = titles.get(article) else {
+                    return Item::Pending;
+                };
+                match names.iter().filter_map(|name| read_through.get(name)).max() {
+                    Some(last) if *last >= settled => Item::Done,
+                    Some(_) => Item::Pending,
+                    None => Item::Failed,
+                }
+            })),
         );
         Ok(measures)
     }

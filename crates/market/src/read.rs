@@ -6,21 +6,21 @@ use buizz_core::listing::Listings;
 use buizz_core::market::{
     Adjustment, AdjustmentFactor, AssetClass, Bar, Borrow, Calendar, Company, CorporateAction,
     CorporateActionKind, Coverage, DataSource, Dataset, DelistingTally, EarningsInsight,
-    EarningsRelease, EstimateFact, EstimateMetric, EstimateScope, EtfHolding, EtfShares, Filing,
-    FomcAnnouncement, FomcMeeting, FundamentalMetric, FundamentalPoint, HISTORY_FLOORS,
-    HISTORY_START, IndexHistory, IndexMember, InsiderOwner, InsiderPlan, InsiderReport,
-    InsiderTrade, InsiderTransaction, Instrument, InstrumentProfile, Liquidity, MacroObservation,
-    MacroPoint, MacroSeries, NewsArticle, OptionQuote, PendingDelisting, PressCandidate,
-    PressRelease, RiskFreeRate, SIP_DELAY, SecFiling, Section, Session, ShortInterest,
-    ShortInterestRecord, ShortVolume, StockIndex, Symbol, TextCandidate, Timeframe, TradingHalt,
-    TradingHaltRecord,
+    EarningsRelease, EstimateFact, EstimateMetric, EstimateScope, EtfHolding, EtfShares,
+    FailToDeliver, Filing, FomcAnnouncement, FomcMeeting, FundamentalMetric, FundamentalPoint,
+    HISTORY_FLOORS, HISTORY_START, IndexHistory, IndexMember, InsiderOwner, InsiderPlan,
+    InsiderReport, InsiderTrade, InsiderTransaction, Instrument, InstrumentProfile, Liquidity,
+    MacroObservation, MacroPoint, MacroSeries, NewsArticle, OptionQuote, PageViews,
+    PendingDelisting, PressCandidate, PressRelease, RiskFreeRate, SIP_DELAY, SecFiling, Section,
+    Session, ShortInterest, ShortInterestRecord, ShortVolume, StockIndex, Symbol, TextCandidate,
+    Timeframe, TradingHalt, TradingHaltRecord,
 };
 use buizz_core::ops::{ActionDisagreement, CoverageGap, DataWarning, UNEXPLAINED_MOVE_THRESHOLD};
 use buizz_core::protocol::BarRow;
 use buizz_core::time::Timestamp;
 use buizz_core::visibility::{
     bar_visible_at, corporate_action_visible_at, filing_visible_at, fomc_visible_at,
-    published_before, published_visible_at,
+    page_views_visible_at, published_before, published_visible_at,
 };
 use chrono::{NaiveDate, NaiveTime};
 use duckdb::types::{Type, Value};
@@ -1170,7 +1170,7 @@ pub(crate) fn index_history(
     let changes: u32 = row.get(0)?;
     let reliable_from: Option<NaiveDate> = row.get(1)?;
     let mut statement = connection.prepare_cached(
-        "SELECT symbol, start_date, end_date FROM index_member WHERE index_name = ? \
+        "SELECT symbol, start_date, end_date, article FROM index_member WHERE index_name = ? \
          ORDER BY symbol, start_date NULLS FIRST",
     )?;
     let members = statement
@@ -1180,6 +1180,7 @@ pub(crate) fn index_history(
                 symbol: row.get::<_, Sym>(0)?.0,
                 start: row.get(1)?,
                 end: row.get(2)?,
+                article: row.get(3)?,
             })
         })?
         .collect::<duckdb::Result<Vec<_>>>()?;
@@ -2160,6 +2161,176 @@ pub(crate) fn short_interest_settlements(connection: &Connection) -> Result<BTre
         .query_map([], |row| row.get(0))?
         .collect::<duckdb::Result<BTreeSet<_>>>()?;
     Ok(settlements)
+}
+
+pub(crate) fn fails_to_deliver(
+    connection: &Connection,
+    calendar: &Calendar,
+    spans: &[Span],
+    since: NaiveDate,
+    as_of: Timestamp,
+) -> Result<Vec<FailToDeliver>> {
+    let Some(cutoff) = published_before(as_of, calendar) else {
+        return Ok(Vec::new());
+    };
+    let tickers = span_tickers(spans);
+    if tickers.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut statement = connection.prepare_cached(&format!(
+        "SELECT symbol, settlement, cusip, quantity, price, published FROM (SELECT *, \
+         row_number() OVER (PARTITION BY symbol, settlement, cusip ORDER BY published, batch_id) \
+         AS vintage FROM fails_to_deliver WHERE symbol {IN_SYMBOLS} AND settlement >= ? \
+         AND published < ?) WHERE vintage = 1 ORDER BY settlement, symbol, cusip"
+    ))?;
+    let params: Params = vec![symbol_list(&tickers), Box::new(since), Box::new(cutoff)];
+    let rows = statement
+        .query_map(params_from_iter(params.iter()), |row| {
+            let published: NaiveDate = row.get(5)?;
+            Ok(FailToDeliver {
+                symbol: row.get::<_, Sym>(0)?.0,
+                settlement: row.get(1)?,
+                cusip: row.get(2)?,
+                quantity: row.get(3)?,
+                price: row
+                    .get::<_, Option<Dec>>(4)?
+                    .map(|price| price.0.normalize()),
+                published,
+                available_at: published_visible_at(published, calendar).unwrap_or(as_of),
+            })
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    Ok(within_spans(
+        spans,
+        rows,
+        |row| row.settlement,
+        |row| &mut row.symbol,
+    ))
+}
+
+pub(crate) fn fails_to_deliver_files(connection: &Connection) -> Result<BTreeSet<String>> {
+    let mut statement = connection.prepare_cached("SELECT DISTINCT file FROM fails_to_deliver")?;
+    let files = statement
+        .query_map([], |row| row.get(0))?
+        .collect::<duckdb::Result<BTreeSet<_>>>()?;
+    Ok(files)
+}
+
+pub(crate) fn article_titles(
+    connection: &Connection,
+) -> Result<BTreeMap<String, BTreeSet<String>>> {
+    let mut statement =
+        connection.prepare_cached("SELECT DISTINCT article, title FROM article_title")?;
+    let mut titles: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    for pair in statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))? {
+        let (article, title): (String, String) = pair?;
+        titles.entry(article).or_default().insert(title);
+    }
+    Ok(titles)
+}
+
+pub(crate) fn page_views_through(connection: &Connection) -> Result<BTreeMap<String, NaiveDate>> {
+    let mut statement =
+        connection.prepare_cached("SELECT title, max(date) FROM page_views GROUP BY title")?;
+    let through = statement
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+        .collect::<duckdb::Result<BTreeMap<_, _>>>()?;
+    Ok(through)
+}
+
+pub(crate) fn page_views(
+    connection: &Connection,
+    calendar: &Calendar,
+    listings: &Listings,
+    symbols: &[Symbol],
+    since: NaiveDate,
+    as_of: Timestamp,
+) -> Result<Vec<PageViews>> {
+    let Some(cutoff) = published_before(as_of, calendar) else {
+        return Ok(Vec::new());
+    };
+    let on = listed_on(calendar, as_of);
+    let spans = spans(listings, symbols, on, since, as_of.exchange_date());
+    let Some(history) = index_history(connection, StockIndex::Sp500)? else {
+        return Ok(Vec::new());
+    };
+    let titles = article_titles(connection)?;
+    let mut articles_of: BTreeMap<Symbol, BTreeSet<&String>> = BTreeMap::new();
+    for member in &history.members {
+        let inside = member
+            .end
+            .and_then(|end| end.pred_opt())
+            .unwrap_or(NaiveDate::MAX);
+        if let (Some(key), Some(article)) =
+            (listings.listing(&member.symbol, inside), &member.article)
+        {
+            articles_of.entry(key).or_default().insert(article);
+        }
+    }
+    let wanted: Vec<(Symbol, &String)> = resolve(listings, symbols, on)
+        .into_iter()
+        .flat_map(|(asked, key)| {
+            articles_of
+                .get(&key)
+                .into_iter()
+                .flatten()
+                .map(move |article| (asked.clone(), *article))
+        })
+        .collect();
+    let names: BTreeSet<&str> = wanted
+        .iter()
+        .filter_map(|(_, article)| titles.get(*article))
+        .flatten()
+        .map(String::as_str)
+        .collect();
+    if names.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut statement = connection.prepare_cached(
+        "SELECT title, date, views, published FROM page_views \
+         WHERE title IN (SELECT unnest(?::VARCHAR[])) AND date >= ? AND published <= ?",
+    )?;
+    let params: Params = vec![text_list(names), Box::new(since), Box::new(cutoff)];
+    let mut by_title: BTreeMap<String, Vec<(NaiveDate, u64, NaiveDate)>> = BTreeMap::new();
+    for row in statement.query_map(params_from_iter(params.iter()), |row| {
+        Ok((row.get(0)?, (row.get(1)?, row.get(2)?, row.get(3)?)))
+    })? {
+        let (title, day): (String, (NaiveDate, u64, NaiveDate)) = row?;
+        by_title.entry(title).or_default().push(day);
+    }
+    let mut views = Vec::new();
+    for (asked, article) in wanted {
+        let mut days: BTreeMap<NaiveDate, (u64, NaiveDate)> = BTreeMap::new();
+        let ranges: Vec<_> = spans
+            .iter()
+            .filter(|span| span.asked == asked)
+            .map(|span| span.from.max(since)..=span.to)
+            .collect();
+        for (date, count, published) in titles
+            .get(article)
+            .into_iter()
+            .flatten()
+            .filter_map(|title| by_title.get(title))
+            .flatten()
+            .filter(|(date, _, _)| ranges.iter().any(|range| range.contains(date)))
+        {
+            let day = days.entry(*date).or_insert((0, *published));
+            day.0 += count;
+            day.1 = day.1.max(*published);
+        }
+        views.extend(
+            days.into_iter()
+                .map(|(date, (count, published))| PageViews {
+                    symbol: asked.clone(),
+                    article: article.clone(),
+                    date,
+                    views: count,
+                    available_at: page_views_visible_at(published, calendar).unwrap_or(as_of),
+                }),
+        );
+    }
+    views.sort_by(|a, b| (&a.symbol, a.date, &a.article).cmp(&(&b.symbol, b.date, &b.article)));
+    Ok(views)
 }
 
 pub(crate) fn short_volume(

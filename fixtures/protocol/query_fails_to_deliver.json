@@ -1,0 +1,11 @@
+{
+  "id": 20,
+  "request": {
+    "kind": "fails_to_deliver",
+    "since": "2024-11-01",
+    "symbols": [
+      "AAA"
+    ]
+  },
+  "type": "query"
+}

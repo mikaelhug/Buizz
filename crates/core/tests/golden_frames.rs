@@ -36,5 +36,5 @@ fn every_golden_frame_round_trips_through_core_types() {
         );
         checked += 1;
     }
-    assert_eq!(checked, 46);
+    assert_eq!(checked, 50);
 }

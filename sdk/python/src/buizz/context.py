@@ -32,6 +32,8 @@ from buizz.wire import (
     Event,
     FactsRequest,
     FactsResult,
+    FailsToDeliverRequest,
+    FailsToDeliverResult,
     FilingsRequest,
     FilingsResult,
     FomcRequest,
@@ -63,6 +65,8 @@ from buizz.wire import (
     OptionRight,
     OrderRequest,
     OrderType,
+    PageViewsRequest,
+    PageViewsResult,
     Position,
     PressReleasesRequest,
     PressReleasesResult,
@@ -450,6 +454,24 @@ class EtfShares(msgspec.Struct, frozen=True):
 class EtfHoldings(msgspec.Struct, frozen=True):
     holdings: list[EtfHolding]
     shares: list[EtfShares]
+
+
+class FailToDeliver(msgspec.Struct, frozen=True):
+    symbol: str
+    settlement: date
+    cusip: str
+    quantity: int
+    price: Decimal | None
+    published: date
+    available_at: datetime
+
+
+class PageViews(msgspec.Struct, frozen=True):
+    symbol: str
+    article: str
+    date: date
+    views: int
+    available_at: datetime
 
 
 class MacroPoint(msgspec.Struct, frozen=True):
@@ -851,6 +873,31 @@ class Context(FactQueries):
                 for s in result.shares
             ],
         )
+
+    def fails_to_deliver(self, symbols: list[str], since: date) -> list[FailToDeliver]:
+        self._current("ctx.fails_to_deliver")
+        result = self._query(FailsToDeliverRequest(texts("symbols", symbols), day("since", since)))
+        if not isinstance(result, FailsToDeliverResult):
+            raise ProtocolError(f"fails-to-deliver query answered with {type(result).__name__}")
+        return [
+            FailToDeliver(
+                f.symbol,
+                f.settlement,
+                f.cusip,
+                f.quantity,
+                f.price,
+                f.published,
+                from_ns(f.available_at),
+            )
+            for f in result.fails
+        ]
+
+    def page_views(self, symbols: list[str], since: date) -> list[PageViews]:
+        self._current("ctx.page_views")
+        result = self._query(PageViewsRequest(texts("symbols", symbols), day("since", since)))
+        if not isinstance(result, PageViewsResult):
+            raise ProtocolError(f"page views query answered with {type(result).__name__}")
+        return [PageViews(v.symbol, v.article, v.date, v.views, from_ns(v.available_at)) for v in result.views]
 
     def completeness(self, datasets: list[str], start: date, end: date) -> list[Completeness]:
         self._current("ctx.completeness")

@@ -9,6 +9,7 @@ mod documents;
 mod estimates;
 mod etfs;
 mod facts;
+mod fails;
 mod fetch;
 mod filings;
 mod finra;
@@ -28,6 +29,7 @@ mod sec_index;
 mod sections;
 mod snapshot;
 mod tiingo;
+mod views;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
@@ -50,7 +52,7 @@ use tokio::task::JoinHandle;
 use crate::fetch::Work;
 use crate::schedule::{JOBS, due_at};
 
-const EVENT_CAPACITY: usize = 64;
+const EVENT_CAPACITY: usize = 256;
 const OTC: &str = "OTC";
 pub(crate) const CORE_ETFS: [&str; 63] = [
     "SPY", "QQQ", "IWM", "DIA", "IVV", "VOO", "VTI", "MDY", "IJR", "EFA", "EEM", "VEU", "VWO",
@@ -316,8 +318,11 @@ impl Ingest {
             schedule::ETF_HOLDINGS => self.etf_holdings(now).await,
             schedule::SHORT_INTEREST => self.short_interest(now).await,
             schedule::SHORT_VOLUME => self.short_volume(now).await,
+            schedule::FAILS_TO_DELIVER => self.fails_to_deliver(now).await,
+            schedule::PAGE_VIEWS => self.page_views(now).await,
             schedule::MACRO => self.macro_series(now).await,
             schedule::VIX => self.vix(now).await,
+            schedule::PUT_CALL => self.put_call(now).await,
             schedule::FOMC => self.fomc(now).await,
             schedule::EARNINGS_INSIGHT => self.earnings_insight(now).await,
             schedule::EARNINGS_INSIGHT_ARCHIVE => self.earnings_insight_archive(now).await,

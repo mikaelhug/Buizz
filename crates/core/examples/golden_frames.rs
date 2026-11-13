@@ -4,10 +4,10 @@ use std::str::FromStr;
 use buizz_core::api::ContractState;
 use buizz_core::market::{
     Adjustment, Borrow, CorporateAction, CorporateActionKind, DataSource, Dataset, EtfHolding,
-    EtfShares, FactStatus, Feed, Filing, FomcAnnouncement, FundamentalMetric, FundamentalPoint,
-    InsiderOwner, InsiderTrade, InsiderTransaction, MacroPoint, MacroSeries, NewsArticle,
-    OptionQuote, OptionRight, PeriodType, PressRelease, Session, ShortInterest, ShortVolume,
-    Symbol, Timeframe, TradingHalt,
+    EtfShares, FactStatus, FailToDeliver, Feed, Filing, FomcAnnouncement, FundamentalMetric,
+    FundamentalPoint, InsiderOwner, InsiderTrade, InsiderTransaction, MacroPoint, MacroSeries,
+    NewsArticle, OptionQuote, OptionRight, PageViews, PeriodType, PressRelease, Session,
+    ShortInterest, ShortVolume, Symbol, Timeframe, TradingHalt,
 };
 use buizz_core::order::{
     Fill, OrderId, OrderRequest, OrderSize, OrderStatus, OrderType, OrderUpdate, Side, TimeInForce,
@@ -723,6 +723,66 @@ fn main() {
                     available: 3_500_000,
                     available_or_more: true,
                     available_at: at("2024-11-20T21:02:40Z"),
+                }],
+            },
+        }),
+    );
+
+    write(
+        &dir,
+        "query_fails_to_deliver",
+        &BotMessage::Query(Query {
+            id: 20,
+            request: QueryRequest::FailsToDeliver {
+                symbols: vec![aaa.clone()],
+                since: date("2024-11-01"),
+            },
+        }),
+    );
+
+    write(
+        &dir,
+        "data_fails_to_deliver",
+        &SpineMessage::Data(Data {
+            id: 20,
+            result: DataResult::FailsToDeliver {
+                fails: vec![FailToDeliver {
+                    symbol: aaa.clone(),
+                    settlement: date("2024-11-04"),
+                    cusip: "000000AA1".to_owned(),
+                    quantity: 125_400,
+                    price: Some(money("41.27")),
+                    published: date("2024-11-29"),
+                    available_at: at("2024-12-02T14:30:00Z"),
+                }],
+            },
+        }),
+    );
+
+    write(
+        &dir,
+        "query_page_views",
+        &BotMessage::Query(Query {
+            id: 21,
+            request: QueryRequest::PageViews {
+                symbols: vec![aaa.clone()],
+                since: date("2024-11-18"),
+            },
+        }),
+    );
+
+    write(
+        &dir,
+        "data_page_views",
+        &SpineMessage::Data(Data {
+            id: 21,
+            result: DataResult::PageViews {
+                views: vec![PageViews {
+                    symbol: aaa.clone(),
+                    article: "Alpha Fixture Inc.".to_owned(),
+                    date: date("2024-11-18"),
+                    views: 18_342,
+                    available_at: at("2024-11-19T14:30:00Z"),
                 }],
             },
         }),

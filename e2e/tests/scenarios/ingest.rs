@@ -68,9 +68,12 @@ async fn an_empty_spine_backfills_backs_off_rejects_a_bad_tiingo_tail_and_restar
             ("etf_holdings", ok),
             ("short_interest", Some(JobOutcome::Noop)),
             ("short_volume", Some(JobOutcome::Noop)),
+            ("fails_to_deliver", ok),
+            ("page_views", ok),
             ("macro", ok),
             ("news", Some(JobOutcome::Backoff)),
             ("vix", ok),
+            ("put_call", ok),
             ("fomc", ok),
             ("earnings_insight", ok),
             ("earnings_insight_archive", Some(JobOutcome::Noop)),
@@ -94,6 +97,12 @@ async fn an_empty_spine_backfills_backs_off_rejects_a_bad_tiingo_tail_and_restar
     );
     assert_eq!(message(&jobs, "press_releases"), "press releases: 4 rows");
     assert_eq!(message(&jobs, "vix"), "vix: 8 rows");
+    assert_eq!(message(&jobs, "put_call"), "put/call: 81 rows");
+    assert_eq!(
+        message(&jobs, "fails_to_deliver"),
+        "fails to deliver: 4 rows"
+    );
+    assert_eq!(message(&jobs, "page_views"), "page views: 60 rows");
     assert!(
         message(&jobs, "fomc").starts_with("fomc: 16 rows, 1 failed: 2000"),
         "{}",

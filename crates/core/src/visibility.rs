@@ -92,6 +92,58 @@ pub fn short_interest_published(settlement: NaiveDate, calendar: &Calendar) -> O
         .map(|session| session.date)
 }
 
+pub const FAILS_HALF_MONTHS_FROM: NaiveDate = day(2009, 7, 1);
+const FAILS_FIRST_HALF_ENDS: u32 = 15;
+
+fn month_end(year: i32, month: u32) -> NaiveDate {
+    let (next_year, next_month) = if month == 12 {
+        (year + 1, 1)
+    } else {
+        (year, month + 1)
+    };
+    day(next_year, next_month, 1) - TimeDelta::days(1)
+}
+
+fn months_later(date: NaiveDate, months: u32) -> (i32, u32) {
+    let index = date.year() * 12 + i32::try_from(date.month0() + months).unwrap_or(0);
+    (
+        index.div_euclid(12),
+        u32::try_from(index.rem_euclid(12)).unwrap_or(0) + 1,
+    )
+}
+
+pub fn fails_to_deliver_published(settlement: NaiveDate, downloaded: NaiveDate) -> NaiveDate {
+    let assumed = if settlement < FAILS_HALF_MONTHS_FROM {
+        let (year, month) = months_later(settlement, 2);
+        month_end(year, month)
+    } else {
+        let (year, month) = months_later(settlement, 1);
+        if settlement.day() <= FAILS_FIRST_HALF_ENDS {
+            day(year, month, FAILS_FIRST_HALF_ENDS)
+        } else {
+            month_end(year, month)
+        }
+    };
+    assumed.min(downloaded)
+}
+
+pub const PAGE_VIEWS_RECORDED_WITHIN: TimeDelta = TimeDelta::days(7);
+
+pub fn page_views_published(date: NaiveDate, downloaded: NaiveDate) -> NaiveDate {
+    let morning_after = date + TimeDelta::days(1);
+    if downloaded <= date + PAGE_VIEWS_RECORDED_WITHIN {
+        downloaded.max(morning_after)
+    } else {
+        morning_after
+    }
+}
+
+pub fn page_views_visible_at(published: NaiveDate, calendar: &Calendar) -> Option<Timestamp> {
+    calendar
+        .first_on_or_after(published)
+        .map(|session| session.open)
+}
+
 pub fn fomc_visible_at(meeting: &FomcMeeting, calendar: &Calendar) -> Option<Timestamp> {
     if meeting.scheduled {
         Timestamp::at_exchange_time(

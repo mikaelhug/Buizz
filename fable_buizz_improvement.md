@@ -88,9 +88,6 @@ The spine's point-in-time discipline is the best part of Buizz. The gaps are in 
 |---|---|---|---|---|
 | [FINRA short interest](https://www.finra.org/finra-data/browse-catalog/equity-short-interest/files) | Short position and days to cover per symbol | Files from settlement 2017-12-29 | Twice a month on a published schedule, about 7 business days after settlement | Files carry a revision flag, so snapshot them; old publication dates must be rebuilt from the schedule |
 | [FINRA daily short volume](https://www.finra.org/finra-data/browse-catalog/short-sale-volume-data/daily-short-sale-volume-files) | Off-exchange short volume per symbol | From 2009-08-03 per facility | By 18:00 ET the same day | Mostly market-maker flow; a different thing from short interest |
-| [SEC fails-to-deliver](https://www.sec.gov/data-research/sec-markets-data/fails-deliver-data) | Outstanding settlement fails per symbol | From 2004 | Twice a month, no stated date | Record the download date; give history a conservative lag |
-| [CBOE index family and put/call](https://www.cboe.com/us/options/market_statistics/historical_data/) | SKEW, VVIX, VIX9D, implied correlation, put/call ratios | Mostly 2006 on | Daily close | Early rows of some indices were calculated after the fact; start each at its launch, as the store does for VIX |
-| Wikipedia page views | Daily views per company article | From 2015-07-01 | Next morning | Needs a dated ticker-to-article map. It replaces the planned Google Trends recorder (G22): real history, stable values, no gated API |
 
 ### Recorders to start now
 

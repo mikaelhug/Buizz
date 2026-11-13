@@ -47,6 +47,7 @@ async fn membership_is_rebuilt_backwards_from_todays_constituents_through_the_ch
     tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
     let client = WikipediaClient::new(WikipediaConfig {
         user_agent: USER_AGENT_VALUE.to_owned(),
+        rest_url: base_url.clone(),
         base_url,
     })
     .unwrap();
@@ -63,6 +64,14 @@ async fn membership_is_rebuilt_backwards_from_todays_constituents_through_the_ch
             .map(|member| (member.start, member.end))
             .collect()
     };
+    let articles = |symbol: &str| -> Vec<Option<&str>> {
+        history
+            .members
+            .iter()
+            .filter(|member| member.symbol == Symbol::new(symbol))
+            .map(|member| member.article.as_deref())
+            .collect()
+    };
     assert_eq!(
         spans("META"),
         [(Some(date("2013-12-23")), None)],
@@ -71,6 +80,12 @@ async fn membership_is_rebuilt_backwards_from_todays_constituents_through_the_ch
     assert_eq!(
         spans("TWTR"),
         [(Some(date("2018-06-07")), Some(date("2022-11-01")))]
+    );
+    assert_eq!(articles("META"), [Some("Meta Platforms")]);
+    assert_eq!(
+        articles("TWTR"),
+        [Some("Twitter, Inc.")],
+        "a removed member keeps the article the change log links"
     );
     assert_eq!(spans("OKTA"), [(Some(date("2026-10-30")), None)]);
     assert_eq!(spans("KVUE"), [(None, Some(date("2026-10-30")))]);

@@ -13,6 +13,7 @@ pub const SP500_MEMBERS: RangeInclusive<usize> = 495..=510;
 struct Side {
     key: String,
     symbol: Symbol,
+    article: Option<String>,
 }
 
 struct Change {
@@ -24,17 +25,17 @@ struct Change {
 struct Open {
     key: String,
     symbol: Symbol,
+    article: Option<String>,
     end: Option<NaiveDate>,
 }
 
 fn side(ticker_cell: Option<&String>, security_cell: Option<&String>) -> Option<Side> {
     let symbol = ticker(ticker_cell?)?;
-    let key = security_cell
-        .and_then(|cell| first_link(cell))
-        .unwrap_or_else(|| symbol.clone());
+    let article = security_cell.and_then(|cell| first_link(cell));
     Some(Side {
-        key,
+        key: article.clone().unwrap_or_else(|| symbol.clone()),
         symbol: Symbol::new(&symbol),
+        article,
     })
 }
 
@@ -108,6 +109,7 @@ pub fn normalize_sp500(
         .map(|member| Open {
             key: member.key,
             symbol: member.symbol,
+            article: member.article,
             end: None,
         })
         .collect();
@@ -130,6 +132,7 @@ pub fn normalize_sp500(
                     symbol: member.symbol,
                     start: Some(change.date),
                     end: member.end,
+                    article: member.article.or_else(|| added.article.clone()),
                 });
             }
         }
@@ -144,6 +147,7 @@ pub fn normalize_sp500(
                 open.push(Open {
                     key: removed.key.clone(),
                     symbol: removed.symbol.clone(),
+                    article: removed.article.clone(),
                     end: Some(change.date),
                 });
             }
@@ -156,6 +160,7 @@ pub fn normalize_sp500(
         symbol: member.symbol,
         start: None,
         end: member.end,
+        article: member.article,
     }));
     members.sort_by(|a, b| (&a.symbol, a.start).cmp(&(&b.symbol, b.start)));
     let reliable_from = reliable_from(&log, today);

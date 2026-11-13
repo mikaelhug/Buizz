@@ -65,6 +65,8 @@ class RedGreen(Bot):
         observed["option_chains"] = ctx.option_chains(["AAA"], date(2024, 11, 20))
         observed["trading_halts"] = ctx.trading_halts(date(2024, 11, 20))
         observed["etf_holdings"] = ctx.etf_holdings(["SPY"], date(2024, 11, 20))
+        observed["fails_to_deliver"] = ctx.fails_to_deliver(["AAA"], date(2024, 11, 1))
+        observed["page_views"] = ctx.page_views(["AAA"], date(2024, 11, 18))
         ctx.order_target_weight("AAA", ctx.params["weight"], reason="red day")
         ctx.order("BBB", -100, reason="take profit", limit_price=Decimal("49.60"), client_id="BBB-limit-1")
         ctx.cancel("BBB-limit-0")
@@ -96,44 +98,31 @@ def play_spine(connection: ServerConnection, received: list[bytes]) -> None:
     connection.send(golden("ready_backtest"))
     connection.send(golden("step_backtest"))
     expect()
-    connection.send(golden("data_history"))
-    expect()
-    connection.send(golden("data_fundamentals"))
-    expect()
-    connection.send(golden("error"))
-    expect()
-    connection.send(golden("data_calendar"))
-    expect()
-    connection.send(golden("data_universe"))
-    expect()
-    connection.send(golden("data_macro"))
-    expect()
-    connection.send(golden("data_insider_trades"))
-    expect()
-    connection.send(golden("data_news"))
-    expect()
-    connection.send(golden("data_fomc"))
-    expect()
-    connection.send(golden("data_filings"))
-    expect()
-    connection.send(golden("data_press_releases"))
-    expect()
-    connection.send(golden("data_short_interest"))
-    expect()
-    connection.send(golden("data_short_volume"))
-    expect()
-    connection.send(golden("data_borrow"))
-    expect()
-    connection.send(golden("data_completeness"))
-    expect()
-    connection.send(golden("data_facts"))
-    expect()
-    connection.send(golden("data_option_chains"))
-    expect()
-    connection.send(golden("data_trading_halts"))
-    expect()
-    connection.send(golden("data_etf_holdings"))
-    expect()
+    for frame in [
+        "data_history",
+        "data_fundamentals",
+        "error",
+        "data_calendar",
+        "data_universe",
+        "data_macro",
+        "data_insider_trades",
+        "data_news",
+        "data_fomc",
+        "data_filings",
+        "data_press_releases",
+        "data_short_interest",
+        "data_short_volume",
+        "data_borrow",
+        "data_completeness",
+        "data_facts",
+        "data_option_chains",
+        "data_trading_halts",
+        "data_etf_holdings",
+        "data_fails_to_deliver",
+        "data_page_views",
+    ]:
+        connection.send(golden(frame))
+        expect()
     connection.send(golden("step_live"))
     expect()
     connection.send(golden("end_backtest"))
@@ -216,6 +205,8 @@ def test_bot_replies_match_the_golden_frames(monkeypatch: pytest.MonkeyPatch) ->
         "option_chains",
         "trading_halts",
         "etf_holdings",
+        "fails_to_deliver",
+        "page_views",
     ]
     assert queries == [golden(f"query_{kind}") for kind in kinds]
     assert ack_first == golden("ack_backtest")
@@ -256,10 +247,15 @@ def test_bot_replies_match_the_golden_frames(monkeypatch: pytest.MonkeyPatch) ->
         date(2024, 11, 26),
     )
     assert position.available_at.day == 27
-    [volume] = observed["short_volume"]
-    assert (volume.short_volume, volume.total_volume) == (Decimal("812345.5"), Decimal(1650000))
+    assert [(v.short_volume, v.total_volume) for v in observed["short_volume"]] == [
+        (Decimal("812345.5"), Decimal(1650000))
+    ]
     [news] = observed["completeness"]
     assert (news.source, news.complete, news.complete_through) == ("alpaca", False, date(2020, 10, 31))
+    assert (
+        [(f.quantity, f.price, f.published, f.available_at.day) for f in observed["fails_to_deliver"]],
+        [(v.article, v.views, v.available_at.day) for v in observed["page_views"]],
+    ) == ([(125400, Decimal("41.27"), date(2024, 11, 29), 2)], [("Alpha Fixture Inc.", 18342, 19)])
     notice, unstated = observed["facts"]
     assert (notice.exchange, notice.rule, notice.available_at.hour) == ("nasdaq", "5550(a)(2)", 13)
     assert (unstated.status, unstated.exchange, unstated.evidence) == ("not_stated", None, None)

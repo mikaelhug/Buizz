@@ -218,6 +218,7 @@ async fn a_member_is_priced_through_its_rename_and_not_missed_after_its_last_tra
         symbol: Symbol::new(symbol),
         start: Some(day("2016-06-22")),
         end: Some(day("2022-12-19")),
+        article: None,
     };
     store
         .replace_index_history(
@@ -376,6 +377,7 @@ async fn a_member_that_joins_after_the_start_is_judged_for_jumps_within_its_memb
         symbol: symbol.clone(),
         start,
         end: None,
+        article: None,
     };
     store
         .replace_index_history(

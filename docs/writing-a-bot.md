@@ -128,6 +128,8 @@ Outside `on_step` only `params`, `universe`, `state`, `portfolio` and `position`
 | `ctx.option_chains(underlyings, since)` | `list[OptionQuote]`: the option chain snapshots the spine recorded before each close on or after `since`, see below |
 | `ctx.trading_halts(since, symbols=None)` | `list[TradingHalt]`: every version of each Nasdaq trading halt since `since`, for all symbols or only `symbols`, see below |
 | `ctx.etf_holdings(etfs, since)` | `EtfHoldings`: SPDR ETF holdings and shares outstanding dated on or after `since`, see below |
+| `ctx.fails_to_deliver(symbols, since)` | `list[FailToDeliver]`: the SEC's fails-to-deliver balances for settlement dates on or after `since`, as public at the clock, see below |
+| `ctx.page_views(symbols, since)` | `list[PageViews]`: daily Wikipedia views of each company's article on or after `since`, as public at the clock, see below |
 | `ctx.completeness(datasets, start, end)` | `list[Completeness]`: per dataset and source, whether the spine holds everything that dataset's scope expects for `start`–`end` (clipped to the clock), with `complete_through` and `state` (`complete`, `filling` or `stalled`) |
 | `ctx.universe_at(on, top_dollar_volume, *, asset_class=None, index=None)` | The symbols a `top_dollar_volume` universe of that size (optionally of one `asset_class`), or the `index` universe, held on the date `on`, see below |
 | `ctx.macro(series, start, end)` | The rate, macro and S&P 500 valuation observations dated `start` to `end` as known at the clock (`MacroPoint`: `series`, `date`, `value`, `published`, `available_at`), see below |
@@ -218,6 +220,11 @@ training = {month: ctx.universe_at(month, 1000) for month in months}
 | `rsafs` | Advance retail and food services sales, Census (FRED `RSAFS`), millions of dollars, not adjusted for inflation | monthly, dated the 1st, released mid-month after |
 | `vix` | CBOE Volatility Index close, from 2003-09-22 | daily |
 | `vix3m` | CBOE 3-Month Volatility Index close, from 2009-09-18 | daily |
+| `vix9d` | CBOE 9-Day Volatility Index close (launched as VXST), from 2013-10-01 | daily |
+| `vvix` | CBOE VIX of VIX Index close, the implied volatility of VIX options, from 2012-03-14 | daily |
+| `skew` | CBOE SKEW Index close, the priced tail risk of S&P 500 options (100 is none, higher is more), from 2011-02-23 | daily |
+| `cor1m`, `cor3m` | CBOE 1-Month and 3-Month Implied Correlation Index closes, the expected average correlation of the 50 largest S&P 500 stocks, in index points, from 2022-07-18 and 2021-07-01 | daily |
+| `put_call_total`, `put_call_equity`, `put_call_index` | Cboe Options' total, equity-option and index-option put/call volume ratios, from 2006-11-01 | daily |
 | `sp500_forward_pe` | S&P 500 forward 12-month P/E (FactSet Earnings Insight) | weekly, dated the report's issue date |
 | `sp500_forward_pe_5y_avg`, `sp500_forward_pe_10y_avg` | Its 5- and 10-year averages as the report quotes them | weekly |
 | `sp500_forward_eps` | The forward 12-month EPS estimate in dollars the P/E was based on, only in issues that state it | weekly 2011–2016, rare since |
@@ -228,7 +235,7 @@ The FRED series need `FRED_API_KEY` on the spine; without it they are empty. Eac
 
 The `sp500_*` series are the figures FactSet's weekly Earnings Insight states in its text: `date` is the issue date, `published` the day the report became public (a correction uploaded later under the same date with a letter, such as `B`, is a later vintage of that date, published when it was made), so a Friday report is first seen at Monday's open. A figure the report does not state, or states differently in two places, is missing for that week (about 3% of the forward P/Es, where FactSet's summary and body disagree); nothing is computed, so `sp500_forward_eps` is not price over P/E. Ratios are plain numbers (17.7 means 17.7×), EPS is in dollars. They need `SEC_USER_AGENT` on the spine.
 
-The VIX closes at 16:15 ET, a quarter of an hour after the session's last bar, so a close is published on its date and visible from the open of the next session: a daily bot never reads today's VIX at today's close. The VIX before 2003-09-22 in CBOE's file is a later recalculation with the new methodology, not what was published then (the index of those years, renamed VXO, is not offered as a free file), so `vix` starts on 2003-09-22. Values are CBOE's history file as first read by the spine; a close CBOE changes afterwards becomes a new vintage published on the day the spine saw it. Graham's CPI-scaled size floor:
+The VIX closes at 16:15 ET, a quarter of an hour after the session's last bar, so a close is published on its date and visible from the open of the next session: a daily bot never reads today's VIX at today's close. The same holds for the other CBOE indices and the put/call ratios, which Cboe posts after the close. Each CBOE index starts on the day CBOE began publishing it, because its history file reaches further back with values calculated after the fact (SKEW from 1990, VVIX from 2006, VIX9D from 2011, the correlation indices from 2006). The put/call ratios are two decimals as Cboe states them, for Cboe Options volume only: from 2006-11-01 to 2019-10-04 its archived files (index volume before 2012-06-01 is OCC cleared volume, preliminary volume after), and from 2019-10-07 its daily market statistics; a session Cboe posted no statistics for has no row. The VIX before 2003-09-22 in CBOE's file is a later recalculation with the new methodology, not what was published then (the index of those years, renamed VXO, is not offered as a free file), so `vix` starts on 2003-09-22. Values are CBOE's history file as first read by the spine; a close CBOE changes afterwards becomes a new vintage published on the day the spine saw it. Graham's CPI-scaled size floor:
 
 ```python
 from datetime import date
@@ -277,6 +284,21 @@ crowded = {symbol for symbol, position in latest.items() if position.days_to_cov
 chain = ctx.option_chains(["SPY"], ctx.session.date)
 puts = [q for q in chain if q.right == "put" and q.implied_volatility is not None]
 halted = {halt.symbol for halt in ctx.trading_halts(ctx.session.date) if halt.trading_resumes_at is None}
+```
+
+`ctx.fails_to_deliver(symbols, since)` gives the SEC's fails-to-deliver data: for each settlement date, the net balance of shares that failed to be delivered and were still outstanding in NSCC's Continuous Net Settlement system, over all members. It is a balance, not a daily flow, and fails arise on long sales as well as short ones. A `FailToDeliver` carries `symbol` (the ticker as the SEC's file gives it), `settlement`, `cusip`, `quantity` (shares), `price` (the previous day's close as the SEC states it, `None` where it gives none or it is under a penny), `published` and `available_at`, the open of the session after `published`. History starts in March 2004; before 2008-09-16 only balances of at least 10,000 shares are listed, and a security without fails on a date has no row. The SEC posts the first half of each month at the month's end and the second half about the 15th of the next month, without stating a date, so `published` is the day the spine downloaded the file when that came first, and otherwise an assumed date with a margin: the 15th of the next month for settlement days 1–15, the end of the next month for the rest, and the end of the second month after for the monthly files before July 2009. The margin is about two weeks over the SEC's stated schedule, so a backtest sees a file somewhat later than it was really public unless the SEC was that late. A ticker renamed since is answered for the company that traded under the asked ticker at the clock, as for prices.
+
+`ctx.page_views(symbols, since)` gives the daily views by people (crawlers excluded) of the English Wikipedia article of each company that has been an S&P 500 member since 2015-07-01, from 2015-07-01, the first day of Wikimedia's per-article data. A `PageViews` carries `symbol`, `article` (the article the S&P 500 list links for the company), `date` (a UTC day), `views` and `available_at`. The ticker-to-article map is dated: each S&P 500 membership row carries its ticker and its article, and a ticker is matched to the article of the company that traded under it at the clock, so a reused ticker never inherits another company's attention and a renamed one keeps its history. An article's views add up every title it was published under, its current title and the titles it was moved from (Facebook, Inc. before its move to Meta Platforms), so a rename shows no fake jump; an article that now redirects elsewhere because its company was merged keeps only its own views. Wikimedia publishes a day's counts the next morning, so a day's row is published on the next day, or on the day the spine read it when it read it within a week, and is visible from the open of the first session on or after that, Monday's views at Tuesday's open. Days without a single view have no row. Companies that left the index before July 2015, or were never in it, have no article and no rows. An attention screen:
+
+```python
+from datetime import timedelta
+from statistics import median
+
+since = ctx.session.date - timedelta(days=60)
+daily: dict[str, list[int]] = {}
+for row in ctx.page_views(ctx.universe, since):
+    daily.setdefault(row.symbol, []).append(row.views)
+spiking = {symbol for symbol, views in daily.items() if len(views) > 20 and views[-1] > 5 * median(views[:-1])}
 ```
 
 `to_ns(moment)` turns a timezone-aware `datetime` into the nanoseconds of `History.start`, for example `history.start >= to_ns(ctx.session.open)`.

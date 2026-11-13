@@ -166,6 +166,7 @@ impl Config {
             wikipedia: var("SEC_USER_AGENT").map(|contact| WikipediaConfig {
                 user_agent: format!("buizz/{} ({contact})", env!("CARGO_PKG_VERSION")),
                 base_url: var_or("WIKIPEDIA_URL", wikipedia::BASE_URL),
+                rest_url: var_or(wikipedia::REST_URL_ENV, wikipedia::REST_URL),
             }),
             factset: var("SEC_USER_AGENT").map(|contact| FactsetConfig {
                 user_agent: format!("buizz/{} ({contact})", env!("CARGO_PKG_VERSION")),

@@ -4,11 +4,11 @@ use std::ops::RangeInclusive;
 use buizz_core::market::{
     Bar, BorrowAvailability, Company, CorporateAction, CorporateActionKind, DataSource, Dataset,
     DelistingCheck, DocumentSections, EarningsInsight, EarningsRelease, EstimateFact,
-    EtfHoldingsFile, EtfSharesRecord, Filing, FilingDocument, FilingText, FomcMeeting,
-    FundamentalFact, IndexHistory, InsiderFiling, InsiderPlan, InsiderReport, Instrument,
-    MacroObservation, NewsArticle, OptionQuoteRecord, PressExhibit, RiskFreeRate, SecFiling,
-    Section, Session, ShortInterestRecord, ShortVolumeRecord, Symbol, TradingHaltRecord,
-    split_rates,
+    EtfHoldingsFile, EtfSharesRecord, FailToDeliverRecord, Filing, FilingDocument, FilingText,
+    FomcMeeting, FundamentalFact, IndexHistory, InsiderFiling, InsiderPlan, InsiderReport,
+    Instrument, MacroObservation, NewsArticle, OptionQuoteRecord, PressExhibit, RiskFreeRate,
+    SecFiling, Section, Session, ShortInterestRecord, ShortVolumeRecord, Symbol, TitleViews,
+    TradingHaltRecord, split_rates,
 };
 use buizz_core::ops::ActionDisagreement;
 use buizz_core::time::Timestamp;
@@ -1209,8 +1209,8 @@ pub(crate) fn index_history(
             for table in ["index_member", "index_history"] {
                 transaction.execute(
                     &format!(
-                        "INSERT INTO main.{table}_revision SELECT *, ? FROM main.{table} \
-                         WHERE index_name = ?"
+                        "INSERT INTO main.{table}_revision BY NAME SELECT *, ? AS superseded_by \
+                         FROM main.{table} WHERE index_name = ?"
                     ),
                     params![batch_id, index],
                 )?;
@@ -1231,6 +1231,7 @@ pub(crate) fn index_history(
                     member.start,
                     member.end,
                     batch_id,
+                    member.article,
                 ])?;
             }
             appender.flush()?;
@@ -1498,6 +1499,84 @@ pub(crate) fn short_volume(
             }
             appender.flush()?;
             Ok(records.len() as u64)
+        },
+    )
+}
+
+pub(crate) fn fails_to_deliver(
+    connection: &mut Connection,
+    source: DataSource,
+    file: &str,
+    downloaded: NaiveDate,
+    records: Vec<FailToDeliverRecord>,
+) -> Result<WriteSummary> {
+    let mut coverage = Coverage::new();
+    for record in &records {
+        cover(&mut coverage, None, record.settlement);
+    }
+    write_batch(
+        connection,
+        source,
+        Dataset::FailsToDeliver,
+        coverage,
+        |transaction, batch_id| {
+            let mut appender = transaction.appender("fails_to_deliver")?;
+            for record in &records {
+                appender.append_row(params![
+                    record.symbol.as_str(),
+                    record.settlement,
+                    record.cusip,
+                    record.quantity,
+                    record.price.map(Dec),
+                    record.published,
+                    downloaded,
+                    file,
+                    batch_id,
+                ])?;
+            }
+            appender.flush()?;
+            Ok(records.len() as u64)
+        },
+    )
+}
+
+pub(crate) fn page_views(
+    connection: &mut Connection,
+    source: DataSource,
+    titles: BTreeMap<String, BTreeSet<String>>,
+    views: Vec<TitleViews>,
+) -> Result<WriteSummary> {
+    let mut coverage = Coverage::new();
+    for view in &views {
+        cover(&mut coverage, None, view.date);
+    }
+    write_batch(
+        connection,
+        source,
+        Dataset::PageViews,
+        coverage,
+        |transaction, batch_id| {
+            let mut appender = transaction.appender("article_title")?;
+            for (article, title) in titles
+                .iter()
+                .flat_map(|(article, titles)| titles.iter().map(move |title| (article, title)))
+            {
+                appender.append_row(params![article, title, batch_id])?;
+            }
+            appender.flush()?;
+            drop(appender);
+            let mut appender = transaction.appender("page_views")?;
+            for view in &views {
+                appender.append_row(params![
+                    view.title,
+                    view.date,
+                    view.views,
+                    view.published,
+                    batch_id,
+                ])?;
+            }
+            appender.flush()?;
+            Ok(views.len() as u64)
         },
     )
 }

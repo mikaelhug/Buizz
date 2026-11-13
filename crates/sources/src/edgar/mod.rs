@@ -16,6 +16,7 @@ use crate::http::{HttpClient, RateLimit, SourceError};
 mod bulk;
 mod concepts;
 mod exhibit;
+mod fails;
 mod filings;
 mod insider_quarters;
 mod normalize;
@@ -25,6 +26,10 @@ mod submission;
 
 pub use bulk::{SUBMISSIONS_ARCHIVE_PATH, SubmissionsArchive};
 pub use exhibit::{IndexedDocument, cover_tickers, exhibit_text, press_release_document};
+pub use fails::{
+    FAILS_PAGE, FailsArchive, FailsFile, fails_file_settlements, parse_fails_archive,
+    parse_fails_page, published_fails_files,
+};
 pub use filings::{
     Filings, FilingsPage, OwnershipFiling, Submissions, normalize_filings_page,
     normalize_submissions,

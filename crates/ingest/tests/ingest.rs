@@ -23,7 +23,7 @@ use buizz_sources::Sources;
 use buizz_sources::alpaca::{AlpacaClient, AlpacaConfig};
 use buizz_sources::cboe::{CboeClient, CboeConfig};
 use buizz_sources::edgar::{
-    EdgarClient, EdgarConfig, INSIDER_QUARTERS_PAGE, SUBMISSIONS_ARCHIVE_PATH,
+    EdgarClient, EdgarConfig, FAILS_PAGE, INSIDER_QUARTERS_PAGE, SUBMISSIONS_ARCHIVE_PATH,
 };
 use buizz_sources::tiingo::{TiingoClient, TiingoConfig};
 use buizz_sources::treasury::{TreasuryClient, TreasuryConfig};
@@ -475,6 +475,16 @@ async fn serve_fakes(fake: Arc<Fake>) -> String {
             get(yields),
         )
         .route("/api/global/us_indices/daily_prices/{file}", get(cboe))
+        .route(
+            "/resources/options/volume_and_call_put_ratios/{file}",
+            get(|| async {
+                let end = date(CALENDAR_END).format("%m/%d/%Y");
+                format!(
+                    "Cboe put/call ratios\nDATE,CALLS,PUTS,TOTAL,P/C Ratio\n{end},100,80,180,0.80\n"
+                )
+            }),
+        )
+        .route(FAILS_PAGE, get(|| async { "<html></html>" }))
         .with_state(fake);
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}", listener.local_addr().unwrap());
@@ -614,6 +624,7 @@ fn sp500(members: &[&str]) -> IndexHistory {
                 symbol: Symbol::new(symbol),
                 start: Some(date("2010-01-04")),
                 end: None,
+                article: None,
             })
             .collect(),
         changes: u32::try_from(members.len()).unwrap(),
@@ -804,6 +815,7 @@ async fn a_member_whose_ticker_a_later_company_took_is_priced_as_alpaca_mapped_i
         symbol: Symbol::new(REUSED),
         start: Some(date("2010-01-04")),
         end: Some(date("2016-04-01")),
+        article: None,
     });
     market
         .replace_index_history(DataSource::Wikipedia, members, first_at.exchange_date())
@@ -985,6 +997,7 @@ async fn sessions_without_a_trade_are_not_prices_and_a_long_silence_ends_the_lis
         symbol: Symbol::new(SILENT),
         start: Some(date("2010-01-04")),
         end: Some(date("2016-03-15")),
+        article: None,
     });
     market
         .replace_index_history(DataSource::Wikipedia, members, first_at.exchange_date())
@@ -1087,9 +1100,12 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
             ("etf_holdings", JobOutcome::Noop),
             ("short_interest", JobOutcome::Noop),
             ("short_volume", JobOutcome::Noop),
+            ("fails_to_deliver", JobOutcome::Noop),
+            ("page_views", JobOutcome::Noop),
             ("macro", JobOutcome::Noop),
             ("news", JobOutcome::Noop),
             ("vix", JobOutcome::Ok),
+            ("put_call", JobOutcome::Ok),
             ("fomc", JobOutcome::Noop),
             ("earnings_insight", JobOutcome::Noop),
             ("earnings_insight_archive", JobOutcome::Noop),
@@ -1211,9 +1227,12 @@ async fn ticks_backfill_back_off_and_settle_into_noops() {
             ("etf_holdings", JobOutcome::Noop),
             ("short_interest", JobOutcome::Noop),
             ("short_volume", JobOutcome::Noop),
+            ("fails_to_deliver", JobOutcome::Noop),
+            ("page_views", JobOutcome::Noop),
             ("macro", JobOutcome::Noop),
             ("news", JobOutcome::Noop),
             ("vix", JobOutcome::Ok),
+            ("put_call", JobOutcome::Noop),
             ("fomc", JobOutcome::Noop),
             ("earnings_insight", JobOutcome::Noop),
             ("state_snapshot", JobOutcome::Ok),

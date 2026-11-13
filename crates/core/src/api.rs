@@ -380,6 +380,8 @@ pub enum ScopeUnit {
     Days,
     Sessions,
     Settlements,
+    Files,
+    Articles,
     Filings,
     Sections,
     Quarters,
