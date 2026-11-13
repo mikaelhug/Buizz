@@ -3,15 +3,15 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use chrono::{Months, NaiveDate, NaiveTime, TimeDelta};
-use rust_decimal::Decimal;
-use rust_decimal::prelude::ToPrimitive;
+use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
+use rust_decimal::{Decimal, MathematicalOps};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{Map, Value};
 use utoipa::openapi::schema::{ObjectBuilder, Type};
 use utoipa::openapi::{RefOr, Schema};
 use utoipa::{PartialSchema, ToSchema};
 
-use crate::market::{AssetClass, Bar, Session, StockIndex, Symbol, Timeframe};
+use crate::market::{AssetClass, Bar, Liquidity, Session, StockIndex, Symbol, Timeframe};
 use crate::money::{PRICE_DECIMALS, round_cash, round_price};
 use crate::order::{RejectReason, Side};
 use crate::time::Timestamp;
@@ -177,6 +177,8 @@ pub struct CostModel {
     pub commission_tiers: Vec<CommissionTier>,
     pub slippage_bps: Decimal,
     pub slippage_per_share: Decimal,
+    pub spread_scale: Decimal,
+    pub impact_coefficient: Decimal,
     pub adv_participation: Decimal,
     pub adv_sessions: u32,
     pub borrow_rate: Decimal,
@@ -197,6 +199,8 @@ impl Default for CostModel {
             commission_tiers: Vec::new(),
             slippage_bps: Decimal::new(5, 0),
             slippage_per_share: Decimal::ZERO,
+            spread_scale: Decimal::ONE,
+            impact_coefficient: Decimal::ONE,
             adv_participation: Decimal::new(5, 2),
             adv_sessions: 20,
             borrow_rate: Decimal::new(2, 2),
@@ -214,6 +218,8 @@ impl CostModel {
             self.commission_min,
             self.slippage_bps,
             self.slippage_per_share,
+            self.spread_scale,
+            self.impact_coefficient,
             self.borrow_rate,
             self.financing_spread,
         ];
@@ -236,27 +242,67 @@ impl CostModel {
         None
     }
 
-    pub fn market_fill_price(&self, side: Side, price: Decimal) -> Decimal {
-        let slip = self.slippage_bps / Decimal::new(10_000, 0);
+    pub fn slippage(&self, liquidity: Option<&Liquidity>, traded: u64, qty: u64) -> Decimal {
+        let floor = self.slippage_bps / Decimal::new(10_000, 0);
+        let Some(liquidity) = liquidity else {
+            return floor;
+        };
+        let spread = floor.max(self.spread_scale * Self::half_spread(liquidity));
+        spread
+            + self.impact_coefficient
+                * liquidity.volatility
+                * marginal_impact(liquidity.average_daily_volume, traded, qty)
+    }
+
+    pub fn half_spread(liquidity: &Liquidity) -> Decimal {
+        if liquidity.dollar_volume <= Decimal::ZERO {
+            return Decimal::ZERO;
+        }
+        let relative_volatility = liquidity.volatility / INVARIANCE_VOLATILITY;
+        let activity = relative_volatility * relative_volatility * INVARIANCE_DOLLAR_VOLUME
+            / liquidity.dollar_volume;
+        let root = activity
+            .to_f64()
+            .map(libm::cbrt)
+            .and_then(Decimal::from_f64)
+            .unwrap_or_default()
+            .round_dp(Liquidity::VOLATILITY_DECIMALS);
+        INVARIANCE_HALF_SPREAD * root
+    }
+
+    pub fn market_fill_price(&self, side: Side, price: Decimal, slippage: Decimal) -> Decimal {
         let moved = match side {
-            Side::Buy => price * (Decimal::ONE + slip) + self.slippage_per_share,
-            Side::Sell => price * (Decimal::ONE - slip) - self.slippage_per_share,
+            Side::Buy => price * (Decimal::ONE + slippage) + self.slippage_per_share,
+            Side::Sell => price * (Decimal::ONE - slippage) - self.slippage_per_share,
         };
         round_price(moved).max(Decimal::new(1, PRICE_DECIMALS))
     }
 
-    pub fn stop_fill_price(&self, side: Side, stop: Decimal, bar: &Bar) -> Option<Decimal> {
-        match side {
-            Side::Sell if bar.open <= stop => Some(self.market_fill_price(side, bar.open)),
-            Side::Sell if bar.low <= stop => Some(self.market_fill_price(side, stop)),
-            Side::Buy if bar.open >= stop => Some(self.market_fill_price(side, bar.open)),
-            Side::Buy if bar.high >= stop => Some(self.market_fill_price(side, stop)),
-            _ => None,
-        }
+    pub fn stop_fill_price(
+        &self,
+        side: Side,
+        stop: Decimal,
+        bar: &Bar,
+        slippage: Decimal,
+    ) -> Option<Decimal> {
+        let reference = match side {
+            Side::Sell if bar.open <= stop => bar.open,
+            Side::Sell if bar.low <= stop => stop,
+            Side::Buy if bar.open >= stop => bar.open,
+            Side::Buy if bar.high >= stop => stop,
+            _ => return None,
+        };
+        Some(self.market_fill_price(side, reference, slippage))
     }
 
-    pub fn limit_fill_price(&self, side: Side, limit: Decimal, bar: &Bar) -> Option<Decimal> {
-        let at_open = self.market_fill_price(side, bar.open);
+    pub fn limit_fill_price(
+        &self,
+        side: Side,
+        limit: Decimal,
+        bar: &Bar,
+        slippage: Decimal,
+    ) -> Option<Decimal> {
+        let at_open = self.market_fill_price(side, bar.open, slippage);
         match side {
             Side::Buy if bar.open <= limit => Some(at_open.min(limit)),
             Side::Buy if bar.low <= limit => Some(limit),
@@ -305,6 +351,21 @@ impl CostModel {
         }
         round_cash(-cash * rate / Decimal::from(Self::TRADING_DAYS_PER_YEAR))
     }
+}
+
+const INVARIANCE_HALF_SPREAD: Decimal = Decimal::from_parts(821, 0, 0, false, 6);
+const INVARIANCE_VOLATILITY: Decimal = Decimal::from_parts(2, 0, 0, false, 2);
+const INVARIANCE_DOLLAR_VOLUME: Decimal = Decimal::from_parts(40_000_000, 0, 0, false, 0);
+
+fn marginal_impact(average_daily_volume: u64, traded: u64, qty: u64) -> Decimal {
+    if average_daily_volume == 0 || qty == 0 {
+        return Decimal::ZERO;
+    }
+    let volume = Decimal::from(average_daily_volume);
+    let before = Decimal::from(traded) / volume;
+    let after = Decimal::from(traded.saturating_add(qty)) / volume;
+    let cost = |fraction: Decimal| fraction * fraction.sqrt().unwrap_or_default();
+    (cost(after) - cost(before)) / (after - before)
 }
 
 pub const MOC_CUTOFF_MINUTES: i64 = 10;
@@ -784,6 +845,56 @@ impl BotManifest {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::market::Feed;
+
+    #[test]
+    fn an_illiquid_stock_pays_its_estimated_spread_and_impact_and_a_liquid_one_the_floor() {
+        let window = |closes: [&str; 4], volume: u64| -> Vec<Bar> {
+            closes
+                .iter()
+                .map(|close| Bar {
+                    symbol: Symbol::new("X"),
+                    start: Timestamp::MIN,
+                    open: close.parse().unwrap(),
+                    high: close.parse().unwrap(),
+                    low: close.parse().unwrap(),
+                    close: close.parse().unwrap(),
+                    volume,
+                    feed: Feed::Sip,
+                })
+                .collect()
+        };
+        let decimal = |text: &str| text.parse::<Decimal>().unwrap();
+        let liquid = Liquidity::estimate(&window(["100", "101", "100", "100"], 10_000_000), &[]);
+        let illiquid = Liquidity::estimate(&window(["10", "10.2", "9.996", "9.996"], 50_000), &[]);
+        let (liquid, illiquid) = (liquid.unwrap(), illiquid.unwrap());
+        assert_eq!(
+            (liquid.dollar_volume, liquid.volatility),
+            (decimal("1002500000"), decimal("0.00995054"))
+        );
+        assert_eq!(
+            (illiquid.dollar_volume, illiquid.volatility),
+            (decimal("502400"), decimal("0.02"))
+        );
+        assert_eq!(CostModel::half_spread(&liquid), decimal("0.00017614871085"));
+        assert_eq!(
+            CostModel::half_spread(&illiquid),
+            decimal("0.00353193967657")
+        );
+        let cost = CostModel::default();
+        let liquid_slippage = cost.slippage(Some(&liquid), 0, 100);
+        let illiquid_slippage = cost.slippage(Some(&illiquid), 0, 500);
+        assert_eq!(liquid_slippage.round_dp(12), decimal("0.000531466370"));
+        assert_eq!(illiquid_slippage, decimal("0.00553193967657"));
+        assert_eq!(
+            cost.market_fill_price(Side::Buy, Decimal::from(100), liquid_slippage),
+            decimal("100.0531")
+        );
+        assert_eq!(
+            cost.market_fill_price(Side::Buy, Decimal::from(10), illiquid_slippage),
+            decimal("10.0553")
+        );
+    }
 
     #[test]
     fn a_pre_close_wake_that_would_skip_half_days_is_refused() {

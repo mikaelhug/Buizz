@@ -1123,7 +1123,7 @@ impl Driver {
                 Timeframe::Minute => &auction,
             },
             actions: &data.actions,
-            average_daily_volume: &data.average_daily_volume,
+            liquidity: &data.liquidity,
             delisted: &data.delisted,
             risk_free_rate: data.risk_free_rate,
         };

@@ -69,13 +69,13 @@ async fn an_event_study_matches_the_hand_computation_and_counts_each_distinct_st
         printed[..3],
         [
             "study insider_buys: 5 events, 4 measured, 1 skipped, 1 not_traded",
-            "data through 2024-12-06T21:00:00Z; benchmarks SPY 4; mean round trip cost 0.12% at 10000 a position",
+            "data through 2024-12-06T21:00:00Z; benchmarks SPY 4; mean round trip cost 0.13% at 10000 a position",
             "trials 1, luck line t 0.00",
         ],
         "{printed:#?}"
     );
     for line in [
-        "       1      4      2        0   +0.04%   -0.26%    50%   0.75    -0.08%   -0.38%     50%   0.62",
+        "       1      4      2        0   +0.04%   -0.26%    50%   0.75    -0.08%   -0.39%     50%   0.61",
         "       5      3      1        1   -0.93%   -0.59%     0%      -    -1.05%   -0.71%      0%      -",
         "       3      3   -1.95%   -2.07%",
     ] {

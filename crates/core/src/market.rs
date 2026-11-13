@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use chrono::{NaiveDate, TimeDelta};
 use rust_decimal::Decimal;
+use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -132,6 +133,50 @@ pub struct Bar {
     pub close: Decimal,
     pub volume: u64,
     pub feed: Feed,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Liquidity {
+    pub average_daily_volume: u64,
+    pub dollar_volume: Decimal,
+    pub volatility: Decimal,
+}
+
+impl Liquidity {
+    pub const VOLATILITY_DECIMALS: u32 = 8;
+
+    pub fn estimate(window: &[Bar], factors: &[AdjustmentFactor]) -> Option<Self> {
+        let days = Decimal::from(window.len());
+        let mut shares = Decimal::ZERO;
+        let mut dollars = Decimal::ZERO;
+        let mut closes = Vec::with_capacity(window.len());
+        for bar in window {
+            let (price, volume) = AdjustmentFactor::cumulative(bar.start.exchange_date(), factors);
+            shares += Decimal::from(bar.volume) * volume;
+            dollars += Decimal::from(bar.volume) * bar.close;
+            closes.extend((bar.close * price).to_f64().filter(|close| *close > 0.0));
+        }
+        let returns: Vec<f64> = closes
+            .windows(2)
+            .map(|pair| pair[1] / pair[0] - 1.0)
+            .collect();
+        let count = returns.len() as f64;
+        let mean = returns.iter().sum::<f64>() / count;
+        let squares: f64 = returns
+            .iter()
+            .map(|value| (value - mean) * (value - mean))
+            .sum();
+        let volatility = match returns.len() > 1 {
+            true => Decimal::from_f64((squares / (count - 1.0)).sqrt())?
+                .round_dp(Self::VOLATILITY_DECIMALS),
+            false => Decimal::ZERO,
+        };
+        Some(Self {
+            average_daily_volume: shares.checked_div(days)?.round().to_u64()?,
+            dollar_volume: dollars.checked_div(days)?.round_dp(2),
+            volatility,
+        })
+    }
 }
 
 #[derive(

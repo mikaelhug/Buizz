@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use buizz_core::market::{Adjustment, Calendar, Session, StockIndex, Symbol, Timeframe};
+use buizz_core::market::{Adjustment, Calendar, Liquidity, Session, StockIndex, Symbol, Timeframe};
 use buizz_core::run::{CostModel, UNIVERSE_SESSIONS, UniverseSpec};
 use buizz_core::study::{
     BROAD_BENCHMARK, CurvePoint, EventOutcome, EventStudy, HorizonReturn, HorizonStats,
@@ -74,6 +74,8 @@ impl Runner {
         });
         let (mut outcomes, planned) = self.plan(&request, &calendar, measured).await?;
         let series = read_series(market, &calendar, &planned).await?;
+        let liquidity =
+            read_liquidity(market, &calendar, &outcomes, &planned, cost.adv_sessions).await?;
         let mut horizons: Vec<Horizon> =
             STUDY_HORIZONS.iter().map(|_| Horizon::default()).collect();
         let mut curve: Vec<CurveSum> = (0..STUDY_SESSIONS).map(|_| CurveSum::default()).collect();
@@ -81,9 +83,10 @@ impl Runner {
         for plan in &planned {
             let outcome = &mut outcomes[plan.outcome];
             let entry = sessions[plan.entry].date;
+            let liquid = liquidity.get(&(entry, outcome.symbol.clone()));
             let Some((stock, round_trip)) = series.get(&plan.key).and_then(|stock| {
                 let entered = stock.get(&entry)?;
-                Some((stock, round_trip_cost(&cost, entered.raw_open)?))
+                Some((stock, round_trip_cost(&cost, entered.raw_open, liquid)?))
             }) else {
                 outcome.skipped = Some(StudySkip::NotTraded);
                 continue;
@@ -301,6 +304,39 @@ async fn read_series(
         })
         .buffer_unordered(CONCURRENT_READS)
         .try_collect()
+        .await
+}
+
+async fn read_liquidity(
+    market: &MarketStore,
+    calendar: &Calendar,
+    outcomes: &[EventOutcome],
+    planned: &[Planned],
+    adv_sessions: u32,
+) -> Result<BTreeMap<(NaiveDate, Symbol), Liquidity>, RunnerError> {
+    let sessions = calendar.sessions();
+    let mut by_entry: BTreeMap<NaiveDate, BTreeSet<Symbol>> = BTreeMap::new();
+    for plan in planned {
+        by_entry
+            .entry(sessions[plan.entry].date)
+            .or_default()
+            .insert(outcomes[plan.outcome].symbol.clone());
+    }
+    stream::iter(by_entry)
+        .map(|(entry, symbols)| async move {
+            let read = market
+                .liquidity(symbols.into_iter().collect(), entry, adv_sessions)
+                .await?;
+            Ok::<_, RunnerError>(
+                read.into_iter()
+                    .map(move |(symbol, liquidity)| ((entry, symbol), liquidity)),
+            )
+        })
+        .buffer_unordered(CONCURRENT_READS)
+        .try_fold(BTreeMap::new(), |mut all, read| async move {
+            all.extend(read);
+            Ok(all)
+        })
         .await
 }
 

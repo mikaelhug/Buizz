@@ -46,7 +46,7 @@ rmp-serde = "1.3.1"
 roxmltree = "0.21.2"
 rmpv = "1.3.1"
 rusqlite = { version = "0.42.0", features = ["bundled", "chrono"] }
-rust_decimal = { version = "1.43.0", features = ["serde-str"] }
+rust_decimal = { version = "1.43.0", features = ["serde-str", "maths"] }
 scraper = { version = "0.29.0", default-features = false }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_bytes = "0.11.19"

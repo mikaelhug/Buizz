@@ -2,7 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use buizz_core::ledger::{LedgerEntry, LedgerKind, Portfolio, split_qty};
 use buizz_core::market::{
-    Bar, CorporateAction, CorporateActionKind, Feed, Instrument, Session, Symbol, Timeframe,
+    Bar, CorporateAction, CorporateActionKind, Feed, Instrument, Liquidity, Session, Symbol,
+    Timeframe,
 };
 use buizz_core::money::{round_cash, round_price, round_price_with};
 use buizz_core::order::{
@@ -19,7 +20,7 @@ use chrono::{Datelike, NaiveDate, TimeDelta};
 use rust_decimal::{Decimal, RoundingStrategy};
 use serde::{Deserialize, Serialize};
 
-pub const ENGINE_VERSION: u32 = 10;
+pub const ENGINE_VERSION: u32 = 11;
 
 #[derive(Debug, thiserror::Error)]
 pub enum EngineError {
@@ -38,7 +39,7 @@ pub struct Cycle<'a> {
     pub bars: &'a [Bar],
     pub official: &'a [Bar],
     pub actions: &'a [CorporateAction],
-    pub average_daily_volume: &'a BTreeMap<Symbol, u64>,
+    pub liquidity: &'a BTreeMap<Symbol, Liquidity>,
     pub delisted: &'a [Symbol],
     pub risk_free_rate: Option<Decimal>,
 }
@@ -678,80 +679,97 @@ impl Engine {
             .map(|bar| (&bar.symbol, bar))
             .collect();
         if cycle.start == cycle.session.open {
-            let opening = self.priced(cycle, |order| match order.order_type {
-                OrderType::MarketOnOpen => official
-                    .get(&order.symbol)
-                    .map(|bar| (self.cost.market_fill_price(order.side, bar.open), bar.feed)),
-                _ => None,
-            });
-            self.execute(cycle, cycle.session.open, opening);
+            self.execute(
+                cycle,
+                cycle.session.open,
+                |cost, order, slippage| match order.order_type {
+                    OrderType::MarketOnOpen => official.get(&order.symbol).map(|bar| {
+                        (
+                            cost.market_fill_price(order.side, bar.open, slippage),
+                            bar.feed,
+                        )
+                    }),
+                    _ => None,
+                },
+            );
         }
-        let continuous = self.priced(cycle, |order| {
+        self.execute(cycle, cycle.start, |cost, order, slippage| {
             let bar = bars.get(&order.symbol)?;
             let price = match order.order_type {
-                OrderType::Market => Some(self.cost.market_fill_price(order.side, bar.open)),
+                OrderType::Market => Some(cost.market_fill_price(order.side, bar.open, slippage)),
                 OrderType::Limit { limit_price } => {
-                    self.cost.limit_fill_price(order.side, limit_price, bar)
+                    cost.limit_fill_price(order.side, limit_price, bar, slippage)
                 }
                 OrderType::Stop { stop_price }
                 | OrderType::TrailingStop {
                     stop_price: Some(stop_price),
                     ..
-                } => self.cost.stop_fill_price(order.side, stop_price, bar),
+                } => cost.stop_fill_price(order.side, stop_price, bar, slippage),
                 _ => None,
             };
             price.map(|price| (price, bar.feed))
         });
-        self.execute(cycle, cycle.start, continuous);
         self.trail(cycle, bars);
         if cycle.session.is_closed_at(cycle.visible_at) {
-            let closing = self.priced(cycle, |order| match order.order_type {
-                OrderType::MarketOnClose => official
-                    .get(&order.symbol)
-                    .map(|bar| (self.cost.market_fill_price(order.side, bar.close), bar.feed)),
-                _ => None,
-            });
-            self.execute(cycle, cycle.session.close, closing);
+            self.execute(
+                cycle,
+                cycle.session.close,
+                |cost, order, slippage| match order.order_type {
+                    OrderType::MarketOnClose => official.get(&order.symbol).map(|bar| {
+                        (
+                            cost.market_fill_price(order.side, bar.close, slippage),
+                            bar.feed,
+                        )
+                    }),
+                    _ => None,
+                },
+            );
         }
     }
 
-    fn priced(
-        &self,
+    fn execute(
+        &mut self,
         cycle: &Cycle<'_>,
-        price: impl Fn(&Order) -> Option<(Decimal, Feed)>,
-    ) -> Vec<(Order, Decimal, Feed)> {
-        self.state
+        at: Timestamp,
+        price: impl Fn(&CostModel, &Order, Decimal) -> Option<(Decimal, Feed)>,
+    ) {
+        let due: Vec<Order> = self
+            .state
             .working
             .values()
             .filter(|order| order.session.is_some_and(|due| due <= cycle.session.date))
-            .filter_map(|order| price(order).map(|(price, feed)| (order.clone(), price, feed)))
-            .collect()
-    }
-
-    fn execute(&mut self, cycle: &Cycle<'_>, at: Timestamp, due: Vec<(Order, Decimal, Feed)>) {
-        for (mut order, price, feed) in due {
-            let average_daily_volume = cycle.average_daily_volume.get(&order.symbol).copied();
-            if average_daily_volume.is_none()
-                && self.state.volume_unknown.insert(order.symbol.clone())
-            {
+            .cloned()
+            .collect();
+        for mut order in due {
+            let liquidity = cycle.liquidity.get(&order.symbol);
+            let cap = self
+                .cost
+                .participation_cap(liquidity.map(|liquidity| liquidity.average_daily_volume));
+            let used = self
+                .state
+                .session_filled
+                .get(&order.symbol)
+                .copied()
+                .unwrap_or_default();
+            let qty = order
+                .remaining()
+                .min(cap.map_or(u64::MAX, |cap| cap.saturating_sub(used)));
+            if qty == 0 {
+                continue;
+            }
+            let slippage = self.cost.slippage(liquidity, used, qty);
+            let Some((price, feed)) = price(&self.cost, &order, slippage) else {
+                continue;
+            };
+            if liquidity.is_none() && self.state.volume_unknown.insert(order.symbol.clone()) {
                 self.outbox.warnings.push(format!(
                     "{} has no average daily volume, so its fills are not capped by volume",
                     order.symbol
                 ));
             }
-            let cap = self.cost.participation_cap(average_daily_volume);
-            let used = self
-                .state
+            self.state
                 .session_filled
-                .entry(order.symbol.clone())
-                .or_default();
-            let qty = order
-                .remaining()
-                .min(cap.map_or(u64::MAX, |cap| cap.saturating_sub(*used)));
-            if qty == 0 {
-                continue;
-            }
-            *used = used.saturating_add(qty);
+                .insert(order.symbol.clone(), used.saturating_add(qty));
             let commission = self.cost.commission(qty, self.state.month_shares);
             self.state.month_shares = self.state.month_shares.saturating_add(qty);
             let fill = Fill {
@@ -1168,9 +1186,15 @@ mod tests {
     }
 
     fn step(engine: &mut Engine, session: &Session, bars: &[Bar], volume: &[(&str, u64)]) {
-        let average_daily_volume = volume
+        let liquidity = volume
             .iter()
-            .map(|(symbol, volume)| (Symbol::new(symbol), *volume))
+            .map(|(symbol, volume)| {
+                let liquidity = Liquidity {
+                    average_daily_volume: *volume,
+                    ..Liquidity::default()
+                };
+                (Symbol::new(symbol), liquidity)
+            })
             .collect();
         engine.run_cycle(&Cycle {
             session,
@@ -1179,7 +1203,7 @@ mod tests {
             bars,
             official: bars,
             actions: &[],
-            average_daily_volume: &average_daily_volume,
+            liquidity: &liquidity,
             delisted: &[],
             risk_free_rate: None,
         });
@@ -1357,7 +1381,7 @@ mod tests {
             bars: &[bar(&third, "50", "49", "50")],
             official: &[],
             actions: &[split],
-            average_daily_volume: &BTreeMap::new(),
+            liquidity: &BTreeMap::new(),
             delisted: &[],
             risk_free_rate: None,
         });
@@ -1409,7 +1433,7 @@ mod tests {
             bars: &[bar(&third, "60", "59", "60"), delivered],
             official: &[],
             actions: &[action],
-            average_daily_volume: &BTreeMap::new(),
+            liquidity: &BTreeMap::new(),
             delisted: &[],
             risk_free_rate: None,
         });
@@ -1675,7 +1699,7 @@ mod tests {
             bars: std::slice::from_ref(&crash),
             official: &[],
             actions: &[],
-            average_daily_volume: &BTreeMap::new(),
+            liquidity: &BTreeMap::new(),
             delisted: &[],
             risk_free_rate: None,
         });

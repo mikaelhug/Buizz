@@ -200,9 +200,9 @@ async fn assert_split_adjusted_chart(spine: &Spine, run: &RunSummary) {
         fills,
         [
             (125, decimal("198.0990"), decimal("99.0495")),
-            (-250, decimal("99.4502"), decimal("99.4502")),
-            (251, decimal("99.0495"), decimal("99.0495")),
-            (-251, decimal("101.4492"), decimal("101.4492")),
+            (-250, decimal("99.4395"), decimal("99.4395")),
+            (251, decimal("99.0597"), decimal("99.0597")),
+            (-251, decimal("101.4384"), decimal("101.4384")),
         ],
         "fills sit on the split-adjusted candles"
     );

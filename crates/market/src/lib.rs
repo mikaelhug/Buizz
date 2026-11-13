@@ -8,9 +8,9 @@ use buizz_core::market::{
     Adjustment, AdjustmentFactor, Bar, BorrowAvailability, Calendar, Company, CorporateAction,
     Coverage, DataSource, EarningsInsight, EarningsRelease, EstimateFact, Filing, FomcAnnouncement,
     FomcMeeting, FundamentalFact, FundamentalMetric, FundamentalPoint, IndexHistory, InsiderFiling,
-    InsiderPlan, InsiderTrade, Instrument, InstrumentProfile, MacroObservation, MacroPoint,
-    MacroSeries, NewsArticle, PressCandidate, PressExhibit, PressRelease, RiskFreeRate, SecFiling,
-    Session, StockIndex, Symbol, Timeframe, Watermarks,
+    InsiderPlan, InsiderTrade, Instrument, InstrumentProfile, Liquidity, MacroObservation,
+    MacroPoint, MacroSeries, NewsArticle, PressCandidate, PressExhibit, PressRelease, RiskFreeRate,
+    SecFiling, Session, StockIndex, Symbol, Timeframe, Watermarks,
 };
 use buizz_core::ops::{ActionDisagreement, CoverageGap, DataWarning};
 use buizz_core::protocol::BarRow;
@@ -938,12 +938,12 @@ impl MarketStore {
         ))
     }
 
-    pub async fn average_daily_volume(
+    pub async fn liquidity(
         &self,
         symbols: Vec<Symbol>,
         before: NaiveDate,
         sessions: u32,
-    ) -> Result<BTreeMap<Symbol, u64>> {
+    ) -> Result<BTreeMap<Symbol, Liquidity>> {
         let (calendar, listings, actions) = (
             self.shared.calendar(),
             self.shared.listings(),
@@ -951,7 +951,7 @@ impl MarketStore {
         );
         self.readers
             .run(move |connection| {
-                read::average_daily_volume(
+                read::liquidity(
                     connection, &calendar, &listings, &actions, &symbols, before, sessions,
                 )
             })

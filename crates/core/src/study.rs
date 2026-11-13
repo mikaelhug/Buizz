@@ -4,7 +4,7 @@ use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use crate::market::Symbol;
+use crate::market::{Liquidity, Symbol};
 use crate::money::round_price;
 use crate::run::CostModel;
 use crate::time::Timestamp;
@@ -99,14 +99,14 @@ pub struct EventStudy {
     pub events: Vec<EventOutcome>,
 }
 
-pub fn round_trip_cost(cost: &CostModel, open: f64) -> Option<f64> {
+pub fn round_trip_cost(cost: &CostModel, open: f64, liquidity: Option<&Liquidity>) -> Option<f64> {
     let price = Decimal::from_f64(open)
         .map(round_price)
         .filter(|price| *price > Decimal::ZERO)?;
     let shares = (STUDY_POSITION / price).floor().max(Decimal::ONE);
-    let commission = cost.commission(shares.to_u64()?, 0) / (shares * price);
-    let one_way =
-        cost.slippage_bps / Decimal::new(10_000, 0) + cost.slippage_per_share / price + commission;
+    let qty = shares.to_u64()?;
+    let commission = cost.commission(qty, 0) / (shares * price);
+    let one_way = cost.slippage(liquidity, 0, qty) + cost.slippage_per_share / price + commission;
     (one_way * Decimal::TWO).to_f64()
 }
 

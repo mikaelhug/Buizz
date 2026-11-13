@@ -176,10 +176,25 @@ function dollars(value: string): string {
   return `$${fmt.price(value)}`;
 }
 
+function spreadText(cost: Schemas["CostModel"]): string {
+  const scale = Number(cost.spread_scale ?? 1);
+  if (!scale) return `${cost.slippage_bps} bps of price`;
+  const estimate = scale === 1 ? "the estimated half-spread" : `${cost.spread_scale} × the estimated half-spread`;
+  return `${cost.slippage_bps} bps of price, or ${estimate} if wider`;
+}
+
+function costSummary(cost: Schemas["CostModel"]): string {
+  const floor = Number(cost.spread_scale ?? 1) ? `≥ ${cost.slippage_bps}` : cost.slippage_bps;
+  const impact = Number(cost.impact_coefficient ?? 1) ? " + impact" : "";
+  return `${floor} bps${impact} · ${dollars(cost.commission_per_share)}/sh`;
+}
+
 function costRows(cost: Schemas["CostModel"]): Row[] {
   const perShare = Number(cost.slippage_per_share ?? 0);
+  const impact = Number(cost.impact_coefficient ?? 1);
   return [
-    ["Slippage", perShare ? `${cost.slippage_bps} bps + ${dollars(cost.slippage_per_share)} a share` : `${cost.slippage_bps} bps of price`],
+    ["Slippage", perShare ? `${spreadText(cost)} + ${dollars(cost.slippage_per_share)} a share` : spreadText(cost)],
+    ["Impact", impact ? `${cost.impact_coefficient} × daily volatility × √(shares / average volume)` : "off"],
     ["Commission", `${dollars(cost.commission_per_share)} a share, min ${dollars(cost.commission_min)}`],
     ...(cost.commission_tiers ?? []).map((tier): Row => [`Above ${fmt.integer(tier.above)} sh/mo`, `${dollars(tier.per_share)} a share`]),
     ["Volume cap", `${fmt.percent(cost.adv_participation)} of ${cost.adv_sessions}-session average volume`],
@@ -334,7 +349,7 @@ function RunBar({ run, name, tab, botHash, behaviourHash, recent, liveParams, ga
         <div>
           <dt>Costs</dt>
           <dd>
-            {run.config.cost.slippage_bps} bps · {dollars(run.config.cost.commission_per_share)}/sh
+            {costSummary(run.config.cost)}
             <Info label="Cost model">
               <KeyValues rows={costRows(run.config.cost)} />
             </Info>

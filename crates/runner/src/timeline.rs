@@ -3,7 +3,8 @@ use std::sync::Arc;
 
 use buizz_core::listing::Listings;
 use buizz_core::market::{
-    Bar, Calendar, CorporateAction, CorporateActionKind, Instrument, Session, Symbol, Timeframe,
+    Bar, Calendar, CorporateAction, CorporateActionKind, Instrument, Liquidity, Session, Symbol,
+    Timeframe,
 };
 use buizz_core::run::{Mode, RATE_LOOKBACK_DAYS, RunConfig, UNIVERSE_SESSIONS, UniverseSpec, Wake};
 use buizz_core::time::Timestamp;
@@ -33,7 +34,7 @@ pub(crate) struct SessionData {
     pub universe_at: Vec<Symbol>,
     pub universe: Vec<Symbol>,
     pub actions: Vec<CorporateAction>,
-    pub average_daily_volume: BTreeMap<Symbol, u64>,
+    pub liquidity: BTreeMap<Symbol, Liquidity>,
     pub delisted: Vec<Symbol>,
     pub risk_free_rate: Option<Decimal>,
 }
@@ -42,7 +43,7 @@ struct Fetched {
     universe: Vec<Symbol>,
     tracked: BTreeSet<Symbol>,
     actions: Vec<CorporateAction>,
-    average_daily_volume: BTreeMap<Symbol, u64>,
+    liquidity: BTreeMap<Symbol, Liquidity>,
     risk_free_rate: Option<Decimal>,
 }
 
@@ -61,8 +62,7 @@ impl Fetched {
                 kind => kind.delivered().cloned(),
             })
             .collect();
-        self.average_daily_volume
-            .retain(|symbol, _| tracked.contains(symbol));
+        self.liquidity.retain(|symbol, _| tracked.contains(symbol));
         self.tracked.extend(delivered);
     }
 }
@@ -230,7 +230,7 @@ impl Timeline {
                 .collect(),
             universe_at: fetched.universe,
             actions: fetched.actions,
-            average_daily_volume: fetched.average_daily_volume,
+            liquidity: fetched.liquidity,
             delisted: fetched
                 .tracked
                 .iter()
@@ -270,9 +270,7 @@ impl Timeline {
             let actions = market
                 .traded_actions(symbols.clone(), actions_from, date)
                 .await?;
-            let average_daily_volume = market
-                .average_daily_volume(symbols, date, adv_sessions)
-                .await?;
+            let liquidity = market.liquidity(symbols, date, adv_sessions).await?;
             let risk_free_rate = market
                 .risk_free_rates(date - TimeDelta::days(RATE_LOOKBACK_DAYS), date)
                 .await?
@@ -283,7 +281,7 @@ impl Timeline {
                 universe,
                 tracked,
                 actions,
-                average_daily_volume,
+                liquidity,
                 risk_free_rate,
             })
         }
@@ -297,11 +295,11 @@ impl Timeline {
         if let Some(date) = self.session.date
             && !added.is_empty()
         {
-            let volumes = self
+            let liquidity = self
                 .market
-                .average_daily_volume(added.clone(), date, self.adv_sessions)
+                .liquidity(added.clone(), date, self.adv_sessions)
                 .await?;
-            self.session.average_daily_volume.extend(volumes);
+            self.session.liquidity.extend(liquidity);
         }
         self.tracked.extend(added);
         Ok(())

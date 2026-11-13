@@ -1815,6 +1815,14 @@
             "type": "string",
             "default": "0"
           },
+          "spread_scale": {
+            "type": "string",
+            "default": "1"
+          },
+          "impact_coefficient": {
+            "type": "string",
+            "default": "1"
+          },
           "adv_participation": {
             "type": "string",
             "default": "0.05"
