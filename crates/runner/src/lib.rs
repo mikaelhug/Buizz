@@ -635,24 +635,23 @@ impl Runner {
 
     async fn covered(&self, config: &RunConfig) -> Result<Vec<DataWarning>, RunnerError> {
         let market = &self.inner.market;
-        let symbols = gate_symbols(market, config).await?;
         let end = config.end.unwrap_or(config.start);
         let required = match config.universe {
             UniverseSpec::Index { .. } => vec![config.benchmark.clone()],
-            _ => symbols.clone(),
+            _ => gate_symbols(market, config).await?,
         };
         let gaps = market
-            .coverage_gaps(required, Timeframe::Day, config.start, end)
+            .coverage_gaps(required.clone(), Timeframe::Day, config.start, end)
             .await?;
         if !gaps.is_empty() {
             return Err(RunnerError::CoverageGaps(gaps));
         }
         let mut warnings = market
-            .unexplained_moves(symbols.clone(), config.start, end)
+            .unexplained_moves(required.clone(), config.start, end)
             .await?;
         warnings.extend(
             market
-                .action_disagreements(Some(symbols), config.start, end)
+                .action_disagreements(Some(required), config.start, end)
                 .await?,
         );
         Ok(warnings)
@@ -674,6 +673,7 @@ impl Runner {
         let mut badges = Vec::new();
         let mut survivorship = survivorship_biased(&config.universe, &instruments);
         let mut minor_gaps = false;
+        let mut exposures = Vec::new();
         if let UniverseSpec::Index { index } = config.universe {
             let check = index_check(&inner.market, index, config).await?;
             minor_gaps = check.minor && warnings.is_empty();
@@ -682,6 +682,11 @@ impl Runner {
                 badges.push(RunBadge::ThinIndexHistory);
             }
             warnings.extend(check.unpriced.into_iter().map(DataWarning::CoverageGap));
+            let end = config.end.unwrap_or(config.start);
+            exposures = inner
+                .market
+                .member_warnings(index, config.start, end)
+                .await?;
         }
         if survivorship {
             badges.push(RunBadge::SurvivorshipBiased);
@@ -698,6 +703,7 @@ impl Runner {
         let data_watermark = inner.market.watermarks().borrow().get(config.timeframe);
         let events: Vec<RunEvent> = warnings
             .iter()
+            .chain(&exposures)
             .zip(1..)
             .map(|(warning, seq)| RunEvent {
                 seq,
@@ -909,7 +915,7 @@ async fn index_check(
     })
 }
 
-fn describe(warning: &DataWarning) -> String {
+pub(crate) fn describe(warning: &DataWarning) -> String {
     match warning {
         DataWarning::UnexplainedMove {
             symbol,

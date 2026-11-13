@@ -1817,18 +1817,20 @@ pub(crate) fn long_silences(
     Ok(ended)
 }
 
-pub(crate) fn unpriced_members(
+type MemberSpan = (Symbol, NaiveDate, NaiveDate, Option<Symbol>);
+
+fn member_spans(
     connection: &Connection,
     calendar: &Calendar,
     listings: &Listings,
     index: StockIndex,
     from: NaiveDate,
     to: NaiveDate,
-) -> Result<Vec<CoverageGap>> {
+) -> Result<Vec<MemberSpan>> {
     let Some(history) = index_history(connection, index)? else {
         return Ok(Vec::new());
     };
-    let mut spans: Vec<(Symbol, NaiveDate, NaiveDate, Option<Symbol>)> = Vec::new();
+    let mut spans: Vec<MemberSpan> = Vec::new();
     for member in history.members {
         let last = member
             .end
@@ -1873,6 +1875,18 @@ pub(crate) fn unpriced_members(
                 .map(|(ticker, lo, hi, key)| (ticker, lo, hi.min(traded_until), key)),
         );
     }
+    Ok(spans)
+}
+
+pub(crate) fn unpriced_members(
+    connection: &Connection,
+    calendar: &Calendar,
+    listings: &Listings,
+    index: StockIndex,
+    from: NaiveDate,
+    to: NaiveDate,
+) -> Result<Vec<CoverageGap>> {
+    let spans = member_spans(connection, calendar, listings, index, from, to)?;
     if spans.is_empty() {
         return Ok(Vec::new());
     }
@@ -1919,6 +1933,55 @@ pub(crate) fn unpriced_members(
         })?
         .collect::<duckdb::Result<Vec<_>>>()?;
     Ok(gaps)
+}
+
+pub(crate) fn member_warnings(
+    connection: &Connection,
+    calendar: &Calendar,
+    actions: &Actions,
+    listings: &Listings,
+    index: StockIndex,
+    from: NaiveDate,
+    to: NaiveDate,
+) -> Result<Vec<DataWarning>> {
+    let spans: Vec<(Symbol, NaiveDate, NaiveDate, Symbol)> =
+        member_spans(connection, calendar, listings, index, from, to)?
+            .into_iter()
+            .filter_map(|(ticker, lo, hi, key)| Some((ticker, lo, hi, key?)))
+            .collect();
+    let keys: Vec<Symbol> = spans.iter().map(|(_, _, _, key)| key.clone()).collect();
+    let mut warnings = unexplained_moves(connection, calendar, actions, &keys, from, to)?;
+    warnings.extend(action_disagreements(connection, Some(&keys), from, to)?);
+    Ok(warnings
+        .into_iter()
+        .filter_map(|warning| {
+            let (key, date) = match &warning {
+                DataWarning::UnexplainedMove { symbol, date, .. } => (symbol, *date),
+                DataWarning::ActionDisagreement(disagreement) => {
+                    (&disagreement.symbol, disagreement.ex_date)
+                }
+                _ => return None,
+            };
+            let (ticker, _, _, _) = spans
+                .iter()
+                .find(|(_, lo, hi, listing)| listing == key && (*lo..=*hi).contains(&date))?;
+            let ticker = ticker.clone();
+            Some(match warning {
+                DataWarning::UnexplainedMove { date, change, .. } => DataWarning::UnexplainedMove {
+                    symbol: ticker,
+                    date,
+                    change,
+                },
+                DataWarning::ActionDisagreement(disagreement) => {
+                    DataWarning::ActionDisagreement(ActionDisagreement {
+                        symbol: ticker,
+                        ..disagreement
+                    })
+                }
+                other => other,
+            })
+        })
+        .collect())
 }
 
 pub(crate) fn unexplained_moves(

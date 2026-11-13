@@ -5,7 +5,8 @@ use std::time::Duration;
 use axum::extract::ws::WebSocket;
 use buizz_core::api::{RunSummary, SpineEvent};
 use buizz_core::ledger::LedgerEntry;
-use buizz_core::market::{Bar, Session, Symbol, Timeframe, Watermarks};
+use buizz_core::market::{Bar, Session, StockIndex, Symbol, Timeframe, Watermarks};
+use buizz_core::ops::DataWarning;
 use buizz_core::order::{Order, OrderRequest, OrderUpdate, RejectReason};
 use buizz_core::protocol::{
     Ack, BarBuffer, BarBufferError, EndReason, ErrorCode, Holdings, MAX_STATE_BYTES, Ready, Step,
@@ -34,7 +35,7 @@ use tokio::sync::{OwnedSemaphorePermit, mpsc, watch};
 use crate::commit::Committer;
 use crate::link::{BotLink, LinkError, SessionUniverse};
 use crate::timeline::{Point, Timeline};
-use crate::{Inner, gate_symbols, report};
+use crate::{Inner, describe, gate_symbols, report};
 
 const EXIT_GRACE: Duration = Duration::from_secs(5);
 const IDLE_RECHECK: Duration = Duration::from_secs(60);
@@ -314,9 +315,11 @@ pub(crate) async fn conclude(
         RunStatus::Cancelled => message.or_else(|| run.message.clone()),
         _ => message,
     };
-    let touched = match status {
-        RunStatus::Completed if run.badges.contains(&RunBadge::MinorDataGaps) => {
-            touched_gap(inner, &run).await?
+    let touched = match (status, &run.config.universe) {
+        (RunStatus::Completed, UniverseSpec::Index { index })
+            if !run.badges.contains(&RunBadge::DataWarnings) =>
+        {
+            exposed_member_data(inner, &run, *index).await?
         }
         _ => None,
     };
@@ -382,23 +385,45 @@ pub(crate) async fn conclude(
     Ok(())
 }
 
-async fn touched_gap(inner: &Inner, run: &RunSummary) -> Result<Option<String>, StateError> {
-    let UniverseSpec::Index { index } = run.config.universe else {
-        return Ok(None);
-    };
+async fn exposed_member_data(
+    inner: &Inner,
+    run: &RunSummary,
+    index: StockIndex,
+) -> Result<Option<String>, StateError> {
     let end = run.config.end.unwrap_or(run.config.start);
-    let gaps = match inner
-        .market
-        .unpriced_members(index, run.config.start, end)
-        .await
-    {
-        Ok(gaps) => gaps,
+    let market = &inner.market;
+    let (gaps, warnings) = match tokio::try_join!(
+        market.unpriced_members(index, run.config.start, end),
+        market.member_warnings(index, run.config.start, end),
+    ) {
+        Ok(found) => found,
         Err(error) => {
             return Ok(Some(format!(
-                "the member gaps could not be checked against the run's orders: {error}"
+                "the member data could not be checked against the run's orders: {error}"
             )));
         }
     };
+    let gaps = gaps.into_iter().map(|gap| {
+        let message = format!(
+            "{} was ordered or held while it had no 1d bars, from {} to {}",
+            gap.symbol, gap.from, gap.to
+        );
+        (gap.symbol, gap.from, gap.to, message)
+    });
+    let jumps = warnings.into_iter().filter_map(|warning| {
+        let (symbol, date) = match &warning {
+            DataWarning::UnexplainedMove { symbol, date, .. } => (symbol.clone(), *date),
+            DataWarning::ActionDisagreement(disagreement) => {
+                (disagreement.symbol.clone(), disagreement.ex_date)
+            }
+            _ => return None,
+        };
+        let message = format!(
+            "{}, and {symbol} was ordered or held over it",
+            describe(&warning)
+        );
+        Some((symbol, date, date, message))
+    });
     let mut orders = Vec::new();
     let mut after = None;
     loop {
@@ -409,24 +434,21 @@ async fn touched_gap(inner: &Inner, run: &RunSummary) -> Result<Option<String>, 
         after = Some(last.id.0);
         orders.extend(page);
     }
-    for gap in gaps {
-        let within = |at: Timestamp| (gap.from..=gap.to).contains(&at.exchange_date());
-        let fills = inner.state.symbol_fills(run.id, gap.symbol.clone()).await?;
+    for (symbol, from, to, message) in gaps.chain(jumps) {
+        let within = |at: Timestamp| (from..=to).contains(&at.exchange_date());
+        let fills = inner.state.symbol_fills(run.id, symbol.clone()).await?;
         let held_into: i64 = fills
             .iter()
-            .filter(|(fill, _)| fill.at.exchange_date() < gap.from)
+            .filter(|(fill, _)| fill.at.exchange_date() < from)
             .map(|(fill, _)| fill.qty)
             .sum();
         let touched = held_into != 0
             || fills.iter().any(|(fill, _)| within(fill.at))
             || orders
                 .iter()
-                .any(|order| order.symbol == gap.symbol && within(order.decided_at));
+                .any(|order| order.symbol == symbol && within(order.decided_at));
         if touched {
-            return Ok(Some(format!(
-                "{} was ordered or held while it had no 1d bars, from {} to {}",
-                gap.symbol, gap.from, gap.to
-            )));
+            return Ok(Some(message));
         }
     }
     Ok(None)

@@ -2,7 +2,7 @@ use buizz_core::market::{
     AssetClass, Bar, CorporateAction, CorporateActionKind, DataSource, Feed, IndexHistory,
     IndexMember, Instrument, Session, StockIndex, Symbol, Timeframe,
 };
-use buizz_core::ops::CoverageGap;
+use buizz_core::ops::{CoverageGap, DataWarning};
 use buizz_core::time::Timestamp;
 use buizz_market::{ActionWindow, FILE_NAME, MarketStore};
 use chrono::{NaiveDate, NaiveTime, TimeDelta};
@@ -325,5 +325,93 @@ async fn a_ticker_renamed_into_a_ticker_an_ended_company_held_is_not_missed_afte
         gaps,
         vec![],
         "AmerisourceBergen traded as ABC until it became Cencora's COR, and nobody trades as ABC after"
+    );
+}
+
+#[tokio::test]
+async fn a_member_that_joins_after_the_start_is_judged_for_jumps_within_its_membership() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = MarketStore::open(&dir.path().join(FILE_NAME), 1)
+        .await
+        .unwrap();
+    let noon = NaiveTime::from_hms_opt(12, 0, 0).unwrap();
+    let day = |text: &str| -> NaiveDate { text.parse().unwrap() };
+    let days: Vec<NaiveDate> = (0..14)
+        .map(|offset| day("2025-10-27") + TimeDelta::days(offset))
+        .filter(|date| chrono::Datelike::weekday(date).number_from_monday() <= 5)
+        .collect();
+    let sessions: Vec<Session> = days
+        .iter()
+        .map(|date| session(*date, Timestamp::at_exchange_time(*date, noon).unwrap()))
+        .collect();
+    store
+        .upsert_sessions(DataSource::Fixture, sessions.clone())
+        .await
+        .unwrap();
+    let (founder, joiner) = (Symbol::new("OLD"), Symbol::new("NEW"));
+    let priced = |symbol: &Symbol, session: &Session| {
+        let price = match session.date {
+            date if date < day("2025-10-29") => Decimal::from(100),
+            date if date < day("2025-11-03") => Decimal::from(50),
+            _ => Decimal::from(20),
+        };
+        Bar {
+            open: price,
+            high: price,
+            low: price,
+            close: price,
+            ..bar(symbol, session.open, Feed::Sip)
+        }
+    };
+    let bars = sessions
+        .iter()
+        .flat_map(|session| [priced(&founder, session), priced(&joiner, session)])
+        .collect();
+    store
+        .upsert_bars(DataSource::Fixture, Timeframe::Day, bars)
+        .await
+        .unwrap();
+    let member = |symbol: &Symbol, start: Option<NaiveDate>| IndexMember {
+        index: StockIndex::Sp500,
+        symbol: symbol.clone(),
+        start,
+        end: None,
+    };
+    store
+        .replace_index_history(
+            DataSource::Fixture,
+            IndexHistory {
+                index: StockIndex::Sp500,
+                members: vec![
+                    member(&founder, None),
+                    member(&joiner, Some(day("2025-10-31"))),
+                ],
+                changes: 1,
+                reliable_from: None,
+            },
+            day("2025-11-10"),
+        )
+        .await
+        .unwrap();
+
+    let warnings = store
+        .member_warnings(StockIndex::Sp500, days[0], days[days.len() - 1])
+        .await
+        .unwrap();
+    let jumps: Vec<(&str, NaiveDate)> = warnings
+        .iter()
+        .map(|warning| match warning {
+            DataWarning::UnexplainedMove { symbol, date, .. } => (symbol.as_str(), *date),
+            other => panic!("only jumps: {other:?}"),
+        })
+        .collect();
+    assert_eq!(
+        jumps,
+        vec![
+            ("NEW", day("2025-11-03")),
+            ("OLD", day("2025-10-29")),
+            ("OLD", day("2025-11-03")),
+        ],
+        "a member that joined after the start is judged too, but not for a jump before it joined"
     );
 }

@@ -1154,6 +1154,22 @@ impl MarketStore {
             .await
     }
 
+    pub async fn member_warnings(
+        &self,
+        index: StockIndex,
+        from: NaiveDate,
+        to: NaiveDate,
+    ) -> Result<Vec<DataWarning>> {
+        let shared = &self.shared;
+        let (calendar, actions, listings) =
+            (shared.calendar(), shared.actions(), shared.listings());
+        self.readers
+            .run(move |connection| {
+                read::member_warnings(connection, &calendar, &actions, &listings, index, from, to)
+            })
+            .await
+    }
+
     pub async fn unexplained_moves(
         &self,
         symbols: Vec<Symbol>,
