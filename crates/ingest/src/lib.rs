@@ -179,7 +179,7 @@ impl Ingest {
                 && previous.is_some_and(|run| {
                     matches!(run.outcome, Some(JobOutcome::Ok | JobOutcome::Noop))
                 });
-            if waiting && !(settled_before_boot && self.series_unread(spec.name).await?) {
+            if waiting && !(settled_before_boot && self.unread(spec).await?) {
                 continue;
             }
             self.ran_since_boot.lock().await.insert(spec.name);
@@ -214,6 +214,25 @@ impl Ingest {
             }
         }
         Ok(report)
+    }
+
+    async fn unread(&self, spec: &JobSpec) -> Result<bool, IngestError> {
+        if self.series_unread(spec.name).await? {
+            return Ok(true);
+        }
+        for contract in self.contracts().await? {
+            if Some(contract.source) != spec.source || !spec.datasets.contains(&contract.dataset) {
+                continue;
+            }
+            let peak = self
+                .state
+                .contract_peak(contract.dataset, contract.source)
+                .await?;
+            if peak.is_some_and(|peak| contract.done < peak) {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
     pub async fn job_views(&self, now: Timestamp) -> Result<Vec<JobView>, IngestError> {

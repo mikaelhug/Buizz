@@ -435,6 +435,12 @@ impl StateStore {
             .await
     }
 
+    pub async fn contract_peak(&self, dataset: Dataset, source: DataSource) -> Result<Option<u64>> {
+        self.db
+            .read(move |connection| jobs::contract_peak(connection, dataset, source))
+            .await
+    }
+
     pub async fn track_contracts(
         &self,
         at: Timestamp,

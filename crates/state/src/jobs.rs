@@ -257,6 +257,18 @@ pub fn symbol_fetches(
     Ok(symbols)
 }
 
+pub fn contract_peak(
+    connection: &Connection,
+    dataset: Dataset,
+    source: DataSource,
+) -> Result<Option<u64>> {
+    Ok(connection.query_row(
+        "SELECT max(done) FROM contract_progress WHERE dataset = ? AND source = ?",
+        params![enum_text(&dataset)?, enum_text(&source)?],
+        |row| read_optional(row, 0, read_u64),
+    )?)
+}
+
 pub fn track_contracts(
     connection: &Connection,
     at: Timestamp,
