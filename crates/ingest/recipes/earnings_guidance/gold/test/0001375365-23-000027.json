@@ -1,0 +1,248 @@
+{
+ "accession": "0001375365-23-000027",
+ "cik": 1375365,
+ "published_at": "2023-05-02T20:12:44Z",
+ "note": "FY 'maintains its guidance' applied to sales and both EPS figures only; tax rate, share count and SBC assumptions in later sentences marked not_stated. Tax rate/share count basis taken from 'for GAAP'/'for non-GAAP'.",
+ "facts": [
+  {
+   "fields": {
+    "metric": "revenue",
+    "metric_label": "net sales",
+    "basis": "not_stated",
+    "period_label": "fourth quarter of fiscal year 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": 4,
+    "low": 1700000000.0,
+    "high": 1900000000.0,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "For the fourth quarter of fiscal year 2023 ending June 30, 2023, the Company expects net sales of $1.7 billion to $1.9 billion, GAAP net income per diluted share of $2.13 to $2.65 and non-GAAP net income per diluted share of $2.21 to $2.71."
+  },
+  {
+   "fields": {
+    "metric": "eps_gaap",
+    "metric_label": "GAAP net income per diluted share",
+    "basis": "gaap",
+    "period_label": "fourth quarter of fiscal year 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": 4,
+    "low": 2.13,
+    "high": 2.65,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "For the fourth quarter of fiscal year 2023 ending June 30, 2023, the Company expects net sales of $1.7 billion to $1.9 billion, GAAP net income per diluted share of $2.13 to $2.65 and non-GAAP net income per diluted share of $2.21 to $2.71."
+  },
+  {
+   "fields": {
+    "metric": "eps_adjusted",
+    "metric_label": "non-GAAP net income per diluted share",
+    "basis": "non_gaap",
+    "period_label": "fourth quarter of fiscal year 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": 4,
+    "low": 2.21,
+    "high": 2.71,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "For the fourth quarter of fiscal year 2023 ending June 30, 2023, the Company expects net sales of $1.7 billion to $1.9 billion, GAAP net income per diluted share of $2.13 to $2.65 and non-GAAP net income per diluted share of $2.21 to $2.71."
+  },
+  {
+   "fields": {
+    "metric": "tax_rate",
+    "metric_label": "tax rate",
+    "basis": "gaap",
+    "period_label": "fourth quarter of fiscal year 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": 4,
+    "low": 14.7,
+    "high": 14.7,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "The Company’s projections for GAAP and non-GAAP net income per diluted share assume a tax rate of approximately 14.7% and 15.7%, respectively, and a fully diluted share count of 56 million shares for GAAP and fully diluted share count of 57 million shares for non-GAAP."
+  },
+  {
+   "fields": {
+    "metric": "tax_rate",
+    "metric_label": "tax rate",
+    "basis": "non_gaap",
+    "period_label": "fourth quarter of fiscal year 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": 4,
+    "low": 15.7,
+    "high": 15.7,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "The Company’s projections for GAAP and non-GAAP net income per diluted share assume a tax rate of approximately 14.7% and 15.7%, respectively, and a fully diluted share count of 56 million shares for GAAP and fully diluted share count of 57 million shares for non-GAAP."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "fully diluted share count",
+    "basis": "gaap",
+    "period_label": "fourth quarter of fiscal year 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": 4,
+    "low": 56000000.0,
+    "high": 56000000.0,
+    "unit": "other",
+    "stated_action": "not_stated"
+   },
+   "evidence": "The Company’s projections for GAAP and non-GAAP net income per diluted share assume a tax rate of approximately 14.7% and 15.7%, respectively, and a fully diluted share count of 56 million shares for GAAP and fully diluted share count of 57 million shares for non-GAAP."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "fully diluted share count",
+    "basis": "non_gaap",
+    "period_label": "fourth quarter of fiscal year 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": 4,
+    "low": 57000000.0,
+    "high": 57000000.0,
+    "unit": "other",
+    "stated_action": "not_stated"
+   },
+   "evidence": "The Company’s projections for GAAP and non-GAAP net income per diluted share assume a tax rate of approximately 14.7% and 15.7%, respectively, and a fully diluted share count of 56 million shares for GAAP and fully diluted share count of 57 million shares for non-GAAP."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "stock-based compensation and other expenses, net of related tax effects",
+    "basis": "not_stated",
+    "period_label": "fourth quarter of fiscal year 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": 4,
+    "low": 7000000.0,
+    "high": 7000000.0,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "The outlook for Q4 of fiscal year 2023 GAAP net income per diluted share includes approximately $7 million in expected stock-based compensation and other expenses, net of related tax effects that are excluded from non-GAAP net income per diluted share."
+  },
+  {
+   "fields": {
+    "metric": "revenue",
+    "metric_label": "net sales",
+    "basis": "not_stated",
+    "period_label": "fiscal year 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 6600000000.0,
+    "high": 6800000000.0,
+    "unit": "usd",
+    "stated_action": "reaffirmed"
+   },
+   "evidence": "For fiscal year 2023 ending June 30, 2023, the Company maintains its guidance for net sales from a range of $6.6 billion to $6.8 billion, GAAP net income per diluted share from a range of $10.14 to $10.66, and non-GAAP net income per diluted share from a range of $10.50 to $11.00."
+  },
+  {
+   "fields": {
+    "metric": "eps_gaap",
+    "metric_label": "GAAP net income per diluted share",
+    "basis": "gaap",
+    "period_label": "fiscal year 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 10.14,
+    "high": 10.66,
+    "unit": "usd_per_share",
+    "stated_action": "reaffirmed"
+   },
+   "evidence": "For fiscal year 2023 ending June 30, 2023, the Company maintains its guidance for net sales from a range of $6.6 billion to $6.8 billion, GAAP net income per diluted share from a range of $10.14 to $10.66, and non-GAAP net income per diluted share from a range of $10.50 to $11.00."
+  },
+  {
+   "fields": {
+    "metric": "eps_adjusted",
+    "metric_label": "non-GAAP net income per diluted share",
+    "basis": "non_gaap",
+    "period_label": "fiscal year 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 10.5,
+    "high": 11.0,
+    "unit": "usd_per_share",
+    "stated_action": "reaffirmed"
+   },
+   "evidence": "For fiscal year 2023 ending June 30, 2023, the Company maintains its guidance for net sales from a range of $6.6 billion to $6.8 billion, GAAP net income per diluted share from a range of $10.14 to $10.66, and non-GAAP net income per diluted share from a range of $10.50 to $11.00."
+  },
+  {
+   "fields": {
+    "metric": "tax_rate",
+    "metric_label": "tax rate",
+    "basis": "gaap",
+    "period_label": "fiscal year 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 14.9,
+    "high": 14.9,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "The Company’s projections for annual GAAP and non-GAAP net income per diluted share assume a tax rate of approximately 14.9% and 16.0%, respectively, and a fully diluted share count of 56 million shares for GAAP and fully diluted share count of 57 million shares for non-GAAP."
+  },
+  {
+   "fields": {
+    "metric": "tax_rate",
+    "metric_label": "tax rate",
+    "basis": "non_gaap",
+    "period_label": "fiscal year 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 16.0,
+    "high": 16.0,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "The Company’s projections for annual GAAP and non-GAAP net income per diluted share assume a tax rate of approximately 14.9% and 16.0%, respectively, and a fully diluted share count of 56 million shares for GAAP and fully diluted share count of 57 million shares for non-GAAP."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "fully diluted share count",
+    "basis": "gaap",
+    "period_label": "fiscal year 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 56000000.0,
+    "high": 56000000.0,
+    "unit": "other",
+    "stated_action": "not_stated"
+   },
+   "evidence": "The Company’s projections for annual GAAP and non-GAAP net income per diluted share assume a tax rate of approximately 14.9% and 16.0%, respectively, and a fully diluted share count of 56 million shares for GAAP and fully diluted share count of 57 million shares for non-GAAP."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "fully diluted share count",
+    "basis": "non_gaap",
+    "period_label": "fiscal year 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 57000000.0,
+    "high": 57000000.0,
+    "unit": "other",
+    "stated_action": "not_stated"
+   },
+   "evidence": "The Company’s projections for annual GAAP and non-GAAP net income per diluted share assume a tax rate of approximately 14.9% and 16.0%, respectively, and a fully diluted share count of 56 million shares for GAAP and fully diluted share count of 57 million shares for non-GAAP."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "stock-based compensation and other expenses, net of related tax effects",
+    "basis": "not_stated",
+    "period_label": "fiscal year 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 33000000.0,
+    "high": 33000000.0,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "The outlook for fiscal year 2023 GAAP net income per diluted share includes approximately $33 million in expected stock-based compensation and other expenses, net of related tax effects that are excluded from non-GAAP net income per diluted share."
+  }
+ ]
+}

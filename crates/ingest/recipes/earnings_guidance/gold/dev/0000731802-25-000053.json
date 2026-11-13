@@ -1,0 +1,37 @@
+{
+ "accession": "0000731802-25-000053",
+ "cik": 731802,
+ "published_at": "2025-11-05T21:35:13Z",
+ "facts": [
+  {
+   "fields": {
+    "metric": "eps_gaap",
+    "metric_label": "earnings per diluted share",
+    "basis": "gaap",
+    "period_label": "Fiscal 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": null,
+    "low": 8.15,
+    "high": 8.35,
+    "unit": "usd_per_share",
+    "stated_action": "initiated"
+   },
+   "evidence": "\u2022Fiscal 2026 earnings per diluted share guidance expected to be in the range of $8.15 - $8.35 per diluted share."
+  },
+  {
+   "fields": {
+    "metric": "capex",
+    "metric_label": "capital expenditure",
+    "basis": "not_stated",
+    "period_label": "Fiscal 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": null,
+    "low": 4200000000,
+    "high": 4200000000,
+    "unit": "usd",
+    "stated_action": "initiated"
+   },
+   "evidence": "\u2022Fiscal 2026 capital expenditure guidance expected to be approximately $4.2 billion."
+  }
+ ]
+}

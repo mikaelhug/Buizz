@@ -1,0 +1,187 @@
+{
+ "accession": "0001628280-26-004121",
+ "cik": 2023554,
+ "published_at": "2026-01-29T21:09:43Z",
+ "facts": [
+  {
+   "fields": {
+    "metric": "revenue",
+    "metric_label": "Revenue",
+    "basis": "gaap",
+    "period_label": "fiscal third quarter of 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": 3,
+    "low": 4400000000,
+    "high": 4800000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Revenue\t$4,400 to $4,800\t$4,400 to $4,800"
+  },
+  {
+   "fields": {
+    "metric": "revenue",
+    "metric_label": "Revenue",
+    "basis": "non_gaap",
+    "period_label": "fiscal third quarter of 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": 3,
+    "low": 4400000000,
+    "high": 4800000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Revenue\t$4,400 to $4,800\t$4,400 to $4,800"
+  },
+  {
+   "fields": {
+    "metric": "gross_margin",
+    "metric_label": "Gross Margin",
+    "basis": "gaap",
+    "period_label": "fiscal third quarter of 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": 3,
+    "low": 64.9,
+    "high": 66.9,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Gross Margin\t64.9% to 66.9%\t65.0% to 67.0%"
+  },
+  {
+   "fields": {
+    "metric": "gross_margin",
+    "metric_label": "Gross Margin",
+    "basis": "non_gaap",
+    "period_label": "fiscal third quarter of 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": 3,
+    "low": 65.0,
+    "high": 67.0,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Gross Margin\t64.9% to 66.9%\t65.0% to 67.0%"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Operating Expenses",
+    "basis": "gaap",
+    "period_label": "fiscal third quarter of 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": 3,
+    "low": 496000000,
+    "high": 532000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Operating Expenses\t$496 to $532\t$450 to $470"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Operating Expenses",
+    "basis": "non_gaap",
+    "period_label": "fiscal third quarter of 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": 3,
+    "low": 450000000,
+    "high": 470000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Operating Expenses\t$496 to $532\t$450 to $470"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Interest and Other Expense, Net",
+    "basis": "gaap",
+    "period_label": "fiscal third quarter of 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": 3,
+    "low": 23000000,
+    "high": 28000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Interest and Other Expense, Net\t$23 to $28\t$25 to $30"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Interest and Other Expense, Net",
+    "basis": "non_gaap",
+    "period_label": "fiscal third quarter of 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": 3,
+    "low": 25000000,
+    "high": 30000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Interest and Other Expense, Net\t$23 to $28\t$25 to $30"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Tax Expense",
+    "basis": "non_gaap",
+    "period_label": "fiscal third quarter of 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": 3,
+    "low": 325000000,
+    "high": 375000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Tax Expense (2)\tN/A\t$325 to $375"
+  },
+  {
+   "fields": {
+    "metric": "eps_adjusted",
+    "metric_label": "Non-GAAP diluted net income per share",
+    "basis": "non_gaap",
+    "period_label": "fiscal third quarter of 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": 3,
+    "low": 12.0,
+    "high": 14.0,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Diluted Net Income Per Share\tN/A\t$12.00 to $14.00"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Diluted Shares Outstanding",
+    "basis": "gaap",
+    "period_label": "fiscal third quarter of 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": 3,
+    "low": 157000000,
+    "high": 157000000,
+    "unit": "other",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Diluted Shares Outstanding\t~157\t~157"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Diluted Shares Outstanding",
+    "basis": "non_gaap",
+    "period_label": "fiscal third quarter of 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": 3,
+    "low": 157000000,
+    "high": 157000000,
+    "unit": "other",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Diluted Shares Outstanding\t~157\t~157"
+  }
+ ]
+}

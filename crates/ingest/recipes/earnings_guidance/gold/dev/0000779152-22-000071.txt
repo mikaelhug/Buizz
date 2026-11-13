@@ -1,0 +1,328 @@
+Press Release
+Kevin D. Williams | Chief Financial Officer | (417) 235-6652
+
+FOR IMMEDIATE RELEASE
+Jack Henry & Associates, Inc. Reports Full-Year Fiscal 2022 Results
+Fiscal year summary:
+•GAAP revenue increased 11% and GAAP operating income increased 19% for the fiscal year ended June 30, 2022 compared to the prior fiscal year.
+•Non-GAAP adjusted revenue increased 9% and non-GAAP adjusted operating income increased 13% for the fiscal year ended June 30, 2022 compared to the prior fiscal year.1
+▪GAAP EPS was $4.94 per diluted share for the fiscal year ended June 30, 2022, compared to $4.12 for the prior fiscal year.
+▪Cash at June 30, 2022 was $48.8 million and $51.0 million at June 30, 2021.
+▪Debt related to the revolving credit line was $115 million at June 30, 2022 and $100 million at June 30, 2021.
+Fourth quarter summary:
+▪GAAP revenue increased 7% and GAAP operating income increased 8% for the fiscal quarter ended June 30, 2022 compared to the prior-year fiscal quarter.
+▪Non-GAAP adjusted revenue increased 8% and non-GAAP adjusted operating income increased 13% for the fiscal quarter ended June 30, 2022 compared to the prior-year fiscal quarter.1
+▪GAAP EPS was $1.10 per diluted share for the fiscal quarter ended June 30, 2022, compared to $1.04 in the prior-year fiscal quarter.
+Full-year fiscal 2023 guidance:
+▪GAAP revenue $2,080 million to $2,087 million
+▪GAAP EPS $5.05 to $5.09
+▪Non-GAAP revenue $2,045 million to $2,052 million2
+Fiscal Year 2022 Revenue	Fiscal Year 2022 Operating Income	Fiscal Year 20223
+GAAP	Non-GAAP1	GAAP	Non-GAAP1	GAAP Net Income
+increased	increased	increased	increased	increased
+11%	9%	19%	13%	17%
+Fourth Quarter Revenue	Fourth Quarter Operating Income	Fiscal Year 20223
+GAAP	Non-GAAP1	GAAP	Non-GAAP1	Non-GAAP EBITDA1
+increased	increased	increased	increased	increased
+7%	8%	8%	13%	10%
+
+Monett, MO, August 16, 2022 - Jack Henry & Associates, Inc. (NASDAQ: JKHY), a leading, well-rounded provider of technology solutions and payment processing services primarily for the financial services industry, today announces results for the fourth quarter and full fiscal year ended June 30, 2022.
+
+According to David Foss, Board Chair and CEO, “We are very pleased to report another quarter of record revenue, operating income, and total sales bookings. Among many other successes, our sales teams secured 17 new core clients and sold 48 new digital banking systems in the quarter. Additionally, we have recently announced the addition of a new CFO to our team, a refreshed brand for our company, and the pending acquisition of Payrailz. As we begin the new fiscal year, our sales pipeline remains strong, and we see significant opportunities to continue growing our company through the successful execution of our technology modernization and One Jack Henry operational strategies. As a well-rounded financial technology provider, we remain optimistic about the strength of our innovative technology solutions around digital, lending, payments, core solutions and open banking as well as our ability to deliver outstanding service in a market that is widely expected to continue to increase technology and digital investments in the future.”
+
+1 See tables below reconciling non-GAAP financial measures to GAAP.
+2 See tables below reconciling fiscal year 2023 GAAP to non-GAAP guidance.
+3 See tables below on page 12 reconciling Net Income to non-GAAP EBITDA.
+1
+
+Operating Results
+
+Revenue, operating expenses, operating income, and net income for the three months and fiscal year ended June 30, 2022, as compared to the three months and fiscal year ended June 30, 2021, were as follows (all dollar amounts in this section are in thousands, except for per share amounts):
+Revenue (Unaudited)
+(In Thousands)	Three Months Ended June 30,	% Change	Year Ended June 30,	% Change
+2022	2021	2022	2021
+Revenue
+Services and Support	$	279,740	$	261,697	7	%	$	1,156,365	$	1,048,206	10	%
+Percentage of Total Revenue	58	%	58	%	60	%	60	%
+Processing	202,932	188,590	8	%	786,519	710,019	11	%
+Percentage of Total Revenue	42	%	42	%	40	%	40	%
+REVENUE	$	482,672	$	450,287	7	%	$	1,942,884	$	1,758,225	11	%
+
+•Services and support revenue increased for fourth quarter fiscal 2022 primarily driven by growth in cloud processing revenue of 12.3% and increased implementation fee revenue, partially offset by a decrease in deconversion fees of $3,009. Processing revenue increased for the fourth quarter fiscal 2022 primarily driven by growth in Jack Henry digital revenue of 31.3%, and increased card processing revenue. Other increases were in payment processing and remote capture and automated clearinghouse (ACH) fee revenues.
+•Services and support revenue increased for fiscal 2022 primarily driven by growth in cloud processing revenue of 12.0% and an increase in deconversion fees of $32,644. Other increases were in implementation fee and software usage fee revenues. Processing revenue increased for fiscal 2022 primarily driven by growth in card processing of 8.1%. Other increases were in Jack Henry digital, remote capture and ACH fee, and payment processing revenues.
+•For fourth quarter fiscal 2022, core segment revenue increased 8%, payments segment revenue increased 5%, complementary segment revenue increased 9%, and corporate and other segment revenue increased 22%. Non-GAAP adjusted core segment revenue increased 9%, non-GAAP adjusted payments segment revenue increased 5%, non-GAAP adjusted complementary segment revenue increased 10%, and non-GAAP adjusted corporate and other segment revenue increased 21% (see revenue lines of segment break-out tables on page 5 below).
+•For fiscal 2022, core segment revenue increased 10%, payments segment revenue increased 10%, complementary segment revenue increased 11%, and corporate and other segment revenue increased 14%. Non-GAAP adjusted core segment revenue increased 8%, non-GAAP adjusted payments segment revenue increased 9%, non-GAAP adjusted complementary segment revenue increased 9%, and non-GAAP adjusted corporate and other segment revenue increased 13% (see revenue lines of segment break-out tables on page 6 below).
+2
+
+Operating Expenses and Operating Income
+(Unaudited, In Thousands)	Three Months Ended June 30,	% Change	Year Ended June 30,	% Change
+2022	2021	2022	2021
+Cost of Revenue	$	286,815	$	274,918	4	%	$	1,128,614	$	1,063,399	6	%
+Percentage of Total Revenue	59	%	61	%	58	%	60	%
+Research and Development	33,961	28,814	18	%	121,355	109,047	11	%
+Percentage of Total Revenue	7	%	6	%	6	%	6	%
+Selling, General, and Administrative	58,124	50,259	16	%	218,296	187,060	17	%
+Percentage of Total Revenue	12	%	11	%	11	%	11	%
+OPERATING EXPENSES	378,900	353,991	7	%	1,468,265	1,359,506	8	%
+OPERATING INCOME	$	103,772	$	96,296	8	%	$	474,619	$	398,719	19	%
+Operating Margin4	22	%	21	%	24	%	23	%
+•Cost of revenue increased for fourth quarter fiscal 2022 primarily due to higher costs associated with our card processing platform commensurate with related increases in revenue, operating licenses and fees, and personnel costs. Cost of revenue increased for fiscal 2022 primarily due to higher costs associated with our card processing platform commensurate with related increases in revenue, personnel costs, and operating licenses and fees.
+•Research and development expense increased for fourth quarter and fiscal 2022 primarily due to higher personnel costs (net of capitalized personnel costs).
+•Selling, general, and administrative expense increased for the fourth quarter fiscal 2022 primarily due to higher personnel costs and travel expenses. Selling, general, and administrative expense increased for fiscal 2022 primarily due to higher personnel costs and travel expenses, a smaller gain on sale of assets in the current fiscal year, and an increase in deconversion costs in line with the associated increase in deconversion revenues.
+
+Net Income
+(Unaudited, In Thousands, Except Per Share Data)	Three Months Ended June 30,	% Change	Year Ended June 30,	% Change
+2022	2021	2022	2021
+Income Before Income Taxes	$	102,792	$	95,683	7	%	$	472,267	$	397,725	19	%
+Provision for Income Taxes	22,366	18,821	19	%	109,351	86,256	27	%
+NET INCOME	$	80,426	$	76,862	5	%	$	362,916	$	311,469	17	%
+Diluted earnings per share	$	1.10	$	1.04	6	%	$	4.94	$	4.12	20	%
+•Effective tax rates for the fourth quarter of fiscal years 2022 and 2021 were 21.8% and 19.7%, respectively. Effective tax rates for fiscal years 2022 and 2021 were 23.2% and 21.7%, respectively.
+•The Company repurchased 1.25 million shares of common stock during fiscal 2022 and 2.80 million shares of common stock during fiscal 2021. Common stock repurchases during fiscal 2022 contributed $0.02 to diluted earnings per share for the fourth quarter fiscal 2022 and $0.05 for the full fiscal year. Common stock repurchases during fiscal 2021 contributed $0.04 to diluted earnings per share for the fourth quarter fiscal 2021 and $0.07 for the full fiscal year.
+
+4 Operating margin is calculated by dividing operating income by revenue.
+3
+
+According to Kevin Williams, CFO and Treasurer, “For the fourth quarter of the fiscal year, our private cloud and processing services continue to drive revenue growth. As we guided in May our deconversion fees decreased in our fourth fiscal quarter compared to a year ago. We reported solid 7% GAAP and 8% non-GAAP revenue growth compared to the prior year quarter. Operating margins were flat on a GAAP basis due to lower deconversion revenue in the quarter, but nice margin expansion on a non-GAAP basis compared to the prior year. We continue to be pleased to report our Return on Average Shareholders’ Equity and Return on Invested Capital (ROIC) of 26.9% and 24.9%, for the trailing twelve months, respectively, which improved nicely from 21.7% and 21.0%, respectively, for those same financial performance metrics a year ago. Our dedicated team continues to follow the company motto of do the right thing and do whatever it takes to ensure the continued success of our customers.”
+
+Impact of Non-GAAP Adjustments
+The table below shows our revenue and operating income (in thousands) for the three months and fiscal year ended June 30, 2022 compared to the three months and fiscal year ended June 30, 2021, excluding the impacts of deconversion fees and acquisitions, divestitures, and gain/loss.
+
+(Unaudited, In Thousands)	Three Months Ended June 30,	% Change	Year Ended June 30,	% Change
+2022	2021	2022	2021
+Revenue (GAAP)	$	482,672	$	450,287	7	%	$	1,942,884	$	1,758,225	11	%
+Adjustments:
+Deconversion fee revenue	(5,222)	(8,231)	(53,279)	(20,635)
+Revenue from acquisitions and divestitures	—	—	(274)	(1,182)
+NON-GAAP ADJUSTED REVENUE	$	477,450	$	442,056	8	%	$	1,889,331	$	1,736,408	9	%
+Operating Income (GAAP)	$	103,772	$	96,296	8	%	$	474,619	$	398,719	19	%
+Adjustments:
+Operating income from deconversion fees	(3,980)	(7,617)	(47,002)	(18,721)
+Operating (income)/loss from acquisitions, divestitures, and gain/loss	—	—	371	(2,409)
+NON-GAAP ADJUSTED OPERATING INCOME	$	99,792	$	88,679	13	%	$	427,988	$	377,589	13	%
+
+4
+
+The tables below show the segment break-out of revenue and cost of revenue for each period presented, as adjusted for the items above, and include a reconciliation to non-GAAP adjusted operating income presented above.
+
+(Unaudited, In Thousands)	Three Months Ended June 30, 2022
+Core	Payments	Complementary	Corporate and Other	Total
+REVENUE	$	151,480	$	177,323	$	140,296	$	13,573	$	482,672
+Non-GAAP adjustments	(1,872)	(1,236)	(2,035)	(79)	(5,222)
+NON-GAAP ADJUSTED REVENUE	149,608	176,087	138,261	13,494	477,450
+COST OF REVENUE	63,553	97,531	59,495	66,236	286,815
+Non-GAAP adjustments	(341)	(122)	(260)	(3)	(726)
+NON-GAAP ADJUSTED COST OF REVENUE	63,212	97,409	59,235	66,233	286,089
+NON-GAAP ADJUSTED SEGMENT INCOME	$	86,396	$	78,678	$	79,026	$	(52,739)
+Research and Development	33,961
+Selling, General, and Administrative	58,124
+Non-GAAP adjustments unassigned to a segment	(516)
+NON-GAAP TOTAL ADJUSTED OPERATING EXPENSES	377,658
+NON-GAAP ADJUSTED OPERATING INCOME	$	99,792
+
+(Unaudited, In Thousands)	Three Months Ended June 30, 2021
+Core	Payments	Complementary	Corporate and Other	Total
+REVENUE (GAAP)	$	140,843	$	169,551	$	128,735	$	11,158	$	450,287
+Non-GAAP adjustments	(3,162)	(1,852)	(3,189)	(28)	(8,231)
+NON-GAAP ADJUSTED REVENUE	137,681	167,699	125,546	11,130	442,056
+COST OF REVENUE	61,579	93,170	53,990	66,179	274,918
+Non-GAAP adjustments	(129)	(107)	(189)	—	(425)
+NON-GAAP ADJUSTED COST OF REVENUE	61,450	93,063	53,801	66,179	274,493
+NON-GAAP ADJUSTED SEGMENT INCOME	$	76,231	$	74,636	$	71,745	$	(55,049)
+Research and Development	28,814
+Selling, General, and Administrative	50,259
+Non-GAAP adjustments unassigned to a segment	(189)
+NON-GAAP TOTAL ADJUSTED OPERATING EXPENSES	353,377
+NON-GAAP ADJUSTED OPERATING INCOME	$	88,679
+5
+
+(Unaudited, In Thousands)	Year Ended June 30, 2022
+Core	Payments	Complementary	Corporate and Other	Total
+Revenue	$	622,442	$	707,019	$	561,211	$	52,212	$	1,942,884
+Non-GAAP adjustments	(23,048)	(14,319)	(15,863)	(323)	(53,553)
+Non-GAAP Adjusted Revenue	599,394	692,700	545,348	51,889	1,889,331
+Cost of Revenue	261,585	380,954	232,088	253,987	1,128,614
+Non-GAAP adjustments	(1,719)	(439)	(1,510)	(327)	(3,995)
+Non-GAAP Adjusted Cost of Revenue	259,866	380,515	230,578	253,660	1,124,619
+Non-GAAP Adjusted Segment Income	$	339,528	$	312,185	$	314,770	$	(201,771)
+Research and Development	121,355
+Selling, General, and Administrative	218,296
+Non-GAAP adjustments unassigned to a segment	(2,927)
+Non-GAAP Total Adjusted Operating Expenses	1,461,343
+Non-GAAP Adjusted Operating Income	$	427,988
+
+(Unaudited, In Thousands)	Year Ended June 30, 2021
+Core	Payments	Complementary	Corporate and Other	Total
+Revenue	$	564,096	$	642,308	$	505,928	$	45,893	$	1,758,225
+Non-GAAP adjustments	(8,638)	(6,285)	(6,777)	(117)	(21,817)
+Non-GAAP Adjusted Revenue	555,458	636,023	499,151	45,776	1,736,408
+Cost of Revenue	247,150	353,581	212,627	250,041	1,063,399
+Non-GAAP adjustments	(1,178)	(215)	(617)	(52)	(2,062)
+Non-GAAP Adjusted Cost of Revenue	245,972	353,366	212,010	249,989	1,061,337
+Non- GAAP Adjusted Segment Income	$	309,486	$	282,657	$	287,141	$	(204,213)
+Research and Development	109,047
+Selling, General, and Administrative	187,060
+Non-GAAP adjustments unassigned to a segment	1,375
+Non-GAAP Total Adjusted Operating Expenses	1,358,819
+Non-GAAP Adjusted Operating Income	$	377,589
+
+6
+
+The table below shows our GAAP to non-GAAP guidance for fiscal year ended June 30, 2023. Non-GAAP guidance excludes the impacts of deconversion fee revenue.
+
+GAAP to Non-GAAP GUIDANCE (In Millions, except per share data)	Annual FY23
+Low	High
+REVENUE (GAAP)	$	2,080	$	2,087
+Growth	7.1	%	7.4	%
+Deconversion Fee Revenue	35	35
+NON-GAAP ADJUSTED REVENUE	$	2,045	$	2,052
+Non-GAAP Adjusted Growth*	8.2	%	8.6	%
+EPS (GAAP)	$	5.05	$	5.09
+Growth	2.1	%	3.1	%
+* The growth percentages for revenue using non-GAAP numbers in fiscal 2022 were further adjusted by $274 to remove revenue associated with the fiscal year 2021 acquisition.
+
+Balance Sheet and Cash Flow Review
+•At June 30, 2022, cash and cash equivalents decreased to $48.8 million from $51.0 million at June 30, 2021.
+•Trade receivables totaled $348.1 million at June 30, 2022 compared to $306.6 million at June 30, 2021.
+•The Company had $115 million of borrowings at June 30, 2022 and $100 million at June 30, 2021.
+•Total deferred revenue increased to $402.2 million at June 30, 2022, compared to $395.6 million a year ago.
+•Stockholders' equity increased to $1,381.6 million at June 30, 2022, compared to $1,319.3 million a year ago.
+* See tables on page 8 for Net Cash Provided by Operating Activities and on page 12 for Return on Average Shareholders’ Equity. Tables reconciling the non-GAAP measures Free Cash Flow and return on invested capital (ROIC) to GAAP measures are also on page 12. See Use of Non-GAAP Financial Information below for definition of Free Cash Flow and ROIC.
+
+7
+
+The following table summarizes net cash from operating activities:
+
+(Unaudited, In Thousands)	Year Ended June 30,
+2022	2021
+Net income	$	362,916	$	311,469
+Depreciation	50,789	52,515
+Amortization	126,835	123,233
+Change in deferred income taxes	31,872	16,760
+Other non-cash expenses	25,180	18,758
+Change in receivables	(41,508)	(6,112)
+Change in deferred revenue	6,572	6,541
+Change in other assets and liabilities	(58,025)	(61,035)
+NET CASH PROVIDED BY OPERATING ACTIVITIES	$	504,631	$	462,129
+
+The following table summarizes net cash from investing activities:
+
+(Unaudited, In Thousands)	Year Ended June 30,
+2022	2021
+Payment for acquisitions, net of cash acquired	$	—	$	(2,300)
+Capital expenditures	(34,659)	(22,988)
+Proceeds from dispositions	45	6,187
+Purchased software	(8,491)	(6,506)
+Computer software developed	(148,239)	(128,343)
+Purchase of investments	(5,000)	(13,300)
+Proceeds from investments	—	5,000
+NET CASH FROM INVESTING ACTIVITIES	$	(196,344)	$	(162,250)
+
+The following table summarizes net cash from financing activities:
+
+(Unaudited, In Thousands)	Year Ended June 30,
+2022	2021
+Borrowings on credit facilities*	$	332,000	$	200,000
+Repayments on credit facilities and financing leases	(317,127)	(100,114)
+Purchase of treasury stock*	(193,916)	(431,529)
+Dividends paid	(139,070)	(133,800)
+Net cash from issuance of stock and tax related to stock-based compensation	7,621	3,211
+NET CASH FROM FINANCING ACTIVITIES	$	(310,492)	$	(462,232)
+*For the years ended June 30, 2022 and 2021, the Company repurchased 1.25 million and 2.80 million shares of common stock, respectively.
+
+8
+
+Use of Non-GAAP Financial Information
+Generally Accepted Accounting Principles (GAAP) is the term used to refer to the standard framework of guidelines for financial accounting in the United States. GAAP include the standards, conventions, and rules accountants follow in recording and summarizing transactions in the preparation of financial statements. In addition to reporting financial results in accordance with GAAP, we have provided certain non-GAAP financial measures, including adjusted revenue, adjusted operating income, adjusted segment income, adjusted cost of revenue, adjusted operating expenses, non-GAAP earnings before interest, taxes, depreciation, and amortization (non-GAAP EBITDA), free cash flow, and return on invested capital (ROIC).
+We believe non-GAAP financial measures help investors better understand the underlying fundamentals and true operations of our business. The non-GAAP financial measures adjusted revenue, adjusted operating income, adjusted segment income, adjusted cost of revenue, and adjusted operating expenses presented eliminate one-time deconversion fees, acquisitions, divestitures, and gain/loss, all of which management believes are not indicative of the Company's operating performance. Such adjustments give investors further insight into our performance. Non-GAAP EBITDA is defined as net income attributable to the Company before the effect of interest expense, taxes, depreciation, and amortization, adjusted for net income before the effect of interest expense, taxes, depreciation, and amortization attributable to eliminated one-time deconversion fees, acquisitions and divestitures, and gain/loss. Free cash flow is defined as net cash from operating activities, less capitalized expenditures, internal use software, and capitalized software, plus proceeds from the sale of assets. ROIC is defined as net income divided by average invested capital, which is the average of beginning and ending long-term debt and stockholders’ equity for a given period. Management believes that non-GAAP EBITDA is an important measure of the Company’s overall operating performance and excludes certain costs and other transactions that management deems one time or non-operational in nature; free cash flow is useful to measure the funds generated in a given period that are available for debt service requirements and strategic capital decisions; and ROIC is a measure of the Company’s allocation efficiency and effectiveness of its invested capital. For these reasons, management also uses these non-GAAP financial measures in its assessment and management of the Company's performance.
+Non-GAAP financial measures used by the Company may not be comparable to similarly titled non-GAAP measures used by other companies. Non-GAAP financial measures have no standardized meaning prescribed by GAAP and therefore, are unlikely to be comparable with calculations of similar measures for other companies.
+Any non-GAAP financial measures should be considered in context with the GAAP financial presentation and should not be considered in isolation or as a substitute for GAAP measures. Reconciliations of the non-GAAP financial measures to related GAAP measures are included.
+COVID-19 Impact and Response
+Since its outbreak in early calendar 2020, COVID-19 has rapidly spread and continues to represent a public health concern. The health, safety, and well-being of our employees and customers is of paramount importance to us. In March 2020, we established an internal task force composed of executive officers and other members of management to frequently assess updates to the COVID-19 situation and recommend Company actions. We offered remote working as a recommended option to employees whose job duties allowed them to work off-site, and we suspended all non-essential business travel. As of August 15, 2022, the majority of our employees were continuing to work remotely either full time or in a hybrid capacity. We have announced that our official return-to-office date is September 6, 2022, though employees have been permitted to voluntarily return to the office since May 2, 2022. Individual decisions on returning to the office will be manager-coordinated and based on conversations with specific teams and departments. A large number of our employees have requested to remain fully remote or participate in a hybrid approach where they would split their time between remote and in-person working. While our business travel is normalizing, we do not expect it to return to pre-pandemic levels and continue to encourage a cautious approach to business travel activities.
+Customers
+We work closely with our customers who are scheduled for on-site visits to ensure their needs are met while taking necessary safety precautions when our employees are required to be at a customer site. Delays of customer system installations due to COVID-19 have been limited, and we have developed processes to handle remote installations when available. We expect these processes to provide flexibility and value both during and after the COVID-19 pandemic. Even though a substantial portion of our workforce has worked remotely during the outbreak and business travel has been limited, we have not yet experienced significant disruption to our operations. We believe our technological capabilities are well positioned to allow our employees to work remotely without materially impacting our business.
+Financial impact
+Despite the changes and restrictions caused by COVID-19, the overall financial and operational impact on our business has been limited and our liquidity, balance sheet, and business trends remain strong. We experienced positive operating cash flows during fiscal 2022, and we do not expect that to change in the near term. However, we are unable to accurately predict the future impact of COVID-19 due to a number of uncertainties, including further
+9
+
+government actions; the duration, severity and recurrence of the outbreak, including the onset of variants of the virus; the effectiveness of vaccines against new variants; the development and effectiveness of treatments; the effect on the economy generally; the potential impact to our customers, vendors, and employees; and how the potential impact might affect future customer services, processing and installation-related revenue, and processes and efficiencies within the Company directly or indirectly impacting financial results. We will continue to monitor COVID-19 and its possible impact on the Company and to take steps necessary to protect the health and safety of our employees and customers.
+
+About Jack Henry & Associates, Inc.®	Quarterly Conference Call
+Jack Henry (NASDAQ: JKHY) is a well-rounded leading provider of technology solutions primarily for the financial services industry. We are an S&P 500 company that serves approximately 7,850 clients nationwide. We provide core innovative solutions to community and regional banks; core industry-leading solutions to credit unions of all sizes; and non-core highly specialized solutions to financial institutions of every asset size, as well as diverse corporate entities outside of the financial services industry. With a heritage that has been dedicated to openness, partnership, and user centricity for more than 40 years, we are well-positioned as a driving market force in future-ready digital solutions and payment processing services. We empower our clients and consumers with the human-centered, tech-forward, and insights-driven solutions that will get them where they want to go. Are you future ready? Additional information is available at www.jackhenry.com.	The Company will hold a conference call on August 17, 2022; at 7:45 a.m. Central Time and investors are invited to listen at www.jackhenry.com. A webcast replay will be available approximately one hour after the event at ir.jackhenry.com/events-and-presentations and will remain available for one year.
+Statements made in this news release that are not historical facts are "forward-looking statements" within the meaning of the Private Securities Litigation Reform Act of 1995, Section 27A of the Securities Act of 1933 and Section 21E of the Securities Exchange Act of 1934. Because forward-looking statements relate to the future, they are subject to inherent risks and uncertainties that could cause actual results to differ materially from those expressed or implied by such statements. Such risks and uncertainties include, but are not limited to, those discussed in the Company's Securities and Exchange Commission filings, including the Company's most recent reports on Form 10-K and Form 10-Q, particularly under the heading Risk Factors. Any forward-looking statement made in this news release speaks only as of the date of the news release, and the Company expressly disclaims any obligation to publicly update or revise any forward-looking statement, whether because of new information, future events or otherwise.	MEDIA CONTACT
+Mark Folk
+Corporate Communications
+Jack Henry & Associates, Inc.
+704-890-5323
+MFolk@jackhenry.com
+ANALYST CONTACT
+Vance Sherard, CFA
+Investor Relations
+Jack Henry & Associates, Inc.
+417-235-6652
+VSherard@jackhenry.com
+10
+
+Condensed Consolidated Statements of Income (Unaudited)
+(In Thousands, except per share data)	Three Months Ended June 30,	% Change	Year Ended June 30,	% Change
+2022	2021	2022	2021
+REVENUE	$	482,672	$	450,287	7	%	$	1,942,884	$	1,758,225	11	%
+Cost of Revenue	286,815	274,918	4	%	1,128,614	1,063,399	6	%
+Research and Development	33,961	28,814	18	%	121,355	109,047	11	%
+Selling, General, and Administrative	58,124	50,259	16	%	218,296	187,060	17	%
+EXPENSES	378,900	353,991	7	%	1,468,265	1,359,506	8	%
+OPERATING INCOME	103,772	96,296	8	%	474,619	398,719	19	%
+Interest income	17	6	183	%	32	150	(79)	%
+Interest expense	(997)	(619)	61	%	(2,384)	(1,144)	108	%
+Interest Income (Expense)	(980)	(613)	60	%	(2,352)	(994)	137	%
+INCOME BEFORE INCOME TAXES	102,792	95,683	7	%	472,267	397,725	19	%
+Provision for Income Taxes	22,366	18,821	19	%	109,351	86,256	27	%
+NET INCOME	$	80,426	$	76,862	5	%	$	362,916	$	311,469	17	%
+Diluted net income per share	$	1.10	$	1.04	$	4.94	$	4.12
+Diluted weighted average shares outstanding	73,086	74,211	73,486	75,658
+Consolidated Balance Sheet Highlights (Unaudited)
+(In Thousands)	June 30,	% Change
+2022	2021
+Cash and cash equivalents	$	48,787	$	50,992	(4)	%
+Receivables	348,072	306,564	14	%
+Total assets	2,455,564	2,336,156	5	%
+Accounts payable and accrued expenses	$	213,076	$	201,002	6	%
+Current and long-term debt	115,067	100,193	15	%
+Deferred revenue	402,172	395,600	2	%
+Stockholders' equity	1,381,623	1,319,292	5	%
+11
+
+Calculation of Non-GAAP Earnings Before Income Taxes, Depreciation and Amortization (Non-GAAP EBITDA)
+Three Months Ended June 30,	% Change	Year Ended June 30,	% Change
+(in thousands)	2022	2021	2022	2021
+Net income	$	80,426	$	76,862	$	362,916	$	311,469
+Interest expense	997	619	2,384	1,144
+Taxes	22,366	18,821	109,351	86,256
+Depreciation and amortization	44,722	43,743	177,624	175,748
+Less: Net income before interest expense, taxes, depreciation and amortization attributable to eliminated one-time deconversions, acquisitions and divestitures, and gain/loss	(3,980)	(7,616)	(46,677)	(21,488)
+NON-GAAP EBITDA	$	144,531	$	132,429	9	%	$	605,598	$	553,129	10	%
+Calculation of Free Cash Flow (Non-GAAP)
+Year Ended June 30,
+(in thousands)	2022	2021
+Net cash from operating activities	$	504,631	$	462,129
+Capitalized expenditures	(34,659)	(22,988)
+Internal use software	(8,491)	(6,506)
+Proceeds from sale of assets	45	6,187
+Capitalized software	(148,239)	(128,343)
+FREE CASH FLOW	$	313,287	$	310,479
+Calculation of the Return on Average Shareholders’ Equity
+June 30,
+( in thousands)	2022	2021
+Net income (trailing four quarters)	$	362,916	$	311,469
+Average stockholder's equity (period ending balances)	1,350,457	1,434,490
+RETURN ON AVERAGE SHAREHOLDERS’ EQUITY	26.9%	21.7%
+Calculation of Return on Invested Capital (ROIC) (Non-GAAP)
+June 30,
+(in thousands)	2022	2021
+Net income (trailing four quarters)	$	362,916	$	311,469
+Average stockholder's equity (period ending balances)	1,350,457	1,434,490
+Average current maturities of long-term debt (period ending balances)	89	113
+Average long-term debt (period ending balances)	107,542	50,146
+Average invested capital	$	1,458,088	$	1,484,749
+ROIC	24.9%	21.0%
+12

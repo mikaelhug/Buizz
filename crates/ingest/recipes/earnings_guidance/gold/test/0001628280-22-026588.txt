@@ -1,0 +1,461 @@
+Exhibit 99.1
+News Release
+Abbott Reports Third-Quarter 2022 Results and Raises
+Full-Year EPS Guidance
+
+–Worldwide sales of $10.4 billion in the third quarter
+–Raises full-year earnings-per-share guidance
+–Continues to strengthen portfolio with new product approvals and launches
+ABBOTT PARK, Ill., Oct. 19, 2022 — Abbott today announced financial results for the third quarter ended Sept. 30, 2022.
+
+•Third-quarter sales of $10.4 billion decreased 4.7 percent on a reported basis and increased 1.3 percent on an organic basis, which excludes the impact of foreign exchange.
+•GAAP diluted EPS1 was $0.81 in the third quarter. Excluding specified items, adjusted diluted EPS was $1.15.
+•Abbott is raising its full-year 2022 EPS guidance. Abbott projects full-year diluted EPS on a GAAP basis of $3.75 to $3.81 and projects adjusted diluted EPS of $5.17 to $5.23.
+•Full-year 2022 guidance assumes COVID-19 testing-related sales of $7.8 billion, which includes sales of $7.3 billion through September 2022 and projected sales of $0.5 billion in the fourth quarter.
+•U.S. Medical Devices sales grew 11.3 percent in the third quarter, led by strong double-digit growth in Electrophysiology, Structural Heart and Diabetes Care.
+•In September, Abbott presented new data showing its FreeStyle Libre® continuous glucose monitoring system helped reduce acute diabetes-related events, leading to a 67 percent decrease in hospitalizations in people with Type 2 diabetes on once-daily (basal) insulin therapy.2
+•During the quarter, Abbott launched its latest-generation FreeStyle Libre 3 system in the U.S., which automatically delivers up-to-the-minute glucose readings and unsurpassed 14-day accuracy3 in the world's smallest and thinnest3 wearable sensor.
+•During the quarter, following a manufacturing stoppage earlier this year, Abbott restarted production of Similac® as well as EleCare® and metabolic infant formulas at its Sturgis, Michigan, facility.
+
+"Our results and increased guidance in the current macroeconomic environment reflect the strength of our diversified business model and execution," said Robert B. Ford, chairman and chief executive officer, Abbott. "We're particularly pleased with improving sales growth rates in U.S. Medical Devices, which is being fueled by several recent product launches, as well as continued strong performance in Established Pharmaceuticals."
+-- more --
+Page 1 of 19
+
+THIRD-QUARTER BUSINESS OVERVIEW
+Note: Management believes that measuring sales growth rates on an organic basis is an appropriate way for investors to best understand the underlying performance of the business. Organic sales growth excludes the impact of foreign exchange.
+Total Company
+($ in millions)
+% Change vs. 3Q21
+Sales 3Q22	Reported	Organic
+U.S.	Int'l	Total	U.S.	Int'l	Total	U.S.	Int'l	Total
+Total *	4,094	6,316	10,410	(6.3)	(3.7)	(4.7)	(6.3)	6.3	1.3
+Nutrition	686	1,109	1,795	(25.3)	(6.8)	(14.9)	(25.3)	1.2	(10.3)
+Diagnostics	1,741	1,930	3,671	(10.6)	(1.8)	(6.2)	(10.6)	9.2	(0.6)
+Established Pharmaceuticals	—	1,326	1,326	n/a	4.9	4.9	n/a	12.2	12.2
+Medical Devices	1,664	1,951	3,615	11.3	(8.7)	(0.5)	11.3	3.1	6.4
+
+% Change vs. 9M21
+Sales 9M22	Reported	Organic
+U.S.	Int'l	Total	U.S.	Int'l	Total	U.S.	Int'l	Total
+Total *	13,923	19,639	33,562	18.1	(0.9)	6.2	18.1	6.5	10.9
+Nutrition	2,124	3,518	5,642	(19.2)	(2.9)	(9.8)	(19.2)	2.8	(6.4)
+Diagnostics	6,951	6,328	13,279	46.6	(1.6)	18.9	46.6	5.8	23.1
+Established Pharmaceuticals	—	3,696	3,696	n/a	5.2	5.2	n/a	11.6	11.6
+Medical Devices	4,840	6,097	10,937	10.4	(2.2)	3.0	10.4	6.9	8.4
+
+*Total Abbott sales include Other Sales of approximately $3 million in 3Q22 and approximately $8 million in 9M22.
+n/a = Not Applicable.
+
+Note: In order to compute results excluding the impact of exchange rates, current year U.S. dollar sales are multiplied or divided, as appropriate, by the current year average foreign exchange rates and then those amounts are multiplied or divided, as appropriate, by the prior year average foreign exchange rates.
+
+Total sales in the third quarter were negatively impacted by year-over-year declines in COVID-19 testing-related sales and a manufacturing stoppage initiated in February of certain infant formula products manufactured at Abbott's Sturgis, Michigan, facility. Excluding COVID-19 testing-related sales4 and the U.S. sales associated with the manufacturing stoppage5 in the current and prior years, total worldwide sales decreased 0.6 percent on a reported basis and increased 6.0 percent on an organic basis in the third quarter.
+
+-- more --
+Page 2 of 19
+
+Nutrition
+($ in millions)
+% Change vs. 3Q21
+Sales 3Q22	Reported	Organic
+U.S.	Int'l	Total	U.S.	Int'l	Total	U.S.	Int'l	Total
+Total	686	1,109	1,795	(25.3)	(6.8)	(14.9)	(25.3)	1.2	(10.3)
+Pediatric	357	470	827	(39.1)	(8.6)	(24.8)	(39.1)	(2.6)	(22.0)
+Adult	329	639	968	(1.1)	(5.4)	(4.0)	(1.1)	4.1	2.4
+% Change vs. 9M21
+Sales 9M22	Reported	Organic
+U.S.	Int'l	Total	U.S.	Int'l	Total	U.S.	Int'l	Total
+Total	2,124	3,518	5,642	(19.2)	(2.9)	(9.8)	(19.2)	2.8	(6.4)
+Pediatric	1,108	1,491	2,599	(31.7)	(8.9)	(20.2)	(31.7)	(4.6)	(18.1)
+Adult	1,016	2,027	3,043	1.0	2.0	1.7	1.0	9.0	6.3
+
+Worldwide Nutrition sales decreased 14.9 percent on a reported basis and 10.3 percent on an organic basis in the third quarter. Total worldwide Nutrition and Pediatric Nutrition sales were negatively impacted by a manufacturing stoppage initiated in February of certain infant formula products manufactured at Abbott's Sturgis, Michigan, facility. Abbott resumed production at the facility during the third quarter. International Pediatric sales were negatively impacted by challenging market conditions in China.
+
+In Adult Nutrition, global sales decreased 4.0 percent on a reported basis and increased 2.4 percent on an organic basis, led by Ensure®, Abbott's market-leading complete and balanced nutrition brand.
+
+-- more --
+Page 3 of 19
+
+Diagnostics
+($ in millions)
+% Change vs. 3Q21
+Sales 3Q22	Reported	Organic
+U.S.	Int'l	Total	U.S.	Int'l	Total	U.S.	Int'l	Total
+Total	1,741	1,930	3,671	(10.6)	(1.8)	(6.2)	(10.6)	9.2	(0.6)
+Core Laboratory	281	938	1,219	(3.2)	(6.3)	(5.6)	(3.2)	3.7	2.2
+Molecular	65	118	183	(60.1)	(35.4)	(47.0)	(60.1)	(30.3)	(44.3)
+Point of Care	92	35	127	(7.3)	(0.6)	(5.6)	(7.3)	5.3	(4.0)
+Rapid Diagnostics	1,303	839	2,142	(6.6)	12.5	0.1	(6.6)	26.5	4.9
+% Change vs. 9M21
+Sales 9M22	Reported	Organic
+U.S.	Int'l	Total	U.S.	Int'l	Total	U.S.	Int'l	Total
+Total	6,951	6,328	13,279	46.6	(1.6)	18.9	46.6	5.8	23.1
+Core Laboratory	836	2,788	3,624	(1.1)	(5.0)	(4.1)	(1.1)	2.4	1.6
+Molecular	308	507	815	(28.5)	(22.1)	(24.7)	(28.5)	(17.5)	(21.9)
+Point of Care	284	110	394	(1.7)	(1.4)	(1.6)	(1.7)	3.1	(0.4)
+Rapid Diagnostics	5,523	2,923	8,446	73.8	7.0	42.9	73.8	15.1	46.7
+
+Diagnostics sales in the third quarter were negatively impacted by year-over-year declines in COVID-19 testing-related sales. Global COVID-19 testing-related sales were $1.7 billion in the third quarter of 2022 compared to $1.9 billion in the third quarter of last year.6 Excluding COVID-19 testing-related sales, worldwide Diagnostics sales declined 0.2 percent on a reported basis and increased 6.1 percent on an organic basis in the third quarter.4
+
+-- more --
+Page 4 of 19
+
+Established Pharmaceuticals
+($ in millions)
+% Change vs. 3Q21
+Sales 3Q22	Reported	Organic
+U.S.	Int'l	Total	U.S.	Int'l	Total	U.S.	Int'l	Total
+Total	—	1,326	1,326	n/a	4.9	4.9	n/a	12.2	12.2
+Key Emerging Markets	—	993	993	n/a	6.2	6.2	n/a	13.0	13.0
+Other	—	333	333	n/a	1.1	1.1	n/a	9.9	9.9
+% Change vs. 9M21
+Sales 9M22	Reported	Organic
+U.S.	Int'l	Total	U.S.	Int'l	Total	U.S.	Int'l	Total
+Total	—	3,696	3,696	n/a	5.2	5.2	n/a	11.6	11.6
+Key Emerging Markets	—	2,826	2,826	n/a	5.8	5.8	n/a	12.2	12.2
+Other	—	870	870	n/a	3.2	3.2	n/a	9.5	9.5
+
+Established Pharmaceuticals sales increased 4.9 percent on a reported basis and 12.2 percent on an organic basis in the third quarter.
+
+Key Emerging Markets include several emerging countries that represent the most attractive long-term growth opportunities for Abbott's branded generics product portfolio. Sales in these geographies increased 6.2 percent on a reported basis and 13.0 percent on an organic basis, led by strong growth in several geographies including India, China, Brazil and Vietnam and several therapeutic areas, including cardiometabolic, gastroenterology and central nervous system/pain management.
+
+Other sales increased 1.1 percent on a reported basis and 9.9 percent on an organic basis in the quarter.
+
+-- more --
+Page 5 of 19
+
+Medical Devices
+($ in millions)
+% Change vs. 3Q21
+Sales 3Q22	Reported	Organic
+U.S.	Int'l	Total	U.S.	Int'l	Total	U.S.	Int'l	Total
+Total	1,664	1,951	3,615	11.3	(8.7)	(0.5)	11.3	3.1	6.4
+Rhythm Management	263	270	533	(1.0)	(11.6)	(6.7)	(1.0)	(0.7)	(0.8)
+Electrophysiology	225	244	469	17.3	(17.1)	(3.5)	17.3	(4.9)	3.8
+Heart Failure	177	51	228	4.2	(13.3)	(0.3)	4.2	(3.1)	2.3
+Vascular	213	393	606	(2.9)	(7.6)	(6.0)	(2.9)	2.2	0.4
+Structural Heart	207	213	420	16.7	(0.7)	7.2	16.7	13.7	15.1
+Neuromodulation	156	36	192	4.7	(11.1)	1.3	4.7	1.9	4.1
+Diabetes Care	423	744	1,167	31.3	(6.8)	4.1	31.3	5.5	12.9
+% Change vs. 9M21
+Sales 9M22	Reported	Organic
+U.S.	Int'l	Total	U.S.	Int'l	Total	U.S.	Int'l	Total
+Total	4,840	6,097	10,937	10.4	(2.2)	3.0	10.4	6.9	8.4
+Rhythm Management	775	830	1,605	(0.2)	(5.8)	(3.2)	(0.2)	2.6	1.3
+Electrophysiology	667	773	1,440	15.1	(6.2)	2.6	15.1	3.4	8.2
+Heart Failure	523	167	690	8.3	—	6.2	8.3	9.2	8.6
+Vascular	650	1,228	1,878	(5.0)	(5.0)	(5.0)	(5.0)	2.5	(0.1)
+Structural Heart	604	667	1,271	12.4	2.0	6.7	12.4	13.1	12.8
+Neuromodulation	456	112	568	(0.8)	(9.7)	(2.7)	(0.8)	—	(0.6)
+Diabetes Care	1,165	2,320	3,485	34.7	1.2	10.4	34.7	10.9	17.4
+
+Worldwide Medical Devices sales decreased 0.5 percent on a reported basis and increased 6.4 percent on an organic basis in the third quarter. Sales growth in the U.S. was led by strong double-digit growth in Electrophysiology, Structural Heart and Diabetes Care. Internationally, sales growth was negatively impacted by intermittent COVID-19 lockdown restrictions in China as well as supply constraints in certain areas, most notably Electrophysiology.
+
+In Diabetes Care, FreeStyle Libre sales were approximately $1.0 billion in the quarter, including U.S. growth of more than 40 percent. International FreeStyle Libre sales were negatively impacted by supply constraints of Abbott's first-generation FreeStyle Libre system in certain emerging markets.
+-- more --
+Page 6 of 19
+
+ABBOTT'S EARNINGS-PER-SHARE GUIDANCE
+Abbott is raising its projected full-year 2022 diluted earnings per share under GAAP to $3.75 to $3.81. Abbott forecasts specified items for the full-year 2022 of $1.42 per share primarily related to intangible amortization, costs related to a voluntary recall, asset impairments, expenses associated with acquisitions, restructurings and cost reduction initiatives and other net expenses. Excluding specified items, Abbott is raising its projected adjusted diluted earnings per share to $5.17 to $5.23 for the full-year 2022.
+ABBOTT DECLARES 395TH CONSECUTIVE QUARTERLY DIVIDEND
+On Sept. 15, 2022, the board of directors of Abbott declared the company's quarterly dividend of $0.47 per share. Abbott's cash dividend is payable Nov. 15, 2022, to shareholders of record at the close of business on Oct. 14, 2022.
+
+Abbott has increased its dividend payout for 50 consecutive years and is a member of the S&P 500 Dividend Aristocrats Index, which tracks companies that have annually increased their dividend for at least 25 consecutive years.
+
+About Abbott:
+Abbott is a global healthcare leader that helps people live more fully at all stages of life. Our portfolio of life-changing technologies spans the spectrum of healthcare, with leading businesses and products in diagnostics, medical devices, nutritionals and branded generic medicines. Our 113,000 colleagues serve people in more than 160 countries.
+
+Connect with us at www.abbott.com, on LinkedIn at www.linkedin.com/company/abbott-/, on Facebook at www.facebook.com/Abbott and on Twitter @AbbottNews.
+Abbott will live-webcast its third-quarter earnings conference call through its Investor Relations website at www.abbottinvestor.com at 8 a.m. Central time today. An archived edition of the webcast will be available later in the day.
+-- more --
+Page 7 of 19
+
+— Private Securities Litigation Reform Act of 1995 —
+A Caution Concerning Forward-Looking Statements
+
+Some statements in this news release may be forward-looking statements for purposes of the Private Securities Litigation Reform Act of 1995. Abbott cautions that these forward-looking statements are subject to risks and uncertainties that may cause actual results to differ materially from those indicated in the forward-looking statements. Economic, competitive, governmental, technological and other factors that may affect Abbott's operations are discussed in Item 1A, "Risk Factors" in our Annual Report on Form 10-K for the year ended Dec. 31, 2021, and are incorporated herein by reference. Abbott undertakes no obligation to release publicly any revisions to forward-looking statements as a result of subsequent events or developments, except as required by law.
+Abbott Financial: Scott Leinenweber, 224-668-0791 Michael Comilla, 224-668-1872 Laura Dauer, 224-667-2299 Abbott Media: Karen Twigg May, 224-668-2681 Kate Dyer, 224-668-9965
+1All reported amounts relate to continuing operations only as there are no discontinued operations in the periods presented.
+2Data on file, Abbott Diabetes Care. Comparison based on publicly available information.
+3Among patient-applied sensors. Data on file, Abbott Diabetes Care.
+4In the third quarter of 2022, COVID-19 testing-related sales were $1.671 billion. In the third quarter of 2021, total worldwide sales were $10.928 billion and total Diagnostic sales were $3.912 billion, both of which included COVID-19 testing-related sales of $1.908 billion.
+5U.S. sales of certain infant formula products were $102 million in the third quarter of 2022 and $332 million in the third quarter of 2021.
+6In the third quarter of 2022, Core Laboratory, Molecular Diagnostics, and Rapid Diagnostics COVID-19 testing-related sales were $11 million, $54 million, and $1.606 billion, respectively. Core Laboratory, Molecular Diagnostics, and Rapid Diagnostics COVID-19 testing-related sales in the third quarter of 2021 were $47 million, $218 million and $1.643 billion, respectively.
+-- more --
+Page 8 of 19
+
+Abbott Laboratories and Subsidiaries
+Condensed Consolidated Statement of Earnings
+Third Quarter Ended September 30, 2022 and 2021
+(in millions, except per share data)
+(unaudited)
+
+3Q22	3Q21	% Change
+Net Sales	$10,410	$10,928	(4.7)
+Cost of products sold, excluding amortization expense	4,629	4,423	4.7
+Amortization of intangible assets	498	520	(4.1)
+Research and development	782	672	16.2
+Selling, general, and administrative	2,731	2,767	(1.3)
+Total Operating Cost and Expenses	8,640	8,382	3.1
+Operating Earnings	1,770	2,546	(30.5)
+Interest expense, net	86	123	(29.3)
+Net foreign exchange (gain) loss	19	4	n/m
+Other (income) expense, net	(93)	(74)	25.4
+Earnings before taxes	1,758	2,493	(29.5)
+Taxes on earnings	323	393	(17.7)
+Net Earnings	$1,435	$2,100	(31.7)
+Net Earnings Excluding Specified Items, as described below	$2,036	$2,518	(19.2)	1)
+Diluted Earnings per Common Share	$0.81	$1.17	(30.8)
+Diluted Earnings per Common Share, excluding Specified Items, as described below	$1.15	$1.40	(17.9)	1)
+Average Number of Common Shares Outstanding Plus Dilutive Common Stock Options	1,764	1,789
+
+NOTES:
+See tables on page 13 for an explanation of certain non-GAAP financial information.
+n/m = Percent change is not meaningful.
+See footnotes on the following page.
+-- more --
+Page 9 of 19
+
+1)2022 Net Earnings and Diluted Earnings per Common Share, excluding Specified Items, excludes net after-tax charges of $601 million, or $0.34 per share, for intangible amortization, charges related to the impairment of R&D intangible assets, expenses associated with acquisitions, restructuring and cost reduction initiatives and other net expenses.
+
+2021 Net Earnings and Diluted Earnings per Common Share from Continuing Operations, excluding Specified Items, excludes net after-tax charges of $418 million, or $0.23 per share, for intangible amortization and other expenses primarily associated with restructuring actions and acquisitions, partially offset by a change in estimate to the restructuring actions recognized in the second quarter related to Abbott's manufacturing network for COVID-19 diagnostic tests to reflect current and projected demand.
+
+-- more --
+Page 10 of 19
+
+Abbott Laboratories and Subsidiaries
+Condensed Consolidated Statement of Earnings
+Nine Months Ended September 30, 2022 and 2021
+(in millions, except per share data)
+(unaudited)
+
+9M22	9M21	% Change
+Net Sales	$33,562	$31,607	6.2
+Cost of products sold, excluding amortization expense	14,549	13,771	5.6
+Amortization of intangible assets	1,517	1,533	(1.0)
+Research and development	2,163	1,980	9.2
+Selling, general, and administrative	8,275	8,276	—
+Total Operating Cost and Expenses	26,504	25,560	3.7
+Operating Earnings	7,058	6,047	16.7
+Interest expense, net	309	370	(16.3)
+Net foreign exchange (gain) loss	16	7	n/m
+Other (income) expense, net	(253)	(214)	18.3
+Earnings before taxes	6,986	5,884	18.7
+Taxes on earnings	1,086	802	35.5	1)
+Net Earnings	$5,900	$5,082	16.1
+Net Earnings Excluding Specified Items, as described below	$7,655	$7,001	9.3	2)
+Diluted Earnings per Common Share	$3.32	$2.83	17.3
+Diluted Earnings per Common Share, excluding Specified Items, as described below	$4.31	$3.89	10.8	2)
+Average Number of Common Shares Outstanding Plus Dilutive Common Stock Options	1,768	1,791
+
+NOTES:
+See tables on page 14 for an explanation of certain non-GAAP financial information.
+n/m = Percent change is not meaningful.
+See footnotes on the following page.
+
+-- more --
+Page 11 of 19
+
+1)2022 Taxes on Earnings includes the recognition of approximately $20 million of net tax expense as a result of the resolution of various tax positions related to prior years and approximately $36 million in excess tax benefits associated with share-based compensation.
+
+2021 Taxes on Earnings includes the recognition of approximately $97 million in excess tax benefits associated with share-based compensation.
+
+2)2022 Net Earnings and Diluted Earnings per Common Share, excluding Specified Items, excludes net after-tax charges of $1.755 billion, or $0.99 per share, for intangible amortization, charges related to a voluntary recall and the impairment of R&D intangible assets, acquisition-related costs and other net expenses.
+
+2021 Net Earnings and Diluted Earnings per Common Share from Continuing Operations, excluding Specified Items, excludes net after-tax charges of $1.919 billion, or $1.06 per share, for intangible amortization and other net expenses primarily associated with restructuring actions, certain litigation and acquisitions.
+
+-- more --
+Page 12 of 19
+
+Abbott Laboratories and Subsidiaries
+Non-GAAP Reconciliation of Financial Information
+Third Quarter Ended September 30, 2022 and 2021
+(in millions, except per share data)
+(unaudited)
+3Q22
+As Reported (GAAP)	Specified Items	As Adjusted	% to Sales
+Intangible Amortization	$	498	$	(498)	$	—
+Gross Margin	5,283	540	5,823	55.9	%
+R&D	782	(146)	636	6.1	%
+SG&A	2,731	(39)	2,692	25.9	%
+Other (income) expense, net	(93)	(4)	(97)
+Earnings before taxes	1,758	729	2,487
+Taxes on Earnings	323	128	451
+Net Earnings	1,435	601	2,036
+Diluted Earnings per Share	$	0.81	$	0.34	$	1.15
+
+Specified items reflect intangible amortization expense of $498 million and other net expenses of $231 million associated with the impairment of R&D intangible assets, costs associated with acquisitions and other expenses. See page 16 for additional details regarding specified items.
+3Q21
+As Reported (GAAP)	Specified Items	As Adjusted	% to Sales
+Intangible Amortization	$	520	$	(520)	$	—
+Gross Margin	5,985	445	6,430	58.8	%
+R&D	672	(21)	651	6.0	%
+SG&A	2,767	(30)	2,737	25.0	%
+Other (income) expense, net	(74)	7	(67)
+Earnings before taxes	2,493	489	2,982
+Taxes on Earnings	393	71	464
+Net Earnings	2,100	418	2,518
+Diluted Earnings per Share	$	1.17	$	0.23	$	1.40
+
+Specified items reflect intangible amortization expense of $520 million and net pretax income of $31 million, primarily associated with a change in estimate to the restructuring actions recognized in the second quarter of 2021, partially offset by costs associated with acquisitions and other expenses. See page 17 for additional details regarding specified items.
+-- more --
+Page 13 of 19
+
+Abbott Laboratories and Subsidiaries
+Non-GAAP Reconciliation of Financial Information
+Nine Months Ended September 30, 2022 and 2021
+(in millions, except per share data)
+(unaudited)
+9M22
+As Reported (GAAP)	Specified Items	As Adjusted	% to Sales
+Intangible Amortization	$	1,517	$	(1,517)	$	—
+Gross Margin	17,496	1,739	19,235	57.3	%
+R&D	2,163	(211)	1,952	5.8	%
+SG&A	8,275	(92)	8,183	24.4	%
+Other (income) expense, net	(253)	(31)	(284)
+Earnings before taxes	6,986	2,073	9,059
+Taxes on Earnings	1,086	318	1,404
+Net Earnings	5,900	1,755	7,655
+Diluted Earnings per Share	$	3.32	$	0.99	$	4.31
+Specified items reflect intangible amortization expense of $1.517 billion and other net expenses of $556 million that includes charges for the impairment of R&D intangible assets, costs associated with a product recall, acquisition-related costs, and other net expenses. See page 18 for additional details regarding specified items.
+9M21
+As Reported (GAAP)	Specified Items	As Adjusted	% to Sales
+Intangible Amortization	$	1,533	$	(1,533)	$	—
+Gross Margin	16,303	2,042	18,345	58.0	%
+R&D	1,980	(67)	1,913	6.1	%
+SG&A	8,276	(274)	8,002	25.3	%
+Other (income) expense, net	(214)	30	(184)
+Earnings before taxes	5,884	2,353	8,237
+Taxes on Earnings	802	434	1,236
+Net Earnings	5,082	1,919	7,001
+Diluted Earnings per Share	$	2.83	$	1.06	$	3.89
+
+Specified items reflect intangible amortization expense of $1.533 billion and other net expenses of $820 million, primarily associated with restructuring actions, certain litigation, acquisitions and other expenses. See page 19 for additional details regarding specified items.
+
+-- more --
+Page 14 of 19
+
+A reconciliation of the third-quarter tax rates for 2022 and 2021 is shown below:
+3Q22
+($ in millions)	Pre-Tax Income	Taxes on Earnings	Tax Rate
+As reported (GAAP)	$	1,758	$	323	18.4	%
+Specified items	729	128
+Excluding specified items	$	2,487	$	451	18.1	%
+3Q21
+($ in millions)	Pre-Tax Income	Taxes on Earnings	Tax Rate
+As reported (GAAP)	$	2,493	$	393	15.7	%
+Specified items	489	71
+Excluding specified items	$	2,982	$	464	15.5	%
+
+A reconciliation of the year-to-date tax rates for 2022 and 2021 is shown below:
+9M22
+($ in millions)	Pre-Tax Income	Taxes on Earnings	Tax Rate
+As reported (GAAP)	$	6,986	$	1,086	15.6	%	1)
+Specified items	2,073	318
+Excluding specified items	$	9,059	$	1,404	15.5	%
+9M21
+($ in millions)	Pre-Tax Income	Taxes on Earnings	Tax Rate
+As reported (GAAP)	$	5,884	$	802	13.6	%	2)
+Specified items	2,353	434
+Excluding specified items	$	8,237	$	1,236	15.0	%
+1)2022 Taxes on Earnings includes the recognition of approximately $20 million of net tax expense as a result of the resolution of various tax positions related to prior years and approximately $36 million in excess tax benefits associated with share-based compensation.
+
+2)2021 Tax expense on Earnings from Continuing Operations includes the recognition of approximately $97 million in excess tax benefits associated with share-based compensation.
+-- more --
+Page 15 of 19
+
+Abbott Laboratories and Subsidiaries
+Details of Specified Items
+Third Quarter Ended September 30, 2022
+(in millions, except per share data)
+(unaudited)
+
+Acquisition or Divestiture- related (a)	Restructuring and Cost Reduction Initiatives (b)	Intangible Amortization	Other (c)	Total Specifieds
+Gross Margin	$	15	$	11	$	498	$	16	$	540
+R&D	(3)	(3)	—	(140)	(146)
+SG&A	(13)	(5)	—	(21)	(39)
+Other (income) expense, net	(4)	—	—	—	(4)
+Earnings before taxes	$	35	$	19	$	498	$	177	729
+Taxes on Earnings (d)	128
+Net Earnings	$	601
+Diluted Earnings per Share	$	0.34
+The table above provides additional details regarding the specified items described on page 13.
+a)Acquisition-related expenses include integration costs, which represent incremental costs directly related to integrating the acquired businesses and include expenditures for the integration of systems, processes and business activities.
+b)Restructuring and cost reduction initiative expenses include severance, outplacement, and other direct costs associated with specific restructuring plans and cost reduction initiatives.
+c)Other includes charges related to an impairment of R&D intangible assets acquired in a business combination, incremental costs to comply with the European Union's Medical Device (MDR) and In Vitro Diagnostics Medical Device (IVDR) Regulations for previously approved products and costs related to certain litigation.
+d)Reflects the net tax benefit associated with the specified items.
+
+-- more --
+Page 16 of 19
+
+Abbott Laboratories and Subsidiaries
+Details of Specified Items
+Third Quarter Ended September 30, 2021
+(in millions, except per share data)
+(unaudited)
+
+Acquisition or Divestiture- related (a)	Restructuring and Cost Reduction Initiatives (b)	Intangible Amortization	Other (c)	Total Specifieds
+Gross Margin	$	16	$	(96)	$	520	$	5	$	445
+R&D	(4)	—	—	(17)	(21)
+SG&A	(12)	(23)	—	5	(30)
+Other (income) expense, net	6	—	—	1	7
+Earnings before taxes	$	26	$	(73)	$	520	$	16	489
+Taxes on Earnings (d)	71
+Net Earnings	$	418
+Diluted Earnings per Share	$	0.23
+
+The table above provides additional details regarding the specified items described on page 13.
+a)Acquisition-related expenses include integration costs, which represent incremental costs directly related to integrating the acquired businesses and include expenditures for the integration of systems, processes and business activities.
+b)Restructuring and cost reduction initiative expenses include severance, outplacement, and other direct costs associated with specific restructuring plans and cost reduction initiatives. Restructuring and cost reduction plans consist of distinct initiatives to streamline operations including the consolidation and rationalization of business activities and facilities, workforce reductions, the transfer of product lines between manufacturing facilities, and the transfer of other business activities between sites. The Gross Margin amount includes a credit associated with a change in estimate to the charges taken in the second quarter of 2021 for a restructuring plan related to Abbott's manufacturing network for COVID-19 diagnostic tests to reflect current and projected demand.
+c)Other includes incremental costs to comply with the European Union's MDR and IVDR Regulations for previously approved products.
+d)Reflects the net tax benefit associated with the specified items and excess tax benefits associated with share-based compensation.
+
+-- more --
+Page 17 of 19
+
+Abbott Laboratories and Subsidiaries
+Details of Specified Items
+Nine Months Ended September 30, 2022
+(in millions, except per share data)
+(unaudited)
+
+Acquisition or Divestiture-related (a)	Restructuring and Cost Reduction Initiatives (b)	Intangible Amortization	Other (c)	Total Specifieds
+Gross Margin	$	56	$	(1)	$	1,517	$	167	$	1,739
+R&D	(10)	(4)	—	(197)	(211)
+SG&A	(31)	(5)	—	(56)	(92)
+Other (income) expense, net	(15)	—	—	(16)	(31)
+Earnings before taxes	$	112	$	8	$	1,517	$	436	2,073
+Taxes on Earnings (d)	318
+Net Earnings	$	1,755
+Diluted Earnings per Share	$	0.99
+The table above provides additional details regarding the specified items described on page 14.
+
+a)Acquisition-related expenses include integration costs, which represent incremental costs directly related to integrating the acquired businesses and include expenditures for the integration of systems, processes and business activities.
+b)Restructuring and cost reduction initiative expenses include severance, outplacement, and other direct costs associated with specific restructuring plans and cost reduction initiatives. The Gross Margin amount includes a credit associated with the charges taken in the second quarter of 2021 for a restructuring plan related to Abbott's manufacturing network for COVID-19 diagnostic tests.
+c)Other primarily relates to the net costs related to a voluntary recall within the Nutrition segment, charges associated with the impairment of R&D intangible assets acquired in a business combination, incremental costs to comply with the European Union's MDR and IVDR Regulations for previously approved products and costs related to certain litigation.
+d)Reflects the net tax benefit associated with the specified items, excess tax benefits associated with share-based compensation and net tax expense as a result of the resolution of various tax positions related to prior years.
+
+-- more --
+Page 18 of 19
+
+Abbott Laboratories and Subsidiaries
+Details of Specified Items
+Nine Months Ended September 30, 2021
+(in millions, except per share data)
+(unaudited)
+
+Acquisition or Divestiture- related (a)	Restructuring and Cost Reduction Initiatives (b)	Intangible Amortization	Other (c)	Total Specifieds
+Gross Margin	$	56	$	433	$	1,533	$	20	$	2,042
+R&D	(9)	1	—	(59)	(67)
+SG&A	(43)	(22)	—	(209)	(274)
+Other (income) expense, net	3	1	—	26	30
+Earnings before taxes	$	105	$	453	$	1,533	$	262	2,353
+Taxes on Earnings (d)	434
+Net Earnings	$	1,919
+Diluted Earnings per Share	$	1.06
+The table above provides additional details regarding the specified items described on page 14.
+a)Acquisition-related expenses include integration costs, which represent incremental costs directly related to integrating the acquired businesses and include expenditures for the integration of systems, processes and business activities.
+b)Restructuring and cost reduction initiative expenses include severance, outplacement, and other direct costs associated with specific restructuring plans and cost reduction initiatives. Restructuring and cost reduction plans consist of distinct initiatives to streamline operations including the consolidation and rationalization of business activities and facilities, workforce reductions, the transfer of product lines between manufacturing facilities, and the transfer of other business activities between sites. The Gross Margin amount includes charges associated with a restructuring plan to align Abbott's manufacturing network for COVID-19 diagnostic tests with changes during the year in current and projected testing demand.
+c)Other primarily relates to the costs related to certain litigation, the acquisition of a research and development asset, the impairments of an equity investment and an intangible asset, and the gain on the disposition of an equity method investment.
+d)Reflects the net tax benefit associated with the specified items and excess tax benefits associated with share-based compensation.
+###
+Page 19 of 19

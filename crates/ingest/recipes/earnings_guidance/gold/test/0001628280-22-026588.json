@@ -1,0 +1,83 @@
+{
+ "accession": "0001628280-22-026588",
+ "cik": 1800,
+ "published_at": "2022-10-19T11:58:37Z",
+ "note": "Included the COVID-19 testing sales assumption ($7.8B FY, $0.5B Q4) and the $1.42/share specified items forecast as 'other' guidance facts.",
+ "facts": [
+  {
+   "fields": {
+    "metric": "eps_gaap",
+    "metric_label": "diluted earnings per share under GAAP",
+    "basis": "gaap",
+    "period_label": "full-year 2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": null,
+    "low": 3.75,
+    "high": 3.81,
+    "unit": "usd_per_share",
+    "stated_action": "raised"
+   },
+   "evidence": "Abbott is raising its projected full-year 2022 diluted earnings per share under GAAP to $3.75 to $3.81."
+  },
+  {
+   "fields": {
+    "metric": "eps_adjusted",
+    "metric_label": "adjusted diluted earnings per share",
+    "basis": "non_gaap",
+    "period_label": "full-year 2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": null,
+    "low": 5.17,
+    "high": 5.23,
+    "unit": "usd_per_share",
+    "stated_action": "raised"
+   },
+   "evidence": "Excluding specified items, Abbott is raising its projected adjusted diluted earnings per share to $5.17 to $5.23 for the full-year 2022."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "specified items",
+    "basis": "not_stated",
+    "period_label": "full-year 2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": null,
+    "low": 1.42,
+    "high": 1.42,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Abbott forecasts specified items for the full-year 2022 of $1.42 per share primarily related to intangible amortization, costs related to a voluntary recall, asset impairments, expenses associated with acquisitions, restructurings and cost reduction initiatives and other net expenses."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "COVID-19 testing-related sales",
+    "basis": "not_stated",
+    "period_label": "Full-year 2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": null,
+    "low": 7800000000.0,
+    "high": 7800000000.0,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Full-year 2022 guidance assumes COVID-19 testing-related sales of $7.8 billion, which includes sales of $7.3 billion through September 2022 and projected sales of $0.5 billion in the fourth quarter."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "COVID-19 testing-related sales",
+    "basis": "not_stated",
+    "period_label": "fourth quarter",
+    "fiscal_year": 2022,
+    "fiscal_quarter": 4,
+    "low": 500000000.0,
+    "high": 500000000.0,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Full-year 2022 guidance assumes COVID-19 testing-related sales of $7.8 billion, which includes sales of $7.3 billion through September 2022 and projected sales of $0.5 billion in the fourth quarter."
+  }
+ ]
+}

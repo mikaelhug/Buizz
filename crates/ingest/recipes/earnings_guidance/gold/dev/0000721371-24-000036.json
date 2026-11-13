@@ -1,0 +1,172 @@
+{
+ "accession": "0000721371-24-000036",
+ "cik": 721371,
+ "published_at": "2024-05-02T10:50:35Z",
+ "facts": [
+  {
+   "fields": {
+    "metric": "eps_adjusted",
+    "metric_label": "Non-GAAP diluted earnings per share attributable to Cardinal Health, Inc.",
+    "basis": "non_gaap",
+    "period_label": "fiscal year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 7.3,
+    "high": 7.4,
+    "unit": "usd_per_share",
+    "stated_action": "raised"
+   },
+   "evidence": "The company raised and narrowed its fiscal year 2024 guidance range for non-GAAP diluted earnings per share attributable to Cardinal Health, Inc. to $7.30 to $7.40, from $7.20 to $7.35."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Pharmaceutical and Specialty Solutions segment profit",
+    "basis": "not_stated",
+    "period_label": "fiscal year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 8.5,
+    "high": 9.5,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "This guidance includes an update to the company\u2019s Pharmaceutical and Specialty Solutions segment profit outlook to 8.5% to 9.5% growth, from 7% to 9% growth."
+  },
+  {
+   "fields": {
+    "metric": "tax_rate",
+    "metric_label": "non-GAAP effective tax rate",
+    "basis": "non_gaap",
+    "period_label": "fiscal year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 22,
+    "high": 23,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Additionally, the company updated expectations for its non-GAAP effective tax rate to a range of 22% to 23%, from 23% to 24%."
+  },
+  {
+   "fields": {
+    "metric": "eps_adjusted",
+    "metric_label": "Non-GAAP Diluted EPS",
+    "basis": "non_gaap",
+    "period_label": "fiscal year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 7.5,
+    "high": null,
+    "unit": "usd_per_share",
+    "stated_action": "initiated"
+   },
+   "evidence": "Non-GAAP Diluted EPS\tAt least $7.50"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Pharmaceutical and Specialty Solutions Segment profit growth",
+    "basis": "not_stated",
+    "period_label": "fiscal year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 1,
+    "high": null,
+    "unit": "percent_growth",
+    "stated_action": "initiated"
+   },
+   "evidence": "Pharmaceutical and Specialty Solutions\tAt least 1% Segment profit growth"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Global Medical Products and Distribution Segment profit",
+    "basis": "not_stated",
+    "period_label": "fiscal year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 175000000.0,
+    "high": 175000000.0,
+    "unit": "usd",
+    "stated_action": "initiated"
+   },
+   "evidence": "Global Medical Products and Distribution\t~$175M Segment profit"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Other Segment profit growth",
+    "basis": "not_stated",
+    "period_label": "fiscal year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 10,
+    "high": 10,
+    "unit": "percent_growth",
+    "stated_action": "initiated"
+   },
+   "evidence": "Other4\t~10% Segment profit growth"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Interest and Other",
+    "basis": "not_stated",
+    "period_label": "fiscal year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 160000000.0,
+    "high": 190000000.0,
+    "unit": "usd",
+    "stated_action": "initiated"
+   },
+   "evidence": "Interest and Other\t$160M to $190M"
+  },
+  {
+   "fields": {
+    "metric": "tax_rate",
+    "metric_label": "Non-GAAP Effective Tax Rate",
+    "basis": "non_gaap",
+    "period_label": "fiscal year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 23,
+    "high": 24,
+    "unit": "percent",
+    "stated_action": "initiated"
+   },
+   "evidence": "Non-GAAP Effective Tax Rate\t23% to 24%"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Diluted weighted average shares outstanding",
+    "basis": "not_stated",
+    "period_label": "fiscal year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 244000000.0,
+    "high": 245000000.0,
+    "unit": "other",
+    "stated_action": "initiated"
+   },
+   "evidence": "Diluted weighted average shares outstanding\t244M to 245M"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Baseline share repurchases",
+    "basis": "not_stated",
+    "period_label": "fiscal year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 500000000.0,
+    "high": 500000000.0,
+    "unit": "usd",
+    "stated_action": "initiated"
+   },
+   "evidence": "Baseline share repurchases\t$500M"
+  }
+ ]
+}

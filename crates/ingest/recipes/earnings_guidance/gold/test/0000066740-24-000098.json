@@ -1,0 +1,158 @@
+{
+ "accession": "0000066740-24-000098",
+ "cik": 66740,
+ "published_at": "2024-10-22T10:35:33Z",
+ "note": "'raising its full-year adjusted earnings expectations' applied to adjusted EPS only; sales lines 'Updating' -> not_stated. Forecast sales-change table: GAAP Total Company row gives organic/divestitures/translation/total facts; Adjusted row's organic and total duplicate the outlook-table facts, so only its divestitures/translation added. GAAP-row 'Organic sales' basis non_gaap per the organic rule. Acquisitions '—' skipped.",
+ "facts": [
+  {
+   "fields": {
+    "metric": "revenue",
+    "metric_label": "Adjusted total sales growth",
+    "basis": "non_gaap",
+    "period_label": "2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 1,
+    "high": 1,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Adjusted total sales growth\t(0.25%) to +1.75%\t~1%"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Adjusted organic sales growth",
+    "basis": "non_gaap",
+    "period_label": "2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 1,
+    "high": 1,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Adjusted organic sales growth\tflat to +2%\t~1%"
+  },
+  {
+   "fields": {
+    "metric": "eps_adjusted",
+    "metric_label": "Adjusted EPS",
+    "basis": "non_gaap",
+    "period_label": "2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 7.2,
+    "high": 7.3,
+    "unit": "usd_per_share",
+    "stated_action": "raised"
+   },
+   "evidence": "Adjusted EPS\t$7.00 to $7.30\t$7.20 to $7.30"
+  },
+  {
+   "fields": {
+    "metric": "tax_rate",
+    "metric_label": "adjusted effective tax rate",
+    "basis": "non_gaap",
+    "period_label": "2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 19,
+    "high": 20,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "2024 adjusted effective tax rate (non-GAAP measure)4,6\t19% to 20%"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Organic sales",
+    "basis": "non_gaap",
+    "period_label": "Full-Year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 1,
+    "high": 1,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Total Company6\t~1%\t—\t%\t~0.75%\t~(0.75)%\t~1%"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Divestitures",
+    "basis": "not_stated",
+    "period_label": "Full-Year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 0.75,
+    "high": 0.75,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Total Company6\t~1%\t—\t%\t~0.75%\t~(0.75)%\t~1%"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Translation",
+    "basis": "not_stated",
+    "period_label": "Full-Year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": -0.75,
+    "high": -0.75,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Total Company6\t~1%\t—\t%\t~0.75%\t~(0.75)%\t~1%"
+  },
+  {
+   "fields": {
+    "metric": "revenue",
+    "metric_label": "Total sales change",
+    "basis": "not_stated",
+    "period_label": "Full-Year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 1,
+    "high": 1,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Total Company6\t~1%\t—\t%\t~0.75%\t~(0.75)%\t~1%"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Adjusted total Company Divestitures",
+    "basis": "non_gaap",
+    "period_label": "Full-Year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 0.75,
+    "high": 0.75,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Adjusted total Company (non-GAAP measures)4,6\t~1%\t—\t%\t~0.75%\t~(0.75)%\t~1%"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Adjusted total Company Translation",
+    "basis": "non_gaap",
+    "period_label": "Full-Year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": -0.75,
+    "high": -0.75,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Adjusted total Company (non-GAAP measures)4,6\t~1%\t—\t%\t~0.75%\t~(0.75)%\t~1%"
+  }
+ ]
+}

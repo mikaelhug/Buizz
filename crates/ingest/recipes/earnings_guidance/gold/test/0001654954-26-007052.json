@@ -1,0 +1,53 @@
+{
+ "accession": "0001654954-26-007052",
+ "cik": 1707925,
+ "published_at": "2026-07-31T11:24:29Z",
+ "note": "EPS growth percentages (6-8%, 8-9%) not split into separate facts, consistent with the dev Linde label.",
+ "facts": [
+  {
+   "fields": {
+    "metric": "eps_adjusted",
+    "metric_label": "adjusted diluted earnings per share",
+    "basis": "non_gaap",
+    "period_label": "third quarter of 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": 3,
+    "low": 4.45,
+    "high": 4.55,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "For the third quarter of 2026, Linde expects adjusted diluted earnings per share in the range of $4.45 to $4.55, up 6% to 8% versus prior-year quarter, with no expected impact from foreign currency translation."
+  },
+  {
+   "fields": {
+    "metric": "eps_adjusted",
+    "metric_label": "adjusted EPS",
+    "basis": "non_gaap",
+    "period_label": "full year 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": null,
+    "low": 17.7,
+    "high": 17.9,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Full-year 2026 adjusted EPS guidance of $17.70 - $17.90 representing 8% to 9% growth"
+  },
+  {
+   "fields": {
+    "metric": "capex",
+    "metric_label": "capital expenditures",
+    "basis": "not_stated",
+    "period_label": "full year 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": null,
+    "low": 5500000000,
+    "high": 6000000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Full-year capital expenditures are expected to be in the range of $5.5 billion to $6.0 billion to support growth and maintenance requirements including the $8.1 billion contractual sale of gas project backlog."
+  }
+ ]
+}

@@ -37,7 +37,8 @@ struct Fake {
     rate_limited: Mutex<BTreeMap<&'static str, u32>>,
     stream_accounts: usize,
     subscriptions: Mutex<BTreeMap<String, BTreeSet<Symbol>>>,
-    batch: Mutex<Vec<String>>,
+    batch: Mutex<Vec<(String, String)>>,
+    gold: BTreeMap<String, String>,
 }
 
 impl Fake {
@@ -97,6 +98,7 @@ impl FakeProviders {
             stream_accounts,
             subscriptions: Mutex::default(),
             batch: Mutex::default(),
+            gold: gold_answers(),
         });
         let router = Router::new()
             .route("/v2/calendar", get(calendar))
@@ -130,7 +132,7 @@ impl FakeProviders {
             .route("/earningsinsight", get(latest_earnings_insight))
             .route("/hubfs/{*file}", get(earnings_insight))
             .route("/cdx/search/cdx", get(|| async { "" }))
-            .route("/v1/messages", post(|| async { Json(claude_message()) }))
+            .route("/v1/messages", post(claude_messages))
             .route("/v1/messages/batches", post(create_batch))
             .route("/v1/messages/batches/{id}", get(claude_batch))
             .route("/v1/messages/batches/{id}/results", get(batch_results))
@@ -773,13 +775,58 @@ async fn earnings_insight(State(fake): State<Arc<Fake>>, Path(file): Path<String
     }
 }
 
-fn claude_message() -> Value {
+fn gold_answers() -> BTreeMap<String, String> {
+    let mut answers = BTreeMap::new();
+    let recipes = crate::world::repository().join("crates/ingest/recipes");
+    for recipe in std::fs::read_dir(recipes).into_iter().flatten().flatten() {
+        let test = recipe.path().join("gold/test");
+        for label in std::fs::read_dir(test).into_iter().flatten().flatten() {
+            let path = label.path();
+            if path.extension().is_none_or(|extension| extension != "json") {
+                continue;
+            }
+            let label: Value =
+                serde_json::from_str(&std::fs::read_to_string(&path).expect("a gold label"))
+                    .expect("a gold label is JSON");
+            let text = std::fs::read_to_string(path.with_extension("txt")).expect("a gold text");
+            answers.insert(text, json!({"facts": label["facts"]}).to_string());
+        }
+    }
+    answers
+}
+
+impl Fake {
+    fn claude_answer(&self, messages: &Value) -> String {
+        let turns = messages.as_array().map_or(&[][..], Vec::as_slice);
+        let document = turns
+            .first()
+            .and_then(|turn| turn["content"].as_str())
+            .unwrap_or_default();
+        if let Some(answer) = self.gold.get(document) {
+            return answer.clone();
+        }
+        let told = turns.len() == 3
+            && turns[2]["content"]
+                .as_str()
+                .is_some_and(|failure| failure.contains("is not written in the evidence"));
+        self.world()
+            .claude
+            .iter()
+            .find(|answer| document.contains(&answer.reading))
+            .map_or_else(
+                || json!({"facts": []}).to_string(),
+                |answer| if told { &answer.told } else { &answer.first }.to_string(),
+            )
+    }
+}
+
+fn claude_message(text: &str) -> Value {
     json!({
         "id": "msg_e2e",
         "type": "message",
         "role": "assistant",
         "model": "claude-haiku-5-5",
-        "content": [{"type": "text", "text": "{}"}],
+        "content": [{"type": "text", "text": text}],
         "stop_reason": "end_turn",
         "stop_details": null,
         "usage": {
@@ -789,6 +836,10 @@ fn claude_message() -> Value {
             "cache_read_input_tokens": 1500,
         },
     })
+}
+
+async fn claude_messages(State(fake): State<Arc<Fake>>, Json(request): Json<Value>) -> Response {
+    Json(claude_message(&fake.claude_answer(&request["messages"]))).into_response()
 }
 
 fn claude_batch_status(fake: &Fake) -> Value {
@@ -812,13 +863,18 @@ fn claude_batch_status(fake: &Fake) -> Value {
 }
 
 async fn create_batch(State(fake): State<Arc<Fake>>, Json(request): Json<Value>) -> Response {
-    let custom_ids = request["requests"]
+    let answered = request["requests"]
         .as_array()
         .into_iter()
         .flatten()
-        .filter_map(|request| request["custom_id"].as_str().map(str::to_owned))
+        .filter_map(|request| {
+            Some((
+                request["custom_id"].as_str()?.to_owned(),
+                fake.claude_answer(&request["params"]["messages"]),
+            ))
+        })
         .collect();
-    *fake.batch.lock().unwrap_or_else(PoisonError::into_inner) = custom_ids;
+    *fake.batch.lock().unwrap_or_else(PoisonError::into_inner) = answered;
     Json(claude_batch_status(&fake)).into_response()
 }
 
@@ -831,10 +887,10 @@ async fn batch_results(State(fake): State<Arc<Fake>>) -> Response {
     batch
         .iter()
         .rev()
-        .map(|custom_id| {
+        .map(|(custom_id, answer)| {
             let line = json!({
                 "custom_id": custom_id,
-                "result": {"type": "succeeded", "message": claude_message()},
+                "result": {"type": "succeeded", "message": claude_message(answer)},
             });
             format!("{line}\n")
         })

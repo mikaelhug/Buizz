@@ -1,0 +1,371 @@
+Press Release
+
+Fortinet Reports Fourth Quarter and Full Year 2022 Financial Results
+
+Fourth Quarter 2022 Highlights
+
+•Product revenue of $540.1 million, up 43% year over year
+•Service revenue of $742.9 million, up 27% year over year
+•Total revenue of $1.28 billion, up 33% year over year
+•Billings of $1.72 billion, up 32% year over year1
+•GAAP operating income of $357.8 million, up 66% year over year
+•Non-GAAP operating income of $417.6 million, up 52% year over year1
+•GAAP operating margin of 27.9%
+•Non-GAAP operating margin of 32.5%1
+•GAAP diluted net income per share attributable to Fortinet, Inc. of $0.40, up 67% year over year2
+•Non-GAAP diluted net income per share attributable to Fortinet, Inc. of $0.44, up 76% year over year1 2
+•Cash flow from operations of $528.1 million
+•Free cash flow of $497.2 million1
+
+Full Year 2022 Highlights
+
+•Product revenue of $1.78 billion, up 42% year over year
+•Service revenue of $2.64 billion, up 26% year over year
+•Total revenue of $4.42 billion, up 32% year over year
+•Billings of $5.59 billion, up 34% year over year1
+•Deferred revenue of $4.64 billion, up 34% year over year
+•GAAP operating income of $969.6 million, up 49% year over year
+•Non-GAAP operating income of $1.21 billion, up 38% year over year1
+•GAAP operating margin of 21.9%
+•Non-GAAP operating margin of 27.3%1
+•GAAP diluted net income per share attributable to Fortinet, Inc. of $1.06, up 45% year over year2
+•Non-GAAP diluted net income per share attributable to Fortinet, Inc. of $1.19, up 49% year over year1 2
+•Cash flow from operations of $1.73 billion
+•Free cash flow of $1.45 billion1
+•Cash paid for share repurchases of $1.99 billion
+
+SUNNYVALE, Calif. - February 7, 2023 - Fortinet® (Nasdaq: FTNT), a global leader in broad, integrated and automated cybersecurity solutions, today announced financial results for the fourth quarter and full year ended December 31, 2022.
+
+“Total revenue grew 32% in 2022 and year-over-year to $4.42 billion, and we generated GAAP net income of $857.3 million. This marks the 14th consecutive year that we have been GAAP profitable, including every year since our 2009 IPO. Cash flow from operations was $1.73 billion
+
+and free cash flow was a Fortinet record of $1.45 billion for the year,” said Ken Xie, Founder, Chairman and Chief Executive Officer. “Our market share gains are being driven by Fortinet's integrated and single platform approach to cybersecurity combined with FortiASIC technology, which lowers the management costs and the total cost of ownership for organizations. Given our cost-for-performance advantage, the convergence of security and networking, and the consolidation of products and vendors, we expect to continue our solid growth trajectory.”
+
+Financial Highlights for the Fourth Quarter of 2022
+
+•Product Revenue: Product revenue was $540.1 million for the fourth quarter of 2022, an increase of 42.5% compared to $378.9 million for the same quarter of 2021.
+
+•Service Revenue: Service revenue was $742.9 million for the fourth quarter of 2022, an increase of 27.1% compared to $584.7 million for the same quarter of 2021.
+
+•Revenue: Total revenue was $1.28 billion for the fourth quarter of 2022, an increase of 33.1% compared to $963.6 million for the same quarter of 2021.
+
+•Billings1: Total billings were $1.72 billion for the fourth quarter of 2022, an increase of 31.6% compared to $1.31 billion for the same quarter of 2021.
+
+•GAAP Operating Income and Margin: GAAP operating income was $357.8 million for the fourth quarter of 2022, representing a GAAP operating margin of 27.9%. GAAP operating income was $214.9 million for the same quarter of 2021, representing a GAAP operating margin of 22.3%.
+
+•Non-GAAP Operating Income and Margin1: Non-GAAP operating income was $417.6 million for the fourth quarter of 2022, representing a non-GAAP operating margin of 32.5%. Non-GAAP operating income was $274.7 million for the same quarter of 2021, representing a non-GAAP operating margin of 28.5%.
+
+•GAAP Net Income and Diluted Net Income Per Share Attributable to Fortinet, Inc.2: GAAP net income was $313.8 million for the fourth quarter of 2022, compared to GAAP net income of $199.0 million for the same quarter of 2021. GAAP diluted net income per share was $0.40 for the fourth quarter of 2022, based on 791.8 million diluted weighted-average shares outstanding, compared to GAAP diluted net income per share of $0.24 for the same quarter of 2021, based on 835.0 million diluted weighted-average shares outstanding.
+
+•Non-GAAP Net Income and Diluted Net Income Per Share Attributable to Fortinet, Inc.1 2: Non-GAAP net income was $349.7 million for the fourth quarter of 2022, compared to non-GAAP net income of $205.8 million for the same quarter of 2021. Non-GAAP diluted net income per share was $0.44 for the fourth quarter of 2022, based on 791.8 million diluted weighted-average shares outstanding, compared to $0.25 for the same quarter of 2021, based on 835.0 million diluted weighted-average shares outstanding.
+
+•Cash Flow: Cash flow from operations was $528.1 million for the fourth quarter of 2022, compared to $366.8 million for the same quarter of 2021.
+
+•Free Cash Flow1: Free cash flow was $497.2 million for the fourth quarter of 2022, compared to $215.5 million for the same quarter of 2021.
+
+Financial Highlights for the Full Year 2022
+
+•Product Revenue: Product revenue was $1.78 billion for 2022, an increase of 41.9% compared to $1.26 billion in 2021.
+
+•Service Revenue: Service revenue was $2.64 billion for 2022, an increase of 26.3% compared to $2.09 billion in 2021.
+
+•Revenue: Total revenue was $4.42 billion for 2022, an increase of 32.2% compared to $3.34 billion in 2021.
+
+•Billings1: Total billings were $5.59 billion for 2022, an increase of 33.8% compared to $4.18 billion in 2021.
+
+•Deferred Revenue: Total deferred revenue was $4.64 billion as of December 31, 2022, an increase of 34.4% compared to $3.45 billion as of December 31, 2021.
+
+•GAAP Operating Income and Margin: GAAP operating income was $969.6 million for 2022, representing a GAAP operating margin of 21.9%. GAAP operating income was $650.4 million for 2021, representing a GAAP operating margin of 19.5%.
+
+•Non-GAAP Operating Income and Margin1: Non-GAAP operating income was $1.21 billion for 2022, representing a non-GAAP operating margin of 27.3%. Non-GAAP operating income was $875.5 million for 2021, representing a non-GAAP operating margin of 26.2%.
+
+•GAAP Net Income and Diluted Net Income Per Share Attributable to Fortinet, Inc.2: GAAP net income was $857.3 million for 2022, compared to GAAP net income of $606.8 million for 2021. GAAP diluted net income per share was $1.06 for 2022, based on 805.3 million diluted weighted-average shares outstanding, compared to GAAP diluted net income per share of $0.73 for 2021, based on 835.3 million diluted weighted-average shares outstanding.
+
+•Non-GAAP Net Income and Diluted Net Income Per Share Attributable to Fortinet, Inc.1 2: Non-GAAP net income was $961.6 million for 2022, compared to non-GAAP net income of $666.0 million for 2021. Non-GAAP diluted net income per share was $1.19 for 2022, based on 805.3 million diluted weighted-average shares outstanding, compared to $0.80 for 2021, based on 835.3 million diluted weighted-average shares outstanding.
+
+•Cash Flow: Cash flow from operations was $1.73 billion in 2022 compared to $1.50 billion in 2021.
+
+•Free Cash Flow1: Free cash flow was $1.45 billion in 2022, compared to $1.20 billion in 2021.
+
+•Share Repurchase Program2: During the year ended December 31, 2022 and 2021, Fortinet repurchased 36.0 million and 12.9 million shares of its common stock at an average price of $55.37 and $57.45 per share, respectively, and for an aggregate purchase price of $1.99 billion and $741.8 million, respectively.
+
+Guidance
+
+For the first quarter of 2023, Fortinet currently expects:
+
+•Revenue in the range of $1.180 billion to $1.220 billion
+•Billings in the range of $1.415 billion to $1.465 billion
+•Non-GAAP gross margin in the range of 75.0% to 76.0%
+•Non-GAAP operating margin in the range of 23.0% to 24.0%
+•Diluted non-GAAP net income per share attributable to Fortinet, Inc. in the range of $0.27 to $0.29, assuming a non-GAAP effective tax rate of 17%. This assumes a diluted share count of 795 million to 805 million.
+
+For the fiscal year 2023, Fortinet currently expects:
+
+•Revenue in the range of $5.370 billion to $5.430 billion
+•Service revenue in the range of $3.335 billion to $3.365 billion
+•Billings in the range of $6.710 billion to $6.790 billion
+•Non-GAAP gross margin in the range of 75.0% to 76.0%
+•Non-GAAP operating margin in the range of 25.0% to 26.0%
+•Diluted non-GAAP net income per share attributable to Fortinet, Inc. in the range of $1.39 to $1.41, assuming a non-GAAP effective tax rate of 17%. This assumes a diluted share count of 805 million to 815 million.
+
+These statements are forward looking and actual results may differ materially. Refer to the Forward-Looking Statements section below for information on the factors that could cause our actual results to differ materially from these forward-looking statements.
+
+Our guidance with respect to non-GAAP financial measures excludes stock-based compensation, amortization of acquired intangible assets and gain on intellectual property matters. We have not reconciled our guidance with respect to non-GAAP financial measures to the corresponding GAAP measures because certain items that impact these measures are uncertain or out of our control, or cannot be reasonably predicted. Accordingly, a reconciliation of these non-GAAP financial measures to the corresponding GAAP measures is not available without unreasonable effort.
+
+1 A reconciliation of GAAP to non-GAAP measures has been provided in the financial statement tables included in this press release. An explanation of these measures is also included below under the heading “Non-GAAP Financial Measures”.
+2 All share and per share amounts presented herein have been retroactively adjusted to reflect the five-for-one forward stock split which was effective June 22, 2022.
+
+Conference Call Details
+
+Fortinet will host a conference call today at 1:30 p.m. Pacific Time (4:30 p.m. Eastern Time) to discuss the earnings results. A live webcast of the conference call and supplemental slides will be accessible from the Investor Relations page of Fortinet’s website at https://investor.fortinet.com and a replay will be archived and accessible at https://investor.fortinet.com/events-and-presentations.
+
+First Quarter 2023 Conference Participation Schedule:
+
+•Baird’s Silicon Slopes Event
+March 2, 2023
+
+•Morgan Stanley Technology, Media & Telecom Conference
+March 7, 2023
+
+Members of Fortinet’s management team are expected to present at these conferences and discuss the latest company strategies and initiatives. Fortinet’s conference presentations are expected to be available via webcast on the company’s web site. To access the most updated information, pre-register and listen to the webcast of each event, please visit the Investor Presentation & Events page of Fortinet’s website at https://investor.fortinet.com/events-and-presentations. The schedule is subject to change.
+
+About Fortinet (www.fortinet.com)
+
+Fortinet (NASDAQ: FTNT) makes possible a digital world that we can trust through its mission to protect people, devices and data everywhere. This is why many of the world’s largest enterprises, service providers and government organizations choose Fortinet to securely accelerate their digital journey. The Fortinet Core Platform and Platform Extension products deliver broad, integrated and automated protections across the entire digital attack surface, securing critical devices, data, applications, and connections from the data center to the cloud to the home office. The Fortinet NSE Training Institute, an initiative of Fortinet’s Training Advancement Agenda, provides one of the largest and broadest training programs in the industry to make cyber training and new career opportunities available to everyone. Learn more at https://www.fortinet.com, the Fortinet Blog or FortiGuard Labs.
+# # #
+Copyright © 2022 Fortinet, Inc. All rights reserved. The symbols ® and ™ denote respectively federally registered trademarks and common law trademarks of Fortinet, Inc., its subsidiaries and affiliates. Fortinet’s trademarks include, but are not limited to, the following: Fortinet, the Fortinet logo, FortiGate, FortiOS, FortiGuard, FortiCare, FortiAnalyzer, FortiManager, FortiASIC, FortiClient, FortiCloud, FortiMail, FortiSandbox, FortiADC, FortiAI, FortiAIOps, FortiAntenna, FortiAP, FortiAPCam, FortiAuthenticator, FortiCache, FortiCall, FortiCam, FortiCamera, FortiCarrier, FortiCASB, FortiCentral, FortiCNP, FortiConnect, FortiController, FortiConverter, FortiCWP, FortiDB, FortiDDoS, FortiDeceptor, FortiDeploy, FortiDevSec, FortiEDR, FortiExplorer, FortiExtender, FortiFirewall, FortiFone, FortiGSLB, FortiGuest, FortiHypervisor, FortiInsight, FortiIsolator, FortiLAN, FortiLink, FortiMonitor, FortiNAC, FortiNDR, FortiPenTest, FortiPhish, FortiPolicy, FortiPortal, FortiPresence, FortiProxy, FortiRecon, FortiRecorder, FortiSASE, FortiSDNConnector, FortiSIEM, FortiSMS, FortiSOAR, FortiSwitch, FortiTester, FortiToken, FortiTrust, FortiVoice, FortiWAN, FortiWeb, FortiWiFi, FortiWLC, FortiWLM and FortiXDR. Other trademarks belong to their respective owners. Fortinet has not independently verified statements or certifications herein attributed to third parties and Fortinet does not independently endorse such statements. Notwithstanding anything to the contrary herein, nothing herein constitutes a warranty, guarantee, contract, binding specification or other binding commitment by Fortinet or any indication of intent related to a binding commitment, and performance and other specification information herein may be unique to certain environments.
+
+FTNT-F
+
+Forward-Looking Statements
+
+This press release contains forward-looking statements that involve risks and uncertainties. These forward-looking statements include statements regarding any indications related to future market share gains, guidance and expectations around future financial results, including guidance and expectations for the first quarter and full year 2023, statements regarding the momentum in our business and future growth expectations, and any statements regarding our market opportunity and market size, and business momentum. Although we attempt to be
+
+accurate in making forward-looking statements, it is possible that future circumstances might differ from the assumptions on which such statements are based such that actual results are materially different from our forward-looking statements in this release. Important factors that could cause results to differ materially from the statements herein include the following: general economic risks, including those caused by economic challenges, expectations of a recession or any actual recession, and the effects of increased inflation and interest rates in certain geographies or as a result of the COVID-19 pandemic and the war in Ukraine; supply chain challenges due to the current global environment; negative impacts from the COVID-19 pandemic on sales, billings, revenue, demand and buying patterns, component supply and ability to manufacture products to meet demand in a timely fashion, and costs such as possible increased costs for shipping and components; global economic conditions, country-specific economic conditions, and foreign currency risks; competitiveness in the security market; the dynamic nature of the security market and its products and services; specific economic risks worldwide and in different geographies, and among different customer segments; uncertainty regarding demand and increased business and renewals from existing customers; uncertainties around continued success in sales growth and market share gains; uncertainties in market opportunities and the market size; actual or perceived vulnerabilities in our supply chain, products or services, and any actual or perceived breach of our network or our customers’ networks; longer sales cycles, particularly for larger enterprise, service providers, government and other large organization customers; the effectiveness of our salesforce and failure to convert sales pipeline into final sales; risks associated with successful implementation of multiple integrated software products and other product functionality risks; risks associated with integrating acquisitions and changes in circumstances and plans associated therewith, including, among other risks, changes in plans related to product and services integrations, product and services plans and sales strategies; sales and marketing execution risks; execution risks around new product development and introductions and innovation; litigation and disputes and the potential cost, distraction and damage to sales and reputation caused thereby or by other factors; cybersecurity threats, breaches and other disruptions; market acceptance of new products and services; the ability to attract and retain personnel; changes in strategy; risks associated with management of growth; lengthy sales and implementation cycles, particularly in larger organizations; technological changes that make our products and services less competitive; risks associated with the adoption of, and demand for, our products and services in general and by specific customer segments, including those caused by the COVID-19 pandemic; competition and pricing pressure; product inventory shortages for any reason, including those caused by the effects of increased inflation and interest rates in certain geographies, the COVID-19 pandemic and the war in Ukraine; risks associated with business disruption caused by natural disasters and health emergencies such as earthquakes, fires, power outages, typhoons, floods, health epidemics and viruses such as the COVID-19 pandemic, and by manmade events such as civil unrest, labor disruption, international trade disputes, international conflicts such as the war in Ukraine, terrorism, wars, and critical infrastructure attacks; tariffs, trade disputes and other trade barriers, and negative impact on sales based on geo-political dynamics and disputes and protectionist policies; any political and government disruption around the world, including the impact of any future shutdowns of the U.S. government; and the other risk factors set forth from time to time in our most recent Annual Report on Form 10-K, our most recent Quarterly Report on Form 10-Q and our other filings with the Securities and Exchange Commission (“SEC”), copies of which are available free of charge at the SEC’s website at www.sec.gov or upon request from our investor relations department. All forward-looking statements herein reflect our opinions only as of the date of this release, and we undertake no obligation, and expressly disclaim any obligation, to update forward-looking statements herein in light of new information or future events.
+
+Non-GAAP Financial Measures
+
+We have provided in this release financial information that has not been prepared in accordance with U.S. Generally Accepted Accounting Principles (GAAP). These non-GAAP financial and liquidity measures are not based on any standardized methodology prescribed by GAAP and are not necessarily comparable to similar measures presented by other companies. We use
+
+these non-GAAP financial measures internally in analyzing our financial results and believe they are useful to investors, as a supplement to GAAP measures, in evaluating our ongoing operational performance. We believe that the use of these non-GAAP financial measures provides an additional tool for investors to use in evaluating ongoing operating results and trends and in comparing our financial results with peer companies, many of which present similar non-GAAP financial measures to investors.
+
+Non-GAAP financial measures should not be considered in isolation from, or as a substitute for, financial information prepared in accordance with GAAP. Investors are encouraged to review the reconciliation of these non-GAAP financial measures to their most directly comparable GAAP financial measures provided in the financial statement tables below.
+
+Billings (non-GAAP). We define billings as revenue recognized in accordance with GAAP plus the change in deferred revenue from the beginning to the end of the period, less any deferred revenue balances acquired from business combination(s) and adjustment due to adoption of new accounting standard during the period. We consider billings to be a useful metric for management and investors because billings drive current and future revenue, which is an important indicator of the health and viability of our business. There are a number of limitations related to the use of billings instead of GAAP revenue. First, billings include amounts that have not yet been recognized as revenue and are impacted by the term of security and support agreements. Second, we may calculate billings in a manner that is different from peer companies that report similar financial measures. Management accounts for these limitations by providing specific information regarding GAAP revenue and evaluating billings together with GAAP revenue.
+
+Free cash flow (non-GAAP). We define free cash flow as net cash provided by operating activities minus purchases of property and equipment and excluding any significant non-recurring items. We believe free cash flow to be a liquidity measure that provides useful information to management and investors about the amount of cash generated by the business that, after capital expenditures and net of proceeds from intellectual property matter, can be used for strategic opportunities, including repurchasing outstanding common stock, investing in our business, making strategic acquisitions and strengthening the balance sheet. A limitation of using free cash flow rather than the GAAP measures of cash provided by or used in operating activities, investing activities, and financing activities is that free cash flow does not represent the total increase or decrease in the cash and cash equivalents balance for the period because it excludes cash flows from significant non-recurring items, investing activities other than capital expenditures and cash flows from financing activities. Management accounts for this limitation by providing information about our capital expenditures and other investing and financing activities on the face of the cash flow statement and under the caption “Management’s Discussion and Analysis of Financial Condition and Results of Operations—Liquidity and Capital Resources” in our most recent Quarterly Report on Form 10-Q and Annual Report on Form 10-K and by presenting cash flows from investing and financing activities in our reconciliation of free cash flow. In addition, it is important to note that other companies, including companies in our industry, may not use free cash flow, may calculate free cash flow in a different manner than we do or may use other financial measures to evaluate their performance, all of which could reduce the usefulness of free cash flow as a comparative measure.
+
+Non-GAAP operating income and operating margin. We define non-GAAP operating income as operating income plus stock-based compensation, impairment and amortization of acquired intangible assets, less gain on intellectual property matter and, when applicable, other significant non-recurring items in a given quarter. Non-GAAP operating margin is defined as non-GAAP operating income divided by GAAP revenue. We consider these non-GAAP financial measures to be useful metrics for management and investors because they exclude the items noted above so that our management and investors can compare our recurring core business operating results over multiple periods. There are a number of limitations related to the use of
+
+non-GAAP operating income instead of operating income calculated in accordance with GAAP. First, non-GAAP operating income excludes the items noted above. Second, the components of the costs that we exclude from our calculation of non-GAAP operating income may differ from the components that peer companies exclude when they report their non-GAAP results of operations. Management accounts for these limitations by providing specific information regarding the GAAP amounts excluded from non-GAAP operating income and evaluating non-GAAP operating income together with operating income calculated in accordance with GAAP.
+
+Non-GAAP net income and diluted net income per share attributable to Fortinet, Inc. We define non-GAAP net income as net income plus the items noted above under non-GAAP operating income and operating margin. In addition, we adjust non-GAAP net income and diluted net income per share for a non-cash charge on equity method investment comprised of impairment and other intervening events, a tax adjustment required for an effective tax rate on a non-GAAP basis and adjustments attributable to non-controlling interests, which differs from the GAAP effective tax rate. We define non-GAAP diluted net income per share as non-GAAP net income divided by the non-GAAP diluted weighted-average shares outstanding. We consider these non-GAAP financial measures to be useful metrics for management and investors for the same reasons that we use non-GAAP operating income and non-GAAP operating margin. However, in order to provide a more complete picture of our recurring core business operating results, we include in non-GAAP net income and non-GAAP diluted net income per share, the tax adjustment required resulting in an effective tax rate on a non-GAAP basis, which often differs from the GAAP tax rate. We believe the non-GAAP effective tax rates we use are reasonable estimates of normalized tax rates for our current and prior fiscal years under our global operating structure. The same limitations described above regarding our use of non-GAAP operating income and non-GAAP operating margin apply to our use of non-GAAP net income and non-GAAP diluted net income per share. We account for these limitations by providing specific information regarding the GAAP amounts excluded from non-GAAP net income and non-GAAP diluted net income per share and evaluating non-GAAP net income and non-GAAP diluted net income per share together with net income and diluted net income per share calculated in accordance with GAAP.
+
+FORTINET, INC.
+CONDENSED CONSOLIDATED BALANCE SHEETS
+(Unaudited, in millions)
+December 31, 2022	December 31, 2021
+ASSETS
+CURRENT ASSETS:
+Cash and cash equivalents	$	1,682.9	$	1,319.1
+Short-term investments	502.6	1,194.0
+Marketable equity securities	25.5	38.6
+Accounts receivable—net	1,261.7	807.7
+Inventory	264.6	175.8
+Prepaid expenses and other current assets	73.1	65.4
+Total current assets	3,810.4	3,600.6
+LONG-TERM INVESTMENTS	45.5	440.8
+PROPERTY AND EQUIPMENT—NET	898.5	687.6
+DEFERRED CONTRACT COSTS	518.2	423.3
+DEFERRED TAX ASSETS	569.4	342.3
+GOODWILL AND OTHER INTANGIBLE ASSETS—NET	184.0	188.7
+OTHER ASSETS	202.0	235.8
+TOTAL ASSETS	$	6,228.0	$	5,919.1
+LIABILITIES AND EQUITY (DEFICIT)
+CURRENT LIABILITIES:
+Accounts payable	$	243.4	$	148.4
+Accrued liabilities	266.3	197.3
+Accrued payroll and compensation	219.4	195.0
+Deferred revenue	2,349.3	1,777.4
+Total current liabilities	3,078.4	2,318.1
+DEFERRED REVENUE	2,291.0	1,675.5
+INCOME TAX LIABILITIES	67.8	79.5
+LONG-TERM DEBT	990.4	988.4
+OTHER LIABILITIES	82.0	59.2
+Total liabilities	6,509.6	5,120.7
+COMMITMENTS AND CONTINGENCIES
+EQUITY (DEFICIT):
+Common stock	0.8	0.8
+Additional paid-in capital	1,284.2	1,253.6
+Accumulated other comprehensive loss	(20.2)	(4.8)
+Accumulated deficit	(1,546.4)	(467.9)
+Total Fortinet, Inc. stockholders’ equity (deficit)	(281.6)	781.7
+Non-controlling interests	—	16.7
+Total equity (deficit)	(281.6)	798.4
+TOTAL LIABILITIES AND EQUITY (DEFICIT)	$	6,228.0	$	5,919.1
+
+FORTINET, INC.
+CONDENSED CONSOLIDATED STATEMENTS OF INCOME
+(Unaudited, in millions, except per share amounts)
+Three Months Ended	Year Ended
+December 31, 2022	December 31, 2021	December 31, 2022	December 31, 2021
+REVENUE:
+Product	$	540.1	$	378.9	$	1,780.5	$	1,255.0
+Service	742.9	584.7	2,636.9	2,087.2
+Total revenue	1,283.0	963.6	4,417.4	3,342.2
+COST OF REVENUE:
+Product	189.9	146.5	691.3	487.7
+Service	107.4	81.8	393.6	295.3
+Total cost of revenue	297.3	228.3	1,084.9	783.0
+GROSS PROFIT:
+Product	350.2	232.4	1,089.2	767.3
+Service	635.5	502.9	2,243.3	1,791.9
+Total gross profit	985.7	735.3	3,332.5	2,559.2
+OPERATING EXPENSES:
+Research and development	128.9	112.6	512.4	424.2
+Sales and marketing	455.9	367.7	1,686.1	1,345.7
+General and administrative	44.3	41.3	169.0	143.5
+Gain on intellectual property matter	(1.2)	(1.2)	(4.6)	(4.6)
+Total operating expenses	627.9	520.4	2,362.9	1,908.8
+OPERATING INCOME	357.8	214.9	969.6	650.4
+INTEREST INCOME	9.1	1.0	17.4	4.5
+INTEREST EXPENSE	(4.5)	(4.5)	(18.0)	(14.9)
+OTHER INCOME (EXPENSE)—NET	5.8	(4.1)	(13.5)	(11.6)
+INCOME BEFORE INCOME TAXES AND LOSS FROM EQUITY METHOD INVESTMENT	368.2	207.3	955.5	628.4
+PROVISION FOR INCOME TAXES	9.2	3.7	30.8	14.1
+LOSS FROM EQUITY METHOD INVESTMENT	(45.2)	(4.8)	(68.1)	(7.6)
+NET INCOME INCLUDING NON-CONTROLLING INTERESTS	313.8	198.8	856.6	606.7
+Less: NET LOSS ATTRIBUTABLE TO NON-CONTROLLING INTERESTS, NET OF TAX	—	(0.2)	(0.7)	(0.1)
+NET INCOME ATTRIBUTABLE TO FORTINET, INC.	$	313.8	$	199.0	$	857.3	$	606.8
+Net income per share attributable to Fortinet, Inc.(a):
+Basic	$	0.40	$	0.24	$	1.08	$	0.74
+Diluted	$	0.40	$	0.24	$	1.06	$	0.73
+Weighted-average shares used to compute net income per share attributable to Fortinet, Inc.(a):
+Basic	780.9	814.9	791.4	816.1
+Diluted	791.8	835.0	805.3	835.3
+
+(a) All share and per share amounts presented herein have been retroactively adjusted to reflect the five-for-one forward stock split which was effective June 22, 2022.
+
+FORTINET, INC.
+CONDENSED CONSOLIDATED STATEMENTS OF CASH FLOWS
+(Unaudited, in millions)
+Year Ended
+December 31, 2022	December 31, 2021
+CASH FLOWS FROM OPERATING ACTIVITIES:
+Net income including non-controlling interests	$	856.6	$	606.7
+Adjustments to reconcile net income to net cash provided by operating activities:
+Stock-based compensation	217.3	207.9
+Amortization of deferred contract costs	223.3	175.9
+Depreciation and amortization	104.3	84.4
+Amortization of investment premiums	4.4	6.9
+Loss from equity method investment	68.1	7.6
+Other	23.6	7.9
+Changes in operating assets and liabilities, net of impact of business combinations:
+Accounts receivable—net	(456.7)	(72.5)
+Inventory	(109.1)	(19.4)
+Prepaid expenses and other current assets	(7.7)	(17.7)
+Deferred contract costs	(318.2)	(294.5)
+Deferred tax assets	(226.4)	(94.0)
+Other assets	(35.3)	(19.0)
+Accounts payable	105.2	(13.1)
+Accrued liabilities	55.2	49.9
+Accrued payroll and compensation	25.0	44.0
+Other liabilities	23.5	(0.7)
+Deferred revenue	1,177.5	839.4
+Net cash provided by operating activities	1,730.6	1,499.7
+CASH FLOWS FROM INVESTING ACTIVITIES:
+Purchases of investments	(389.1)	(2,308.0)
+Sales of investments	3.0	85.5
+Maturities of investments	1,462.0	1,470.3
+Purchases of property and equipment	(281.2)	(295.9)
+Purchases of investment in privately held company	—	(160.0)
+Payments made in connection with business combinations, net of cash acquired	(30.8)	(74.9)
+Purchases of marketable equity securities	—	(42.5)
+Other	—	0.4
+Net cash provided by (used in) investing activities	763.9	(1,325.1)
+CASH FLOWS FROM FINANCING ACTIVITIES:
+Proceeds from long-term borrowings, net of discount and underwriting fees	—	989.4
+Payments for debt issuance costs	—	(2.4)
+Repurchase and retirement of common stock	(1,991.2)	(741.8)
+Proceeds from issuance of common stock	26.1	26.0
+Taxes paid related to net share settlement of equity awards	(160.4)	(167.9)
+Payments of debt assumed in connection with business combinations	—	(19.5)
+Other	(4.8)	(1.0)
+Net cash provided by (used in) financing activities	(2,130.3)	82.8
+EFFECT OF EXCHANGE RATE CHANGES ON CASH AND CASH EQUIVALENTS	(0.4)	(0.1)
+NET INCREASE IN CASH AND CASH EQUIVALENTS	363.8	257.3
+CASH AND CASH EQUIVALENTS—Beginning of year	1,319.1	1,061.8
+CASH AND CASH EQUIVALENTS—End of year	$	1,682.9	$	1,319.1
+
+Reconciliations of non-GAAP results of operations measures to the nearest comparable GAAP measures
+(Unaudited, in millions, except per share amounts)
+
+Reconciliation of net cash provided by operating activities to free cash flow
+Three Months Ended	Year Ended
+December 31, 2022	December 31, 2021	December 31, 2022	December 31, 2021
+Net cash provided by operating activities	$	528.1	$	366.8	$	1,730.6	$	1,499.7
+Less: Purchases of property and equipment	(30.9)	(151.3)	(281.2)	(295.9)
+Free cash flow	$	497.2	$	215.5	$	1,449.4	$	1,203.8
+Net cash provided by (used in) investing activities	$	217.4	$	(265.9)	$	763.9	$	(1,325.1)
+Net cash provided by (used in) financing activities	$	(27.4)	$	(633.6)	$	(2,130.3)	$	82.8
+
+Reconciliation of GAAP operating income to non-GAAP operating income, operating margin, net income attributable to Fortinet, Inc. and diluted net income per share attributable to Fortinet, Inc.
+Three Months Ended December 31, 2022	Three Months Ended December 31, 2021
+GAAP Results	Adjustments	Non-GAAP Results	GAAP Results	Adjustments	Non-GAAP Results
+Operating income	$	357.8	$	59.8	(a)	$	417.6	$	214.9	$	59.8	(b)	$	274.7
+Operating margin	27.9	%	32.5	%	22.3	%	28.5	%
+Adjustments:
+Stock-based compensation	55.3	54.2
+Amortization of acquired intangible assets	5.7	6.8
+Gain on intellectual property matter	(1.2)	(1.2)
+Tax adjustment	(63.6)	(c)	(52.4)	(c)
+Non-cash charge on equity method investment	39.7	(d)	—
+Adjustments attributable non-controlling interests	—	(0.6)	(e)
+Net income attributable to Fortinet, Inc.	$	313.8	$	35.9	$	349.7	$	199.0	$	6.8	$	205.8
+Diluted net income per share attributable to Fortinet, Inc.(f)	$	0.40	$	0.44	$	0.24	$	0.25
+Shares used in diluted net income per share attributable to Fortinet, Inc. calculations(f)	791.8	791.8	835.0	835.0
+
+(a) To exclude $55.3 million of stock-based compensation and $5.7 million of amortization of acquired intangible assets, offset by a $1.2 million gain on intellectual property matter in the three months ended December 31, 2022.
+(b) To exclude $54.2 million of stock-based compensation and $6.8 million of amortization of acquired intangible assets, offset by a $1.2 million gain on intellectual property matter in the three months ended December 31, 2021.
+(c) Non-GAAP financial information is adjusted to an overall effective tax rate of 17% and 21% in the three months ended December 31, 2022 and 2021, respectively, on a non-GAAP basis, which differs from the GAAP effective tax rate.
+(d) To exclude a $39.7 million non-cash charge, primarily comprised of the impairment charge on our equity method investment in Linksys Holdings Inc. (“Linksys”) and other intervening events related to the establishment of a valuation allowance against Linksys deferred tax assets.
+(e) Adjustments related to the non-GAAP results attributable to non-controlling interests, which were adjusted to an effective tax rate of 31% for the subsidiary of Alaxala Networks Corporation (“Alaxala”) in the three months ended December 31, 2021.
+(f) All share and per share amounts presented herein have been retroactively adjusted to reflect the five-for-one forward stock split which was effective June 22, 2022.
+
+Year Ended December 31, 2022	Year Ended December 31, 2021
+GAAP Results	Adjustments	Non-GAAP Results	GAAP Results	Adjustments	Non-GAAP Results
+Operating income	$	969.6	$	238.5	(a)	$	1,208.1	$	650.4	$	225.1	(b)	$	875.5
+Operating margin	21.9	%	27.3	%	19.5	%	26.2	%
+Adjustments:
+Stock-based compensation	219.8	211.2
+Amortization of acquired intangible assets	23.3	18.5
+Gain on intellectual property matter	(4.6)	(4.6)
+Tax adjustment	(172.2)	(c)	(165.1)	(c)
+Non-cash charge on equity method investment	39.7	(d)	—
+Adjustments attributable non-controlling interests	(1.7)	(e)	(0.8)	(e)
+Net income attributable to Fortinet, Inc.	$	857.3	$	104.3	$	961.6	$	606.8	$	59.2	$	666.0
+Diluted net income per share attributable to Fortinet, Inc.(f)	$	1.06	$	1.19	$	0.73	$	0.80
+Shares used in diluted net income per share calculations(f)	805.3	805.3	835.3	835.3
+
+(a) To exclude $219.8 million of stock-based compensation and $23.3 million of amortization of acquired intangible assets, offset by a $4.6 million gain on intellectual property matter in 2022.
+(b) To exclude $211.2 million of stock-based compensation and $18.5 million of amortization of acquired intangible assets, offset by a $4.6 million gain on intellectual property matter in 2021.
+(c) Non-GAAP financial information is adjusted to an overall effective tax rate of 17% and 21% in 2022 and 2021, respectively, on a non-GAAP basis, which differs from the GAAP effective tax rate.
+(d) To exclude a $39.7 million non-cash charge, primarily comprised of the impairment charge on our equity method investment in Linksys and other intervening events related to the establishment of a valuation allowance against Linksys deferred tax assets.
+(e) Adjustments related to the non-GAAP results attributable to non-controlling interests, which were adjusted to an effective tax rate of 31% for the subsidiary of Alaxala in 2022 and 2021.
+(f) All share and per share amounts presented herein have been retroactively adjusted to reflect the five-for-one forward stock split which was effective June 22, 2022.
+
+Reconciliation of total revenue to total billings
+Three Months Ended	Year Ended
+December 31, 2022	December 31, 2021	December 31, 2022	December 31, 2021
+Total revenue	$	1,283.0	$	963.6	$	4,417.4	$	3,342.2
+Add: Change in deferred revenue	446.8	346.5	1,187.4	847.6
+Less: Deferred revenue balance acquired in business acquisitions	(10.8)	—	(10.8)	(4.1)
+Less: Adjustment due to adoption of ASU 2021-083	—	(4.3)	—	(4.3)
+Total billings	$	1,719.0	$	1,305.8	$	5,594.0	$	4,181.4
+
+3 We early adopted ASU 2021-08 on a retrospective basis and effective for us beginning on January 1, 2021. The adoption of ASU 2021-08 resulted in a $4.3 million adjustment attributable to the acquisition of Alaxala in 2021, as a result of the revised measurement of deferred revenue for acquisition.
+
+Investor Contact:	Media Contact:
+Peter Salkowski	John Welton
+Fortinet, Inc.	Fortinet, Inc.
+408-331-4595	408-235-7700
+psalkowski@fortinet.com	pr@fortinet.com

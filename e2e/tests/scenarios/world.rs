@@ -100,6 +100,14 @@ pub struct World {
     pub archives: BTreeMap<String, String>,
     pub released: Option<Timestamp>,
     pub streamed_from: Option<Timestamp>,
+    pub claude: Vec<ClaudeAnswer>,
+}
+
+#[derive(Clone)]
+pub struct ClaudeAnswer {
+    pub reading: String,
+    pub first: Value,
+    pub told: Value,
 }
 
 pub fn recorded_earnings_insight() -> (String, Vec<u8>) {

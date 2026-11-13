@@ -1,0 +1,20 @@
+{
+ "accession": "0000922224-26-000024",
+ "cik": 922224,
+ "published_at": "2026-05-08T11:53:15Z",
+ "note": "Special-item rows of the forecast reconciliation are items already recorded through March 31, not forecasts, so excluded (as in the AEP dev label). 6%-8% EPS growth through 2029 is a long-term target, excluded. $5.1 billion 2026 infrastructure investments included as capex.",
+ "facts": [
+  {
+   "fields": {"metric": "eps_adjusted", "metric_label": "ongoing earnings forecast", "basis": "non_gaap", "period_label": "2026", "fiscal_year": 2026, "fiscal_quarter": null, "low": 1.9, "high": 1.98, "unit": "usd_per_share", "stated_action": "reaffirmed"},
+   "evidence": "Based on the company’s financial performance year to date, PPL reaffirmed its 2026 ongoing earnings forecast range of $1.90 to $1.98 per share with a midpoint of $1.94 per share."
+  },
+  {
+   "fields": {"metric": "eps_gaap", "metric_label": "Estimate of Reported Earnings", "basis": "gaap", "period_label": "2026 Forecast Range", "fiscal_year": 2026, "fiscal_quarter": null, "low": 1.87, "high": 1.95, "unit": "usd_per_share", "stated_action": "not_stated"},
+   "evidence": "Estimate of Reported Earnings\t$\t1.91\t$\t1.95\t$\t1.87"
+  },
+  {
+   "fields": {"metric": "capex", "metric_label": "infrastructure investments", "basis": "not_stated", "period_label": "2026", "fiscal_year": 2026, "fiscal_quarter": null, "low": 5100000000, "high": 5100000000, "unit": "usd", "stated_action": "not_stated"},
+   "evidence": "“We’re on pace to complete $5.1 billion in 2026 infrastructure investments to strengthen and modernize our electric and gas networks, build new generation resources in Kentucky and improve customer service while maintaining affordability for our customers.”"
+  }
+ ]
+}

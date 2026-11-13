@@ -1,0 +1,173 @@
+{
+ "accession": "0000950170-25-061423",
+ "cik": 1389170,
+ "published_at": "2025-05-01T10:15:09Z",
+ "note": "'Continue to estimate' / 'remains unchanged' are not reaffirm words, so stated_action not_stated. The reconciliation's Estimated Adjusted EBITDA 4,750.0 is the midpoint of the headline range, not a separate fact.",
+ "facts": [
+  {
+   "fields": {
+    "metric": "ebitda_adjusted",
+    "metric_label": "adjusted EBITDA",
+    "basis": "non_gaap",
+    "period_label": "full year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 4650000000,
+    "high": 4850000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Continue to estimate full year 2025 adjusted EBITDA between $4.65 billion and $4.85 billion"
+  },
+  {
+   "fields": {
+    "metric": "capex",
+    "metric_label": "net growth capital expenditures",
+    "basis": "not_stated",
+    "period_label": "2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 2600000000,
+    "high": 2800000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Continue to estimate 2025 net growth capital expenditures of $2.6 billion to $2.8 billion"
+  },
+  {
+   "fields": {
+    "metric": "capex",
+    "metric_label": "net maintenance capital expenditures",
+    "basis": "not_stated",
+    "period_label": "2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 250000000,
+    "high": 250000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Targa’s estimate for 2025 net growth capital expenditures remains unchanged in a range of $2.6 billion to $2.8 billion, and its estimate for 2025 net maintenance capital expenditures also remains unchanged at approximately $250 million."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Net income attributable to Targa Resources Corp.",
+    "basis": "not_stated",
+    "period_label": "2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 1555000000,
+    "high": 1555000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Net income attributable to Targa Resources Corp.\t$\t1,555.0"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Interest expense, net",
+    "basis": "not_stated",
+    "period_label": "2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 860000000,
+    "high": 860000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Interest expense, net\t860.0"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Income tax expense",
+    "basis": "not_stated",
+    "period_label": "2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 485000000,
+    "high": 485000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Income tax expense\t485.0"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Depreciation and amortization expense",
+    "basis": "not_stated",
+    "period_label": "2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 1525000000,
+    "high": 1525000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Depreciation and amortization expense\t1,525.0"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Equity earnings",
+    "basis": "not_stated",
+    "period_label": "2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": -20000000,
+    "high": -20000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Equity earnings\t(20.0\t)"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Distributions from unconsolidated affiliates",
+    "basis": "not_stated",
+    "period_label": "2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 25000000,
+    "high": 25000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Distributions from unconsolidated affiliates\t25.0"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Compensation on equity grants",
+    "basis": "not_stated",
+    "period_label": "2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 70000000,
+    "high": 70000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Compensation on equity grants\t70.0"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Risk management and other",
+    "basis": "not_stated",
+    "period_label": "2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 250000000,
+    "high": 250000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Risk management and other\t250.0"
+  }
+ ]
+}

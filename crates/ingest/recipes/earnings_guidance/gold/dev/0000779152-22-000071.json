@@ -1,0 +1,112 @@
+{
+ "accession": "0000779152-22-000071",
+ "cik": 779152,
+ "published_at": "2022-08-16T20:50:20Z",
+ "facts": [
+  {
+   "fields": {
+    "metric": "revenue",
+    "metric_label": "GAAP revenue",
+    "basis": "gaap",
+    "period_label": "Full-year fiscal 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 2080000000,
+    "high": 2087000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "\u25aaGAAP revenue $2,080 million to $2,087 million"
+  },
+  {
+   "fields": {
+    "metric": "eps_gaap",
+    "metric_label": "GAAP EPS",
+    "basis": "gaap",
+    "period_label": "Full-year fiscal 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 5.05,
+    "high": 5.09,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "\u25aaGAAP EPS $5.05 to $5.09"
+  },
+  {
+   "fields": {
+    "metric": "revenue",
+    "metric_label": "Non-GAAP revenue",
+    "basis": "non_gaap",
+    "period_label": "Full-year fiscal 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 2045000000,
+    "high": 2052000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "\u25aaNon-GAAP revenue $2,045 million to $2,052 million2"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "REVENUE (GAAP) Growth",
+    "basis": "gaap",
+    "period_label": "Annual FY23",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 7.1,
+    "high": 7.4,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Growth\t7.1\t%\t7.4\t%"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Non-GAAP Adjusted Growth",
+    "basis": "non_gaap",
+    "period_label": "Annual FY23",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 8.2,
+    "high": 8.6,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Non-GAAP Adjusted Growth*\t8.2\t%\t8.6\t%"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "EPS (GAAP) Growth",
+    "basis": "gaap",
+    "period_label": "Annual FY23",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 2.1,
+    "high": 3.1,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Growth\t2.1\t%\t3.1\t%"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Deconversion Fee Revenue",
+    "basis": "not_stated",
+    "period_label": "Annual FY23",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 35000000,
+    "high": 35000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Deconversion Fee Revenue\t35\t35"
+  }
+ ]
+}

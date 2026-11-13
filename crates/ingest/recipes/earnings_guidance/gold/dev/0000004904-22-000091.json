@@ -1,0 +1,37 @@
+{
+ "accession": "0000004904-22-000091",
+ "cik": 4904,
+ "published_at": "2022-10-27T11:00:02Z",
+ "facts": [
+  {
+   "fields": {
+    "metric": "eps_adjusted",
+    "metric_label": "operating earnings guidance",
+    "basis": "non_gaap",
+    "period_label": "2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": null,
+    "low": 4.97,
+    "high": 5.07,
+    "unit": "usd_per_share",
+    "stated_action": "reaffirmed"
+   },
+   "evidence": "AEP management reaffirmed its narrowed 2022 operating earnings guidance range of $4.97 to $5.07 per share."
+  },
+  {
+   "fields": {
+    "metric": "eps_gaap",
+    "metric_label": "Estimated EPS on a GAAP basis",
+    "basis": "gaap",
+    "period_label": "2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": null,
+    "low": 4.69,
+    "high": 4.79,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Reflecting special items recorded through the third quarter, the estimated earnings per share on a GAAP basis would be $4.69 to $4.79 per share."
+  }
+ ]
+}

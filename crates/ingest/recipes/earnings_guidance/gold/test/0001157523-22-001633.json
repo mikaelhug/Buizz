@@ -1,0 +1,143 @@
+{
+ "accession": "0001157523-22-001633",
+ "cik": 109198,
+ "published_at": "2022-11-16T13:59:03Z",
+ "note": "'maintaining the high end of its outlook for adjusted pretax profit margin' read as reaffirmed for the adjusted margin only. Left out the expected $.02 FX hit to adjusted EPS (impact component).",
+ "facts": [
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "pretax profit margin",
+    "basis": "not_stated",
+    "period_label": "full year Fiscal 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 9.3,
+    "high": 9.4,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "The Company expects pretax profit margin to be 9.3% to 9.4% and adjusted pretax profit margin to be 9.8% to 9.9%."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "adjusted pretax profit margin",
+    "basis": "non_gaap",
+    "period_label": "full year Fiscal 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 9.8,
+    "high": 9.9,
+    "unit": "percent",
+    "stated_action": "reaffirmed"
+   },
+   "evidence": "The Company expects pretax profit margin to be 9.3% to 9.4% and adjusted pretax profit margin to be 9.8% to 9.9%."
+  },
+  {
+   "fields": {
+    "metric": "eps_gaap",
+    "metric_label": "diluted earnings per share",
+    "basis": "gaap",
+    "period_label": "full year Fiscal 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 2.93,
+    "high": 2.97,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "For the full year Fiscal 2023, the Company now expects diluted earnings per share to be $2.93 to $2.97 and adjusted diluted earnings per share to be $3.07 to $3.11."
+  },
+  {
+   "fields": {
+    "metric": "eps_adjusted",
+    "metric_label": "adjusted diluted earnings per share",
+    "basis": "non_gaap",
+    "period_label": "full year Fiscal 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 3.07,
+    "high": 3.11,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "For the full year Fiscal 2023, the Company now expects diluted earnings per share to be $2.93 to $2.97 and adjusted diluted earnings per share to be $3.07 to $3.11."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "U.S. comparable store sales",
+    "basis": "not_stated",
+    "period_label": "full year Fiscal 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": -2,
+    "high": -1,
+    "unit": "percent_growth",
+    "stated_action": "raised"
+   },
+   "evidence": "For the full year Fiscal 2023, the Company is increasing its outlook for U.S. comparable store sales and is now planning a decrease of 1% to 2% versus a 17% U.S. open-only comp store sales increase in Fiscal 2022."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "repurchase of TJX stock",
+    "basis": "not_stated",
+    "period_label": "Fiscal 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 2250000000,
+    "high": 2500000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "The Company continues to expect to repurchase approximately $2.25 to $2.50 billion of TJX stock in Fiscal 2023."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "pretax profit margin",
+    "basis": "not_stated",
+    "period_label": "fourth quarter of Fiscal 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": 4,
+    "low": 9.5,
+    "high": 9.8,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "For the fourth quarter of Fiscal 2023, the Company now expects pretax profit margin to be 9.5% to 9.8% and diluted earnings per share to be $.85 to $.89."
+  },
+  {
+   "fields": {
+    "metric": "eps_gaap",
+    "metric_label": "diluted earnings per share",
+    "basis": "gaap",
+    "period_label": "fourth quarter of Fiscal 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": 4,
+    "low": 0.85,
+    "high": 0.89,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "For the fourth quarter of Fiscal 2023, the Company now expects pretax profit margin to be 9.5% to 9.8% and diluted earnings per share to be $.85 to $.89."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "U.S. comparable store sales",
+    "basis": "not_stated",
+    "period_label": "fourth quarter of Fiscal 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": 4,
+    "low": 0,
+    "high": 1,
+    "unit": "percent_growth",
+    "stated_action": "raised"
+   },
+   "evidence": "For the fourth quarter of Fiscal 2023, the Company is increasing its outlook for U.S. comparable store sales and is now planning them to be flat to up 1% versus a 13% U.S. open-only comp store sales increase in the fourth quarter of Fiscal 2022."
+  }
+ ]
+}

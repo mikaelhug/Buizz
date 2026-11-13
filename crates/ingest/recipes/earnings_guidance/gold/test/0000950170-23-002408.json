@@ -1,0 +1,278 @@
+{
+ "accession": "0000950170-23-002408",
+ "cik": 910606,
+ "published_at": "2023-02-09T23:21:29Z",
+ "note": "'+/- $X' in this table means approximately X (single value), not a plus-or-minus band; rows in thousands. Zero-valued rows (acquisitions, cap rate 0%, ATM, repurchase) kept as forecasts of 0. Cap rate rows labelled by period only, two distinct rows share a label (acquisitions vs dispositions).",
+ "facts": [
+  {
+   "fields": {
+    "metric": "eps_gaap",
+    "metric_label": "Net Income Attributable to Common Stockholders per diluted share",
+    "basis": "gaap",
+    "period_label": "2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 1.92,
+    "high": 2.0,
+    "unit": "usd_per_share",
+    "stated_action": "initiated"
+   },
+   "evidence": "Net Income Attributable to Common Stockholders per diluted share\t$2.81\t$1.92 - $2.00"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Nareit Funds From Operations (\"Nareit FFO\") per diluted share",
+    "basis": "non_gaap",
+    "period_label": "2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 4.03,
+    "high": 4.11,
+    "unit": "usd_per_share",
+    "stated_action": "initiated"
+   },
+   "evidence": "Nareit Funds From Operations (\"Nareit FFO\") per diluted share\t$4.10\t$4.03 - $4.11"
+  },
+  {
+   "fields": {
+    "metric": "eps_adjusted",
+    "metric_label": "Core Operating Earnings per diluted share",
+    "basis": "non_gaap",
+    "period_label": "2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 3.83,
+    "high": 3.89,
+    "unit": "usd_per_share",
+    "stated_action": "initiated"
+   },
+   "evidence": "Core Operating Earnings per diluted share (1)\t$3.83\t$3.83 - $3.89"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Same property NOI growth without termination fees",
+    "basis": "non_gaap",
+    "period_label": "2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 0,
+    "high": 1.0,
+    "unit": "percent_growth",
+    "stated_action": "initiated"
+   },
+   "evidence": "Same property NOI growth without termination fees\t2.9%\t0% to +1.0%"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Same property NOI growth without termination fees or collection of 2020/2021 reserves",
+    "basis": "non_gaap",
+    "period_label": "2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 2.0,
+    "high": 3.0,
+    "unit": "percent_growth",
+    "stated_action": "initiated"
+   },
+   "evidence": "Same property NOI growth without termination fees or collection of 2020/2021 reserves\t6.3%\t+2.0% to +3.0%"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Collection of 2020/2021 reserves",
+    "basis": "not_stated",
+    "period_label": "2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 3000000,
+    "high": 3000000,
+    "unit": "usd",
+    "stated_action": "initiated"
+   },
+   "evidence": "Collection of 2020/2021 reserves (2)\t$20,050\t+/- $3,000"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Certain non-cash items",
+    "basis": "not_stated",
+    "period_label": "2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 34500000,
+    "high": 37500000,
+    "unit": "usd",
+    "stated_action": "initiated"
+   },
+   "evidence": "Certain non-cash items (3)\t$47,197\t$34,500 - $37,500"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Impact from reversal of Uncollectible Straight-Line Rent Receivables included in above",
+    "basis": "not_stated",
+    "period_label": "2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 2500000,
+    "high": 2500000,
+    "unit": "usd",
+    "stated_action": "initiated"
+   },
+   "evidence": "Impact from reversal of Uncollectible Straight-Line Rent Receivables included in above (4)\t$16,747\t+/- $2,500"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "G&A expense, net",
+    "basis": "not_stated",
+    "period_label": "2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 87000000,
+    "high": 90000000,
+    "unit": "usd",
+    "stated_action": "initiated"
+   },
+   "evidence": "G&A expense, net (5)\t$86,400\t$87,000 - $90,000"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Interest expense, net",
+    "basis": "not_stated",
+    "period_label": "2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 168000000,
+    "high": 168000000,
+    "unit": "usd",
+    "stated_action": "initiated"
+   },
+   "evidence": "Interest expense, net\t$165,548\t+/- $168,000"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Recurring third party fees & commissions",
+    "basis": "not_stated",
+    "period_label": "2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 25000000,
+    "high": 25000000,
+    "unit": "usd",
+    "stated_action": "initiated"
+   },
+   "evidence": "Recurring third party fees & commissions\t$24,834\t+/- $25,000"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Development and Redevelopment spend",
+    "basis": "not_stated",
+    "period_label": "2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 130000000,
+    "high": 130000000,
+    "unit": "usd",
+    "stated_action": "initiated"
+   },
+   "evidence": "Development and Redevelopment spend\t$112,995\t+/- $130,000"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Acquisitions",
+    "basis": "not_stated",
+    "period_label": "2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 0,
+    "high": 0,
+    "unit": "usd",
+    "stated_action": "initiated"
+   },
+   "evidence": "Acquisitions\t$209,908\t$0"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Cap rate (weighted average)",
+    "basis": "not_stated",
+    "period_label": "2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 0,
+    "high": 0,
+    "unit": "percent",
+    "stated_action": "initiated"
+   },
+   "evidence": "Cap rate (weighted average)\t5.1%\t0%"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Dispositions",
+    "basis": "not_stated",
+    "period_label": "2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 65000000,
+    "high": 65000000,
+    "unit": "usd",
+    "stated_action": "initiated"
+   },
+   "evidence": "Dispositions\t$179,044\t+/-$65,000"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Cap rate (weighted average)",
+    "basis": "not_stated",
+    "period_label": "2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 7.0,
+    "high": 7.0,
+    "unit": "percent",
+    "stated_action": "initiated"
+   },
+   "evidence": "Cap rate (weighted average) (6)\t3.0%\t+/- 7.0%"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Forward ATM settlement (gross)",
+    "basis": "not_stated",
+    "period_label": "2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 0,
+    "high": 0,
+    "unit": "usd",
+    "stated_action": "initiated"
+   },
+   "evidence": "Forward ATM settlement (gross)\t$64,768\t$0"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Share Repurchase settlement (gross)",
+    "basis": "not_stated",
+    "period_label": "2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 0,
+    "high": 0,
+    "unit": "usd",
+    "stated_action": "initiated"
+   },
+   "evidence": "Share Repurchase settlement (gross)\t$75,393\t$0"
+  }
+ ]
+}

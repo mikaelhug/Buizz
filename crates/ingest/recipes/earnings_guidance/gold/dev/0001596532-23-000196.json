@@ -1,0 +1,67 @@
+{
+ "accession": "0001596532-23-000196",
+ "cik": 1596532,
+ "published_at": "2023-07-31T20:07:54Z",
+ "facts": [
+  {
+   "fields": {
+    "metric": "revenue",
+    "metric_label": "Revenue",
+    "basis": "not_stated",
+    "period_label": "third quarter of 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": 3,
+    "low": 1450000000.0,
+    "high": 1500000000.0,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "\u2022Revenue between $1.450 billion to $1.500 billion"
+  },
+  {
+   "fields": {
+    "metric": "gross_margin",
+    "metric_label": "Non-GAAP gross margin",
+    "basis": "non_gaap",
+    "period_label": "third quarter of 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": 3,
+    "low": 62,
+    "high": 62,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "\u2022Non-GAAP gross margin of approximately 62%; and"
+  },
+  {
+   "fields": {
+    "metric": "operating_margin",
+    "metric_label": "Non-GAAP operating margin",
+    "basis": "non_gaap",
+    "period_label": "third quarter of 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": 3,
+    "low": 41,
+    "high": 41,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "\u2022Non-GAAP operating margin of approximately 41%"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "year-over-year growth",
+    "basis": "not_stated",
+    "period_label": "2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 30,
+    "high": null,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Commenting on the company's financial results, Ita Brennan, Arista\u2019s CFO said, \u201cIn spite of the return to shorter lead times and reduced visibility, we are executing well with gradual incremental improvements to our 2023 outlook which now calls for year-over-year growth in excess of 30%.\u201d"
+  }
+ ]
+}

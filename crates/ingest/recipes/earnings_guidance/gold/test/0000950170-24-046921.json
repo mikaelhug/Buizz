@@ -1,0 +1,488 @@
+{
+ "accession": "0000950170-24-046921",
+ "cik": 906107,
+ "published_at": "2024-04-23T20:21:04Z",
+ "note": "Full-year guidance is 'not revising'/'no change' (not one of the reaffirm words) so not_stated; Q2 ranges 'established' treated as initiated. Expected-column rows of the EPS-to-FFO reconciliation kept (they are forecasts, unlike recorded special items). Transaction accretion (25 basis points) kept as -25 with unit other. Same store NOI basis left not_stated (only listed in a glossary of 'non-GAAP financial measures and other terms'). Footnote 2 renovation figures included; 3,250 units skipped as non-financial; 'No amounts budgeted' debt offerings skipped (no number).",
+ "facts": [
+  {
+   "fields": {
+    "metric": "eps_gaap",
+    "metric_label": "EPS",
+    "basis": "gaap",
+    "period_label": "Q2 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": 2,
+    "low": 0.45,
+    "high": 0.49,
+    "unit": "usd_per_share",
+    "stated_action": "initiated"
+   },
+   "evidence": "EPS\t$0.45 to $0.49"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "FFO per share",
+    "basis": "non_gaap",
+    "period_label": "Q2 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": 2,
+    "low": 0.91,
+    "high": 0.95,
+    "unit": "usd_per_share",
+    "stated_action": "initiated"
+   },
+   "evidence": "FFO per share\t$0.91 to $0.95"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Normalized FFO per share",
+    "basis": "non_gaap",
+    "period_label": "Q2 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": 2,
+    "low": 0.92,
+    "high": 0.96,
+    "unit": "usd_per_share",
+    "stated_action": "initiated"
+   },
+   "evidence": "Normalized FFO per share\t$0.92 to $0.96"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Depreciation expense",
+    "basis": "not_stated",
+    "period_label": "Q2 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": 2,
+    "low": 0.56,
+    "high": 0.56,
+    "unit": "usd_per_share",
+    "stated_action": "initiated"
+   },
+   "evidence": "Depreciation expense\t0.58\t0.55\t0.56\t2.25"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Net (gain) loss on sales",
+    "basis": "not_stated",
+    "period_label": "Q2 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": 2,
+    "low": -0.1,
+    "high": -0.1,
+    "unit": "usd_per_share",
+    "stated_action": "initiated"
+   },
+   "evidence": "Net (gain) loss on sales\t(0.48\t)\t(0.26\t)\t(0.10\t)\t(1.42\t)"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Other miscellaneous items",
+    "basis": "not_stated",
+    "period_label": "Q2 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": 2,
+    "low": 0.01,
+    "high": 0.01,
+    "unit": "usd_per_share",
+    "stated_action": "initiated"
+   },
+   "evidence": "Other miscellaneous items\t0.08\t0.02\t0.01\t0.04"
+  },
+  {
+   "fields": {
+    "metric": "eps_gaap",
+    "metric_label": "EPS \u2013 Diluted",
+    "basis": "gaap",
+    "period_label": "Full Year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 2.91,
+    "high": 3.01,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "EPS \u2013 Diluted\t$\t0.77\t$\t0.56\t$0.45 to $0.49\t$2.91 to $3.01"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "FFO per share \u2013 Diluted",
+    "basis": "non_gaap",
+    "period_label": "Full Year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 3.74,
+    "high": 3.84,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "FFO per share \u2013 Diluted\t0.87\t0.85\t0.91 to 0.95\t3.74 to 3.84"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Expected Normalized FFO Per Share",
+    "basis": "non_gaap",
+    "period_label": "Full Year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 3.8,
+    "high": 3.9,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Expected Normalized FFO Per Share\t$0.92 to $0.96\t$3.80 to $3.90"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Depreciation expense",
+    "basis": "not_stated",
+    "period_label": "Full Year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 2.25,
+    "high": 2.25,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Depreciation expense\t0.58\t0.55\t0.56\t2.25"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Net (gain) loss on sales",
+    "basis": "not_stated",
+    "period_label": "Full Year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": -1.42,
+    "high": -1.42,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Net (gain) loss on sales\t(0.48\t)\t(0.26\t)\t(0.10\t)\t(1.42\t)"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Write-off of pursuit costs",
+    "basis": "not_stated",
+    "period_label": "Full Year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 0.01,
+    "high": 0.01,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Write-off of pursuit costs\t\u2014\t\u2014\t\u2014\t0.01"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Non-operating asset (gains) losses",
+    "basis": "not_stated",
+    "period_label": "Full Year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 0.01,
+    "high": 0.01,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Non-operating asset (gains) losses\t(0.02\t)\t\u2014\t\u2014\t0.01"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Other miscellaneous items",
+    "basis": "not_stated",
+    "period_label": "Full Year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 0.04,
+    "high": 0.04,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Other miscellaneous items\t0.08\t0.02\t0.01\t0.04"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Same Store Physical Occupancy",
+    "basis": "not_stated",
+    "period_label": "Full Year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 95.9,
+    "high": 95.9,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Physical Occupancy\t95.9%"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Same Store Revenue change",
+    "basis": "not_stated",
+    "period_label": "Full Year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 2.0,
+    "high": 3.0,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Revenue change\t2.0% to 3.0%"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Same Store Expense change",
+    "basis": "not_stated",
+    "period_label": "Full Year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 3.5,
+    "high": 4.5,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Expense change\t3.5% to 4.5%"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Same Store NOI change",
+    "basis": "not_stated",
+    "period_label": "Full Year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 1.0,
+    "high": 2.6,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "NOI change (1)\t1.0% to 2.6%"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Consolidated rental acquisitions",
+    "basis": "not_stated",
+    "period_label": "Full Year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 1000000000,
+    "high": 1000000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Consolidated rental acquisitions\t$1.0B"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Consolidated rental dispositions",
+    "basis": "not_stated",
+    "period_label": "Full Year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 1000000000,
+    "high": 1000000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Consolidated rental dispositions\t$1.0B"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Transaction Accretion (Dilution)",
+    "basis": "not_stated",
+    "period_label": "Full Year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": -25,
+    "high": -25,
+    "unit": "other",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Transaction Accretion (Dilution)\t(25 basis points)"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Weighted average debt outstanding",
+    "basis": "not_stated",
+    "period_label": "Full Year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 7270000000,
+    "high": 7470000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Weighted average debt outstanding\t$7.27B to $7.47B"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Interest expense, net (on a Normalized FFO basis)",
+    "basis": "non_gaap",
+    "period_label": "Full Year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 268000000,
+    "high": 274000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Interest expense, net (on a Normalized FFO basis)\t$268.0M to $274.0M"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Capitalized interest",
+    "basis": "not_stated",
+    "period_label": "Full Year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 9700000,
+    "high": 13700000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Capitalized interest\t$9.7M to $13.7M"
+  },
+  {
+   "fields": {
+    "metric": "capex",
+    "metric_label": "Capital Expenditures to Real Estate for Same Store Properties",
+    "basis": "not_stated",
+    "period_label": "Full Year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 295000000,
+    "high": 295000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Capital Expenditures to Real Estate for Same Store Properties\t$295.0M"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Capital Expenditures to Real Estate per Same Store Apartment Unit",
+    "basis": "not_stated",
+    "period_label": "Full Year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 3800,
+    "high": 3800,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Capital Expenditures to Real Estate per Same Store Apartment Unit\t$3,800"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Property management expense",
+    "basis": "not_stated",
+    "period_label": "Full Year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 124000000,
+    "high": 126000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Property management expense\t$124.0M to $126.0M"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "General and administrative expense",
+    "basis": "not_stated",
+    "period_label": "Full Year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 57500000,
+    "high": 61500000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "General and administrative expense\t$57.5M to $61.5M"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Weighted average Common Shares and Units - Diluted",
+    "basis": "not_stated",
+    "period_label": "Full Year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 391100000,
+    "high": 391100000,
+    "unit": "other",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Weighted average Common Shares and Units - Diluted\t391.1M"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "NOI-Enhancing share of Capital Expenditures to Real Estate for Same Store Properties",
+    "basis": "not_stated",
+    "period_label": "Full Year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 40,
+    "high": 40,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "During 2024, the Company expects that approximately 40% of its Capital Expenditures to Real Estate for Same Store Properties will be NOI-Enhancing (primarily renovations, sustainability and property-level technology spend)."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Renovation Expenditures",
+    "basis": "not_stated",
+    "period_label": "Full Year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 104000000,
+    "high": 104000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "During 2024, the Company expects to spend approximately $104.0 million for apartment unit Renovation Expenditures on approximately 3,250 same store apartment units at an average cost of approximately $32,000 per apartment unit renovated with the remainder of the NOI-Enhancing spend consisting of sustainability and property-level technology expenditures."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "average cost per apartment unit renovated",
+    "basis": "not_stated",
+    "period_label": "Full Year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 32000,
+    "high": 32000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "During 2024, the Company expects to spend approximately $104.0 million for apartment unit Renovation Expenditures on approximately 3,250 same store apartment units at an average cost of approximately $32,000 per apartment unit renovated with the remainder of the NOI-Enhancing spend consisting of sustainability and property-level technology expenditures."
+  }
+ ]
+}

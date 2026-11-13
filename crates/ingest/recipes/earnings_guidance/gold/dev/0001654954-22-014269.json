@@ -1,0 +1,52 @@
+{
+ "accession": "0001654954-22-014269",
+ "cik": 1707925,
+ "published_at": "2022-10-27T10:57:55Z",
+ "facts": [
+  {
+   "fields": {
+    "metric": "eps_adjusted",
+    "metric_label": "adjusted diluted earnings per share",
+    "basis": "non_gaap",
+    "period_label": "fourth quarter of 2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": 4,
+    "low": 2.8,
+    "high": 2.9,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "For the fourth quarter of 2022, Linde expects adjusted diluted earnings per share in the range of $2.80 to $2.90, up 1% to 5% versus prior-year quarter."
+  },
+  {
+   "fields": {
+    "metric": "eps_adjusted",
+    "metric_label": "adjusted EPS",
+    "basis": "non_gaap",
+    "period_label": "full-year 2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": null,
+    "low": 11.93,
+    "high": 12.03,
+    "unit": "usd_per_share",
+    "stated_action": "raised"
+   },
+   "evidence": "Increased full-year 2022 adjusted EPS guidance to $11.93 - $12.03, represents 12% to 13% growth year-over-year, 17% to 18% ex FX"
+  },
+  {
+   "fields": {
+    "metric": "capex",
+    "metric_label": "capital expenditures",
+    "basis": "not_stated",
+    "period_label": "Full-year",
+    "fiscal_year": 2022,
+    "fiscal_quarter": null,
+    "low": 3000000000,
+    "high": 3400000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Full-year capital expenditures are expected to be in the range of $3.0 billion to $3.4 billion to support growth and maintenance requirements including the $3.7 billion contractual sale of gas project backlog."
+  }
+ ]
+}

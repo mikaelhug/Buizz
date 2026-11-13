@@ -1,0 +1,68 @@
+{
+ "accession": "0001679788-26-000011",
+ "cik": 1679788,
+ "published_at": "2026-02-12T21:06:44Z",
+ "note": "Transaction Expenses 'Low-to-Mid teens as a percentage of net revenue' has no number, left out. $420M Q1 transaction revenue to date is an actual, not guidance.",
+ "facts": [
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Subscription and Services Revenue",
+    "basis": "not_stated",
+    "period_label": "Q1 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": 1,
+    "low": 550000000,
+    "high": 630000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Subscription and Services Revenue\t$550-$630 million"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Technology & Development + General & Administrative Expenses",
+    "basis": "not_stated",
+    "period_label": "Q1 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": 1,
+    "low": 925000000,
+    "high": 975000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Technology & Development + General & Administrative Expenses\t$925-$975 million"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Sales and Marketing Expenses",
+    "basis": "not_stated",
+    "period_label": "Q1 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": 1,
+    "low": 215000000,
+    "high": 315000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Sales and Marketing Expenses\t$215-$315 million"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Stock-based Compensation",
+    "basis": "not_stated",
+    "period_label": "Q1 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": 1,
+    "low": 250000000,
+    "high": 250000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Stock-based Compensation\t~$250 million"
+  }
+ ]
+}

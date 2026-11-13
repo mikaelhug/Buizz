@@ -1,0 +1,206 @@
+Exhibit 99.1
+Arista Networks, Inc. Reports Second Quarter 2023 Financial Results
+SANTA CLARA, Calif.- July 31, 2023 -- Arista Networks, Inc. (NYSE: ANET), an industry leader in data-driven, client to cloud networking for large data center, campus and routing environments, today announced financial results for its second quarter ended June 30, 2023.
+“Arista again achieves record growth in revenue and profitability for Q2 2023,” said Jayshree Ullal, President and CEO of Arista Networks. “Our customers now represent more than 75 million cumulative cloud networking ports.”
+Second Quarter Financial Highlights
+•Revenue of $1.459 billion, an increase of 8.0% compared to the first quarter of 2023, and an increase of 38.7% from the second quarter of 2022.
+•GAAP gross margin of 60.6%, compared to GAAP gross margin of 59.5% in the first quarter of 2023 and 61.2% in the second quarter of 2022.
+•Non-GAAP gross margin of 61.3%, compared to non-GAAP gross margin of 60.3% in the first quarter of 2023 and 61.9% in the second quarter of 2022.
+•GAAP net income of $491.9 million, or $1.55 per diluted share, compared to GAAP net income of $299.1 million, or $0.94 per diluted share in the second quarter of 2022.
+•Non-GAAP net income of $501.2 million, or $1.58 per diluted share, compared to non-GAAP net income of $342.7 million, or $1.08 per diluted share in the second quarter of 2022.
+Commenting on the company's financial results, Ita Brennan, Arista’s CFO said, “In spite of the return to shorter lead times and reduced visibility, we are executing well with gradual incremental improvements to our 2023 outlook which now calls for year-over-year growth in excess of 30%.”
+Company Highlights
+•In the first half of 2023, Arista surpassed 75 million cloud network ports shipped cumulatively.
+•Arista Delivers Network as a Service for Healthcare Market – Based on Arista’s EOSⓇ, CloudVisionⓇ and Arista Cognitive Unified Edge (Arista CUETM), Arista’s Healthcare Network as a Service delivers the architecture, features, and platforms to help a healthcare organization's networking infrastructure be secure, reliable, and effective in supporting the delivery of high-quality patient care.
+•Arista Networks Introduces AI-Driven Network Identity – Arista introduced a cloud-delivered, AI-driven network identity service for enterprise security and IT operations. Based on Arista’s flagship CloudVisionⓇ platform, Arista Guardian for Network Identity (CV AGNI™) expands Arista’s zero trust networking approach to enterprise security.
+•Arista Named a Leader in The Forrester Wave™: Network Analysis and Visibility, Q2 2023 which notes that “Arista Networks’ deployment flexibility is second to none.”
+•The Arrival of Open AI Networking – On July 19, 2023, suppliers and operators of many of the largest AI and HPC networks came together to launch the Ultra Ethernet Consortium (UEC). Arista is proud to be a founding member of UEC.
+Financial Outlook
+For the third quarter of 2023, we expect:
+•Revenue between $1.450 billion to $1.500 billion
+•Non-GAAP gross margin of approximately 62%; and
+1
+
+•Non-GAAP operating margin of approximately 41%
+Guidance for non-GAAP financial measures excludes stock-based compensation expense, amortization of acquisition-related intangible assets, and potential non-recurring charges or benefits. A reconciliation of non-GAAP guidance measures to corresponding GAAP measures is not available on a forward-looking basis because these exclusions can be uncertain or difficult to predict, including stock-based compensation expense which is impacted by the company’s future hiring and retention needs and the future fair market value of the company’s common stock. The actual amount of these exclusions will have a significant impact on the company’s GAAP gross margin and GAAP operating margin.
+Prepared Materials and Conference Call Information
+Arista's executives will discuss the second quarter 2023 financial results on a conference call at 1:30 p.m. Pacific time today. To listen to the call via telephone, dial (888) 330-2502 in the United States or +1 (240) 789-2713 from international locations. The Conference ID is 5655862.
+The financial results conference call will also be available via live webcast on Arista's investor relations website at https://investors.arista.com/. Shortly after the conclusion of the conference call, a replay of the audio webcast will be available on Arista’s investor relations website.
+Forward-Looking Statements
+This press release contains “forward-looking statements” regarding our future performance, including quotations from management, statements in the section entitled “Financial Outlook,” such as estimates regarding revenue, non-GAAP gross margin and non-GAAP operating margin for the third quarter of 2023 and statements regarding the benefits of Arista's products. Forward-looking statements are subject to known and unknown risks, uncertainties, assumptions and other factors that could cause actual results, performance or achievements to differ materially from those anticipated in or implied by the forward-looking statements including risks associated with: dependence on a limited number of end customers who represent a substantial portion of our revenue; adverse economic and geopolitical conditions, including inflationary pressures which result in increased component costs and reduced information technology and network infrastructure spending, the Russia/Ukraine conflict; changes in our customers technology roadmaps and priorities including the need for the rapid deployment of artificial intelligence (“AI”) and related technologies; the impact of limited sources of supply on our business, including significant purchase commitments, excess inventory and extended lead times or supply changes; volatility in our revenue growth rate; variations in our results of operations, including as a result of seasonality; the rapid evolution of the networking market; any failure to successfully pursue new products and service offerings and expand into adjacent markets; ; variability in our gross margins, including as a result of changes in customer mix or product mix; intense competition; expansion of our international sales and operations; investments in or acquisitions of other businesses; fluctuations in currency exchange rates; any failure to raise any needed capital; our ability to attract new large end customers or sell additional products and services to existing end customers; our ability to grow sales of our switches; our ability to increase market awareness of our new products and services; a decrease in the sales prices of our products and services; a decline in maintenance renewals by end customers; product quality problems; our ability to anticipate technological shifts and develop products and product enhancements that meet those technological shifts; any failure to manage the supply of our products and product components, resulting in insufficient component supply and inventory or excess inventory; our dependence on third-party manufacturers to build our products; assertions by third parties of infringement or other violations by us of their intellectual property rights; our ability to protect our intellectual property rights; vulnerabilities in our products and failure of our products to detect security breaches; tax, tariff, import/export restrictions, Chinese regulations or other trade barriers; and other future events. Additional risks and uncertainties that could affect us can be found in our most recent filings with the Securities and Exchange Commission including, but not limited to, our annual report on Form 10-K and
+2
+
+quarterly reports on Form 10-Q. You can locate these reports through our website at https://investors.arista.com/ and on the SEC’s website at https://www.sec.gov/. All forward-looking statements in this press release are based on information available to the company as of the date hereof and we disclaim any obligation to publicly update or revise any forward-looking statement to reflect events that occur or circumstances that exist after the date on which they were made.
+Non-GAAP Financial Measures
+This press release and accompanying table contain certain non-GAAP financial measures including non-GAAP gross profit, non-GAAP gross margin, non-GAAP income from operations, non-GAAP operating margin, non-GAAP net income and non-GAAP diluted net income per share. These non-GAAP financial measures exclude stock-based compensation expense, amortization of acquisition-related intangibles and other acquisition-related expenses, unrealized gains/losses on equity investments, and the income tax effect of these non-GAAP exclusions. In addition, non-GAAP financial measures exclude net tax benefits associated with stock-based awards, which include excess tax benefits, and other discrete indirect effects of such awards. The company uses these non-GAAP financial measures internally in analyzing its financial results and believes that these non-GAAP financial measures are useful to investors as an additional tool to evaluate ongoing operating results and trends. In addition, these measures are the primary indicators management uses as a basis for its planning and forecasting for future periods.
+Non-GAAP financial measures are not meant to be considered in isolation or as a substitute for the comparable GAAP financial measures. Non-GAAP financial measures are subject to limitations, and should be read only in conjunction with the company's consolidated financial statements prepared in accordance with GAAP. Non-GAAP financial measures do not have any standardized meaning and are therefore unlikely to be comparable to similarly titled measures presented by other companies. A description of these non-GAAP financial measures and a reconciliation of the company’s non-GAAP financial measures to their most directly comparable GAAP measures have been provided in the financial statement tables included in this press release, and investors are encouraged to review the reconciliation.
+About Arista Networks
+Arista Networks is an industry leader in data-driven, client to cloud networking for large data center, campus and routing environments. Arista’s award-winning platforms deliver availability, agility, automation, analytics and security through an advanced network operating stack. For more information, visit www.arista.com.
+ARISTA and CloudVision, CV AGNI, Arista CUE, are among the registered and unregistered trademarks of Arista Networks, Inc. in jurisdictions around the world. Other company names or product names may be trademarks of their respective owners.
+
+Investor Contacts:
+
+Arista Networks, Inc.
+Liz Stine, 408-547-5885
+Investor Relations
+liz@arista.com
+3
+
+ARISTA NETWORKS, INC.
+Condensed Consolidated Income Statements
+(Unaudited, in thousands, except per share amounts)
+Three Months Ended June 30, 2023	Six Months Ended June 30, 2023
+2023	2022	2023	2022
+Revenue:
+Product	$	1,261,537	$	885,806	$	2,433,631	$	1,610,524
+Service	197,387	166,085	376,644	318,433
+Total revenue	1,458,924	1,051,891	2,810,275	1,928,957
+Cost of revenue:
+Product	533,613	375,634	1,042,475	669,443
+Service	41,182	32,992	79,164	62,404
+Total cost of revenue	574,795	408,626	1,121,639	731,847
+Gross profit	884,129	643,265	1,688,636	1,197,110
+Operating expenses:
+Research and development	229,676	178,158	431,084	350,164
+Sales and marketing	97,971	79,372	191,463	160,111
+General and administrative	26,420	22,882	51,449	45,995
+Total operating expenses	354,067	280,412	673,996	556,270
+Income from operations	530,062	362,853	1,014,640	640,840
+Other income (expense), net	56,339	(533)	68,485	30,947
+Income before income taxes	586,401	362,320	1,083,125	671,787
+Provision for income taxes	94,516	63,221	154,767	100,429
+Net income	$	491,885	$	299,099	$	928,358	$	571,358
+Net income per share:
+Basic	$	1.59	$	0.98	$	3.02	$	1.86
+Diluted	$	1.55	$	0.94	$	2.94	$	1.80
+Weighted-average shares used in computing net income per share:
+Basic	308,636	306,754	307,810	307,399
+Diluted	316,485	316,581	316,031	318,040
+
+4
+
+ARISTA NETWORKS, INC.
+Reconciliation of Selected GAAP to Non-GAAP Financial Measures
+(Unaudited, in thousands, except percentages and per share amounts)
+Three Months Ended June 30,	Six Months Ended June 30,
+2023	2022	2023	2022
+GAAP gross profit	$	884,129	$	643,265	$	1,688,636	$	1,197,110
+GAAP gross margin	60.6	%	61.2	%	60.1	%	62.1	%
+Stock-based compensation expense	2,824	2,312	5,799	3,621
+Intangible asset amortization	6,820	6,012	13,640	11,733
+Non-GAAP gross profit	$	893,773	$	651,589	$	1,708,075	$	1,212,464
+Non-GAAP gross margin	61.3	%	61.9	%	60.8	%	62.9	%
+GAAP income from operations	$	530,062	$	362,853	$	1,014,640	$	640,840
+Stock-based compensation expense	67,127	50,224	130,008	100,503
+Intangible asset amortization	9,315	7,708	18,630	15,019
+Acquisition-related costs (1)	—	4,691	—	4,691
+Non-GAAP income from operations	$	606,504	$	425,476	$	1,163,278	$	761,053
+Non-GAAP operating margin	41.6	%	40.4	%	41.4	%	39.5	%
+GAAP net income	$	491,885	$	299,099	$	928,358	$	571,358
+Stock-based compensation expense	67,127	50,224	130,008	100,503
+Intangible asset amortization	9,315	7,708	18,630	15,019
+Acquisition-related costs (1)	—	4,691	—	4,691
+Unrealized loss (gain) on equity investments	(24,743)	5,084	(19,172)	(23,413)
+Tax benefit on stock-based awards	(37,832)	(17,725)	(87,894)	(48,689)
+Income tax effect on non-GAAP exclusions	(4,519)	(6,401)	(16,235)	(8,281)
+Non-GAAP net income	$	501,233	$	342,680	$	953,695	$	611,188
+GAAP diluted net income per share	$	1.55	$	0.94	$	2.94	$	1.80
+Non-GAAP adjustments to net income	0.03	0.14	0.08	0.12
+Non-GAAP diluted net income per share	$	1.58	$	1.08	$	3.02	$	1.92
+Weighted-average shares used in computing diluted net income per share	316,485	316,581	316,031	318,040
+Summary of Stock-Based Compensation Expense:
+Cost of revenue	$	2,824	$	2,312	$	5,799	$	3,621
+Research and development	41,137	28,449	77,706	56,025
+Sales and marketing	15,833	12,827	30,971	25,936
+General and administrative	7,333	6,636	15,532	14,921
+Total	$	67,127	$	50,224	$	130,008	$	100,503
+_____________________________________________
+(1) Represent costs associated with business combinations, which primarily include retention bonuses, and professional and consulting fees.
+
+5
+
+ARISTA NETWORKS, INC.
+Condensed Consolidated Balance Sheets
+(Unaudited, in thousands)
+June 30, 2023	December 31, 2022
+ASSETS
+CURRENT ASSETS:
+Cash and cash equivalents	$	1,261,836	$	671,707
+Marketable securities	2,479,290	2,352,022
+Accounts receivable	779,726	923,096
+Inventories	1,864,334	1,289,706
+Prepaid expenses and other current assets	466,371	314,217
+Total current assets	6,851,557	5,550,748
+Property and equipment, net	101,705	95,009
+Acquisition-related intangible assets, net	103,575	122,205
+Goodwill	268,531	265,924
+Investments	61,788	39,468
+Operating lease right-of-use assets	61,333	53,390
+Deferred tax assets	705,856	574,912
+Other assets	31,696	73,754
+TOTAL ASSETS	$	8,186,041	$	6,775,410
+LIABILITIES AND STOCKHOLDERS’ EQUITY
+CURRENT LIABILITIES:
+Accounts payable	$	351,920	$	232,572
+Accrued liabilities	363,036	292,487
+Deferred revenue	624,207	637,432
+Other current liabilities	316,629	131,040
+Total current liabilities	1,655,792	1,293,531
+Income taxes payable	98,722	89,839
+Operating lease liabilities, non-current	51,702	43,964
+Deferred revenue, non-current	460,697	403,814
+Other long-term liabilities	61,546	58,442
+TOTAL LIABILITIES	2,328,459	1,889,590
+STOCKHOLDERS’ EQUITY:
+Common stock	31	31
+Additional paid-in capital	1,927,697	1,780,714
+Retained earnings	3,955,062	3,138,983
+Accumulated other comprehensive income (loss)	(25,208)	(33,908)
+TOTAL STOCKHOLDERS’ EQUITY	5,857,582	4,885,820
+TOTAL LIABILITIES AND STOCKHOLDERS’ EQUITY	$	8,186,041	$	6,775,410
+
+6
+
+ARISTA NETWORKS, INC.
+Condensed Consolidated Statements of Cash Flows
+(Unaudited, in thousands)
+Six Months Ended June 30,
+2023	2022
+CASH FLOWS FROM OPERATING ACTIVITIES:
+Net income	$	928,358	$	571,358
+Adjustments to reconcile net income to net cash provided by operating activities:
+Depreciation, amortization and other	39,227	28,012
+Stock-based compensation	130,008	100,503
+Noncash lease expense	9,154	9,161
+Deferred income taxes	(130,287)	(105,937)
+Unrealized gain on equity investments	(19,172)	(23,413)
+Amortization (accretion) of investment premiums (discounts)	(11,998)	11,457
+Changes in operating assets and liabilities:
+Accounts receivable, net	143,370	(64,335)
+Inventories	(574,628)	(202,052)
+Other assets	(120,864)	(163,692)
+Accounts payable	114,905	71,169
+Accrued liabilities	70,418	(16,210)
+Deferred revenue	43,658	91,201
+Income taxes, net	198,100	10,792
+Other liabilities	(11,676)	221
+Net cash provided by operating activities	808,573	318,235
+CASH FLOWS FROM INVESTING ACTIVITIES:
+Proceeds from maturities of marketable securities	1,265,305	829,714
+Proceeds from sale of marketable securities	21,725	165,746
+Purchases of marketable securities	(1,392,020)	(641,979)
+Purchases of property and equipment	(17,212)	(23,744)
+Cash paid for business acquisitions, net of cash acquired	1,799	(145,087)
+Investments in notes and privately-held companies	(4,250)	(11,691)
+Net cash provided by (used in) investing activities	(124,653)	172,959
+CASH FLOWS FROM FINANCING ACTIVITIES:
+Proceeds from issuance of common stock under equity plans	30,410	22,991
+Tax withholding paid on behalf of employees for net share settlement	(15,766)	(18,802)
+Repurchases of common stock	(112,279)	(619,888)
+Net cash used in financing activities	(97,635)	(615,699)
+Effect of exchange rate changes	429	(3,041)
+NET INCREASE (DECREASE) IN CASH, CASH EQUIVALENTS AND RESTRICTED CASH	586,714	(127,546)
+CASH, CASH EQUIVALENTS AND RESTRICTED CASH —Beginning of period	675,978	625,050
+CASH, CASH EQUIVALENTS AND RESTRICTED CASH —End of period	$	1,262,692	$	497,504
+
+7

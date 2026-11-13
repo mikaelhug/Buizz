@@ -1,0 +1,38 @@
+{
+ "accession": "0000002488-25-000106",
+ "cik": 2488,
+ "published_at": "2025-08-05T20:16:31Z",
+ "note": "Midpoint-implied ~28% YoY and ~13% sequential revenue growth treated as restatement of the revenue range, not separate facts.",
+ "facts": [
+  {
+   "fields": {
+    "metric": "revenue",
+    "metric_label": "revenue",
+    "basis": "not_stated",
+    "period_label": "third quarter of 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": 3,
+    "low": 8400000000,
+    "high": 9000000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "For the third quarter of 2025, AMD expects revenue to be approximately $8.7 billion, plus or minus $300 million."
+  },
+  {
+   "fields": {
+    "metric": "gross_margin",
+    "metric_label": "Non-GAAP gross margin",
+    "basis": "non_gaap",
+    "period_label": "third quarter of 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": 3,
+    "low": 54,
+    "high": 54,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Non-GAAP gross margin is expected to be approximately 54%."
+  }
+ ]
+}

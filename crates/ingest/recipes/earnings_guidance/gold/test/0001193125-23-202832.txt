@@ -1,0 +1,513 @@
+Exhibit 99.1
+
+2
+
+Q2 2023 Shareholder Letter
+
+Q2 marked another quarter of strong results for Airbnb. Nights and Experiences Booked exceeded 115 million. Revenue of $2.5 billion grew 18% year-over-year (19% ex-FX). Net income was $650 million—our most profitable Q2 on a GAAP basis. Adjusted EBITDA was $819 million, while Free Cash Flow was $900 million, growing 13% year-over-year.
+
+We also continued to make significant progress across each of our strategic priorities:
+
+•	Make hosting mainstream: Supply growth stagnated at the beginning of COVID. Since then, we’ve been focused on making hosting mainstream by raising awareness, making it easier and improving our tools. Through these efforts, we’ve seen great results. In Q2 2023, active listings grew 19% year-over-year, with strong growth across all regions, market types and price points. In fact, we added more net active listings than in any previous quarter in Airbnb’s history to exceed 7 million total active listings.
+
+•	Perfect the core service: We want people to love our service, and that means obsessing over every detail. Millions of people have given us feedback on how to improve Airbnb. We’ve listened. Based on feedback from our community, we introduced over 50 new features and upgrades as part of our 2023 Summer Release. For example, we introduced several initiatives aimed at increasing affordability, including new pricing tools for Hosts. Since the Release, more Hosts have adopted our discounting tools and lowered their prices.
+
+•	Expand beyond the core: We’ve spent the last few years perfecting our core service Today, it’s stronger and more profitable than ever. But we’re not stopping there. We have some big ideas for where to take Airbnb next, and we’re building the foundational capabilities for new products and services that we plan to launch in the years to come.
+Q2 2023 Financial Results
+
+Here’s a snapshot of our Q2 2023 results:
+
+•	Q2 revenue was $2.5 billion, up 18% (19% ex-FX) year-over-year. Revenue increased to $2.5 billion in Q2 2023 from $2.1 billion in Q2 2022, driven by solid growth in Nights and Experiences Booked and stable Average Daily Rate (“ADR”).
+
+•	Q2 net income was $650 million, up 72% year-over-year. Net income increased to $650 million in Q2 2023 from $379 million in Q2 2022 primarily due to our revenue growth, expense discipline and interest income. In Q2 2023, we delivered a net income margin of 26%—our highest second quarter ever—up from 18% in Q2 2022.
+
+•	Q2 Adjusted EBITDA was $819 million, up 15% year-over-year. Adjusted EBITDA increased to $819 million in Q2 2023 from $711 million in Q2 2022. This demonstrates the continued strength of our business and discipline in managing our cost structure. Adjusted EBITDA margin was 33% compared to Q2 2022 EBITDA margin of 34%.1
+
+1	A reconciliation of non-GAAP financial measures to the most comparable GAAP measures is provided at the end of this letter.
+
+3
+
+•	Q2 Free Cash Flow was $900 million, up 13% year-over-year. Net cash provided by operating activities increased to $909 million in Q2 2023 from $801 million in Q2 2022. The increase in cash flow was driven by revenue and bookings growth as well as net margin expansion. Our TTM FCF was $3.9 billion, representing a TTM FCF margin of 43%—a significant improvement from 39% a year ago.2
+
+•	Q2 TTM share repurchases of $2.5 billion. Our TTM Free Cash Flow generation enabled us to repurchase $2.5 billion of our Class A common stock over the trailing twelve months. In total, our share repurchases since the start of our buyback program in August 2022 have helped to reduce our fully diluted share count from 705 million in Q2 2022 to 686 million at the end of Q2 2023.
+Business Highlights
+
+Our strong quarter was driven by a number of positive business trends:
+
+•	Guest demand on Airbnb remains strong. Nights and Experiences Booked grew 11% in Q2 2023 compared to a relatively hard comparison a year ago. We saw an improvement in year-over-year Nights and Experiences Booked growth during the quarter from 10% in April to 15% in June. In particular, we were encouraged by the acceleration in year-over-year nights in North America throughout the quarter, and the recovery in EMEA in June following challenging holiday comparisons in May. In the quarter, we saw active bookers growth in every region, as well as more first time bookers compared to a year ago. Since starting Airbnb, we’ve had more than 1.5 billion guest arrivals.
+
+•	Guests are traveling farther. Cross-border nights booked grew by 16% in Q2 2023 compared to a year ago. While the mix of international travel hasn’t yet returned to pre-pandemic levels, we’ve continued to see strong year-over-year growth across all regions. In particular, cross-border travel to Asia Pacific grew over 80% in Q2 2023 compared to the same period a year ago, while cross-border travel to North America increased by 20%. We also saw more guests return to cities, with high-density urban nights booked increasing by 13% in Q2 2023 compared to Q2 2022.
+
+•	Guests are staying longer on Airbnb. As part of our 2023 Summer Release on May 3, we launched several new features for long-term stays (28 nights or longer). Following the release, year-over-year growth in bookings for long-term stays accelerated every month during the quarter. Overall, nights from long-term stays were stable with the prior quarter at 18% of total gross nights booked in Q2 2023. For the past six quarters, long weekends have been the fastest growing trip type on Airbnb. As our guests continue to have flexibility to travel and work remotely, they’re opting to stay an extra night or two on Airbnb.
+
+2	A reconciliation of non-GAAP financial measures to the most comparable GAAP measures is provided at the end of this letter.
+
+4
+
+•	Supply growth continued to accelerate. In every quarter since our 2020 IPO, we’ve seen acceleration in the year-over-year growth of our total active listings (excluding China). In Q2 2023, we grew supply 19% compared to Q2 2022, up from 18% in Q1 2023, and we added more net active listings than any quarter in our company’s history.3 We continued to see double-digit supply growth across all regions, with the most growth in Asia Pacific and Latin America – the two regions that also had the most year-over-year growth in Nights and Experiences Booked. In addition, urban and non-urban supply grew at similar rates year-over-year.
+Results from our 2023 Summer Release
+
+On May 3, as part of our 2023 Summer Release, we introduced over 50 new features and upgrades, improving nearly every aspect of our service. Everything we launched was based on direct feedback from our guests and Hosts. Here’s an update on a few of the new features and upgrades:
+
+Pricing Tools
+
+Hosts told us that our pricing tools were difficult to use, and they had trouble setting competitive prices. To address these concerns, we redesigned our pricing tools, making it easier to add discounts and promotions. We also added a new feature called Similar Listings, making it easier for Hosts to set a competitive price. Feedback from Hosts has been very positive. They appreciated the simpler and more intuitive design, as well as the transparent pricing breakdown. Since offering these tools, we’ve seen Hosts begin to lower their prices, with more of them offering weekly and monthly discounts. We believe these changes will continue to drive greater affordability and value for guests, ultimately supporting bookings growth.
+
+Airbnb Rooms
+
+In May 2023, we introduced Airbnb Rooms, an all-new take on the original Airbnb. In addition to Airbnb Rooms getting us back to our founding ethos of sharing, it’s one of the most affordable ways to travel, with an average price of only $67 per night—significantly lower than the average hotel room. Given the continued macroeconomic uncertainty and elevated ADR, we believe that Airbnb Rooms is an important offering on our platform, especially for the next generation of travelers who tend to be more cost conscious.
+
+3	In July 2022, all mainland China listings were taken down based on our decision to close the domestic business in China and instead focus on the outbound China business. As such, for comparative purposes, references to supply and supply growth exclude listings in China from prior periods.
+
+5
+
+Monthly Stays
+
+In May, we took three important steps to make longer stays more affordable for our guests. First, for stays over three months, we significantly reduced the guest service fee after the third month. Second, we introduced pay by bank allowing guests in the U.S. to save money on stays over one month. And third, we made it easier for Hosts to add a monthly discount. We also made finding long-term stays simpler and more intuitive with a new dial interface that lets guests search for a stay of 1–12 months.
+
+As a result of these changes, we saw an acceleration in year-over-year growth in bookings for monthly stays during the quarter. In particular, there was an increase in guests booking stays of three months or longer. In June, nights booked for three months or longer grew to approximately 25% of total monthly stays, compared to 18% in April. Additionally, the percentage of new active listings that offer a monthly discount has increased significantly, from 22% to approximately 50% since the 2023 Summer Release.
+
+6
+
+7
+
+8
+
+9
+
+10
+
+Q2 2023 Business and Financial Performance
+
+Q2 2023
+115.1M	$19.1B
+Nights & Experiences Booked	Gross Booking Value
+11% Y/Y	13% Y/Y
+37% Y/4Y	13% Y/Y (ex-FX)
+94% Y/4Y
+
+During Q2 2023, we had 115.1 million Nights and Experiences Booked—our highest second quarter ever. While we saw strong growth across all regions compared to Q2 2022, Asia Pacific once again saw the strongest growth. The increase in Nights and Experiences Booked combined with stable ADR drove another quarter of strong GBV growth. In Q2 2023, GBV was $19.1 billion, representing a year-over-year increase of 13% (13% ex-FX).
+
+Geographic Mix
+
+In Q2 2023, we saw continued growth in all regions relative to the same period in 2022. Q2 2023 regional highlights include:
+
+•	In Q2 2023, we saw an acceleration in year-over-year growth in North American Nights and Experiences Booked compared to the prior quarter. ADR in North America decreased 1% compared to Q2 2022. While the majority of travel in North America remains domestic, we saw continued strong year-over-year growth in cross-border nights booked during the quarter. In Q2 2023, Nights and Experiences Booked to North America by guests outside the region increased approximately 20% compared to Q2 2022.
+
+•	As expected, in Q2 2023, EMEA faced a hard year-over-year comparison resulting in a deceleration in Nights and Experiences Booked relative to Q1 2023. This was the largest driver of the deceleration in global nights growth in Q2 2023. ADR in EMEA grew 8% year-over-year, which was the highest increase in ADR across the regions. Similar to North America, we saw strong year-over-year growth in cross-border nights booked during the quarter. In Q2 2023, Nights and Experiences Booked to EMEA by guests outside the region increased approximately 15% compared to Q2 2022.
+
+•	In Latin America, Nights and Experiences Booked were 22% higher than Q2 2022, with continued resilience in certain countries, such as Mexico and Brazil. When compared to pre-pandemic periods (Q2 2019), Latin America has been the fastest growing region with Nights and Experiences Booked nearly doubling.
+
+11
+
+•	In Asia Pacific, Nights and Experiences Booked saw 24% year-over-year growth, the most significant growth across the regions, as travel there continues to recover. This region has historically been reliant on cross-border travel. While total nights in Asia Pacific are still down compared to pre-pandemic periods, we are encouraged by the continuous recovery of cross-border travel, especially to the region.
+Airbnb’s International Expansion
+
+Last quarter, we shared that we have prioritized a number of underpenetrated markets, including Brazil and Germany, which have become two of our fastest-growing markets. In Q2 2023, both countries continued the growth trajectory with gross nights booked on an origin basis increasing 110% for Brazil and 63% for Germany compared to the same pre-pandemic period in 2019. In addition to these two countries, we are excited about the potential of other, less mature markets. In Asia Pacific, supply (excluding China) exceeds demand, which is still below pre-pandemic levels, demonstrating to us the potential for long-term growth. In particular, South Korea and Japan are countries where we have significantly increased our penetration since 2019, but remain a small part of the overall lodging industry in those markets. We believe that with continued investment behind our brand, we can continue to build momentum for Airbnb in our core as well as under-penetrated markets.
+
+Travel Corridors and Distance
+
+While domestic and short-distance travel continued to be strong, we saw even further improvement in both longer-distance and cross-border travel during Q2 2023 compared to the prior year. In Q2 2023, guests traveling more than 3,000 miles increased 20% compared to Q2 2022 and cross-border represented 45% of total gross nights booked, up from 43% in Q2 2022, but still below 50% in Q2 2019.
+
+Urban Destinations
+
+Consistent with recent quarters, we continue to see signs of travelers returning to cities, historically one of the strongest areas of our business. Gross nights booked in high-density urban areas represented 48% of our gross nights booked in Q2 2023, up from 47% in Q2 2022, but still below 57% in Q2 2019.
+
+Trip Length
+
+During Q2 2023, long-term stays of 28 days or more accounted for 18% of gross nights booked, relatively consistent with Q1 2023 and Q2 2022. Since our 2023 Summer Release, in which we introduced a number of improvements to help make monthly stays more affordable, we have seen an increase in searches for monthly stays. In addition, nights booked for stays of three months or longer as a proportion of total monthly stays increased to approximately 25% in June from 18% in April. Overall, approximately 45% of gross nights booked in Q2 2023 were from stays of at least seven nights.
+
+12
+
+Average Daily Rates
+
+ADR was $166 in Q2 2023, representing a 1% increase from Q2 2022. Excluding the impact of FX, ADR in Q2 2023 increased 2% from Q2 2022. ADR remained stable on a year-over-year basis as increases in prices listed by Hosts were offset by guests’ willingness to pay and mix shift into urban and certain geos, which tend to carry lower ADR. On an FX-neutral basis, Q2 2023 ADR was down in North America and Latin America, but up in EMEA and Asia Pacific year-over-year. In North America, we saw a decrease in available prices of 2% in Q2 2023 compared to Q2 2022 as Hosts reduced prices.
+
+Supply
+
+We ended Q2 with over 7 million total active listings – our highest number yet. Active listings grew 19% in Q2 2023 compared to a year ago.4 For every quarter since we went public in 2020, we have seen acceleration in the year-over-year growth of our total active listings. We saw growth in supply across all market types in Q2 2023 compared to a year ago, including both non-urban and urban supply. We also saw an increase in supply across all regions in Q2 2023 compared to Q2 2022, with the highest growth rates in Latin America and Asia Pacific. Overall, our supply base remains highly distributed and the number of individual Hosts on our platform continues to grow.
+
+4	In July 2022, all mainland China listings were taken down based on our decision to close the domestic business in China and instead focus on the outbound China business. As such, for comparative purposes, references to supply and supply growth exclude listings in China from prior periods.
+
+13
+
+Q2 2023
+$2 .5B	$650M	$819M
+Revenue	Net Income	Adjusted EBITDA
+18% Y/Y	$662M ex-FX	$831M ex-FX
+19% Y/Y (ex-FX)	$379M Q2 2022	$711M Q2 2022
+105% Y/4Y	$(297)M Q2 2019	$(42)M Q2 2019
+$909M	$900M
+Net Cash Provided by	Free Cash Flow
+Operating Activities	13% Y/Y
+13% Y/Y	644% Y/4Y
+498% Y/4Y
+
+In Q2 2023, revenue was $2.5 billion, representing a year-over-year increase of 18% (19% ex-FX). The increase in revenue was driven by the strong growth in Nights and Experiences Booked and stable ADR. In Q2 2023, approximately 51% of our GAAP revenue was denominated in non-USD currencies, while a minority of our total costs and expenses were denominated in non-USD currencies.
+
+Operating expenses in Q2 2023 included the impact of $304 million of stock-based compensation expense, which is excluded from Adjusted EBITDA. On a year-over-year basis, revenue growth significantly outpaced the increase in total costs and expenses (excluding the impact of stock-based compensation), demonstrating continued cost control.
+
+Net income in Q2 2023 was $650 million, a significant increase compared with net income of $379 million in Q2 2022, primarily driven by substantially higher revenue, expense discipline and interest income. Relative to Q2 2022, net income margin increased 8 percentage points (from 18% in Q2 2022 to 26% in Q2 2023).
+
+Adjusted EBITDA for Q2 2023 was $819 million, an improvement compared to Adjusted EBITDA of $711 million in Q2 2022.5 The growth in our Q2 2023 Adjusted EBITDA reflects the continued strength of our business, strong ADR and cost discipline. Relative to Q2 2022, Adjusted EBITDA margin decreased 1 percentage point (from 34% in Q2 2022 to 33% in Q2 2023). As shared in our Q2 2023 outlook, our Adjusted EBITDA margin for Q2 2023 was slightly lower compared to Q2 2022 primarily due to changes in the timing of our marketing spend relative to the prior year.
+
+In 2023, we pulled forward the timing of marketing spend to be more heavily weighted in the first half of the year as compared to 2022. We continue to see great results from our brand marketing across all key markets as we optimize the channel and audience mix. We are also making continuous improvements in performance marketing that are resulting in high ROIs.
+
+5	A reconciliation of non-GAAP financial measures to the most comparable GAAP measures is provided at the end of this letter.
+
+14
+
+15
+
+16
+
+17
+
+Balance Sheet and Cash Flows
+
+For the three months ended June 30, 2023, we reported $909 million of net cash provided by operating activities and $900 million of FCF, compared to $801 million and $796 million, respectively, for the three months ended June 30, 2022.6 The year-over-year increase in FCF was driven by revenue and bookings growth as well as net margin expansion.
+
+As of June 30, 2023, we had $10.4 billion of cash, cash equivalents, short-term investments, and restricted cash. We also had $9.1 billion of funds held on behalf of guests as of June 30, 2023.
+
+In May 2023, we announced a new share repurchase authorization of up to $2.5 billion of our Class A common stock. During Q2 2023, we repurchased $500 million of Class A common stock under this authorization. The share repurchase program has enabled us to offset dilution from our employee stock programs.
+
+In the second half of 2023, we believe there is a reasonable possibility that we will reduce our tax valuation allowance and recognize our net operating loss carry forwards and research and development credits as tax assets on our balance sheet. We anticipate that the financial statement impact of eliminating this reserve would result in a one-time, non-cash benefit to income tax expense and net income of approximately $2.5 billion to $3 billion and a corresponding recognition on the balance sheet of the same amount for the value of our tax assets.
+
+Outlook
+
+For Q3 2023, we expect to deliver revenue of $3.3 billion to $3.4 billion, which represents year-over-year growth of between 14% and 18%, and a few points lower excluding the impact of FX. We anticipate that our implied take rate (defined as revenue divided by GBV) in Q3 2023 will be higher than Q3 2022.
+
+We expect a modest sequential increase in the year-over-year growth rate of Nights and Experiences Booked from Q2 2023 to Q3 2023. We believe revenue growth will outpace Nights and Experiences Booked growth in the third quarter, due to the continued resilience of ADR (including the impact of FX). While our new Host pricing tools have had a moderating effect on ADR in the quarter, we expect upward pressure on ADR from FX rates and listing type mix shift to outweigh their impact and drive a year-over-year increase in ADR in Q3 2023.
+
+We expect a record-high Adjusted EBITDA in Q3 2023 on a nominal basis and an Adjusted EBITDA margin that exceeds Q3 2022. For the full-year 2023, we expect an Adjusted EBITDA margin that is modestly higher than the full-year 2022.
+
+6	A reconciliation of non-GAAP financial measures to the most comparable GAAP measures is provided at the end of this letter.
+
+18
+
+Earnings Webcast
+
+Airbnb will host an audio webcast to discuss its second quarter results at 1:30 p.m. PT / 4:30 p.m. ET on Thursday, August 3, 2023. The link to the webcast will be made available on the Investor Relations website at https://investors.airbnb.com.
+
+Interested parties can register for the call in advance by visiting https://conferencingportals.com/event/ dRSwIJPg. After registering, instructions will be shared on how to join the call.
+
+Following the call, a replay of the webcast will be available on the Airbnb Investor Relations website. A telephonic replay will be also available for three weeks following the call at (800) 770-2030 using conference ID: 24053.
+
+Investor Relations Contact:
+
+ir@airbnb.com
+
+Press Contact:
+
+contact.press@airbnb.com
+
+About Airbnb
+
+Airbnb was born in 2007 when two Hosts welcomed three guests to their San Francisco home, and has since grown to over 4 million Hosts who have welcomed over 1.5 billion guest arrivals in almost every country across the globe. Every day, Hosts offer unique stays and experiences that make it possible for guests to connect with communities in a more authentic way.
+
+Forward-Looking Statements
+
+This letter contains forward-looking statements within the meaning of the Private Securities Litigation Reform Act of 1995. All statements other than statements of historical fact could be deemed forward-looking, including, but not limited to, statements regarding the future performance of Airbnb, Inc. and its consolidated subsidiaries (the “Company”), including its financial outlook for the third quarter of 2023 and the fiscal year 2023; the other expectations described under “Outlook” above; the Company’s expectations regarding travel trends and the travel industry generally; the Company’s strategic priorities and investments; the Company’s expectations with respect to the demand for bookings, and expectations with respect to increases in active listings; the Company’s expectations regarding cross-border travel; the Company’s expectation of attracting and retaining more Hosts; the growth of active listings in cities; the Company’s expectations regarding international expansion; the Company’s expectations regarding long-term stays through its platform; the Company’s expectations regarding its financial performance, including its revenue, implied take rate, Adjusted EBITDA, and Adjusted EBITDA margin; the Company’s expectations regarding future operating performance, including Nights and Experiences Booked and GBV; the Company’s expectations regarding ADR; the Company’s share repurchase program; expectations for product and services growth and enhancements, including the response to the Company’s 2023 Summer Release; the impact on the Company’s financial statements of the reduction of its tax valuation allowance and recognition of its net operating loss carry forwards and research and development credits
+
+19
+
+as tax assets on the Company’s balance sheet; and the Company’s business strategy, plans, and objectives for future operations. In some cases, forward-looking statements can be identified by terms such as “may,” “will,” “appears,” “should,” “expects,” “plans,” “anticipates,” “could,” “outlook,” “intends,” “target,” “projects,” “contemplates,” “believes,” “estimates,” “predicts,” “potential,” or “continue,” or the negative of these words or other similar terms or expressions that concern our expectations, strategy, plans, or intentions. Such statements are subject to a number of known and unknown risks, uncertainties, assumptions, and other factors that may cause the Company’s actual results, performance, or achievements to differ materially from results expressed or implied in this letter. Investors are cautioned not to place undue reliance on these statements, and reported results should not be considered as an indication of future performance.
+
+Risks that contribute to the uncertain nature of the forward-looking statements include, among others, the effects of the COVID-19 pandemic on the Company’s business, including as a result of new strains or variants of the virus, the travel industry, travel trends, and the global economy generally; the Company’s ability to retain existing Hosts and guests and add new Hosts and guests; any further and continued decline or disruption in the travel and hospitality industries or economic downturn; the Company’s ability to compete successfully; changes to the laws and regulations that may limit the Company’s Hosts’ ability and willingness to provide their listings, and/or result in significant fines, liabilities, and penalties to the Company; the effect of extensive regulation and oversight, litigation, and other proceedings related to the Company’s business in a variety of areas; the Company’s ability to maintain its brand and reputation, and effectively drive traffic to its platform; the effectiveness of the Company’s strategy and business initiatives, including measures to improve trust and safety; the Company’s operations in international markets; the Company’s substantial level of indebtedness; the Company’s final closing procedures, final adjustments, and other developments that may arise in the course of audit and review procedures; and changes in political, business, and economic conditions; as well as other risks listed or described from time to time in the Company’s filings with the Securities and Exchange Commission (the “SEC”), including the Company’s Annual Report on Form 10-K for the fiscal year ended December 31, 2022, the Company’s Quarterly Reports on Form 10-Q for the quarters ended March 31, 2023 and June 30, 2023 and any subsequent filings, which are or will be on file with the SEC and available on the investor relations page of the Company’s website. All forward looking statements are based on information and estimates available to the Company at the time of this letter and are not guarantees of future performance. Except as required by law, the Company assumes no obligation to update any of the statements in this letter.
+
+The information that can be accessed through hyperlinks or website addresses included herein is deemed not to be incorporated in or part of this letter.
+
+Non-GAAP Financial Measures
+
+In addition to our results determined in accordance with generally accepted accounting principles in the United States (“GAAP”), we review financial measures that are not calculated and presented in accordance with GAAP (“non-GAAP financial measures”). We believe our non-GAAP financial measures are useful in evaluating our operating performance. We use the following non-GAAP financial information, collectively, to evaluate our ongoing operations and for internal planning and forecasting purposes. We believe that non-GAAP financial information, when taken collectively, may be helpful to investors because it provides consistency and comparability with past financial performance, and assists in comparisons with other
+
+20
+
+companies, some of which use similar non-GAAP financial information to supplement their GAAP results. The non-GAAP financial information is presented for supplemental informational purposes only, should not be considered a substitute for financial information presented in accordance with GAAP, and may be different from similarly titled non-GAAP measures used by other companies. A reconciliation of each non-GAAP financial measure to the most directly comparable financial measure stated in accordance with GAAP is provided below. Investors are encouraged to review the related GAAP financial measures and the reconciliation of these non-GAAP financial measures to their most directly comparable GAAP financial measures.
+
+Our non-GAAP financial measures include Adjusted EBITDA, Adjusted EBITDA Margin, Free Cash Flow, Free Cash Flow Margin, trailing twelve months (“TTM”) Free Cash Flow, TTM Free Cash Flow Margin, revenue change excluding the effect of changes in foreign exchange rates (“ex-FX”), net income ex-FX, and Adjusted EBITDA ex-FX.
+
+Adjusted EBITDA is defined as net income or loss adjusted for (i) provision for (benefit from) income taxes; (ii) interest income, interest expense, and other income (expense), net; (iii) depreciation and amortization; (iv) stock-based compensation expense; (v) acquisition-related impacts consisting of gains (losses) recognized on changes in the fair value of contingent consideration arrangements; (vi) net changes to the reserves for lodging taxes for which management believes it is probable that we may be held jointly liable with Hosts for collecting and remitting such taxes; and (vii) restructuring charges.
+
+The above items are excluded from our Adjusted EBITDA measure because these items are non-cash in nature, or because the amount and timing of these items is unpredictable, not driven by core results of operations and renders comparisons with prior periods and competitors less meaningful. Reconciliations of expected Adjusted EBITDA and Adjusted EBITDA margins to corresponding net income (loss) and net income (loss) margins have not been provided because of the unpredictability of certain of the items excluded from Adjusted EBITDA and because we cannot determine their probable significance. We believe Adjusted EBITDA provides useful information to investors and others in understanding and evaluating our results of operations, as well as provides a useful measure for period-to-period comparisons of our business performance. Moreover, we have included Adjusted EBITDA in this letter because it is a key measurement used by our management internally to make operating decisions, including those related to operating expenses, evaluating performance, and performing strategic planning and annual budgeting. Adjusted EBITDA also excludes certain items related to transactional tax matters, for which management believes it is probable that we may be held jointly liable with Hosts in certain jurisdictions.
+
+Adjusted EBITDA has limitations as a financial measure, should be considered as supplemental in nature, and is not meant as a substitute for the related financial information prepared in accordance with GAAP. These limitations include the following:
+
+•	Adjusted EBITDA does not reflect interest income (expense) and other income (expense), net, which include loss on extinguishment of debt and unrealized and realized gains and losses on foreign currency exchange, investments, and financial instruments;
+
+•	Adjusted EBITDA excludes certain recurring, non-cash charges, such as depreciation of property and equipment and amortization of intangible assets, and although these are
+
+21
+
+non-cash charges, the assets being depreciated and amortized may have to be replaced in the future, and Adjusted EBITDA does not reflect all cash requirements for such replacements or for new capital expenditure requirements;
+
+•	Adjusted EBITDA excludes stock-based compensation expense, which has been, and will continue to be for the foreseeable future, a significant recurring expense in our business and an important part of our compensation strategy;
+
+•	Adjusted EBITDA excludes acquisition-related impacts consisting of gains (losses) recognized on changes in the fair value of contingent consideration arrangements. The contingent consideration, which was in the form of equity, was valued as of the acquisition date and is marked-to-market at each reporting period based on factors including our stock price;
+
+•	Adjusted EBITDA does not reflect net changes to reserves for lodging taxes for which management believes it is probable that we may be held jointly liable with Hosts for collecting and remitting such taxes; and
+
+•	Adjusted EBITDA does not reflect restructuring charges, which include severance and other employee costs, lease impairments, and contract amendments and terminations.
+Adjusted EBITDA Margin is defined as Adjusted EBITDA divided by revenue. Because of these limitations, you should consider Adjusted EBITDA and Adjusted EBITDA Margin alongside other financial performance measures, including net income (loss) and our other GAAP results.
+
+Free Cash Flow represents net cash provided by (used in) operating activities less purchases of property and equipment. We believe that Free Cash Flow is a meaningful indicator of liquidity that provides information to management and investors about the amount of cash generated from operations that, after purchases of property and equipment, can be used for strategic initiatives, including continuous investment in our business, growth through acquisitions, and strengthening our balance sheet. Our Free Cash Flow is impacted by the timing of GBV because we collect our service fees at the time of booking, which is generally before a stay or experience occurs. Funds held on behalf of our Hosts and guests and amounts payable to our Hosts and guests do not impact Free Cash Flow, except interest earned on these funds. Free Cash Flow Margin is defined as Free Cash Flow divided by revenue. We track our TTM Free Cash Flow to account for the timing difference in when we receive cash from service fees, which is at the time of booking. Free Cash Flow has limitations as an analytical tool and should not be considered in isolation or as a substitute for analysis of other GAAP financial measures, such as net cash provided by (used in) operating activities. Free Cash Flow does not reflect our ability to meet future contractual commitments and may be calculated differently by other companies in our industry, limiting its usefulness as a comparative measure. TTM Free Cash Flow Margin is defined as TTM Free Cash Flow divided by TTM revenue.
+
+In addition to the actual amount or percentage change, we disclose the amount or percentage change in our current period results for revenue, GBV, net income (loss), Adjusted EBITDA, and ADR from the corresponding prior period results by comparing results using constant currencies. We present constant currency amounts and change rate information to provide a framework for assessing how our revenue, GBV, net income (loss), Adjusted EBITDA, and ADR performed excluding the effect of changes in foreign exchange rates. We use the amounts and percentage change in constant currency revenues, GBV,
+
+22
+
+net income (loss), Adjusted EBITDA, and ADR for financial and operational decision-making and as a means to evaluate period-to-period comparisons. We believe the presentation of results on a constant currency basis in addition to the U.S. GAAP presentation helps improve the ability to understand our performance because it excludes the effects of foreign currency volatility that are not indicative of our core operating results. We calculate the percentage change in constant currency by determining the change in the current period over the prior comparable period where current period foreign currency amounts are translated using the exchange rates of the comparative period.
+
+Share Repurchases
+
+Share repurchases under our share repurchase programs may be made through a variety of methods, which may include open market purchases, privately negotiated transactions, block trades or accelerated share repurchase transactions, or by any combination of such methods. Any such repurchases will be made from time to time subject to market and economic conditions, applicable legal requirements and other relevant factors. Our share repurchase program does not obligate us to repurchase any specific number of shares and may be modified, suspended, or terminated at any time at our discretion.
+
+23
+
+Quarterly Summary
+
+2019	2022	2023
+Q1	Q2	Q3	Q4	Q1	Q2	Q3	Q4	Q1	Q2
+Nights and Experiences Booked	81.3	M	83.9	M	85.9	M	75.8	M	102.1	M	103.7	M	99.7	M	88.2	M	121.1	M	115.1	M
+Y/Y	59	%	25	%	25	%	20	%	19	%	11	%
+Y/2019	26	%	24	%	16	%	16	%	49	%	37	%
+Gross Booking Value	$	10.0	B	$	9.8	B	$	9.7	B	$	8.5	B	$	17.2	B	$	17.0	B	$	15.6	B	$	13.5	B	$	20.4	B	$	19.1	B
+Y/Y	67	%	27	%	31	%	20	%	19	%	13	%
+Y/2019	73	%	73	%	62	%	58	%	105	%	94	%
+Gross Booking Value per Night and Experience Booked (or ADR)	$	122.36	$	117.14	$	112.39	$	112.63	$	168.07	$	163.74	$	156.44	$	152.81	$	168.43	$	166.01
+Y/Y	5	%	1	%	5	%	(1	)%	—	%	1	%
+Y/2019	37	%	40	%	39	%	36	%	38	%	42	%
+
+2019	2022	2023
+Q1	Q2	Q3	Q4	Q1	Q2	Q3	Q4	Q1	Q2
+Revenue	$	839	M	$	1,214	M	$	1,645	M	$	1,107	M	$	1,509	M	$	2,104	M	$	2,884	M	$	1,902	M	$	1,818	M	$	2,484	M
+Y/Y	31	%	34	%	30	%	32	%	70	%	58	%	29	%	24	%	20	%	18	%
+FX Neutral Y/Y	74	%	64	%	36	%	31	%	24	%	19	%
+Y/2019	80	%	73	%	75	%	72	%	117	%	105	%
+Net income (loss)	$	(292	)M	$	(297	)M	$	266	M	$	(351	)M	$	(19	)M	$	379	M	$	1,214	M	$	319	M	$	117	M	$	650	M
+Adjusted EBITDA	$	(248	)M	$	(42	)M	$	313	M	$	(276	)M	$	229	M	$	711	M	$	1,457	M	$	506	M	$	262	M	$	819	M
+Net cash provided by (used in) operating activities	$	314	M	$	152	M	$	(42	)M	$	(191	)M	$	1,202	M	$	801	M	$	965	M	$	462	M	$	1,587	M	$	909	M
+Free Cash Flow	$	277	M	$	121	M	$	(74	)M	$	(217	)M	$	1,196	M	$	796	M	$	959	M	$	454	M	$	1,581	M	$	900	M
+TTM Net cash provided by operating activities	$	590	M	$	460	M	$	321	M	$	233	M	$	2,909	M	$	2,920	M	$	3,350	M	$	3,430	M	$	3,815	M	$	3,923	M
+TTM Free Cash Flow	$	495	M	$	348	M	$	199	M	$	107	M	$	2,885	M	$	2,899	M	$	3,329	M	$	3,405	M	$	3,790	M	$	3,894	M
+
+2019	2022	2023
+Mar 31	Jun 30	Sept 30	Dec 31	Mar 31	Jun 30	Sept 30	Dec 31	Mar 31	Jun 30
+Cash and other liquid assets (1)	$	3,480	M	$	3,407	M	$	3,350	M	$	3,084	M	$	9,337	M	$	9,910	M	$	9,629	M	$	9,639	M	$	10,624	M	$	10,369	M
+Funds receivable and amounts held on behalf of customers	$	3,800	M	$	4,432	M	$	2,919	M	$	3,145	M	$	6,105	M	$	7,466	M	$	4,805	M	$	4,783	M	$	7,760	M	$	9,144	M
+Unearned fees	$	966	M	$	1,050	M	$	665	M	$	675	M	$	1,748	M	$	1,981	M	$	1,220	M	$	1,182	M	$	2,172	M	$	2,347	M
+Note: We have changed our presentation from thousands to millions and, as a result, any necessary rounding adjustments have been made to prior period disclosed amounts. Certain immaterial amounts in prior periods have been reclassified to conform with current period presentation.
+
+(1)	Includes cash and cash equivalents, restricted cash, and short-term investments.
+
+24
+
+Condensed Consolidated Statements of Operations
+
+Unaudited (in millions, except per share amounts)
+
+Three Months Ended June 30	Six Months Ended June 30
+2022	2023	2022	2023
+Revenue	$	2,104	$	2,484	$	3,613	$	4,302
+Costs and expenses:
+Cost of revenue	390	432	753	860
+Operations and support (1)	258	317	491	599
+Product development (1)	375	451	738	871
+Sales and marketing (1)	379	486	724	936
+General and administrative (1)	244	275	454	518
+Restructuring charges (1)	89	—	89	—
+Total costs and expenses	1,735	1,961	3,249	3,784
+Income from operations	369	523	364	518
+Interest income	20	191	25	337
+Interest expense	(8	)	(2	)	(14	)	(6	)
+Other income (expense), net	2	(36	)	—	(43	)
+Income before income taxes	383	676	375	806
+Provision for income taxes	4	26	15	39
+Net income	$	379	$	650	$	360	$	767
+Net income per share attributable to Class A and Class B common stockholders:
+Basic	$	0.59	$	1.02	$	0.57	$	1.21
+Diluted	$	0.56	$	0.98	$	0.53	$	1.15
+Weighted-average shares used in computing net income per share attributable to Class A and Class B common stockholders:
+Basic	638	635	637	634
+Diluted	684	665	684	667
+(1)	Includes stock-based compensation expense as follows (in millions):
+
+Three Months Ended June 30	Six Months Ended June 30
+2022	2023	2022	2023
+Operations and support	$	17	$	19	$	29	$	34
+Product development	145	191	263	340
+Sales and marketing	29	36	50	64
+General and administrative	56	58	100	106
+Stock-based compensation expense	$	247	$	304	$	442	$	544
+
+25
+
+Condensed Consolidated Balance Sheets
+
+Unaudited (in millions)
+
+December 31, 2022	June 30, 2023
+Assets
+Current assets:
+Cash and cash equivalents	$	7,378	$	7,905
+Short-term investments	2,244	2,435
+Funds receivable and amounts held on behalf of customers	4,783	9,144
+Prepaids and other current assets	456	568
+Total current assets	14,861	20,052
+Property and equipment, net	121	132
+Operating lease right-of-use assets	138	131
+Goodwill and intangible assets, net	684	679
+Other assets, noncurrent	234	194
+Total assets	$	16,038	$	21,188
+Liabilities and Stockholders’ Equity
+Current liabilities:
+Accounts payable	$	137	$	100
+Accrued expenses and other current liabilities	1,876	2,033
+Funds payable and amounts payable to customers	4,783	9,144
+Unearned fees	1,182	2,347
+Total current liabilities	7,978	13,624
+Long-term debt	1,987	1,989
+Operating lease liabilities, noncurrent	295	285
+Other liabilities, noncurrent	218	231
+Total liabilities	10,478	16,129
+Stockholders’ equity:
+Common stock	—	—
+Additional paid-in capital	11,557	11,290
+Accumulated other comprehensive loss	(32	)	(33	)
+Accumulated deficit	(5,965	)	(6,198	)
+Total stockholders’ equity	5,560	5,059
+Total liabilities and stockholders’ equity	$	16,038	$	21,188
+
+26
+
+Condensed Consolidated Statements of Cash Flows
+
+Unaudited (in millions)
+
+Six Months Ended June 30
+2022	2023
+Cash flows from operating activities:
+Net income	$	360	$	767
+Adjustments to reconcile net income to cash provided by operating activities:
+Depreciation and amortization	55	20
+Stock-based compensation expense	442	544
+Foreign exchange (gain) loss	38	(46	)
+Impairment of long-lived assets	89	—
+Other, net	43	29
+Changes in operating assets and liabilities:
+Prepaids and other assets	(187	)	(83	)
+Operating lease right-of-use assets	18	7
+Accounts payable	23	(38	)
+Accrued expenses and other liabilities	44	133
+Unearned fees	1,078	1,163
+Net cash provided by operating activities	2,003	2,496
+Cash flows from investing activities:
+Purchases of property and equipment	(11	)	(15	)
+Purchases of short-term investments	(2,079	)	(1,691	)
+Sales and maturities of short-term investments	2,264	1,503
+Other investing activities, net	(3	)	—
+Net cash provided by (used in) investing activities	171	(203	)
+Cash flows from financing activities:
+Taxes paid related to net share settlement of equity awards	(345	)	(872	)
+Proceeds from exercise of stock options	16	23
+Proceeds from the issuance of common stock under employee stock purchase plan	20	31
+Repurchases of common stock	—	(1,000	)
+Change in funds payable and amounts payable to customers	3,958	4,271
+Net cash provided by financing activities	3,649	2,453
+Effect of exchange rate changes on cash, cash equivalents, and restricted cash	(308	)	132
+Net increase in cash, cash equivalents, and restricted cash	5,515	4,878
+Cash, cash equivalents, and restricted cash, beginning of period	9,727	12,103
+Cash, cash equivalents, and restricted cash, end of period	$	15,242	$	16,981
+
+27
+
+Key Business Metrics
+
+Three Months Ended June 30	Six Months Ended June 30
+2022	2023	2022	2023
+Nights and Experiences Booked	103.7	M	115.1	M	205.8	M	236.2	M
+Gross Booking Value	$	17.0	B	$	19.1	B	$	34.1	B	$	39.5	B
+We track certain key business metrics to measure our performance, identify trends, formulate financial projections, and make strategic decisions. Our key business metrics include GBV and Nights and Experiences Booked. GBV represents the dollar value of bookings on our platform in a period and is inclusive of Host earnings, service fees, cleaning fees, and taxes, net of cancellations and alterations that occurred during that period. Nights and Experiences Booked on our platform in a period represents the sum of the total number of nights booked for stays and the total number of seats booked for experiences, net of cancellations and alterations that occurred in that period. We are not aware of any uniform standards for calculating these key metrics, which may hinder comparability with other companies that may calculate similarly titled metrics in a different way.
+
+28
+
+Reconciliations of Non-GAAP Financial Measures
+
+The following is a reconciliation of Adjusted EBITDA to the most comparable GAAP measure, net income (loss).
+
+Adjusted EBITDA Reconciliation
+
+(in millions, except percentages)
+
+Three Months Ended
+Mar 31	Jun 30	Sept 30	Dec 31	Mar 31	Jun 30	Sept 30	Dec 31	Mar 31	Jun 30
+2019	2019	2019	2019	2022	2022	2022	2022	2023	2023
+Revenue	$	839	$	1,214	$	1,645	$	1,107	$	1,509	$	2,104	$	2,884	$	1,902	$	1,818	$	2,484
+Net income (loss)	$	(292	)	$	(297	)	$	266	$	(351	)	$	(19	)	$	379	$	1,214	$	319	$	117	$	650
+Adjusted to exclude the following:
+Provision for income taxes	13	226	14	10	11	4	56	25	13	26
+Other (income) expense, net	(7	)	(6	)	(29	)	28	2	(2	)	(13	)	(12	)	7	36
+Interest expense	2	2	3	3	6	8	4	6	4	2
+Interest income	(22	)	(25	)	(21	)	(18	)	(5	)	(20	)	(58	)	(103	)	(146	)	(191	)
+Depreciation and amortization	21	24	31	38	29	26	13	13	11	9
+Stock-based compensation expense (1)	14	18	40	25	195	247	234	254	240	304
+Acquisition-related impacts	—	—	—	—	11	(22	)	1	(2	)	12	(15	)
+Net changes in lodging tax reserves	23	16	9	(11	)	(1	)	2	6	6	4	(2	)
+Restructuring charges	—	—	—	—	—	89	—	—	—	—
+Adjusted EBITDA	$	(248	)	$	(42	)	$	313	$	(276	)	$	229	$	711	$	1,457	$	506	$	262	$	819
+Net income (loss) margin	(35	)%	(24	)%	16	%	(32	)%	(1	)%	18	%	42	%	17	%	6	%	26	%
+Adjusted EBITDA margin	(30	)%	(3	)%	19	%	(25	)%	15	%	34	%	51	%	27	%	14	%	33	%
+
+(1)	Excludes stock-based compensation related to restructuring, which is included in restructuring charges in the table above.
+
+29
+
+The following is a reconciliation of Free Cash Flow to the most comparable GAAP measure, net cash provided by (used in) operating activities.
+
+Free Cash Flow Reconciliation
+
+(in millions, except percentages)
+
+Three Months Ended
+Mar 31	Jun 30	Sept 30	Dec 31	Mar 31	Jun 30	Sept 30	Dec 31	Mar 31	Jun 30
+2019	2019	2019	2019	2022	2022	2022	2022	2023	2023
+Revenue	$	839	$	1,214	$	1,645	$	1,107	$	1,509	$	2,104	$	2,884	$	1,902	$	1,818	$	2,484
+TTM Revenue	$	3,848	$	4,158	$	4,539	$	4,805	$	6,614	$	7,383	$	8,029	$	8,399	$	8,708	$	9,088
+Net cash provided by (used in) operating activities	$	314	$	152	$	(42	)	$	(191	)	$	1,202	$	801	$	965	$	462	$	1,587	$	909
+Purchases of property and equipment	(37	)	(31	)	(32	)	(26	)	(6	)	(5	)	(6	)	(8	)	(6	)	(9	)
+Free Cash Flow	$	277	$	121	$	(74	)	$	(217	)	$	1,196	$	796	$	959	$	454	$	1,581	$	900
+Net cash provided by (used in) operating activities margin	37	%	13	%	(3	)%	(17	)%	80	%	38	%	33	%	24	%	87	%	37	%
+Free Cash Flow margin	33	%	10	%	(4	)%	(20	)%	79	%	38	%	33	%	24	%	87	%	36	%
+TTM Net cash provided by operating activities	$	590	$	460	$	321	$	233	$	2,909	$	2,920	$	3,350	$	3,430	$	3,815	$	3,923
+TTM Free Cash Flow	$	495	$	348	$	199	$	107	$	2,885	$	2,899	$	3,329	$	3,405	$	3,790	$	3,894
+TTM Net cash provided by operating activities margin	15	%	11	%	7	%	5	%	44	%	40	%	42	%	41	%	44	%	43	%
+TTM Free Cash Flow margin	13	%	8	%	4	%	2	%	44	%	39	%	41	%	41	%	44	%	43	%
+Other cash flow components:
+Net cash provided by (used in) investing activities	$	42	$	(110	)	$	18	$	(297	)	$	(197	)	$	368	$	(56	)	$	(143	)	$	(183	)	$	(20	)
+Net cash provided by (used in) financing activities	$	1,480	$	625	$	(1,425	)	$	165	$	2,204	$	1,446	$	(3,574	)	$	(765	)	$	2,286	$	167
+
+30
+
+The following is a reconciliation of operating expense line items less stock-based compensation and acquisition-related impacts consisting of gains (losses) recognized on changes in the fair value of contingent consideration arrangements.
+
+Reconciliation of Non-GAAP Operating Expenses
+
+(in millions)
+
+Three Months Ended June 30	Six Months Ended June 30
+2022	2023	2022	2023
+Operations and support	$	258	$	317	$	491	$	599
+Less: Stock-based compensation	(17	)	(19	)	(29	)	(34	)
+Operations and support excluding stock-based compensation	$	241	$	298	$	462	$	565
+Product development	$	375	$	451	$	738	$	871
+Less: Stock-based compensation	(145	)	(191	)	(263	)	(340	)
+Product development excluding stock-based compensation	$	230	$	260	$	475	$	531
+Sales and marketing	$	379	$	486	$	724	$	936
+Less: Stock-based compensation	(29	)	(36	)	(50	)	(64	)
+Less: Acquisition-related impacts	22	15	11	3
+Sales and marketing excluding stock-based compensation and acquisition-related impacts	$	372	$	465	$	685	$	875
+General and administrative	$	244	$	275	$	454	$	518
+Less: Stock-based compensation	(56	)	(58	)	(100	)	(106	)
+General and administrative excluding stock-based compensation	$	188	$	217	$	354	$	412
+
+31

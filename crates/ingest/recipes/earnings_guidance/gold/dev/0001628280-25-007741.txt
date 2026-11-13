@@ -1,0 +1,342 @@
+Exhibit 99.1
+Extra Space Storage Inc.
+PHONE (801) 365-4600
+2795 East Cottonwood Parkway, Suite 300
+Salt Lake City, Utah 84121
+www.extraspace.com
+FOR IMMEDIATE RELEASE
+
+Extra Space Storage Inc. Reports 2024 Fourth Quarter and Year-End Results
+SALT LAKE CITY, February 25, 2025 — Extra Space Storage Inc. (NYSE: EXR) (the “Company”), a leading owner and operator of self-storage facilities in the United States and a constituent of the S&P 500, announced operating results for the three months and year ended December 31, 2024.
+Highlights for the three months ended December 31, 2024:
+•Achieved net income attributable to common stockholders of $1.24 per diluted share, representing a 21.6% increase compared to the same period in the prior year.
+•Achieved funds from operations attributable to common stockholders and unit holders (“FFO”) of $1.96 per diluted share. FFO, excluding adjustments (“Core FFO”), was $2.03 per diluted share, representing a 0.5% increase compared to the same period in the prior year.
+•Same-store revenue decreased by (0.4)% and same-store net operating income (“NOI”) decreased by (3.5)% compared to the same period in the prior year.
+•Reported ending same-store occupancy of 93.7% as of December 31, 2024, compared to 92.5% as of December 31, 2023.
+•Acquired 38 operating stores for a total cost of approximately $359.7 million.
+•Increased ownership interest in two existing joint venture partnerships to 49.0% for $251.2 million.
+•Originated $224.4 million in mortgage and mezzanine bridge loans and sold $9.2 million mortgage bridge loans.
+•Added 130 stores (114 stores net) to the Company's third-party management platform. As of December 31, 2024, the Company managed 1,575 stores for third parties and 460 stores in unconsolidated joint ventures, for a total of 2,035 managed stores.
+•Initiated an unsecured commercial paper program. As of December 31, 2024, the commercial paper program had total capacity of $1.0 billion, with $500.0 million in outstanding issuances.
+•Paid a quarterly dividend of $1.62 per share.
+Highlights for the year ended December 31, 2024:
+•Achieved net income attributable to common stockholders of $4.03 per diluted share, representing a (15.0)% decrease compared to the same period in the prior year.
+
+•Achieved FFO of $7.57 per diluted share, and Core FFO of $8.12 per diluted share, representing a 0.2% increase compared to the same period in the prior year.
+
+•Increased same-store revenue by 0.2% and same-store NOI decreased by (1.5)% compared to the same period in the prior year.
+
+•Acquired 55 operating stores and three stores at completion of construction (“Certificate of Occupancy stores” or “C of O stores”) for a total cost of approximately $581.0 million.
+
+•In conjunction with joint venture partners, acquired five operating stores, one C of O store, completed seven developments and increased ownership interest in two existing joint ventures to 49.0% for a total net investment of approximately $360.3 million.
+
+•Originated $980.2 million in mortgage and mezzanine bridge loans and sold $199.3 million in mortgage bridge loans.
+
+•Added 367 stores (238 stores net) to the Company's third-party management platform.
+
+Joe Margolis, CEO of Extra Space Storage Inc., commented: “The team continues to optimize performance in a challenging macro environment. This is evidenced by our ability to maintain strong occupancy during a time of year which is typically marked by occupancy declines. Our people, systems and high occupancy position the portfolio for future revenue growth as conditions improve. The outsized growth in our third-party management, bridge loan and insurance businesses, as well as our ability to find creative and off-market investment opportunities, continue to provide an avenue of growth in an otherwise tough operating environment, and contribute to Core FFO per share growth modestly ahead of our projections."
+
+“We expect much of the same in 2025 – a challenging but slowly improving operating environment, augmented by contributions to FFO from our ancillary businesses and structured investments.”
+
+FFO Per Share:
+The following table (unaudited) outlines the Company’s FFO and Core FFO for the three months and year ended December 31, 2024 and 2023. The table also provides a reconciliation to GAAP net income attributable to common stockholders and earnings per diluted share for each period presented (amounts shown in thousands, except share and per share data):
+For the Three Months Ended December 31,	For the Year Ended December 31,
+2024	2023	2024	2023
+(per share)1	(per share)1	(per share)1	(per share)1
+Net income attributable to common stockholders	$	262,487	$	1.24	$	216,134	$	1.02	$	854,681	$	4.03	$	803,198	$	4.74
+Impact of the difference in weighted average number of shares – diluted2	(0.05)	(0.05)	(0.17)	(0.25)
+Adjustments:
+Real estate depreciation	156,027	0.70	152,881	0.69	618,189	2.78	418,149	2.34
+Amortization of intangibles	28,305	0.13	30,246	0.14	113,886	0.51	59,295	0.33
+(Gain) loss on real estate assets held for sale and sold, net	(37,714)	(0.17)	—	—	25,906	0.12	—	—
+Unconsolidated joint venture real estate depreciation and amortization	8,907	0.04	8,041	0.04	32,678	0.15	24,400	0.14
+Unconsolidated joint venture gain on sale of real estate assets and sale of a joint venture interest	—	—	—	—	(13,730)	(0.06)	—	—
+Distributions paid on Series A Preferred Operating Partnership units	—	—	—	—	—	—	(159)	—
+Income allocated to Operating Partnership and other noncontrolling interests	15,314	0.07	11,273	0.05	45,551	0.21	47,255	0.26
+FFO	$	433,326	$	1.96	$	418,575	$	1.89	$	1,677,161	$	7.57	$	1,352,138	$	7.56
+Adjustments:
+Life Storage Merger transition costs	—	—	12,558	0.05	—	—	66,732	0.37
+Non-cash interest expense related to amortization of discount on Life Storage unsecured senior notes	11,157	0.05	10,558	0.05	43,720	0.20	18,786	0.10
+Amortization of other intangibles related to the Life Storage Merger, net of tax benefit	5,761	0.02	7,440	0.03	26,959	0.12	12,400	0.07
+Impairment of Life Storage trade name	—	—	—	—	51,763	0.23	—	—
+CORE FFO	$	450,244	$	2.03	$	449,131	$	2.02	$	1,799,603	$	8.12	$	1,450,056	$	8.10
+Weighted average number of shares – diluted3	221,329,035	221,916,681	221,623,954	178,969,993
+
+(1)Per share amounts may not recalculate due to rounding.
+
+(2)The adjustment to account for the difference between the number of shares used to calculate earnings per share and the number of shares used to calculate FFO per share. Earnings per share is calculated using the two-class method, which uses a lower number of shares than the calculation for FFO per share and Core FFO per share, which are calculated assuming full redemption of all OP units as described in note (3).
+
+(3)Extra Space Storage LP (the “Operating Partnership”) has outstanding preferred and common Operating Partnership units (“OP units”). These OP units can be redeemed for cash or, at the Company’s election, shares of the Company’s common stock. Redemption of all OP units for common stock has been assumed for purposes of calculating the weighted average number of shares — diluted, as presented above. The computation of weighted average number of shares — diluted, for FFO per share and Core FFO per share also includes the effect of share-based compensation plans.
+
+Operating Results and Same-Store Performance:
+The following table (unaudited) outlines the Company’s same-store performance for the three months and year ended December 31, 2024, and 2023 (amounts shown in thousands, except store count data)1:
+For the Three Months Ended December 31,	Percent	For the Year Ended December 31,	Percent
+2024	2023	Change	2024	2023	Change
+Same-store property revenues2
+Net rental income	$	400,263	$	400,954	(0.2)%	$	1,601,455	$	1,596,015	0.3%
+Other income	15,622	16,508	(5.4)%	64,300	65,689	(2.1)%
+Total same-store revenues	$	415,885	$	417,462	(0.4)%	$	1,665,755	$	1,661,704	0.2%
+Same-store operating expenses2
+Payroll and benefits	$	24,247	$	23,466	3.3%	$	95,696	$	91,329	4.8%
+Marketing	8,250	7,740	6.6%	34,038	30,237	12.6%
+Office expense3	12,635	12,816	(1.4)%	51,606	51,655	(0.1)%
+Property operating expense4	9,408	8,821	6.7%	37,646	38,491	(2.2)%
+Repairs and maintenance	6,739	6,682	0.9%	27,934	26,469	5.5%
+Property taxes	44,593	36,219	23.1%	165,617	152,028	8.9%
+Insurance	4,645	5,210	(10.8)%	19,512	18,718	4.2%
+Total same-store operating expenses	$	110,517	$	100,954	9.5%	$	432,049	$	408,927	5.7%
+Same-store net operating income2	$	305,368	$	316,508	(3.5)%	$	1,233,706	$	1,252,777	(1.5)%
+Same-store square foot occupancy as of quarter end	93.7%	92.5%	93.7%	92.5%
+Average same-store square foot occupancy	94.1%	92.9%	93.9%	93.3%
+Properties included in same-store5	1,071	1,071	1,071	1,071
+
+(1)A reconciliation of net income to same-store net operating income is provided later in this release, entitled “Reconciliation of GAAP Net Income to Total Same-Store Net Operating Income.”
+(2)Same-store revenues, operating expenses and net operating income do not include tenant reinsurance revenue or expense.
+(3)Includes general office expenses, computer, bank fees, and credit card merchant fees.
+(4)Includes utilities and miscellaneous other store expenses.
+(5)On January 1, 2024, the Company updated the property count of the same-store pool from 913 to 1,078 stores. In the year ended December 31, 2024, six properties were removed from the pool due to structural damage and redevelopment and one property was sold, reducing the same-store pool to 1,071 stores.
+
+Details related to the same-store performance of stores by metropolitan statistical area (“MSA”) for the three months and year ended December 31, 2024, and 2023 are provided in the supplemental financial information published on the Company’s Investor Relations website at https://ir.extraspace.com/.
+
+Investment and Property Management Activity:
+The following table (unaudited) outlines the Company’s acquisitions and developments that are closed, completed or under agreement (dollars in thousands).
+Closed/Completed through December 31, 2024	Closed/Completed Subsequent to December 31, 2024	Scheduled to Still Close/Complete in 2025	Total 2025
+Wholly-Owned Investment1	Stores	Price	Stores	Price	Stores	Price	Stores	Price
+Operating Stores2	55	$	546,672	8	$	97,883	2	$	20,250	10	$	118,133
+C of O and Development Stores1	3	34,337	—	—	—	—	—	—
+EXR Investment in Wholly-Owned Stores	58	581,009	8	97,883	2	20,250	10	118,133
+Joint Venture Investment1
+EXR Investment in JV Acquisition of Operating Stores	5	9,200	1	11,025	1	12,240	2	23,265
+EXR Increased Investment in Existing JVs	—	251,200	—	—	—	—	—	—
+EXR Investment in JV Development and C of O	8	99,917	1	12,138	6	73,641	7	85,779
+EXR Investment in Joint Ventures	13	360,317	2	23,163	7	85,881	9	109,044
+Total EXR Investment	71	$	941,326	10	$	121,046	9	$	106,131	19	$	227,177
+(1)The locations of C of O and development stores and joint venture ownership interest details are included in the supplemental financial information published on the Company’s Investor Relations website at https://ir.extraspace.com/.
+(2)Includes the buyout of partner's interest in one property in the quarter.
+
+The projected developments and acquisitions under agreement described above are subject to customary closing conditions and no assurance can be provided that these developments and acquisitions will be completed on the terms described, or at all.
+Other Investment Activity:
+On February 4, 2025, the Company invested $100.0 million in shares of convertible preferred stock of Strategic Storage Growth Trust III, Inc. ("SSGT"). The dividend rate for the convertible preferred stock is 8.85% per annum, and is subject to increase beginning in 2030. The preferred shares are generally not redeemable for five years, except in the case of a change of control or initial listing of SSGT.
+Property Sales:
+During the three months ended December 31, 2024, the Company sold five properties, four of which were previously held for sale, resulting in a net gain of $37.7 million. Subsequent to quarter end the Company sold 11 properties held for sale at year end.
+Bridge Loans:
+During the three months ended December 31, 2024, the Company originated $224.4 million in bridge loans and sold bridge loans totaling $9.2 million. Outstanding balances of the Company's bridge loans were approximately $1.2 billion at year end. The Company has an additional $203.7 million in bridge loans that have closed subsequent to quarter end or are under agreement to close in 2025. Additional details related to the Company's loan activity and balances held are included in the supplemental financial information published on the Company’s Investor Relations website at https://ir.extraspace.com/.
+Property Management:
+As of December 31, 2024, the Company managed 1,575 stores for third-party owners and 460 stores owned in unconsolidated joint ventures, for a total of 2,035 stores under management. The Company is the largest self-storage management company in the United States.
+Balance Sheet:
+During the three months ended December 31, 2024, the Company did not issue any shares on its ATM program, and as of December 31, 2024, the Company had $800.0 million available for issuance. Likewise, the Company did not repurchase any
+
+shares of common stock using its stock repurchase program during the quarter, and as of December 31, 2024, the Company had authorization to purchase up to $500.0 million under the program.
+During the three months ended December 31, 2024, the Company re-opened an existing issuance of 5.70% senior unsecured notes due 2028 and issued an additional $300.0 million at a premium of 102.86% with an effective offer rate of 4.74%.
+During the three months ended December 31, 2024, the Company initiated an unsecured commercial paper program which received initial short-term ratings of A-2 from S&P Global Ratings and P-2 from Moody's. As of December 31, 2024, the commercial paper program had total capacity of $1.0 billion, with $500.0 million in outstanding issuances.
+As of December 31, 2024, the Company’s percentage of fixed-rate debt to total debt was 75.8%. Net of the impact of variable rate receivables, the effective fixed-rate debt to total debt was 85.7%. The weighted average interest rates of the Company’s fixed and variable-rate debt were 4.1% and 5.4%, respectively. The combined weighted average interest rate was 4.4% with a weighted average maturity of approximately 4.4 years.
+Subsequent to quarter end, the Company re-opened an existing issuance of 5.50% senior unsecured notes due 2030 and issued an additional $350.0 million at a premium of 101.51% with an effective offer rate of 5.17%.
+Subsequent to quarter end the Company paid off a $245.0 million unsecured note maturing January 2025.
+Dividends:
+On December 31, 2024, the Company paid a fourth quarter common stock dividend of $1.62 per share to stockholders of record at the close of business on December 16, 2024.
+
+Outlook:
+The following table outlines the Company's current and prior quarter Core FFO estimates and assumptions for the year ending December 31, 20251.
+Ranges for 2025 Annual Assumptions	Notes
+(February 25, 2025)
+Low	High
+Core FFO	$8.00	$8.30
+Dilution per share from C of O and value add acquisitions	$0.22	$0.22
+Same-store revenue growth	(0.75)%	1.25%	Same-store pool of 1,829 stores
+Same-store expense growth	3.75%	5.25%	Same-store pool of 1,829 stores
+Same-store NOI growth	(3.00)%	0.25%	Same-store pool of 1,829 stores
+Weighted average one-month SOFR	4.15%	4.15%
+Net tenant reinsurance income	$268,000,000	$271,000,000
+Management fees and other income	$125,000,000	$126,500,000
+Interest income	$150,500,000	$152,000,000	Includes interest from bridge loans and dividends from NexPoint preferred investment
+General and administrative expenses	$184,000,000	$186,000,000	Includes non-cash compensation
+Average monthly cash balance	$45,000,000	$45,000,000
+Equity in earnings of real estate ventures	$89,000,000	$90,000,000	Includes dividends from SmartStop preferred investments
+Interest expense	$570,000,000	$575,000,000	Excludes non-cash interest expense shown below.
+Non-cash interest expense related to amortization of discount on Life Storage unsecured senior notes	$46,000,000	$47,000,000	Amortization of LSI debt mark-to-market; excluded from Core FFO
+Income Tax Expense	$38,000,000	$39,000,000	Taxes associated with the Company's taxable REIT subsidiary
+Acquisitions	$325,000,000	$325,000,000	Includes wholly-owned acquisitions and the Company's investment in joint ventures
+Bridge loans outstanding	$1,450,000,000	$1,450,000,000	Represents the Company's average retained loan balances for 2025
+Weighted average share count	222,200,000	222,200,000	Assumes redemption of all OP units for common stock
+(1) A reconciliation of net income outlook to same-store net operating income outlook is provided later in this release entitled "Reconciliation of Estimated GAAP Net Income to Estimated Same-Store Net Operating Income." The reconciliation includes details related to same-store revenue and same-store expense outlooks. A reconciliation of net income per share outlook to funds from operations per share outlook is provided later in this release entitled "Reconciliation of the Range of Estimated GAAP Fully Diluted Earnings Per Share to Estimated Fully Diluted FFO Per Share."
+
+FFO estimates for the year are fully diluted for an estimated average number of shares and OP units outstanding during the year. The Company’s estimates are forward-looking and based on management’s view of current and future market conditions. The Company’s actual results may differ materially from these estimates.
+
+Supplemental Financial Information:
+Supplemental unaudited financial information regarding the Company’s performance can be found on the Company’s website at www.extraspace.com. Under the "Company Info" navigation menu on the home page, click on “Investor Relations,” then under the “Financials & Stock Information” navigation menu click on “Quarterly Earnings.” This supplemental information provides additional detail on items that include store occupancy and financial performance by portfolio and market, debt maturity schedules and performance of lease-up assets.
+Conference Call:
+The Company will host a conference call at 1:00 p.m. Eastern Time on Wednesday, February 26, 2025, to discuss its financial results. Telephone participants may avoid any delays in joining the conference call by pre-registering for the call using the following link to receive a special dial-in number and PIN:https://emportal.ink/3PKtvFm
+A live webcast of the call will also be available on the Company’s investor relations website at https://ir.extraspace.com. To listen to the live webcast, go to the site at least 15 minutes prior to the scheduled start time in order to register, download and install any necessary audio software.
+A replay of the call will be available for 30 days on the investor relations section of the Company’s website beginning at 5:00 p.m. Eastern Time on February 26, 2025.
+Forward-Looking Statements:
+Certain information set forth in this release contains “forward-looking statements” within the meaning of the federal securities laws. Forward-looking statements include statements concerning the benefits of store acquisitions, developments, market conditions, our outlook and estimates for the year and other statements concerning our plans, objectives, goals, strategies, future events, future revenues or performance, capital expenditures, financing needs, the competitive landscape, plans or intentions relating to acquisitions and developments, estimated hurricane-related insurance claims and other information that is not historical information. In some cases, forward-looking statements can be identified by terminology such as “believes,” “estimates,” “expects,” “may,” “will,” “should,” “anticipates,” or “intends,” or the negative of such terms or other comparable terminology, or by discussions of strategy. We may also make additional forward-looking statements from time to time. All such subsequent forward-looking statements, whether written or oral, by us or on our behalf, are also expressly qualified by these cautionary statements. There are a number of risks and uncertainties that could cause our actual results to differ materially from the forward-looking statements contained in or contemplated by this release. Any forward-looking statements should be considered in light of the risks referenced in the “Risk Factors” section included in our most recent Annual Report on Form 10-K and Quarterly Reports on Form 10-Q. Such factors include, but are not limited to:
+•adverse changes in general economic conditions, the real estate industry and the markets in which we operate;
+•potential liability for uninsured losses and environmental contamination;
+•our ability to recover losses under our insurance policies;
+•the impact of the regulatory environment as well as national, state and local laws and regulations, including, without limitation, those governing real estate investment trusts (“REITs”), tenant reinsurance and other aspects of our business, which could adversely affect our results;
+•the effect of competition from new and existing stores or other storage alternatives, including increased or unanticipated competition for our properties, which could cause rents and occupancy rates to decline;
+•failure to close pending acquisitions and developments on expected terms, or at all;
+•risks associated with acquisitions, dispositions and development of properties, including increased development costs due to additional regulatory requirements related to climate change and other factors;
+•reductions in asset valuations and related impairment charges;
+•our reliance on information technologies, which are vulnerable to, among other things, attack from computer viruses and malware, hacking, cyberattacks and other unauthorized access or misuse, any of which could adversely affect our business and results;
+•impacts from any outbreak of highly infectious or contagious diseases, including reduced demand for self-storage space and ancillary products and services such as tenant reinsurance, and potential decreases in occupancy and rental rates and staffing levels, which could adversely affect our results;
+•economic uncertainty due to the impact of natural disasters, war or terrorism, which could adversely affect our business plan;
+
+•our lack of sole decision-making authority with respect to our joint venture investments;
+•disruptions in credit and financial markets and resulting difficulties in raising capital or obtaining credit at reasonable rates or at all, which could impede our ability to grow;
+•availability of financing and capital, the levels of debt that we maintain and our credit ratings;
+•changes in global financial markets and increases in interest rates;
+•the effect of recent or future changes to U.S. tax laws; and
+•the failure to maintain our REIT status for U.S. federal income tax purposes.
+All forward-looking statements are based upon our current expectations and various assumptions. Our expectations, beliefs and projections are expressed in good faith and we believe there is a reasonable basis for them, but there can be no assurance that management’s expectations, beliefs and projections will result or be achieved. All forward-looking statements apply only as of the date made. We undertake no obligation to publicly update or revise forward-looking statements which may be made to reflect events or circumstances after the date made or to reflect the occurrence of unanticipated events.
+Definition of FFO:
+FFO provides relevant and meaningful information about the Company’s operating performance that is necessary, along with net income and cash flows, for an understanding of the Company’s operating results. The Company believes FFO is a meaningful disclosure as a supplement to net income. Net income assumes that the values of real estate assets diminish predictably over time as reflected through depreciation and amortization expenses. The values of real estate assets fluctuate due to market conditions and the Company believes FFO more accurately reflects the value of the Company’s real estate assets. FFO is defined by the National Association of Real Estate Investment Trusts, Inc. (“NAREIT”) as net income computed in accordance with U.S. generally accepted accounting principles (“GAAP”), excluding gains or losses on sales of operating stores and impairment write downs of depreciable real estate assets, plus depreciation and amortization related to real estate and after adjustments to record unconsolidated partnerships and joint ventures on the same basis. The Company believes that to further understand the Company’s performance, FFO should be considered along with the reported net income and cash flows in accordance with GAAP, as presented in the Company’s consolidated financial statements. FFO should not be considered a replacement of net income computed in accordance with GAAP.
+For informational purposes, the Company also presents Core FFO. Core FFO excludes revenues and expenses not core to our operations and transaction costs. It also includes certain costs associated with the Life Storage Merger including transition costs, non-cash interest related to the amortization of discount on unsecured senior notes, amortization of other intangibles, net of tax benefit, and impairment of Life Storage trade name. Although the Company’s calculation of Core FFO differs from NAREIT’s definition of FFO and may not be comparable to that of other REITs and real estate companies, the Company believes it provides a meaningful supplemental measure of operating performance. The Company believes that by excluding revenues and expenses not core to our operations and non-cash interest charges, stockholders and potential investors are presented with an indicator of our operating performance that more closely achieves the objectives of the real estate industry in presenting FFO. Core FFO by the Company should not be considered a replacement of the NAREIT definition of FFO. The computation of FFO may not be comparable to FFO reported by other REITs or real estate companies that do not define the term in accordance with the current NAREIT definition or that interpret the current NAREIT definition differently. FFO does not represent cash generated from operating activities determined in accordance with GAAP, and should not be considered as an alternative to net income as an indication of the Company’s performance, as an alternative to net cash flow from operating activities as a measure of liquidity, or as an indicator of the Company’s ability to make cash distributions.
+
+Definition of Same-Store:
+The Company’s same-store pool for the periods presented consists of 1,071 stores that are wholly-owned and operated and that were stabilized by the first day of the earliest calendar year presented. The Company considers a store to be stabilized once it has been open for three years or has sustained average square foot occupancy of 80.0% or more for one calendar year. The Company believes that by providing same-store results from a stabilized pool of stores, with accompanying operating metrics including, but not limited to occupancy, rental revenue (growth), operating expenses (growth), net operating income (growth), etc., stockholders and potential investors are able to evaluate operating performance without the effects of non-stabilized occupancy levels, rent levels, expense levels, acquisitions or completed developments. Same-store results should not be used as a basis for future same-store performance or for the performance of the Company’s stores as a whole. No modification has been made to the same-store pool to include any assets acquired from Life Storage.
+About Extra Space Storage Inc.:
+Extra Space Storage Inc., headquartered in Salt Lake City, Utah, is a self-administered and self-managed REIT and a member of the S&P 500. As of December 31, 2024, the Company owned and/or operated 4,011 self-storage stores in 42 states and Washington, D.C. The Company’s stores comprise approximately 2.8 million units and approximately 308.4 million square feet of rentable space operating under the Extra Space brand. The Company offers customers a wide selection of conveniently located and secure storage units across the country, including boat storage, RV storage and business storage. It is the largest operator of self-storage properties in the United States.
+
+###
+For Information:
+Jared Conley
+Extra Space Storage Inc.
+(801) 365-1759
+
+Extra Space Storage Inc.
+Condensed Consolidated Balance Sheets
+(In thousands, except share data)
+December 31, 2024	December 31, 2023
+(Unaudited)
+Assets:
+Real estate assets, net	$	24,587,627	$	24,555,873
+Real estate assets - operating lease right-of-use assets	689,803	227,241
+Investments in unconsolidated real estate entities	1,332,338	1,071,617
+Investments in debt securities and notes receivable	1,550,950	904,769
+Cash and cash equivalents	138,222	99,062
+Other assets, net	548,986	597,700
+Total assets	$	28,847,926	$	27,456,262
+Liabilities, Noncontrolling Interests and Equity:
+Secured notes payable, net	$	1,010,541	$	1,273,549
+Unsecured term loans, net	2,192,507	2,650,581
+Unsecured senior notes, net	7,756,968	6,410,618
+Revolving lines of credit and commercial paper	1,362,000	682,000
+Operating lease liabilities	705,845	236,515
+Cash distributions in unconsolidated real estate ventures	75,319	71,069
+Accounts payable and accrued expenses	346,519	334,518
+Other liabilities	538,865	383,463
+Total liabilities	13,988,564	12,042,313
+Commitments and contingencies
+Noncontrolling Interests and Equity:
+Extra Space Storage Inc. stockholders' equity:
+Preferred stock, $0.01 par value, 50,000,000 shares authorized, no shares issued or outstanding	—	—
+Common stock, $0.01 par value, 500,000,000 shares authorized, 211,995,510 and 211,278,803 shares issued and outstanding at December 31, 2024 and December 31, 2023, respectively	2,120	2,113
+Additional paid-in capital	14,831,946	14,750,388
+Accumulated other comprehensive income	12,806	17,435
+Accumulated deficit	(899,337)	(379,015)
+Total Extra Space Storage Inc. stockholders' equity	13,947,535	14,390,921
+Noncontrolling interest represented by Preferred Operating Partnership units, net	76,092	222,360
+Noncontrolling interests in Operating Partnership, net and other noncontrolling interests	835,735	800,668
+Total noncontrolling interests and equity	14,859,362	15,413,949
+Total liabilities, noncontrolling interests and equity	$	28,847,926	$	27,456,262
+
+Consolidated Statement of Operations for the Three Months and Year Ended December 31, 2024 and 2023
+(In thousands, except share and per share data) - Unaudited
+For the Three Months Ended December 31,	For the Year Ended December 31,
+2024	2023	2024	2023
+Revenues:
+Property rental	$	707,234	$	696,982	$	2,803,252	$	2,222,578
+Tenant reinsurance	83,695	70,415	332,795	235,680
+Management fees and other income	30,967	30,377	120,855	101,986
+Total revenues	821,896	797,774	3,256,902	2,560,244
+Expenses:
+Property operations	221,111	195,039	831,566	612,036
+Tenant reinsurance	18,240	21,173	73,886	58,874
+Life Storage Merger transition costs	—	12,558	—	66,732
+General and administrative	44,025	39,397	167,398	146,408
+Depreciation and amortization	196,202	196,139	783,023	506,053
+Total expenses	479,578	464,306	1,855,873	1,390,103
+Gain (loss) on real estate assets held for sale and sold, net	37,714	—	(25,906)	—
+Impairment of Life Storage trade name	—	—	(51,763)	—
+Income from operations	380,032	333,468	1,323,360	1,170,141
+Interest expense	(138,479)	(129,665)	(551,354)	(419,035)
+Non-cash interest expense related to amortization of discount on Life Storage unsecured senior notes	(11,157)	(10,558)	(43,720)	(18,786)
+Interest income	34,676	22,250	124,422	84,857
+Income before equity in earnings and dividend income from unconsolidated real estate entities and income tax expense	265,072	215,495	852,708	817,177
+Equity in earnings and dividend income from unconsolidated real estate entities	18,764	16,233	67,272	54,835
+Equity in earnings of unconsolidated real estate ventures - gain on sale of real estate assets and sale of a joint venture interest	—	—	13,730	—
+Income tax expense	(6,035)	(4,321)	(33,478)	(21,559)
+Net income	277,801	227,407	900,232	850,453
+Net income allocated to Preferred Operating Partnership noncontrolling interests	(1,189)	(2,250)	(7,262)	(9,011)
+Net income allocated to Operating Partnership and other noncontrolling interests	(14,125)	(9,023)	(38,289)	(38,244)
+Net income attributable to common stockholders	$	262,487	$	216,134	$	854,681	$	803,198
+Earnings per common share
+Basic	$	1.24	$	1.02	$	4.03	$	4.74
+Diluted	$	1.24	$	1.02	$	4.03	$	4.74
+Weighted average number of shares
+Basic	211,737,843	211,071,794	211,575,240	169,216,989
+Diluted	211,737,843	219,961,282	211,577,680	169,220,882
+
+Reconciliation of GAAP Net Income to Total Same-Store Net Operating Income — for the Three Months and Year Ended December 31, 2024 and 2023 (In thousands) - Unaudited
+For the Three Months Ended December 31,	For the Year Ended December 31,
+2024	2023	2024	2023
+Net Income	$	277,801	$	227,407	$	900,232	$	850,453
+Adjusted to exclude:
+(Gain) loss on real estate assets held for sale and sold, net	(37,714)	—	25,906	—
+Equity in earnings and dividend income from unconsolidated real estate entities	(18,764)	(16,233)	(67,272)	(54,835)
+Equity in earnings of unconsolidated real estate ventures - gain on sale of real estate assets and sale of a joint venture interest	—	—	(13,730)	—
+Interest expense	138,479	129,665	551,354	419,035
+Non-cash interest expense related to amortization of discount on Life Storage unsecured senior notes	11,157	10,558	43,720	18,786
+Depreciation and amortization	196,202	196,139	783,023	506,053
+Impairment of Life Storage trade name	—	—	51,763	—
+Income tax expense	6,035	4,321	33,478	21,559
+Life Storage Merger transition costs	—	12,558	—	66,732
+General and administrative	44,025	39,397	167,398	146,408
+Management fees, other income and interest income	(65,643)	(52,627)	(245,277)	(186,843)
+Net tenant insurance	(65,455)	(49,242)	(258,909)	(176,806)
+Non same-store rental revenue	(291,349)	(279,520)	(1,137,497)	(560,874)
+Non same-store operating expense	110,594	94,085	399,517	203,109
+Total same-store net operating income	$	305,368	$	316,508	$	1,233,706	$	1,252,777
+Same-store rental revenues	415,885	417,462	1,665,755	1,661,704
+Same-store operating expenses	110,517	100,954	432,049	408,927
+Same-store net operating income	$	305,368	$	316,508	$	1,233,706	$	1,252,777
+
+Reconciliation of the Range of Estimated GAAP Fully Diluted Earnings Per Share to Estimated Fully Diluted FFO Per Share — for the Year Ending December 31, 2025 - Unaudited
+For the Year Ending December 31, 2025
+Low End	High End
+Net income attributable to common stockholders per diluted share	$	4.38	$	4.68
+Income allocated to noncontrolling interest - Preferred Operating Partnership and Operating Partnership	0.27	0.27
+Net income attributable to common stockholders for diluted computations	4.65	4.95
+Adjustments:
+Real estate depreciation	2.61	2.61
+Amortization of intangibles	0.28	0.28
+Unconsolidated joint venture real estate depreciation and amortization	0.16	0.16
+Funds from operations attributable to common stockholders	7.70	8.00
+Adjustments:
+Non-cash interest expense related to amortization of discount on Life Storage unsecured senior notes	0.21	0.21
+Amortization of other intangibles related to the Life Storage Merger, net of tax benefit	0.09	0.09
+Core funds from operations attributable to common stockholders	$	8.00	$	8.30
+
+Reconciliation of Estimated GAAP Net Income to Estimated Same-Store Net Operating Income — for the Year Ending December 31, 2025 (In thousands) - Unaudited
+For the Year Ending December 31, 2025
+Low	High
+Net Income	$	1,039,500	$	1,120,250
+Adjusted to exclude:
+Equity in earnings of unconsolidated joint ventures	(89,000)	(90,000)
+Interest expense	575,000	570,000
+Non-cash interest expense related to amortization of discount on Life Storage unsecured senior notes	47,000	46,000
+Depreciation and amortization	682,750	682,750
+Income tax expense	39,000	38,000
+General and administrative	186,000	184,000
+Management fees and other income	(125,000)	(126,500)
+Interest income	(150,500)	(152,000)
+Net tenant reinsurance income	(268,000)	(271,000)
+Non same-store rental revenues	(179,000)	(179,000)
+Non same-store operating expenses	114,000	114,000
+Total same-store net operating income1	$	1,871,750	$	1,936,500
+Same-store rental revenues1	2,645,000	2,698,500
+Same-store operating expenses1	773,250	762,000
+Total same-store net operating income1	$	1,871,750	$	1,936,500
+
+(1)Estimated same-store rental revenues, operating expenses and net operating income are for the Company's 2025 same-store pool of 1,829 stores.

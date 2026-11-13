@@ -1,0 +1,22 @@
+{
+ "accession": "0001004980-26-000008",
+ "cik": 1004980,
+ "published_at": "2026-02-12T01:57:06Z",
+ "facts": [
+  {
+   "fields": {
+    "metric": "eps_adjusted",
+    "metric_label": "non-GAAP core EPS",
+    "basis": "non_gaap",
+    "period_label": "full year 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": null,
+    "low": 1.64,
+    "high": 1.66,
+    "unit": "usd_per_share",
+    "stated_action": "narrowed"
+   },
+   "evidence": "PG&E Corporation is tightening its full year 2026 non-GAAP core earnings guidance to the range of $1.64 to $1.66 per share, from the prior range of $1.62 to $1.66 per share."
+  }
+ ]
+}

@@ -1,0 +1,98 @@
+{
+ "accession": "0001157523-23-001382",
+ "cik": 29534,
+ "published_at": "2023-08-31T11:04:49Z",
+ "note": "'revising its outlook' is not a listed action word, so not_stated. Diluted EPS decline of 34% to 22% kept as a second eps_gaap fact in percent_growth. Left out: up to $170M H2 operating profit headwind and the 2pp/4pp/4pp 53rd-week and interest impacts (impact components), real-estate project counts (non-financial), no share repurchases (no number).",
+ "facts": [
+  {
+   "fields": {
+    "metric": "revenue",
+    "metric_label": "Net sales growth",
+    "basis": "not_stated",
+    "period_label": "fiscal year 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 1.3,
+    "high": 3.3,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Net sales growth in the range of 1.3% to 3.3%, compared to its previous expectation of 3.5% to 5.0%; both of which include an anticipated negative impact of approximately two percentage points due to lapping the fiscal 2022 53rd week."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Same-store sales growth",
+    "basis": "not_stated",
+    "period_label": "fiscal year 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": -1.0,
+    "high": 1.0,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Same-store sales growth in the range of a decline of approximately 1.0% to growth of 1.0%, compared to its previous expectation of growth in the range of 1.0% to 2.0%."
+  },
+  {
+   "fields": {
+    "metric": "eps_gaap",
+    "metric_label": "Diluted EPS",
+    "basis": "gaap",
+    "period_label": "fiscal year 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 7.1,
+    "high": 8.3,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Diluted EPS in the range of approximately $7.10 to $8.30, or a decline of 34% to 22%, compared to its previous year-over-year change expectation of an approximate 8% decline to flat growth."
+  },
+  {
+   "fields": {
+    "metric": "eps_gaap",
+    "metric_label": "Diluted EPS decline",
+    "basis": "gaap",
+    "period_label": "fiscal year 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": -34,
+    "high": -22,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Diluted EPS in the range of approximately $7.10 to $8.30, or a decline of 34% to 22%, compared to its previous year-over-year change expectation of an approximate 8% decline to flat growth."
+  },
+  {
+   "fields": {
+    "metric": "tax_rate",
+    "metric_label": "effective tax rate",
+    "basis": "not_stated",
+    "period_label": "fiscal year 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 22.5,
+    "high": 22.5,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "The Diluted EPS guidance continues to assume an effective tax rate of approximately 22.5%."
+  },
+  {
+   "fields": {
+    "metric": "capex",
+    "metric_label": "Capital expenditures",
+    "basis": "not_stated",
+    "period_label": "fiscal year 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 1600000000,
+    "high": 1700000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Capital expenditures, including those related to investments in the Company’s strategic initiatives, in the range of $1.6 billion to $1.7 billion."
+  }
+ ]
+}

@@ -15,7 +15,7 @@ use wire::{WireMessage, WireResult, WireResultLine};
 pub const BASE_URL: &str = "https://api.anthropic.com";
 pub const KEY_ENV: &str = "ANTHROPIC_API_KEY";
 pub const URL_ENV: &str = "ANTHROPIC_URL";
-pub const SPEND_CAP_ENV: &str = "ANTHROPIC_SPEND_CAP_USD";
+pub const SPEND_CAP_ENV: &str = "ANTHROPIC_MONTHLY_CAP_USD";
 pub const DEFAULT_SPEND_CAP: Decimal = Decimal::from_parts(5, 0, 0, false, 0);
 pub const MODEL: &str = "claude-haiku-5-5";
 pub const RATE_LIMIT: RateLimit = RateLimit {
@@ -74,7 +74,7 @@ pub enum ClaudeError {
     Unavailable(SourceError),
     #[error("the Anthropic API rejected the request: {0}")]
     Rejected(SourceError),
-    #[error("the spend cap of ${} is reached: ${} spent", .0.cap, .0.spent)]
+    #[error("the spend cap of ${} is reached: ${} spent", .0.cap, .0.spent.round_dp(2))]
     SpendCapReached(Spend),
 }
 
@@ -139,8 +139,36 @@ pub struct Prompt {
     pub max_tokens: u32,
 }
 
+pub struct Retry<'a> {
+    pub answer: &'a str,
+    pub failure: &'a str,
+}
+
 impl Prompt {
-    fn params(&self, document: &str) -> Value {
+    pub fn worst_case(&self, document: &str, batched: bool) -> Decimal {
+        let prompt_bytes =
+            (self.system.len() + self.schema.to_string().len() + document.len()) as u64;
+        Usage {
+            input_tokens: prompt_bytes,
+            output_tokens: u64::from(self.max_tokens),
+            ..Usage::default()
+        }
+        .cost(batched)
+    }
+
+    fn params(&self, document: &str, retry: Option<&Retry<'_>>) -> Value {
+        let mut messages = vec![json!({"role": "user", "content": document})];
+        if let Some(retry) = retry {
+            messages.push(json!({"role": "assistant", "content": retry.answer}));
+            messages.push(json!({
+                "role": "user",
+                "content": format!(
+                    "Your answer failed these checks: {}. Answer again with the whole list of facts, \
+                     correcting them.",
+                    retry.failure
+                ),
+            }));
+        }
         json!({
             "model": MODEL,
             "max_tokens": self.max_tokens,
@@ -151,7 +179,7 @@ impl Prompt {
                 "text": self.system,
                 "cache_control": {"type": "ephemeral"},
             }],
-            "messages": [{"role": "user", "content": document}],
+            "messages": messages,
         })
     }
 }
@@ -233,6 +261,21 @@ impl AnthropicClient {
         })
     }
 
+    pub fn budget(&self, cap: Decimal) -> Self {
+        Self {
+            http: self.http.clone(),
+            config: AnthropicConfig {
+                spend_cap: cap.min(self.config.spend_cap),
+                ..self.config.clone()
+            },
+            spent: Arc::default(),
+        }
+    }
+
+    pub fn cap(&self) -> Decimal {
+        self.config.spend_cap
+    }
+
     pub fn spend(&self) -> Spend {
         Spend {
             spent: *self.spent.lock().unwrap_or_else(PoisonError::into_inner),
@@ -240,11 +283,20 @@ impl AnthropicClient {
         }
     }
 
-    pub async fn message(&self, prompt: &Prompt, document: &str) -> Result<Reply, ClaudeError> {
-        self.within_cap()?;
+    pub async fn message(
+        &self,
+        prompt: &Prompt,
+        document: &str,
+        retry: Option<&Retry<'_>>,
+    ) -> Result<Reply, ClaudeError> {
+        let mut worst = prompt.worst_case(document, false);
+        if let Some(retry) = retry {
+            worst += prompt.worst_case(retry.answer, false);
+        }
+        self.within_cap(worst)?;
         let request = self
             .authorized(self.http.client().post(self.url(MESSAGES_PATH)))
-            .json(&prompt.params(document));
+            .json(&prompt.params(document, retry));
         let body = self.http.fetch(request).await?;
         Ok(self.reply(decode_json(&body)?, false))
     }
@@ -254,20 +306,26 @@ impl AnthropicClient {
         prompt: &Prompt,
         requests: &[BatchRequest],
     ) -> Result<Batch, ClaudeError> {
-        self.within_cap()?;
+        let worst = requests
+            .iter()
+            .map(|request| prompt.worst_case(&request.document, true))
+            .sum();
+        self.within_cap(worst)?;
         let requests: Vec<Value> = requests
             .iter()
             .map(|request| {
                 json!({
                     "custom_id": request.custom_id,
-                    "params": prompt.params(&request.document),
+                    "params": prompt.params(&request.document, None),
                 })
             })
             .collect();
         let request = self
             .authorized(self.http.client().post(self.url(BATCHES_PATH)))
             .json(&json!({ "requests": requests }));
-        Ok(decode_json(&self.http.fetch(request).await?)?)
+        let batch = decode_json(&self.http.fetch(request).await?)?;
+        *self.spent.lock().unwrap_or_else(PoisonError::into_inner) += worst;
+        Ok(batch)
     }
 
     pub async fn batch(&self, id: &str) -> Result<Batch, ClaudeError> {
@@ -287,9 +345,9 @@ impl AnthropicClient {
         })
     }
 
-    fn within_cap(&self) -> Result<(), ClaudeError> {
+    fn within_cap(&self, worst: Decimal) -> Result<(), ClaudeError> {
         let spend = self.spend();
-        if spend.spent >= spend.cap {
+        if spend.spent + worst > spend.cap {
             return Err(ClaudeError::SpendCapReached(spend));
         }
         Ok(())

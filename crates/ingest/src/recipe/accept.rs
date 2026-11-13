@@ -4,7 +4,7 @@ use buizz_core::market::{Fact, FactStatus, RecipeSection};
 use buizz_core::time::Timestamp;
 use chrono::{Months, NaiveDate};
 use rust_decimal::Decimal;
-use serde_json::{Map, Number, Value};
+use serde_json::{Number, Value};
 
 use super::Version;
 use super::numbers::{declared_scales, is_written, written_values};
@@ -14,6 +14,7 @@ const DATE_WINDOW: Months = Months::new(24);
 
 pub enum Answer<'a> {
     Given(&'a str),
+    Failed(String),
     Skipped(String),
 }
 
@@ -57,6 +58,7 @@ pub fn accept(
     let input_hash = blake3::hash(section_text.as_bytes()).to_hex().to_string();
     let rows = match answer {
         Answer::Skipped(reason) => vec![Row::bare(FactStatus::Skipped, Some(reason))],
+        Answer::Failed(reason) => vec![Row::failed(None, reason)],
         Answer::Given(raw) => checked(version, doc, section_text, raw),
     };
     rows.into_iter()
@@ -125,7 +127,7 @@ fn checked(version: &Version, doc: &RecipeSection, section_text: &str, raw: &str
             }
             let written = written_values(evidence, &declared);
             let mut numbers = Vec::new();
-            collect_numbers(fields, &mut numbers);
+            collect_numbers(&version.fields, fields, &mut numbers);
             for number in numbers {
                 match decimal(number) {
                     Some(value) if is_written(value, &written) => {}
@@ -199,17 +201,6 @@ impl Normalised {
     }
 }
 
-fn collect_numbers<'a>(value: &'a Value, numbers: &mut Vec<&'a Number>) {
-    match value {
-        Value::Number(number) => numbers.push(number),
-        Value::Array(items) => items.iter().for_each(|item| collect_numbers(item, numbers)),
-        Value::Object(fields) => fields
-            .values()
-            .for_each(|field| collect_numbers(field, numbers)),
-        _ => {}
-    }
-}
-
 fn decimal(number: &Number) -> Option<Decimal> {
     let text = number.to_string();
     Decimal::from_str(&text)
@@ -244,30 +235,53 @@ fn check_ranges(value: &Value, reasons: &mut Vec<String>) {
     }
 }
 
-fn collect_dates<'a>(schema: &Value, value: &'a Value, dates: &mut Vec<&'a str>) {
+fn leaves<'a, 's>(schema: &'s Value, value: &'a Value, found: &mut Vec<(&'s Value, &'a Value)>) {
     match value {
-        Value::String(text) if schema.get("format").and_then(Value::as_str) == Some("date") => {
-            dates.push(text);
-        }
         Value::Array(items) => {
             if let Some(item_schema) = schema.get("items") {
                 items
                     .iter()
-                    .for_each(|item| collect_dates(item_schema, item, dates));
+                    .for_each(|item| leaves(item_schema, item, found));
             }
         }
         Value::Object(fields) => {
-            let empty = Map::new();
-            let properties = schema
-                .get("properties")
-                .and_then(Value::as_object)
-                .unwrap_or(&empty);
+            let Some(properties) = schema.get("properties").and_then(Value::as_object) else {
+                return;
+            };
             for (key, field) in fields {
                 if let Some(property) = properties.get(key) {
-                    collect_dates(property, field, dates);
+                    leaves(property, field, found);
                 }
             }
         }
-        _ => {}
+        _ => found.push((schema, value)),
     }
+}
+
+fn typed(schema: &Value, kind: &str) -> bool {
+    match schema.get("type") {
+        Some(Value::String(named)) => named == kind,
+        Some(Value::Array(named)) => named.iter().any(|named| named == kind),
+        _ => false,
+    }
+}
+
+fn collect_numbers<'a>(schema: &Value, value: &'a Value, numbers: &mut Vec<&'a Number>) {
+    let mut found = Vec::new();
+    leaves(schema, value, &mut found);
+    numbers.extend(found.into_iter().filter_map(|(schema, value)| match value {
+        Value::Number(number) if typed(schema, "number") => Some(number),
+        _ => None,
+    }));
+}
+
+fn collect_dates<'a>(schema: &Value, value: &'a Value, dates: &mut Vec<&'a str>) {
+    let mut found = Vec::new();
+    leaves(schema, value, &mut found);
+    dates.extend(found.into_iter().filter_map(|(schema, value)| match value {
+        Value::String(text) if schema.get("format").and_then(Value::as_str) == Some("date") => {
+            Some(text.as_str())
+        }
+        _ => None,
+    }));
 }

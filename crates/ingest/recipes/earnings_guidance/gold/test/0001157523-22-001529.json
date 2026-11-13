@@ -1,0 +1,293 @@
+{
+ "accession": "0001157523-22-001529",
+ "cik": 740260,
+ "published_at": "2022-11-03T21:58:00Z",
+ "note": "The same-store cash NOI guidance-by-segment reconciliation puts the high end and low end on separate rows far apart, so no single row holds both bounds; those $ rows (segment NOI, same-store cash NOI, D&A 280/281, interest/G&A 134/137) are left out. Also left out: zero/dash adjustment rows, the ($0.02) rates/FX headwind (impact component), occupancy growth of 100-150 bps (non-financial). D&A row lists Low 280 / High 279; stored as 279-280.",
+ "facts": [
+  {
+   "fields": {
+    "metric": "eps_gaap",
+    "metric_label": "Attributable Net Income per share",
+    "basis": "gaap",
+    "period_label": "fourth quarter 2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": 4,
+    "low": 0.06,
+    "high": 0.12,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Attributable Net Income\t$0.06\t–\t$0.12"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Nareit FFO per share",
+    "basis": "non_gaap",
+    "period_label": "fourth quarter 2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": 4,
+    "low": 0.75,
+    "high": 0.81,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Nareit FFO*\t$0.75\t–\t$0.81"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Normalized FFO per share",
+    "basis": "non_gaap",
+    "period_label": "fourth quarter 2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": 4,
+    "low": 0.68,
+    "high": 0.74,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Normalized FFO*\t$0.68\t–\t$0.74"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "SHOP same-store cash NOI growth",
+    "basis": "non_gaap",
+    "period_label": "fourth quarter 2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": 4,
+    "low": 15.0,
+    "high": 21.0,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "SHOP\t15.0%\t–\t21.0%"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Office same-store cash NOI growth",
+    "basis": "non_gaap",
+    "period_label": "fourth quarter 2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": 4,
+    "low": 2.5,
+    "high": 3.5,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Office\t2.5%\t–\t3.5%"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Triple-Net same-store cash NOI growth",
+    "basis": "non_gaap",
+    "period_label": "fourth quarter 2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": 4,
+    "low": 1.25,
+    "high": 2.25,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Triple-Net\t1.25%\t–\t2.25%"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Total Company same-store cash NOI growth",
+    "basis": "non_gaap",
+    "period_label": "fourth quarter 2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": 4,
+    "low": 6.0,
+    "high": 9.0,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Total Company\t6.0%\t–\t9.0%"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "SHOP year-over-year revenue growth",
+    "basis": "not_stated",
+    "period_label": "fourth quarter 2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": 4,
+    "low": 8,
+    "high": 8,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Ventas anticipates year-over-year revenue growth of approximately 8% at the midpoint of the same-store cash NOI guidance range, driven by continued strong rate growth and occupancy growth of 100 to 150 basis points."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "VIM promote revenue per share",
+    "basis": "not_stated",
+    "period_label": "fourth quarter 2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": 4,
+    "low": 0.01,
+    "high": 0.01,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "VIM: The Company is expected to earn its first promote revenue from its third-party institutional capital management business (VIM), approximating $0.01 per share in the fourth quarter."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Normalized FFO impact of general and administrative expenses",
+    "basis": "not_stated",
+    "period_label": "fourth quarter 2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": 4,
+    "low": 36000000,
+    "high": 38000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "General and Administrative Expenses: The Normalized FFO impact of fourth quarter general and administrative expenses is expected to range from approximately $36 million to $38 million."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Net income attributable to common stockholders",
+    "basis": "gaap",
+    "period_label": "fourth quarter 2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": 4,
+    "low": 22000000,
+    "high": 48000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Net income attributable to common stockholders\t$22\t$48\t$0.06\t$0.12"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Depreciation and amortization adjustments",
+    "basis": "not_stated",
+    "period_label": "fourth quarter 2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": 4,
+    "low": 279000000,
+    "high": 280000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Depreciation and amortization adjustments\t280\t279\t0.69\t0.69"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Depreciation and amortization adjustments per share",
+    "basis": "not_stated",
+    "period_label": "fourth quarter 2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": 4,
+    "low": 0.69,
+    "high": 0.69,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Depreciation and amortization adjustments\t280\t279\t0.69\t0.69"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Nareit FFO attributable to common stockholders",
+    "basis": "non_gaap",
+    "period_label": "fourth quarter 2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": 4,
+    "low": 302000000,
+    "high": 327000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Nareit FFO attributable to common stockholders\t$302\t$327\t$0.75\t$0.81"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Other adjustments",
+    "basis": "not_stated",
+    "period_label": "fourth quarter 2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": 4,
+    "low": -28000000,
+    "high": -28000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Other adjustments2\t(28)\t(28)\t(0.07)\t(0.07)"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Other adjustments per share",
+    "basis": "not_stated",
+    "period_label": "fourth quarter 2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": 4,
+    "low": -0.07,
+    "high": -0.07,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Other adjustments2\t(28)\t(28)\t(0.07)\t(0.07)"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Normalized FFO attributable to common stockholders",
+    "basis": "non_gaap",
+    "period_label": "fourth quarter 2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": 4,
+    "low": 274000000,
+    "high": 299000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Normalized FFO attributable to common stockholders\t$274\t$299\t$0.68\t$0.74"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Normalized FFO % Year-over-year growth",
+    "basis": "non_gaap",
+    "period_label": "fourth quarter 2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": 4,
+    "low": -7,
+    "high": 1,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "% Year-over-year growth\t(7%)\t1%"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Weighted average diluted shares (in millions)",
+    "basis": "not_stated",
+    "period_label": "fourth quarter 2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": 4,
+    "low": 404000000,
+    "high": 404000000,
+    "unit": "other",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Weighted average diluted shares (in millions)\t404\t404"
+  }
+ ]
+}

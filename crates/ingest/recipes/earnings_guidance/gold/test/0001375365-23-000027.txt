@@ -1,0 +1,206 @@
+Exhibit 99.1
+
+Supermicro Announces Third Quarter Fiscal Year 2023 Financial Results
+
+SAN JOSE, Calif. -- May 2, 2023 (BUSINESS WIRE) -- Supermicro (Nasdaq: SMCI), a Total IT Solution Provider for Cloud, AI/ML, Storage, and 5G/Edge, today announced financial results for its third quarter of fiscal year 2023 ended March 31, 2023.
+
+Third Quarter Fiscal Year 2023 Highlights
+•Net sales of $1.28 billion versus $1.80 billion in the second quarter of fiscal year 2023 and $1.36 billion in the same quarter of last year.
+•Gross margin of 17.6% versus 18.7% in the second quarter of fiscal year 2023 and 15.5% in the same quarter of last year.
+•Net income of $86 million versus $176 million in the second quarter of fiscal year 2023 and $77 million in the same quarter of last year.
+•Diluted net income per common share of $1.53 versus $3.14 in the second quarter of fiscal year 2023 and $1.43 in the same quarter of last year.
+•Non-GAAP diluted net income per common share of $1.63 versus $3.26 in the second quarter of fiscal year 2023 and $1.55 in the same quarter of last year.
+•Cash flow provided by operations for the third quarter of fiscal year 2023 of $198 million and capital expenditures of $8 million.
+Non-GAAP gross margin for the third quarter of fiscal year 2023 was 17.7% which adds back stock-based compensation expenses of $1 million. Non-GAAP diluted net income per common share for the third quarter of fiscal year 2023 was $1.63, with adjustments for stock-based compensation expenses of $14 million and $2 million litigation expense recovery, net of the related tax effects of $4 million.
+As of March 31, 2023, total cash and cash equivalents was $363 million and total bank debt was $187 million.
+
+“Supermicro continues to see record levels of engagements in our new generation product lines, especially for AI applications" said Charles Liang, President and CEO of Supermicro. "We secured several new and large design wins and are deploying some of the world’s most leading GPU clusters. With the recent new key components supply chain challenges mostly in the rear-view mirror and production normalizing, we expect to gain share and expand scale as we emerge as the true leader for rack-scale Total IT Solutions.”
+
+Business Outlook and Management Commentary
+For the fourth quarter of fiscal year 2023 ending June 30, 2023, the Company expects net sales of $1.7 billion to $1.9 billion, GAAP net income per diluted share of $2.13 to $2.65 and non-GAAP net income per diluted share of $2.21 to $2.71. The Company’s projections for GAAP and non-GAAP net income per diluted share assume a tax rate of approximately 14.7% and 15.7%, respectively, and a fully diluted share count of 56 million shares for GAAP and fully diluted share count of 57 million shares for non-GAAP. The outlook for Q4 of fiscal year 2023 GAAP net income per diluted share includes approximately $7 million in expected stock-based compensation and other expenses, net of related tax effects that are excluded from non-GAAP net income per diluted share.
+
+For fiscal year 2023 ending June 30, 2023, the Company maintains its guidance for net sales from a range of $6.6 billion to $6.8 billion, GAAP net income per diluted share from a range of $10.14 to $10.66, and non-GAAP net income per diluted share from a range of $10.50 to $11.00. The Company’s projections for annual GAAP and non-GAAP net income per diluted share assume a tax rate of approximately 14.9% and 16.0%, respectively, and a fully diluted share count of 56 million shares for GAAP and fully diluted share count of 57 million shares for non-GAAP. The outlook for fiscal year 2023 GAAP net income per diluted share includes approximately $33 million in expected stock-based compensation and other expenses, net of related tax effects that are excluded from non-GAAP net income per diluted share.
+
+Conference Call and Webcast Information
+Supermicro will hold a public webcast at 2:00 p.m. PDT today to discuss the results for its third quarter of fiscal year 2023.
+Those wishing to access the live webcast may use the following link:
+https://events.q4inc.com/attendee/104078846
+
+The conference call can be accessed by registering online at:
+https://conferencingportals.com/event/fIceWmPv
+After registering, a confirmation will be sent through email, including dial-in details and unique conference call codes for entry. Registration is open during the live call, but to ensure connectivity for the full call, it is recommended that participants register a day in advance and dial-in for the call at least 10 minutes before the start of the call.
+
+A replay of the webcast will be available shortly after the call on the Company’s investor relations website (https://ir.supermicro.com) and will remain accessible for one year.
+
+Cautionary Statement Regarding Forward Looking Statements
+Statements contained in this press release that are not historical fact may be forward looking statements within the meaning of Section 27A of the Securities Act of 1933 and Section 21E of the Securities Exchange Act of 1934. Such forward looking statements may relate to, among other things, the fourth quarter of fiscal year 2023 and full year fiscal 2023 guidance, record levels of engagement in new product lines, resolving recent supply chain challenges and production normalizing, gaining share, and expanding scale. Such forward looking statements do not constitute guarantees of future performance and are subject to a variety of risks and uncertainties that could cause our actual results to differ materially from those anticipated, including: (i) the global COVID-19 pandemic may continue to present significant uncertainties for parts of our business including our supply chain, our production operations and customer demand, (ii) our quarterly operating results may fluctuate, which could cause rapid declines in our stock price, (iii) as we increasingly target larger customers and larger sales opportunities, our customer base may become more concentrated, our cost of sales may increase, our margins may be lower and our sales may be less predictable, (iv) if we fail to meet publicly announced financial guidance or other expectations about our business, our stock could decline in value, (v) the average sales prices for our server solutions could decline if customers do not continue to purchase our latest generation products or additional components, and (vi) adverse economic conditions may harm our business. Additional factors that could cause actual results to differ materially from those projected or suggested in any forward looking statements are contained in our filings with the Securities and Exchange Commission, including those factors discussed under the caption "Risk Factors" in such filings, particularly in our Annual Report on Form 10-K for our fiscal year ended June 30, 2022, and Quarterly Reports on Form 10-Q filed thereafter.
+
+Use of Non-GAAP Financial Measures
+Non-GAAP gross margin discussed in this press release adds back stock-based compensation expenses and other expenses. Non-GAAP diluted net income per common share discussed in this press release adds back stock-based compensation expenses, litigation settlement costs, special performance bonuses and litigation expense (recovery), adjusted for the related tax effects. Management presents non-GAAP financial measures because it considers them to be important supplemental measures of performance. Management uses the non-GAAP financial measures for planning purposes, including analysis of the Company's performance against prior periods, the preparation of operating budgets and to determine appropriate levels of operating and capital investments. Management also believes that the non-GAAP financial measures provide additional insight for analysts and investors in evaluating the Company's financial and operational performance. However, these non-GAAP financial measures have limitations as an analytical tool and are not intended to be an alternative to financial measures prepared in accordance with GAAP. A reconciliation of GAAP gross margin to non-GAAP gross margin and from GAAP diluted net income per common share to non-GAAP diluted net income per common share is included in the tables below.
+
+About Super Micro Computer, Inc.
+Supermicro (NASDAQ: SMCI) is a global leader in Application-Optimized Total IT Solutions. Founded and operating in San Jose, California, Supermicro is committed to delivering first to market innovation for Enterprise, Cloud, AI and 5G Telco/Edge IT Infrastructure. We are transforming to being a Total IT Solutions provider with server, AI, storage, IoT and switch systems, software and services while continuing to deliver advanced high-volume motherboard, power and chassis products. The products are designed and manufactured in-house (in US, Taiwan and Netherlands) leveraging global operations for scale and efficiency and optimized to improve TCO and reduce environmental impact (Green Computing). The award-winning portfolio of Server Building Block Solutions® allows customers to optimize for their exact workload and application by selecting from a broad family of systems built from our flexible and reusable building blocks that support a comprehensive set of form factors, processors, memory, GPUs, storage, networking, power and cooling solutions (air conditioned, free air cooling or liquid cooling).
+
+Supermicro, Server Building Block Solutions, and We Keep IT Green are trademarks and/or registered trademarks of Super Micro Computer, Inc.
+
+Investor Relations Contact
+Nicole Noutsios
+email: ir@supermicro.com
+
+SUPER MICRO COMPUTER, INC.
+CONDENSED CONSOLIDATED BALANCE SHEETS
+(in thousands)
+(unaudited)
+
+March 31,	June 30,
+2023	2022
+ASSETS
+Current assets:
+Cash and cash equivalents	$	362,801	$	267,397
+Accounts receivable, net of allowance for credit losses	672,055	834,513
+Inventories	1,540,419	1,545,606
+Prepaid expenses and other current assets	139,900	158,799
+Total current assets	2,715,175	2,806,315
+Property, plant and equipment, net	290,038	285,972
+Deferred income taxes, net	148,558	69,929
+Other assets	38,833	42,861
+Total assets	$	3,192,604	$	3,205,077
+LIABILITIES AND STOCKHOLDERS’ EQUITY
+Current liabilities:
+Accounts payable	$	641,839	$	655,403
+Accrued liabilities	155,224	212,419
+Income taxes payable	92,598	41,743
+Short-term debt	53,972	449,146
+Deferred revenue	148,747	111,313
+Total current liabilities	1,092,380	1,470,024
+Deferred revenue, non-current	161,176	122,548
+Long-term debt	133,235	147,618
+Other long-term liabilities	37,240	39,140
+Total liabilities	1,424,031	1,779,330
+Stockholders’ equity:
+Common stock and additional paid-in capital	528,279	481,741
+Accumulated other comprehensive income	683	911
+Retained earnings	1,239,445	942,923
+Total Super Micro Computer, Inc. stockholders’ equity	1,768,407	1,425,575
+Noncontrolling interest	166	172
+Total stockholders’ equity	1,768,573	1,425,747
+Total liabilities and stockholders’ equity	$	3,192,604	$	3,205,077
+
+SUPER MICRO COMPUTER, INC.
+CONDENSED CONSOLIDATED STATEMENTS OF OPERATIONS
+(in thousands except per share amounts)
+(unaudited)
+
+Three Months Ended March 31,	Nine Months Ended March 31,
+2023	2022	2023	2022
+Net sales	$	1,283,296	$	1,355,490	$	4,938,621	$	3,560,639
+Cost of sales	1,056,937	1,144,715	4,027,305	3,047,982
+Gross profit	226,359	210,775	911,316	512,657
+Operating expenses:
+Research and development	77,515	70,869	222,458	201,483
+Sales and marketing	25,312	22,356	83,120	65,940
+General and administrative	24,450	27,773	71,351	75,280
+Total operating expenses	127,277	120,998	376,929	342,703
+Income from operations	99,082	89,777	534,387	169,954
+Other (expense) income, net	(78)	4,663	1,641	4,106
+Interest expense	(1,288)	(1,531)	(6,982)	(3,485)
+Income before income tax provision	97,716	92,909	529,046	170,575
+Income tax (provision)	(10,857)	(16,192)	(79,364)	(27,116)
+Share of (loss) income from equity investee, net of taxes	(1,013)	255	(3,253)	882
+Net income	$	85,846	$	76,972	$	446,429	$	144,341
+Net income per common share:
+Basic	$	1.61	$	1.49	$	8.42	$	2.82
+Diluted	$	1.53	$	1.43	$	8.00	$	2.70
+Weighted-average shares used in calculation of net income per common share:
+Basic	53,280	51,708	53,011	51,269
+Diluted	56,233	53,786	55,796	53,401
+
+Stock-based compensation is included in the following cost and expense categories by period (in thousands):
+
+Three Months Ended March 31,	Nine Months Ended March 31,
+2023	2022	2023	2022
+Cost of sales	$	1,215	$	460	$	3,585	$	1,378
+Research and development	8,097	4,141	23,549	12,124
+Sales and marketing	1,214	504	3,471	1,517
+General and administrative	3,126	2,636	11,042	8,913
+Stock-based compensation expense	$	13,652	$	7,741	$	41,647	$	23,932
+
+SUPER MICRO COMPUTER, INC.
+SELECTED CASH FLOW INFORMATION
+(in thousands)
+(unaudited)
+
+Nine Months Ended March 31,
+2023	2022
+Net cash provided by (used in) operating activities	$	672,919	$	(415,658)
+Net cash (used in) investing activities	(28,618)	(35,257)
+Net cash (used in) provided by financing activities	(547,291)	466,365
+Effect of exchange rate fluctuations on cash	(2,269)	(304)
+Net increase in cash, cash equivalents and restricted cash	94,741	15,146
+Cash, cash equivalents and restricted cash at the beginning of the period	268,559	233,449
+Cash, cash equivalents and restricted cash at the end of the period	$	363,300	$	248,595
+
+SUPER MICRO COMPUTER, INC.
+RECONCILIATION OF GAAP TO NON-GAAP FINANCIAL MEASURES
+(in thousands except per share amounts)
+(unaudited)
+
+Three Months Ended March 31,	Nine Months Ended March 31,
+2023	2022	2023	2022
+GAAP GROSS PROFIT	$	226,359	$	210,775	$	911,316	$	512,657
+Stock-based compensation	1,215	460	3,585	1,378
+Other expenses	—	—	—	295
+NON-GAAP GROSS PROFIT	$	227,574	$	211,235	$	914,901	$	514,330
+GAAP GROSS MARGIN	17.6	%	15.5	%	18.5	%	14.4	%
+Stock-based compensation	0.1	%	0.1	%	0.1	%	0.1	%
+Other expenses	—	%	—	%	—	%	0.0	%
+NON-GAAP GROSS MARGIN	17.7	%	15.6	%	18.6	%	14.5	%
+GAAP OPERATING EXPENSE	$	127,277	$	120,998	$	376,929	$	342,703
+Stock-based compensation	(12,437)	(7,281)	(38,062)	(22,554)
+Litigation settlement costs	—	(2,000)	—	(2,000)
+Special performance bonuses	—	—	—	(158)
+Litigation recovery (expense)	1,540	(2,210)	3,770	(4,133)
+NON-GAAP OPERATING EXPENSE	$	116,380	$	109,507	$	342,637	$	313,858
+GAAP INCOME FROM OPERATIONS	$	99,082	$	89,777	$	534,387	$	169,954
+Stock-based compensation	13,652	7,741	41,647	23,932
+Litigation settlement costs	—	2,000	—	2,000
+Special performance bonuses	—	—	—	453
+Litigation (recovery) expense	(1,540)	2,210	(3,770)	4,133
+NON-GAAP INCOME FROM OPERATIONS	$	111,194	$	101,728	$	572,264	$	200,472
+GAAP OPERATING MARGIN	7.7	%	6.6	%	10.8	%	4.8	%
+Stock-based compensation	1.1	%	0.6	%	0.8	%	0.7	%
+Litigation settlement costs	—	%	0.1	%	—	%	0.1	%
+Special performance bonuses	—	%	—	%	—	%	0.0	%
+Litigation (recovery) expense	(0.1)	%	0.2	%	(0.1)	%	0.1	%
+NON-GAAP OPERATING MARGIN	8.7	%	7.5	%	11.5	%	5.7	%
+GAAP TAX EXPENSE	$	10,857	$	16,192	$	79,364	$	27,116
+Adjustments to tax provision	4,433	3,415	11,963	$	9,584
+NON-GAAP TAX EXPENSE	$	15,290	$	19,607	$	91,327	$	36,700
+GAAP NET INCOME	$	85,846	$	76,972	$	446,429	$	144,341
+Stock-based compensation	13,652	7,741	41,647	23,932
+Litigation settlement costs	—	2,000	—	2,000
+Special performance bonuses	—	—	—	453
+Litigation (recovery) expense	(1,540)	2,210	(3,770)	4,133
+Adjustments to tax provision	(4,433)	(3,415)	(11,963)	(9,584)
+NON-GAAP NET INCOME	$	93,525	$	85,508	$	472,343	$	165,275
+
+SUPER MICRO COMPUTER, INC.
+RECONCILIATION OF GAAP TO NON-GAAP FINANCIAL MEASURES
+(in thousands except per share amounts)
+(unaudited)
+
+Three Months Ended March 31,	Nine Months Ended March 31,
+2023	2022	2023	2022
+GAAP NET INCOME PER COMMON SHARE – BASIC	$	1.61	$	1.49	$	8.42	$	2.82
+Impact of Non-GAAP adjustments	0.15	0.16	0.49	0.40
+NON-GAAP NET INCOME PER COMMON SHARE – BASIC	$	1.76	$	1.65	$	8.91	$	3.22
+GAAP NET INCOME PER COMMON SHARE – DILUTED	$	1.53	$	1.43	$	8.00	$	2.70
+Impact of Non-GAAP adjustments	0.10	0.12	0.29	0.31
+NON-GAAP NET INCOME PER COMMON SHARE – DILUTED	$	1.63	$	1.55	$	8.29	$	3.01
+WEIGHTED-AVERAGE SHARES USED IN COMPUTING NET INCOME PER COMMON SHARE
+BASIC – GAAP	53,280	51,708	53,011	51,269
+BASIC – NON-GAAP	53,280	51.708	53,011	51,269
+DILUTED – GAAP	56,233	53,786	55,796	53,401
+DILUTED – NON-GAAP	57,315	55.194	56,966	54.831
+
+Non-GAAP diluted net income per common share for the second quarter of fiscal year 2023 ended December 31, 2022 was $3.26, with adjustments for stock-based compensation expenses of $17 million and $2 million litigation expense recovery, net of the related tax effects of $4 million.

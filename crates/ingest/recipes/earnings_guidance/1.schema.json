@@ -1,0 +1,26 @@
+{
+  "type": "object",
+  "properties": {
+    "metric": {
+      "type": "string",
+      "enum": ["revenue", "eps_gaap", "eps_adjusted", "operating_income", "operating_margin", "gross_margin", "ebitda_adjusted", "free_cash_flow", "capex", "tax_rate", "other"]
+    },
+    "metric_label": {"type": "string"},
+    "basis": {"type": "string", "enum": ["gaap", "non_gaap", "not_stated"]},
+    "period_label": {"type": "string"},
+    "fiscal_year": {"type": ["integer", "null"]},
+    "fiscal_quarter": {"type": ["integer", "null"]},
+    "low": {"type": ["number", "null"]},
+    "high": {"type": ["number", "null"]},
+    "unit": {
+      "type": "string",
+      "enum": ["usd", "usd_per_share", "percent", "percent_growth", "other_currency", "other"]
+    },
+    "stated_action": {
+      "type": "string",
+      "enum": ["initiated", "raised", "lowered", "reaffirmed", "narrowed", "withdrawn", "not_stated"]
+    }
+  },
+  "required": ["metric", "metric_label", "basis", "period_label", "fiscal_year", "fiscal_quarter", "low", "high", "unit", "stated_action"],
+  "additionalProperties": false
+}

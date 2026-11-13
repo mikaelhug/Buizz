@@ -1,0 +1,218 @@
+{
+ "accession": "0000047111-22-000049",
+ "cik": 47111,
+ "published_at": "2022-11-04T10:48:51Z",
+ "note": "EPS growth % (outlook table) and EPS $ ranges (reconciliation) both explicitly stated, kept as separate facts; 'increasing its net sales growth and earnings-per-share outlook' applied as raised to sales growth and all four EPS figures; tax/other/interest/capex 'updating' -> not_stated. Reported 'reported effective tax rate' basis gaap. 4-5 point acquisition benefit left out (impact component); dash rows skipped.",
+ "facts": [
+  {
+   "fields": {
+    "metric": "revenue",
+    "metric_label": "Net sales growth",
+    "basis": "not_stated",
+    "period_label": "2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": null,
+    "low": 14,
+    "high": 15,
+    "unit": "percent_growth",
+    "stated_action": "raised"
+   },
+   "evidence": "Net sales growth3\t12% - 14%\t14% - 15%"
+  },
+  {
+   "fields": {
+    "metric": "eps_gaap",
+    "metric_label": "Reported earnings per share growth",
+    "basis": "gaap",
+    "period_label": "2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": null,
+    "low": 11,
+    "high": 13,
+    "unit": "percent_growth",
+    "stated_action": "raised"
+   },
+   "evidence": "Reported earnings per share growth\t9% - 12%\t11% - 13%"
+  },
+  {
+   "fields": {
+    "metric": "eps_adjusted",
+    "metric_label": "Adjusted earnings per share growth",
+    "basis": "non_gaap",
+    "period_label": "2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": null,
+    "low": 14,
+    "high": 15,
+    "unit": "percent_growth",
+    "stated_action": "raised"
+   },
+   "evidence": "Adjusted earnings per share growth\t12% - 14%\t14% - 15%"
+  },
+  {
+   "fields": {
+    "metric": "eps_gaap",
+    "metric_label": "Reported EPS – Diluted",
+    "basis": "gaap",
+    "period_label": "2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": null,
+    "low": 7.93,
+    "high": 8.06,
+    "unit": "usd_per_share",
+    "stated_action": "raised"
+   },
+   "evidence": "Reported EPS – Diluted\t$7.93 – $8.06\t$7.11"
+  },
+  {
+   "fields": {
+    "metric": "eps_adjusted",
+    "metric_label": "Adjusted EPS – Diluted",
+    "basis": "non_gaap",
+    "period_label": "2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": null,
+    "low": 8.2,
+    "high": 8.27,
+    "unit": "usd_per_share",
+    "stated_action": "raised"
+   },
+   "evidence": "Adjusted EPS – Diluted\t$8.20 - $8.27\t$7.19"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Business realignment activities",
+    "basis": "not_stated",
+    "period_label": "2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": null,
+    "low": 0.02,
+    "high": 0.04,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Business realignment activities\t0.02 – 0.04\t0.09"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Acquisition-related activities",
+    "basis": "not_stated",
+    "period_label": "2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": null,
+    "low": 0.21,
+    "high": 0.25,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Acquisition-related activities\t0.21 – 0.25\t0.16"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Other miscellaneous losses (benefits)",
+    "basis": "not_stated",
+    "period_label": "2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": null,
+    "low": 0.07,
+    "high": 0.07,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Other miscellaneous losses (benefits)\t0.07\t(0.07)"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Tax effect of all adjustments reflected above",
+    "basis": "not_stated",
+    "period_label": "2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": null,
+    "low": -0.09,
+    "high": -0.09,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Tax effect of all adjustments reflected above\t(0.09)\t(0.01)"
+  },
+  {
+   "fields": {
+    "metric": "tax_rate",
+    "metric_label": "reported effective tax rate",
+    "basis": "gaap",
+    "period_label": "2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": null,
+    "low": 14,
+    "high": 15,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "•A reported and adjusted effective tax rate of approximately 14% to 15%, a slight reduction versus the prior outlook, driven by timing and value of renewable energy tax credits;"
+  },
+  {
+   "fields": {
+    "metric": "tax_rate",
+    "metric_label": "adjusted effective tax rate",
+    "basis": "non_gaap",
+    "period_label": "2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": null,
+    "low": 14,
+    "high": 15,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "•A reported and adjusted effective tax rate of approximately 14% to 15%, a slight reduction versus the prior outlook, driven by timing and value of renewable energy tax credits;"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Other expense",
+    "basis": "not_stated",
+    "period_label": "2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": null,
+    "low": 205000000,
+    "high": 205000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "•Other expense, which primarily reflects the write-down of equity investments that qualify for tax credits, of approximately $205 million, higher than the previous outlook to reflect an increased amount of renewable energy tax credits;"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Interest expense",
+    "basis": "not_stated",
+    "period_label": "2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": null,
+    "low": 135000000,
+    "high": 140000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "•Interest expense of approximately $135 million to $140 million, reflecting higher interest rates on commercial paper; and"
+  },
+  {
+   "fields": {
+    "metric": "capex",
+    "metric_label": "Capital expenditures",
+    "basis": "not_stated",
+    "period_label": "2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": null,
+    "low": 600000000,
+    "high": 600000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "•Capital expenditures of approximately $600 million."
+  }
+ ]
+}

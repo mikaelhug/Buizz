@@ -1,0 +1,83 @@
+{
+ "accession": "0001099800-22-000023",
+ "cik": 1099800,
+ "published_at": "2022-10-27T20:21:35Z",
+ "note": "Total and TAVR sales are expected 'at the low end' of prior ranges, labelled as the low-end value; 'revised' is not a listed action word so EPS is not_stated; Q4 sales/EPS 'similar to the third quarter' has no number and is left out.",
+ "facts": [
+  {
+   "fields": {
+    "metric": "revenue",
+    "metric_label": "total company sales",
+    "basis": "not_stated",
+    "period_label": "2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": null,
+    "low": 5350000000,
+    "high": 5350000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "The company anticipates that the U.S. hospital staffing challenge and strong U.S. dollar are likely to persist and now expects total company sales for 2022 at the low end of its previous range of $5.35 to $5.55 billion."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "TAVR sales",
+    "basis": "not_stated",
+    "period_label": "2022",
+    "fiscal_year": 2022,
+    "fiscal_quarter": null,
+    "low": 3500000000,
+    "high": 3500000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "TAVR sales are also expected at the low end of the previous range of $3.5 to $3.7 billion."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Surgical Structural Heart sales",
+    "basis": "not_stated",
+    "period_label": "full year",
+    "fiscal_year": 2022,
+    "fiscal_quarter": null,
+    "low": 870000000,
+    "high": 950000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "The company continues to expect full year Surgical Structural Heart sales of $870 to $950 million, and Critical Care sales of $820 to $900 million."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Critical Care sales",
+    "basis": "not_stated",
+    "period_label": "full year",
+    "fiscal_year": 2022,
+    "fiscal_quarter": null,
+    "low": 820000000,
+    "high": 900000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "The company continues to expect full year Surgical Structural Heart sales of $870 to $950 million, and Critical Care sales of $820 to $900 million."
+  },
+  {
+   "fields": {
+    "metric": "eps_adjusted",
+    "metric_label": "adjusted EPS",
+    "basis": "non_gaap",
+    "period_label": "full year",
+    "fiscal_year": 2022,
+    "fiscal_quarter": null,
+    "low": 2.4,
+    "high": 2.5,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Edwards now expects full year adjusted EPS of $2.40 to $2.50, up from 2021 adjusted EPS of $2.22."
+  }
+ ]
+}

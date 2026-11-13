@@ -138,7 +138,7 @@ pub(crate) const JOBS: [JobSpec; 28] = [
     JobSpec {
         name: RECIPE_FACTS,
         source: None,
-        datasets: &[Dataset::ListingNotices],
+        datasets: &[Dataset::ListingNotices, Dataset::EarningsGuidance],
         every: SIX_HOURS,
     },
     JobSpec {

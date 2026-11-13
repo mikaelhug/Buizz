@@ -1,0 +1,83 @@
+{
+ "accession": "0000882184-25-000044",
+ "cik": 882184,
+ "published_at": "2025-10-28T15:28:03Z",
+ "note": "Homes closed (86,000-88,000) excluded as a non-financial operating volume; declared $0.45 quarterly dividend is not guidance.",
+ "facts": [
+  {
+   "fields": {
+    "metric": "revenue",
+    "metric_label": "Consolidated revenues",
+    "basis": "not_stated",
+    "period_label": "fiscal 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": null,
+    "low": 33500000000,
+    "high": 35000000000,
+    "unit": "usd",
+    "stated_action": "initiated"
+   },
+   "evidence": "Consolidated revenues in the range of $33.5 billion to $35.0 billion"
+  },
+  {
+   "fields": {
+    "metric": "tax_rate",
+    "metric_label": "Income tax rate",
+    "basis": "not_stated",
+    "period_label": "fiscal 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": null,
+    "low": 24.5,
+    "high": 24.5,
+    "unit": "percent",
+    "stated_action": "initiated"
+   },
+   "evidence": "Income tax rate of approximately 24.5%"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Consolidated cash flow provided by operations",
+    "basis": "not_stated",
+    "period_label": "fiscal 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": null,
+    "low": 3000000000,
+    "high": null,
+    "unit": "usd",
+    "stated_action": "initiated"
+   },
+   "evidence": "Consolidated cash flow provided by operations of at least $3.0 billion"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Share repurchases",
+    "basis": "not_stated",
+    "period_label": "fiscal 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": null,
+    "low": 2500000000,
+    "high": 2500000000,
+    "unit": "usd",
+    "stated_action": "initiated"
+   },
+   "evidence": "Share repurchases of approximately $2.5 billion"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Dividend payments",
+    "basis": "not_stated",
+    "period_label": "fiscal 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": null,
+    "low": 500000000,
+    "high": 500000000,
+    "unit": "usd",
+    "stated_action": "initiated"
+   },
+   "evidence": "Dividend payments of approximately $500 million"
+  }
+ ]
+}

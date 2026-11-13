@@ -51,6 +51,7 @@ const DATASETS: Record<Dataset, { name: string; caption: string }> = {
   filing_documents: { name: "Filing documents", caption: "every document of each 8-K, 10-K and 10-Q, raw and as text, in the text store" },
   filing_sections: { name: "10-K and 10-Q items", caption: "each report's text split into its items, such as 1A risk factors and 7 MD&A" },
   listing_notices: { name: "Listing notices", caption: "8-K Item 3.01 exchange and rule, each with its quoted evidence" },
+  earnings_guidance: { name: "Earnings guidance", caption: "Guidance in 8-K Item 2.02 releases, read by Claude Haiku and checked against its quote" },
   insider_trades: { name: "Insider trades", caption: "Form 4 purchases and sales" },
   estimates: { name: "Analyst estimates", caption: "consensus earnings expectations" },
   rates: { name: "Treasury rates", caption: "the daily yield curve and the T-bill rate cash earns" },

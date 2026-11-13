@@ -1,0 +1,53 @@
+{
+ "accession": "0001104659-25-045606",
+ "cik": 1324404,
+ "published_at": "2025-05-07T20:56:19Z",
+ "note": "Slide deck. Included the intended ~$630M repurchase by December 2025 as capital-return guidance; left out 2025 gross ammonia production (~10 million tons, non-financial), the multi-year Blue Point $2.15B investment and phasing, and industry forecasts.",
+ "facts": [
+  {
+   "fields": {
+    "metric": "capex",
+    "metric_label": "CF funded capital expenditures",
+    "basis": "not_stated",
+    "period_label": "2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 650000000,
+    "high": 650000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "CF funded capital expenditures expected to be ~$650 million with ~$150 million related to Blue Point"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "CF funded capital expenditures related to Blue Point",
+    "basis": "not_stated",
+    "period_label": "2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 150000000,
+    "high": 150000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "CF funded capital expenditures expected to be ~$650 million with ~$150 million related to Blue Point"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "share repurchases",
+    "basis": "not_stated",
+    "period_label": "December 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 630000000,
+    "high": 630000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Intend to repurchase remaining ~$630M of authorization by December 2025 expiration"
+  }
+ ]
+}

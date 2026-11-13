@@ -278,7 +278,7 @@ impl Ingest {
             schedule::PRESS_RELEASES => self.press_releases(now).await,
             schedule::FILING_DOCUMENTS => self.filing_documents(now).await,
             schedule::FILING_SECTIONS => self.filing_sections().await,
-            schedule::RECIPE_FACTS => self.recipe_facts().await,
+            schedule::RECIPE_FACTS => self.recipe_facts(now).await,
             schedule::NEWS => self.news(now).await,
             schedule::INDEX_MEMBERSHIP => self.index_membership(now).await,
             schedule::RATES => self.rates(now).await,

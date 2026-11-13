@@ -1,0 +1,158 @@
+{
+ "accession": "0000021076-26-000008",
+ "cik": 21076,
+ "published_at": "2026-02-03T21:11:43Z",
+ "note": "'confirming the following elements' read as reaffirmed for every bullet (incl. the 35-cent digital investment); footnote $60M (in millions) not_stated. Gross margin change in basis points stored as -100..-50 unit other. EPS YoY declines (14%-9%, 23%-18%) treated as restatements, not separate facts. Left out: ~7.5-point ERP sales impact, ~90-cent ERP EPS impact, ~100bp GM headwind, <1pt divestiture (impact components); $580M multi-year investment (no fiscal period).",
+ "facts": [
+  {
+   "fields": {
+    "metric": "revenue",
+    "metric_label": "net sales",
+    "basis": "not_stated",
+    "period_label": "fiscal year 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": null,
+    "low": -10,
+    "high": -6,
+    "unit": "percent_growth",
+    "stated_action": "reaffirmed"
+   },
+   "evidence": "The company still expects net sales to be down 6% to 10%, including less than a point of negative impact from the divestiture of its VMS business."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Organic sales",
+    "basis": "non_gaap",
+    "period_label": "fiscal year 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": null,
+    "low": -9,
+    "high": -5,
+    "unit": "percent_growth",
+    "stated_action": "reaffirmed"
+   },
+   "evidence": "Organic sales are still expected to decrease 5% to 9%, including a negative impact of about 7.5 points related to the reversal of the impact from incremental shipments associated with the ERP transition in the prior year."
+  },
+  {
+   "fields": {
+    "metric": "gross_margin",
+    "metric_label": "Gross margin",
+    "basis": "not_stated",
+    "period_label": "fiscal year 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": null,
+    "low": -100,
+    "high": -50,
+    "unit": "other",
+    "stated_action": "reaffirmed"
+   },
+   "evidence": "Gross margin is still expected to be down 50 to 100 basis points."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Selling and administrative expenses",
+    "basis": "not_stated",
+    "period_label": "fiscal year 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": null,
+    "low": 16,
+    "high": 16,
+    "unit": "percent",
+    "stated_action": "reaffirmed"
+   },
+   "evidence": "Selling and administrative expenses are still expected to be about 16% of net sales."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Advertising and sales promotion spending",
+    "basis": "not_stated",
+    "period_label": "fiscal year 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": null,
+    "low": 11,
+    "high": 11,
+    "unit": "percent",
+    "stated_action": "reaffirmed"
+   },
+   "evidence": "Advertising and sales promotion spending is still expected to be about 11% of net sales, reflecting the company's ongoing commitment to invest behind its brands."
+  },
+  {
+   "fields": {
+    "metric": "tax_rate",
+    "metric_label": "effective tax rate",
+    "basis": "not_stated",
+    "period_label": "fiscal year 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": null,
+    "low": 24,
+    "high": 24,
+    "unit": "percent",
+    "stated_action": "reaffirmed"
+   },
+   "evidence": "The company's effective tax rate is still expected to be about 24%."
+  },
+  {
+   "fields": {
+    "metric": "eps_gaap",
+    "metric_label": "Fiscal year diluted EPS",
+    "basis": "gaap",
+    "period_label": "fiscal year 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": null,
+    "low": 5.6,
+    "high": 5.95,
+    "unit": "usd_per_share",
+    "stated_action": "reaffirmed"
+   },
+   "evidence": "Fiscal year diluted EPS is still expected to be between $5.60 and $5.95, a year-over-year decrease of 14% to 9%, respectively."
+  },
+  {
+   "fields": {
+    "metric": "eps_adjusted",
+    "metric_label": "Adjusted EPS",
+    "basis": "non_gaap",
+    "period_label": "fiscal year 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": null,
+    "low": 5.95,
+    "high": 6.3,
+    "unit": "usd_per_share",
+    "stated_action": "reaffirmed"
+   },
+   "evidence": "Adjusted EPS is still expected to be between $5.95 and $6.30, or a decrease between 23% and 18%, respectively."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "long-term strategic investment in digital capabilities and productivity enhancements",
+    "basis": "not_stated",
+    "period_label": "fiscal year 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": null,
+    "low": 0.35,
+    "high": 0.35,
+    "unit": "usd_per_share",
+    "stated_action": "reaffirmed"
+   },
+   "evidence": "Adjusted EPS excludes the long-term strategic investment in digital capabilities and productivity enhancements, estimated to be about 35 cents."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "operating expenses related to its digital capabilities and productivity enhancements investment",
+    "basis": "not_stated",
+    "period_label": "fiscal year 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": null,
+    "low": 60000000,
+    "high": 60000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "(3)In fiscal year 2026, the company expects to incur approximately $60 ($46 after tax) of operating expenses related to its digital capabilities and productivity enhancements investment."
+  }
+ ]
+}

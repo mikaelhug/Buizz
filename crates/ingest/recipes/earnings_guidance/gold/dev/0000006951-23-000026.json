@@ -1,0 +1,37 @@
+{
+ "accession": "0000006951-23-000026",
+ "cik": 6951,
+ "published_at": "2023-08-17T20:03:47Z",
+ "facts": [
+  {
+   "fields": {
+    "metric": "revenue",
+    "metric_label": "net sales",
+    "basis": "not_stated",
+    "period_label": "fourth quarter of fiscal 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": 4,
+    "low": 6110000000,
+    "high": 6910000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "In the fourth quarter of fiscal 2023, Applied expects net sales to be approximately $6.51 billion, plus or minus $400 million."
+  },
+  {
+   "fields": {
+    "metric": "eps_adjusted",
+    "metric_label": "Non-GAAP adjusted diluted EPS",
+    "basis": "non_gaap",
+    "period_label": "fourth quarter of fiscal 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": 4,
+    "low": 1.82,
+    "high": 2.18,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Non-GAAP adjusted diluted EPS is expected to be in the range of $1.82 to $2.18."
+  }
+ ]
+}

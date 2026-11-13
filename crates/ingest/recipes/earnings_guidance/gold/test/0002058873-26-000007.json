@@ -1,0 +1,68 @@
+{
+ "accession": "0002058873-26-000007",
+ "cik": 2058873,
+ "published_at": "2026-02-26T11:02:18Z",
+ "note": "'Provides full year 2026 financial guidance' is not one of the listed action words (not 'provides initial'), so not_stated. Transformation plan (~$100M run-rate EBITDA benefit by end of 2028, ~$140M costs over 2-3 years) treated as a long-term program target, not period guidance.",
+ "facts": [
+  {
+   "fields": {
+    "metric": "revenue",
+    "metric_label": "Net Sales",
+    "basis": "not_stated",
+    "period_label": "full year 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": null,
+    "low": 4970000000,
+    "high": 5170000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Net Sales\t$4.97B - $5.17B"
+  },
+  {
+   "fields": {
+    "metric": "ebitda_adjusted",
+    "metric_label": "Adjusted Operating EBITDA",
+    "basis": "non_gaap",
+    "period_label": "full year 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": null,
+    "low": 1465000000,
+    "high": 1575000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Adjusted Operating EBITDA\t$1.465B - $1.575B"
+  },
+  {
+   "fields": {
+    "metric": "eps_adjusted",
+    "metric_label": "Adjusted EPS",
+    "basis": "non_gaap",
+    "period_label": "full year 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": null,
+    "low": 3.55,
+    "high": 3.95,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Adjusted EPS\t$3.55 to $3.95"
+  },
+  {
+   "fields": {
+    "metric": "free_cash_flow",
+    "metric_label": "Adjusted free cash flow",
+    "basis": "non_gaap",
+    "period_label": "full year 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": null,
+    "low": 450000000,
+    "high": 550000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Adjusted free cash flow\t$450M - $550M"
+  }
+ ]
+}

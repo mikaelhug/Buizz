@@ -1,0 +1,339 @@
+Exhibit 99.1
+news release
+www.pplnewsroom.com
+
+Contacts:	For news media: Ryan Hill, 610-774-4033
+For financial analysts: Andy Ludwig, 610-774-3389
+
+PPL Corporation delivers solid first-quarter 2026 earnings;
+reaffirms full‑year guidance and long‑term growth targets
+
+•Announces 2026 first-quarter earnings (GAAP) of $0.60 per share.
+•Achieves 2026 first-quarter ongoing earnings per share of $0.63 versus $0.60 in 2025.
+•Reaffirms 2026 ongoing earnings forecast of $1.90 to $1.98 per share with a midpoint of $1.94.
+•Reaffirms annual EPS growth target of 6% to 8% through at least 2029 with compound annual growth expected to be near top end of the target range.
+
+ALLENTOWN, Pa. (May 8, 2026) - PPL Corporation (NYSE: PPL) today announced first-quarter 2026 reported earnings (GAAP) of $452 million, or $0.60 per share, compared with first-quarter 2025 reported earnings of $414 million, or $0.56 per share.
+Adjusting for special items, first-quarter 2026 earnings from ongoing operations (non-GAAP) were $478 million, or $0.63 per share, compared with $444 million, or $0.60 per share, a year ago.
+“Our first-quarter results reflect strong financial and operational results and keep us on track to achieve our 2026 earnings guidance range,” said Vincent Sorgi, PPL president and chief executive officer. “We’re on pace to complete $5.1 billion in 2026 infrastructure investments to strengthen and modernize our electric and gas networks, build new generation resources in Kentucky and improve customer service while maintaining affordability for our customers.”
+Based on the company’s financial performance year to date, PPL reaffirmed its 2026 ongoing earnings forecast range of $1.90 to $1.98 per share with a midpoint of $1.94 per share.
+The company also reaffirmed its projection of 6% to 8% annual earnings-per-share (EPS) growth through at least 2029. The company expects to achieve compound annual growth near the top end of its targeted range through 2029 compared to 2025 actual ongoing earnings of $1.81 per share, with stronger growth beginning in 2027 and continuing through 2029.
+During the quarter, PPL advanced several regulatory processes across its service territories that support improved service for its customers while strengthening the company’s visibility and confidence in its outlook.
+In Pennsylvania, PPL Electric Utilities reached a settlement agreement with the majority of the intervening parties in its base rate case proceeding, the company’s first base rate case filing in over 10 years. The settlement includes various customer affordability enhancements, including protections under a new large-load customer rate class and electric service tariff, other modifications to low-income customer programs, and an agreement not to file a base rate case for at least two years from the effective date of the rate increases. The Administrative Law Judges assigned to the case recommended approval of the settlement without modification. The company expects a decision by the Pennsylvania Public Utility Commission by the end of the second quarter of 2026, with new rates effective July 1, 2026.
+
+Rhode Island Energy received approval for its latest annual electric and gas infrastructure, safety and reliability plans, supporting over $330 million of critical investment needs in the state. Rhode Island Energy also submitted a new proposal to satisfy the hold-harmless commitment with the Rhode Island Public Utilities Commission (RIPUC) that would provide meaningful bill credits to customers starting in the first quarter of 2027. The hold-harmless filing will be reviewed by the RIPUC in connection with the company’s pending base rate case proceeding. The proposal addresses and accelerates PPL’s deferred tax hold-harmless commitment arising from the acquisition of Rhode Island Energy.
+Throughout the first quarter, PPL also remained focused on opportunities to support significant economic development across its service territories, including continued robust expansion in Kentucky and investment needs in Pennsylvania to support a growing data center pipeline. PPL said Louisville Gas and Electric and Kentucky Utilities continue to make excellent progress on all new generation projects, which include over 1,900 megawatts (MW) of natural gas combined-cycle capacity (the first 645 MW expected to be in service in 2027), 240 MW of solar and 120 MW of battery storage.
+PPL’s joint venture with Blackstone Infrastructure also continues to gain momentum and is making significant progress as it seeks to build, own and operate generation in Pennsylvania to serve data centers under long-term energy supply services agreements. The joint venture’s objectives align with the recent commitments by leading technology companies to “bring your own generation” solutions. The joint venture is advancing discussions with hyperscalers and taking action so it can move quickly once any energy supply services agreements are signed. This includes engaging in strategic discussions with key gas pipeline companies, executing multiple reservation agreements for gas turbines, submitting requests for multiple potential generation projects into PJM’s interconnection queue for certain land sites currently under control and evaluating additional strategic land parcels for further generation development. PPL’s business plan does not include any earnings contributions or capital investments related to the joint venture.
+
+First-Quarter 2026 Earnings Details
+
+As discussed in this news release, reported earnings are calculated in accordance with U.S. Generally Accepted Accounting Principles (GAAP). “Earnings from ongoing operations” is a non-GAAP financial measure that is adjusted for special items. See the tables at the end of this news release for a reconciliation of reported earnings (net income) to earnings from ongoing operations, including an itemization of special items.
+(Dollars in millions, except for per share amounts)	1st Quarter
+2026	2025	Change
+Reported earnings	$	452	$	414	9	%
+Reported earnings per share	$	0.60	$	0.56	7	%
+1st Quarter
+2026	2025	Change
+Earnings from ongoing operations	$	478	$	444	8	%
+Earnings from ongoing operations per share	$	0.63	$	0.60	5	%
+
+First-Quarter 2026 Earnings by Segment
+
+1st Quarter
+Per share	2026	2025
+Reported earnings
+Kentucky Regulated	$	0.35	$	0.30
+Pennsylvania Regulated	0.25	0.25
+Rhode Island Regulated	0.05	0.10
+Corporate and Other	(0.05)	(0.09)
+Total	$	0.60	$	0.56
+1st Quarter
+2026	2025
+Special items (expense) benefit
+Kentucky Regulated	$	0.02	$	—
+Pennsylvania Regulated	—	—
+Rhode Island Regulated	(0.05)	—
+Corporate and Other	—	(0.04)
+Total	$	(0.03)	$	(0.04)
+1st Quarter
+2026	2025
+Earnings from ongoing operations
+Kentucky Regulated	$	0.33	$	0.30
+Pennsylvania Regulated	0.25	0.25
+Rhode Island Regulated	0.10	0.10
+Corporate and Other	(0.05)	(0.05)
+Total	$	0.63	$	0.60
+
+Key Factors Impacting Earnings
+
+In addition to the segment drivers outlined below, PPL’s reported earnings in the first quarter of 2026 included net special-item after-tax charges of $26 million, or $0.03 per share, primarily attributable to prior-year impacts associated with an ISO New England transmission return on equity reduction and system integration impacts, partially offset by regulatory asset treatment of costs associated with PPL’s IT transformation in Kentucky. Reported earnings in the first quarter of 2025 included net special-item after-tax charges of $30 million, or $0.04 per share, primarily attributable to PPL’s IT transformation, a Rhode Island Energy settlement related to an energy efficiency program matter that occurred prior to PPL’s ownership of the company, and integration and related expenses associated with the acquisition of Rhode Island Energy.
+
+Kentucky Regulated Segment
+PPL’s Kentucky Regulated segment primarily consists of the regulated electricity and natural gas operations of Louisville Gas and Electric Company and the regulated electricity operations of Kentucky Utilities Company.
+
+Reported earnings in the first quarter of 2026 increased by $0.05 per share compared with a year ago. Earnings from ongoing operations in the first quarter of 2026 increased by $0.03 per share compared with a year ago. Factors driving earnings results primarily included higher income due to higher retail rates effective January 1, 2026, partially offset by lower sales volumes, higher operating costs, higher depreciation expense and higher interest expense.
+
+Pennsylvania Regulated Segment
+PPL’s Pennsylvania Regulated segment consists of the regulated electricity delivery operations of PPL Electric Utilities.
+Reported earnings and earnings from ongoing operations in the first quarter of 2026 were even compared with a year ago. Factors driving earnings results primarily included higher transmission revenue from additional capital investments, offset by higher operating costs, higher depreciation expense and higher interest expense.
+
+Rhode Island Regulated Segment
+PPL’s Rhode Island Regulated segment consists of the regulated electricity and natural gas operations of Rhode Island Energy.
+Reported earnings in the first quarter of 2026 decreased by $0.05 per share compared with a year ago. Earnings from ongoing operations in the first quarter of 2026 were even compared with a year ago. Factors driving earnings results primarily included higher rider revenue, offset by higher depreciation expense.
+
+Corporate and Other
+PPL’s Corporate and Other category primarily includes financing costs incurred at the corporate level, certain non-recoverable costs prior to 2026 resulting from commitments made to the Rhode Island Division of Public Utilities and Carriers and the Rhode Island Attorney General’s Office in conjunction with the acquisition of Rhode Island Energy, and certain other unallocated costs.
+Reported earnings in the first quarter of 2026 increased by $0.04 per share compared with a year ago. Earnings from ongoing operations in the first quarter of 2026 were even compared with a year ago. Factors driving earnings results included higher interest expense, offset by factors that were not individually significant.
+
+2026 Earnings Forecast
+
+PPL’s 2026 earnings from ongoing operations forecast range is $1.90 to $1.98 per share, with a midpoint of $1.94 per share.
+Earnings from ongoing operations is a non-GAAP measure that could differ from reported earnings due to special items that are, in management’s view, non-recurring or otherwise not reflective of the company’s ongoing operations. PPL management is not able to forecast whether any of these factors will occur or whether any amounts will be reported for future periods. Therefore, PPL is not able to provide an equivalent GAAP measure for earnings guidance.
+See the table at the end of this news release for a complete reconciliation of the earnings forecast.
+
+About PPL
+PPL Corporation (NYSE: PPL), headquartered in Allentown, Pennsylvania, is a leading U.S. energy company focused on providing electricity and natural gas safely, reliably and affordably to more than 3.6 million customers in the U.S. PPL’s high-performing, award-winning utilities are addressing energy challenges head-on by building smarter, more resilient and more dynamic power grids and advancing sustainable energy solutions. For more information, visit www.pplweb.com.
+
+# # #
+
+(Note: All references to earnings per share in the text and tables of this news release are stated in terms of diluted earnings per share unless otherwise noted.)
+
+Conference Call and Webcast
+
+PPL invites interested parties to listen to a live internet webcast of management’s teleconference with financial analysts about first-quarter 2026 financial results at 11 a.m. Eastern time on Friday, May 8. The call will be webcast live, in audio format, together with slides of the presentation. For those who are unable to listen to the live webcast, a replay with slides will be accessible at www.pplweb.com/investors for 90 days after the call.
+
+Interested individuals can access the live conference call by telephone at 1-844-512-2926. International participants should call 1-412-317-6300. Participants will need to enter the following “Elite Entry” number to join the conference: 5534427. Callers can access the webcast link at www.pplweb.com/investors under “Events.”
+# # #
+
+Management utilizes “Earnings from Ongoing Operations” or “Ongoing Earnings” as a non-GAAP financial measure that should not be considered as an alternative to reported earnings, or net income, an indicator of operating performance determined in accordance with GAAP. PPL believes that Earnings from Ongoing Operations is useful and meaningful to investors because it provides management’s view of PPL’s earnings performance as another criterion in making investment decisions. In addition, PPL’s management uses Earnings from Ongoing Operations in measuring achievement of certain corporate performance goals, including targets for certain executive incentive compensation. Other companies may use different measures to present financial performance.
+
+Earnings from Ongoing Operations is adjusted for the impact of special items. Special items are presented in the financial tables on an after-tax basis with the related income taxes on special items separately disclosed. Income taxes on special items, when applicable, are calculated based on the statutory tax rate of the entity where the activity is recorded. Special items may include items such as:
+
+•Gains and losses on sales of assets not in the ordinary course of business.
+•Impairment charges.
+•Significant workforce reduction and other restructuring effects.
+•Acquisition and divestiture-related adjustments.
+•Other charges or credits that are, in management’s view, non-recurring or otherwise not reflective of the company’s ongoing operations.
+
+Statements contained in this news release, including statements with respect to future earnings, cash flows, dividends, financing, regulation and corporate strategy, are “forward-looking statements” within the meaning of the federal securities laws. Although PPL Corporation believes that the expectations and assumptions reflected in these forward-looking statements are reasonable, these statements are subject to a number of risks and uncertainties, and actual results may differ materially from the results discussed in the statements. The following are among the important factors that could cause actual results to differ materially from the forward-looking statements: weather conditions affecting customer energy usage and operating costs; strategic acquisitions, dispositions, joint ventures or similar transactions and our ability to consummate these business transactions, integrate the acquired entities or realize expected benefits from them; the outcome of rate cases or other cost recovery, revenue or regulatory proceedings; war, armed conflicts, terrorist attacks or similar disruptive events including ongoing conflicts in Ukraine and the Middle East; pandemic health events or other catastrophic events and their effect on financial markets, economic conditions and our businesses; market demand for energy in our service territories; volatility in or the impact of other changes on financial markets, commodity prices and economic conditions, including inflation; the effect of any business or industry restructuring; the profitability and liquidity of PPL Corporation and its subsidiaries; new accounting requirements or new interpretations or applications of existing requirements; operating performance of our facilities; the length of scheduled and unscheduled outages at our generating plants; environmental conditions and requirements and the related costs of compliance; system conditions and operating costs; development of new projects, markets and technologies; performance of new ventures; any impact of severe weather on our business; receipt of necessary government permits, approvals, rate relief and regulatory cost recovery; capital market conditions and decisions regarding capital structure; the impact of state, federal or foreign investigations applicable to PPL Corporation and its subsidiaries; the outcome of litigation against PPL Corporation and its subsidiaries; PPL Corporation’s stock price performance; the market prices of equity securities and the impact on pension income and resultant cash funding requirements for defined benefit pension plans; the securities and credit ratings of PPL Corporation and its subsidiaries; political, regulatory or economic conditions in jurisdictions where PPL Corporation or its subsidiaries conduct business, including any potential effects of threatened or actual cyberattack, terrorism or war or other hostilities; new state, federal or foreign legislation, including new tax legislation; and the commitments and liabilities of PPL Corporation and its subsidiaries. Any such forward-looking statements should be considered in light of such important factors and in conjunction with factors and other matters discussed in PPL Corporation’s Form 10-K and other reports on file with the Securities and Exchange Commission.
+
+Note to Editors: Visit our media website at www.pplnewsroom.com for additional news and background about PPL Corporation.
+
+PPL CORPORATION AND SUBSIDIARIES
+CONDENSED CONSOLIDATED FINANCIAL INFORMATION(1)
+Condensed Consolidated Balance Sheets (Unaudited)
+(Millions of Dollars)
+March 31,	December 31,
+2026	2025
+Assets
+Cash and cash equivalents	$	1,241	$	1,071
+Accounts receivable	1,423	1,225
+Unbilled revenues	413	558
+Fuel, materials and supplies	536	551
+Regulatory assets	375	308
+Other current assets	333	218
+Property, Plant and Equipment
+Regulated utility plant	43,480	42,953
+Less: Accumulated depreciation - regulated utility plant	10,493	10,303
+Regulated utility plant, net	32,987	32,650
+Non-regulated property, plant and equipment	91	71
+Less: Accumulated depreciation - non-regulated property, plant and equipment	29	26
+Non-regulated property, plant and equipment, net	62	45
+Construction work in progress	3,688	3,437
+Property, Plant and Equipment, net	36,737	36,132
+Noncurrent regulatory assets	2,100	2,092
+Goodwill and other intangibles	2,573	2,574
+Other noncurrent assets	573	515
+Total Assets	$	46,304	$	45,244
+Liabilities and Equity
+Short-term debt	$	220	$	456
+Long-term debt due within one year	994	904
+Accounts payable	1,403	1,559
+Other current liabilities	1,690	1,627
+Long-term debt	19,024	17,990
+Deferred income taxes and investment tax credits	3,731	3,615
+Accrued pension obligations	272	281
+Asset retirement obligations	112	133
+Noncurrent regulatory liabilities	3,283	3,318
+Other deferred credits and noncurrent liabilities	556	480
+Common stock and additional paid-in capital	12,324	12,451
+Treasury stock	(548)	(575)
+Earnings reinvested	3,443	3,207
+Accumulated other comprehensive loss	(200)	(202)
+Total Liabilities and Equity	$	46,304	$	45,244
+
+(1) The Financial Statements in this news release have been condensed and summarized for purposes of this presentation. Please refer to PPL Corporation’s periodic filings with the Securities and Exchange Commission for full financial statements, including note disclosure.
+
+PPL CORPORATION AND SUBSIDIARIES
+Condensed Consolidated Statements of Income (Unaudited)
+(Millions of Dollars, except share data)
+Three Months Ended March 31,
+2026	2025
+Operating Revenues	$	2,774	$	2,504
+Operating Expenses
+Operation
+Fuel	274	234
+Energy purchases	703	559
+Other operation and maintenance	579	598
+Depreciation	351	322
+Taxes, other than income	122	113
+Total Operating Expenses	2,029	1,826
+Operating Income	745	678
+Other Income (Expense) - net	39	28
+Interest Expense	224	190
+Income Before Income Taxes	560	516
+Income Taxes	108	102
+Net Income	$	452	$	414
+Earnings Per Share of Common Stock:
+Net Income Available to PPL Common Shareowners
+Basic and Diluted	$	0.60	$	0.56
+Weighted-Average Shares of Common Stock Outstanding (in thousands)
+Basic	751,764	738,691
+Diluted	757,158	741,400
+
+PPL CORPORATION AND SUBSIDIARIES
+Condensed Consolidated Statements of Cash Flows (Unaudited)
+(Millions of Dollars)
+Three Months Ended March 31,
+2026	2025
+Cash Flows from Operating Activities
+Net income	$	452	$	414
+Adjustments to reconcile net income to net cash provided by operating activities
+Depreciation	351	322
+Amortization	38	20
+Defined benefit plans - income	(2)	(16)
+Deferred income taxes and investment tax credits	94	38
+Equity component of AFUDC	(24)	(16)
+Other	1	29
+Change in current assets and current liabilities
+Accounts receivable	(221)	(277)
+Accounts payable	(56)	(120)
+Unbilled revenues	145	108
+Fuel, materials and supplies	19	37
+Prepayments	(84)	(87)
+Taxes payable	(48)	40
+Regulatory assets and liabilities, net	(54)	79
+Accrued interest	49	67
+Other	(31)	(80)
+Other operating activities
+Defined benefit plans - funding	(5)	(5)
+Other	(67)	(40)
+Net cash provided by operating activities	557	513
+Cash Flows from Investing Activities
+Expenditures for property, plant and equipment	(1,058)	(793)
+Other investing activities	12	10
+Net cash used in investing activities	(1,046)	(783)
+Cash Flows from Financing Activities
+Issuance of long-term debt	1,150	—
+Retirement of long-term debt	(18)	—
+Payment of common stock dividends	(202)	(190)
+Net increase (decrease) in short-term debt	(236)	475
+Debt issuance costs	(27)	(5)
+Other financing activities	(13)	(9)
+Net cash provided by financing activities	654	271
+Net Increase in Cash, Cash Equivalents and Restricted Cash	165	1
+Cash, Cash Equivalents and Restricted Cash at Beginning of Period	1,086	339
+Cash, Cash Equivalents and Restricted Cash at End of Period	$	1,251	$	340
+Supplemental Disclosures of Cash Flow Information
+Significant non-cash transactions:
+Accrued expenditures for property, plant and equipment at March 31,	$	560	$	397
+
+Operating - Electricity Sales (Unaudited)(1)
+Three Months Ended March 31,
+Percent
+(GWh)	2026	2025	Change
+PA Regulated Segment
+Retail Delivered	10,315	10,144	1.7 %
+KY Regulated Segment
+Retail Delivered	7,645	7,803	(2.0) %
+Wholesale(2)	308	439	(29.8) %
+Total	7,953	8,242	(3.5) %
+Total	18,268	18,386	(0.6) %
+
+(1) Excludes the Rhode Island Regulated segment electricity sales as revenues are decoupled from volumes delivered.
+(2) Represents FERC-regulated municipal and unregulated off-system sales.
+
+Reconciliation of Segment Reported Earnings to Earnings from Ongoing Operations
+(After-Tax)
+(Unaudited)
+Year-to-Date March 31, 2026	(millions of dollars)
+KY	PA	RI	Corp.
+Reg.	Reg.	Reg.	& Other	Total
+Reported Earnings(1)	$	270	$	184	$	36	$	(38)	$	452
+Less: Special Items (expense) benefit:
+IT transformation, net of tax of ($4), $1, $1, $1(2)	16	(2)	(2)	(3)	9
+Customer system integration impacts, net of tax of $2(3)	—	—	(7)	—	(7)
+ISO-NE transmission rates ROE reduction, net of tax of $5(4)	—	—	(19)	—	(19)
+Meter system integration impacts, net of tax of $2(5)	—	—	(9)	—	(9)
+Total Special Items	16	(2)	(37)	(3)	(26)
+Earnings from Ongoing Operations	$	254	$	186	$	73	$	(35)	$	478
+(per share - diluted)
+KY	PA	RI	Corp.
+Reg.	Reg.	Reg.	& Other	Total
+Reported Earnings(1)	$	0.35	$	0.25	$	0.05	$	(0.05)	$	0.60
+Less: Special Items (expense) benefit:
+IT transformation(2)	0.02	—	—	—	0.02
+Customer system integration impacts(3)	—	—	(0.01)	—	(0.01)
+ISO-NE transmission rates ROE reduction(4)	—	—	(0.03)	—	(0.03)
+Meter system integration impacts(5)	—	—	(0.01)	—	(0.01)
+Total Special Items	0.02	—	(0.05)	—	(0.03)
+Earnings from Ongoing Operations	$	0.33	$	0.25	$	0.10	$	(0.05)	$	0.63
+
+(1) Reported Earnings represents Net Income.
+(2) Costs associated with PPL’s restructuring and rebuilding of its IT infrastructure, organization and systems. KY Reg. received regulatory asset treatment for 2025 costs.
+(3) Certain collection process costs incurred due to the timing and implementation of the customer system integration.
+(4) Prior period impact of an ISO New England transmission rates return on equity reduction.
+(5) Prior period impact of a meter data system integration post transition services agreement.
+
+Reconciliation of Segment Reported Earnings to Earnings from Ongoing Operations
+(After-Tax)
+(Unaudited)
+Year-to-Date March 31, 2025	(millions of dollars)
+KY	PA	RI	Corp.
+Reg.	Reg.	Reg.	& Other	Total
+Reported Earnings(1)	$	223	$	184	$	70	$	(63)	$	414
+Less: Special Items (expense) benefit:
+Talen litigation costs, net of tax of $0(2)	—	—	—	(1)	(1)
+Acquisition integration, net of tax of ($2), $4(3)	—	—	7	(14)	(7)
+IT transformation, net of tax of $1, $0, $3(4)	(1)	—	(1)	(10)	(12)
+Energy efficiency programs settlement, net of tax of $0(5)	—	—	(8)	—	(8)
+Office relocation and related costs, net of tax of $0, $1(6)	(1)	(1)	—	—	(2)
+Total Special Items	(2)	(1)	(2)	(25)	(30)
+Earnings from Ongoing Operations	$	225	$	185	$	72	$	(38)	$	444
+(per share - diluted)
+KY	PA	RI	Corp.
+Reg.	Reg.	Reg.	& Other	Total
+Reported Earnings(1)	$	0.30	$	0.25	$	0.10	$	(0.09)	$	0.56
+Less: Special Items (expense) benefit:
+Acquisition integration(3)	—	—	0.01	(0.02)	(0.01)
+IT transformation(4)	—	—	—	(0.02)	(0.02)
+Energy efficiency programs settlement(5)	—	—	(0.01)	—	(0.01)
+Total Special Items	—	—	—	(0.04)	(0.04)
+Earnings from Ongoing Operations	$	0.30	$	0.25	$	0.10	$	(0.05)	$	0.60
+
+(1) Reported Earnings represents Net Income.
+(2) PPL incurred legal expenses related to litigation associated with its former affiliate.
+(3) Primarily integration and related costs associated with the acquisition of Rhode Island Energy.
+(4) Costs associated with PPL’s restructuring and rebuilding of its IT infrastructure, organization and systems.
+(5) Costs associated with a settlement agreement regarding energy efficiency programs prior to PPL’s acquisition of Rhode Island Energy.
+(6) Certain costs related to the relocation of corporate offices.
+
+Reconciliation of PPL's Earnings Forecast
+After-Tax (Unaudited)
+(per share - diluted)
+2026 Forecast Range
+Midpoint	High	Low
+Estimate of Reported Earnings	$	1.91	$	1.95	$	1.87
+Less: Special Items (expense) benefit:(1)
+IT transformation(2)	0.02	0.02	0.02
+Customer system integration impacts(3)	(0.01)	(0.01)	(0.01)
+ISO-NE transmission rates ROE reduction(4)	(0.03)	(0.03)	(0.03)
+Meter system integration impacts(5)	(0.01)	(0.01)	(0.01)
+Total Special Items	(0.03)	(0.03)	(0.03)
+Forecast of Earnings from Ongoing Operations	$	1.94	$	1.98	$	1.90
+
+(1) Reflects only special items recorded through March 31, 2026. PPL is not able to forecast special items for future periods.
+(2) Costs associated with PPL’s restructuring and rebuilding of its IT infrastructure, organization and systems. KY Reg. received regulatory asset treatment for 2025 costs.
+(3) Certain collection process costs incurred due to the timing and implementation of the customer system integration.
+(4) Prior period impact of an ISO New England transmission rates return on equity reduction.
+(5) Prior period impact of a meter data system integration post transition services agreement.

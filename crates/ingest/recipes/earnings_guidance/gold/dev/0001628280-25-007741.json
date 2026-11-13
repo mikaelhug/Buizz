@@ -1,0 +1,352 @@
+{
+ "accession": "0001628280-25-007741",
+ "cik": 1289490,
+ "published_at": "2025-02-25T21:28:37Z",
+ "facts": [
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Core FFO",
+    "basis": "non_gaap",
+    "period_label": "year ending December 31, 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 8.0,
+    "high": 8.3,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Core FFO\t$8.00\t$8.30"
+  },
+  {
+   "fields": {
+    "metric": "eps_gaap",
+    "metric_label": "Net income attributable to common stockholders per diluted share",
+    "basis": "gaap",
+    "period_label": "year ending December 31, 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 4.38,
+    "high": 4.68,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Net income attributable to common stockholders per diluted share\t$\t4.38\t$\t4.68"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Funds from operations attributable to common stockholders",
+    "basis": "not_stated",
+    "period_label": "year ending December 31, 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 7.7,
+    "high": 8.0,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Funds from operations attributable to common stockholders\t7.70\t8.00"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Dilution per share from C of O and value add acquisitions",
+    "basis": "not_stated",
+    "period_label": "year ending December 31, 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 0.22,
+    "high": 0.22,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Dilution per share from C of O and value add acquisitions\t$0.22\t$0.22"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Same-store revenue growth",
+    "basis": "not_stated",
+    "period_label": "year ending December 31, 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": -0.75,
+    "high": 1.25,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Same-store revenue growth\t(0.75)%\t1.25%\tSame-store pool of 1,829 stores"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Same-store expense growth",
+    "basis": "not_stated",
+    "period_label": "year ending December 31, 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 3.75,
+    "high": 5.25,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Same-store expense growth\t3.75%\t5.25%\tSame-store pool of 1,829 stores"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Same-store NOI growth",
+    "basis": "not_stated",
+    "period_label": "year ending December 31, 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": -3.0,
+    "high": 0.25,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Same-store NOI growth\t(3.00)%\t0.25%\tSame-store pool of 1,829 stores"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Net tenant reinsurance income",
+    "basis": "not_stated",
+    "period_label": "year ending December 31, 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 268000000,
+    "high": 271000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Net tenant reinsurance income\t$268,000,000\t$271,000,000"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Management fees and other income",
+    "basis": "not_stated",
+    "period_label": "year ending December 31, 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 125000000,
+    "high": 126500000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Management fees and other income\t$125,000,000\t$126,500,000"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Interest income",
+    "basis": "not_stated",
+    "period_label": "year ending December 31, 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 150500000,
+    "high": 152000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Interest income\t$150,500,000\t$152,000,000\tIncludes interest from bridge loans and dividends from NexPoint preferred investment"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "General and administrative expenses",
+    "basis": "not_stated",
+    "period_label": "year ending December 31, 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 184000000,
+    "high": 186000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "General and administrative expenses\t$184,000,000\t$186,000,000\tIncludes non-cash compensation"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Average monthly cash balance",
+    "basis": "not_stated",
+    "period_label": "year ending December 31, 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 45000000,
+    "high": 45000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Average monthly cash balance\t$45,000,000\t$45,000,000"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Equity in earnings of real estate ventures",
+    "basis": "not_stated",
+    "period_label": "year ending December 31, 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 89000000,
+    "high": 90000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Equity in earnings of real estate ventures\t$89,000,000\t$90,000,000\tIncludes dividends from SmartStop preferred investments"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Interest expense",
+    "basis": "not_stated",
+    "period_label": "year ending December 31, 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 570000000,
+    "high": 575000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Interest expense\t$570,000,000\t$575,000,000\tExcludes non-cash interest expense shown below."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Non-cash interest expense related to amortization of discount on Life Storage unsecured senior notes",
+    "basis": "not_stated",
+    "period_label": "year ending December 31, 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 46000000,
+    "high": 47000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Non-cash interest expense related to amortization of discount on Life Storage unsecured senior notes\t$46,000,000\t$47,000,000\tAmortization of LSI debt mark-to-market; excluded from Core FFO"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Income Tax Expense",
+    "basis": "not_stated",
+    "period_label": "year ending December 31, 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 38000000,
+    "high": 39000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Income Tax Expense\t$38,000,000\t$39,000,000\tTaxes associated with the Company's taxable REIT subsidiary"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Acquisitions",
+    "basis": "not_stated",
+    "period_label": "year ending December 31, 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 325000000,
+    "high": 325000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Acquisitions\t$325,000,000\t$325,000,000\tIncludes wholly-owned acquisitions and the Company's investment in joint ventures"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Bridge loans outstanding",
+    "basis": "not_stated",
+    "period_label": "year ending December 31, 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 1450000000,
+    "high": 1450000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Bridge loans outstanding\t$1,450,000,000\t$1,450,000,000\tRepresents the Company's average retained loan balances for 2025"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Weighted average share count",
+    "basis": "not_stated",
+    "period_label": "year ending December 31, 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 222200000,
+    "high": 222200000,
+    "unit": "other",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Weighted average share count\t222,200,000\t222,200,000\tAssumes redemption of all OP units for common stock"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Net Income",
+    "basis": "gaap",
+    "period_label": "year ending December 31, 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 1039500000,
+    "high": 1120250000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Net Income\t$\t1,039,500\t$\t1,120,250"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Total same-store net operating income",
+    "basis": "not_stated",
+    "period_label": "year ending December 31, 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 1871750000,
+    "high": 1936500000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Total same-store net operating income1\t$\t1,871,750\t$\t1,936,500"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Same-store rental revenues",
+    "basis": "not_stated",
+    "period_label": "year ending December 31, 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 2645000000,
+    "high": 2698500000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Same-store rental revenues1\t2,645,000\t2,698,500"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Same-store operating expenses",
+    "basis": "not_stated",
+    "period_label": "year ending December 31, 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 762000000,
+    "high": 773250000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Same-store operating expenses1\t773,250\t762,000"
+  }
+ ]
+}

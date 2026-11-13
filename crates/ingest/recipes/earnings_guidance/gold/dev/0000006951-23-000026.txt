@@ -1,0 +1,336 @@
+Exhibit 99.1
+
+APPLIED MATERIALS ANNOUNCES THIRD QUARTER 2023 RESULTS
+
+•Revenue $6.43 billion, down 1 percent year over year
+•GAAP operating margin 28.0 percent and non-GAAP operating margin 28.3 percent, down 1.5 points and 1.7 points year over year, respectively
+•GAAP EPS $1.85 and non-GAAP EPS $1.90, flat and down 2 percent year over year, respectively
+•Generated $2.58 billion in cash from operations
+
+SANTA CLARA, Calif., Aug. 17, 2023 — Applied Materials, Inc. (NASDAQ: AMAT) today reported results for its third quarter ended July 30, 2023.
+Third Quarter Results
+Applied generated revenue of $6.43 billion. On a GAAP basis, the company reported gross margin of 46.3 percent, operating income of $1.80 billion or 28.0 percent of net sales, and earnings per share (EPS) of $1.85.
+On a non-GAAP adjusted basis, the company reported gross margin of 46.4 percent, operating income of $1.82 billion or 28.3 percent of net sales, and EPS of $1.90.
+The company generated $2.58 billion in cash from operations and distributed $707 million to shareholders including $439 million in share repurchases and $268 million in dividends.
+“Applied Materials executed well in our fiscal third quarter, with revenue and earnings at the high end of our guidance range,” said Gary Dickerson, President and CEO. “Over the past several years, we have focused our strategy and investments on key technologies to accelerate the Internet of Things and AI era, enabling us to consistently deliver strong results in 2023 and positioning Applied Materials for sustainable outperformance.”
+
+Applied Materials, Inc.
+Page 2 of 13
+
+Results Summary
+Q3 FY2023	Q3 FY2022	Change
+(In millions, except per share amounts and percentages)
+Net sales	$	6,425	$	6,520	(1)%
+Gross margin	46.3	%	46.1	%	0.2 points
+Operating margin	28.0	%	29.5	%	(1.5) points
+Net income	$	1,560	$	1,606	(3)%
+Diluted earnings per share	$	1.85	$	1.85	—
+Non-GAAP Adjusted Results
+Non-GAAP adjusted gross margin	46.4	%	46.2	%	0.2 points
+Non-GAAP adjusted operating margin	28.3	%	30.0	%	(1.7) points
+Non-GAAP adjusted net income	$	1,600	$	1,683	(5)%
+Non-GAAP adjusted diluted EPS	$	1.90	$	1.94	(2)%
+
+A reconciliation of the GAAP and non-GAAP adjusted results is provided in the financial tables included in this release. See also “Use of Non-GAAP Adjusted Financial Measures” section.
+
+Applied Materials, Inc.
+Page 3 of 13
+
+Business Outlook
+In the fourth quarter of fiscal 2023, Applied expects net sales to be approximately $6.51 billion, plus or minus $400 million. Non-GAAP adjusted diluted EPS is expected to be in the range of $1.82 to $2.18.
+This outlook for non-GAAP adjusted diluted EPS excludes known charges related to completed acquisitions of $0.01 per share, includes the normalized tax benefit of share-based compensation of $0.01 per share and includes a net income tax benefit related to intra-entity intangible asset transfers of $0.01 per share, but does not reflect any items that are unknown at this time, such as any additional charges related to acquisitions or other non-operational or unusual items, as well as other tax-related items, which we are not able to predict without unreasonable efforts due to their inherent uncertainty.
+Third Quarter Reportable Segment Information
+Semiconductor Systems	Q3 FY2023	Q3 FY2022
+(In millions, except percentages)
+Net sales	$	4,676	$	4,734
+Foundry, logic and other	79	%	66	%
+DRAM	17	%	15	%
+Flash memory	4	%	19	%
+Operating income	$	1,618	$	1,701
+Operating margin	34.6	%	35.9	%
+Non-GAAP Adjusted Results
+Non-GAAP adjusted operating income	$	1,628	$	1,708
+Non-GAAP adjusted operating margin	34.8	%	36.1	%
+Applied Global Services	Q3 FY2023	Q3 FY2022
+(In millions, except percentages)
+Net sales	$	1,464	$	1,420
+Operating income	$	429	$	434
+Operating margin	29.3	%	30.6	%
+Non-GAAP Adjusted Results
+Non-GAAP adjusted operating income	$	429	$	434
+Non-GAAP adjusted operating margin	29.3	%	30.6	%
+Display and Adjacent Markets	Q3 FY2023	Q3 FY2022
+(In millions, except percentages)
+Net sales	$	235	$	333
+Operating income	$	37	$	69
+Operating margin	15.7	%	20.7	%
+Non-GAAP Adjusted Results
+Non-GAAP adjusted operating income	$	37	$	70
+Non-GAAP adjusted operating margin	15.7	%	21.0	%
+
+Applied Materials, Inc.
+Page 4 of 13
+Use of Non-GAAP Adjusted Financial Measures
+
+Applied provides investors with certain non-GAAP adjusted financial measures, which are adjusted for the impact of certain costs, expenses, gains and losses, including certain items related to mergers and acquisitions; restructuring and severance charges and any associated adjustments; impairments of assets; gain or loss, dividends and impairments on strategic investments; certain income tax items and other discrete adjustments. On a non-GAAP basis, the tax effect related to share-based compensation is recognized ratably over the fiscal year. Reconciliations of these non-GAAP measures to the most directly comparable financial measures calculated and presented in accordance with GAAP are provided in the financial tables included in this release.
+Management uses these non-GAAP adjusted financial measures to evaluate the company’s operating and financial performance and for planning purposes, and as performance measures in its executive compensation program. Applied believes these measures enhance an overall understanding of its performance and investors’ ability to review the company’s business from the same perspective as the company’s management, and facilitate comparisons of this period’s results with prior periods on a consistent basis by excluding items that management does not believe are indicative of Applied's ongoing operating performance. There are limitations in using non-GAAP financial measures because the non-GAAP financial measures are not prepared in accordance with generally accepted accounting principles, may be different from non-GAAP financial measures used by other companies, and may exclude certain items that may have a material impact upon our reported financial results. The presentation of this additional information is not meant to be considered in isolation or as a substitute for the directly comparable financial measures prepared in accordance with GAAP.
+Webcast Information
+Applied Materials will discuss these results during an earnings call that begins at 1:30 p.m. Pacific Time today. A live webcast and related slide presentation will be available at www.appliedmaterials.com. A replay will be available on the website beginning at 5:00 p.m. Pacific Time today.
+
+Applied Materials, Inc.
+Page 5 of 13
+
+Forward-Looking Statement
+
+This press release contains forward-looking statements, including those regarding anticipated growth and trends in our businesses and markets, industry outlooks and demand drivers, technology transitions, our business and financial performance and market share positions, our capital allocation and cash deployment strategies, our investment and growth strategies, our development of new products and technologies, our business outlook for the fourth quarter of fiscal 2023 and beyond, and other statements that are not historical facts. These statements and their underlying assumptions are subject to risks and uncertainties and are not guarantees of future performance. Factors that could cause actual results to differ materially from those expressed or implied by such statements include, without limitation: the level of demand for our products, our ability to meet customer demand, and our suppliers' ability to meet our demand requirements; global economic, political and industry conditions, including rising inflation and interest rates; the implementation and interpretation of new export regulations and license requirements, and their impact on our ability to export products and provide services to customers and on our results of operations; global trade issues and changes in trade and export license policies; our ability to obtain licenses or authorizations on a timely basis, if at all; consumer demand for electronic products; the demand for semiconductors; customers’ technology and capacity requirements; the introduction of new and innovative technologies, and the timing of technology transitions; our ability to develop, deliver and support new products and technologies; the concentrated nature of our customer base; our ability to expand our current markets, increase market share and develop new markets; market acceptance of existing and newly developed products; our ability to obtain and protect intellectual property rights in key technologies; our ability to achieve the objectives of operational and strategic initiatives, align our resources and cost structure with business conditions, and attract, motivate and retain key employees; the effects of regional or global health epidemics, including COVID-19; acquisitions, investments and divestitures; changes in income tax laws; the variability of operating expenses and results among products and segments, and our ability to accurately forecast future results, market conditions, customer requirements and business needs; our ability to ensure compliance with applicable law, rules and regulations; and other risks and uncertainties described in our SEC filings, including our recent Forms 10-Q and 8-K. All forward-looking statements are based on management’s current estimates, projections and assumptions, and we assume no obligation to update them.
+
+About Applied Materials
+
+Applied Materials, Inc. (Nasdaq: AMAT) is the leader in materials engineering solutions used to produce virtually every new chip and advanced display in the world. Our expertise in modifying materials at atomic levels and on an industrial scale enables customers to transform possibilities into reality. At Applied Materials, our innovations make possible a better future. Learn more at www.appliedmaterials.com.
+
+Contact:
+Ricky Gradwohl (editorial/media) 408.235.4676
+Michael Sullivan (financial community) 408.986.7977
+
+Applied Materials, Inc.
+Page 6 of 13
+
+APPLIED MATERIALS, INC.
+UNAUDITED CONSOLIDATED CONDENSED STATEMENTS OF OPERATIONS
+Three Months Ended	Nine Months Ended
+(In millions, except per share amounts)	July 30, 2023	July 31, 2022	July 30, 2023	July 31, 2022
+Net sales	$	6,425	$	6,520	$	19,794	$	19,036
+Cost of products sold	3,449	3,514	10,579	10,144
+Gross profit	2,976	3,006	9,215	8,892
+Operating expenses:
+Research, development and engineering	767	705	2,313	2,045
+Marketing and selling	193	180	584	520
+General and administrative	214	197	635	537
+Severance and related charges	—	—	—	(4)
+Total operating expenses	1,174	1,082	3,532	3,098
+Income from operations	1,802	1,924	5,683	5,794
+Interest expense	60	56	180	171
+Interest and other income (expense), net	64	(7)	41	27
+Income before income taxes	1,806	1,861	5,544	5,650
+Provision for income taxes	246	255	692	716
+Net income	$	1,560	$	1,606	$	4,852	$	4,934
+Earnings per share:
+Basic	$	1.86	$	1.86	$	5.76	$	5.63
+Diluted	$	1.85	$	1.85	$	5.73	$	5.59
+Weighted average number of shares:
+Basic	838	864	842	877
+Diluted	843	869	846	883
+
+Applied Materials, Inc.
+Page 7 of 13
+
+APPLIED MATERIALS, INC.
+UNAUDITED CONSOLIDATED CONDENSED BALANCE SHEETS
+(In millions)	July 30, 2023	October 30, 2022
+ASSETS
+Current assets:
+Cash and cash equivalents	$	6,025	$	1,995
+Short-term investments	510	586
+Accounts receivable, net	5,230	6,068
+Inventories	5,809	5,932
+Other current assets	1,305	1,344
+Total current assets	18,879	15,925
+Long-term investments	2,177	1,980
+Property, plant and equipment, net	2,604	2,307
+Goodwill	3,732	3,700
+Purchased technology and other intangible assets, net	305	339
+Deferred income taxes and other assets	2,713	2,475
+Total assets	$	30,410	$	26,726
+LIABILITIES AND STOCKHOLDERS’ EQUITY
+Current liabilities:
+Short-term debt	$	199	$	—
+Accounts payable and accrued expenses	4,528	4,237
+Contract liabilities	3,497	3,142
+Total current liabilities	8,224	7,379
+Long-term debt	5,460	5,457
+Income taxes payable	818	964
+Other liabilities	815	732
+Total liabilities	15,317	14,532
+Total stockholders’ equity	15,093	12,194
+Total liabilities and stockholders’ equity	$	30,410	$	26,726
+
+Applied Materials, Inc.
+Page 8 of 13
+
+APPLIED MATERIALS, INC.
+UNAUDITED CONSOLIDATED CONDENSED STATEMENTS OF CASH FLOWS
+(In millions)	Three Months Ended	Nine Months Ended
+July 30, 2023	July 31, 2022	July 30, 2023	July 31, 2022
+Cash flows from operating activities:
+Net income	$	1,560	$	1,606	$	4,852	$	4,934
+Adjustments required to reconcile net income to cash provided by operating activities:
+Depreciation and amortization	136	108	385	321
+Severance and related charges	—	—	—	(4)
+Share-based compensation	114	95	375	314
+Deferred income taxes	(38)	47	(174)	(209)
+Other	15	22	189	14
+Net change in operating assets and liabilities	796	(409)	1,518	(828)
+Cash provided by operating activities	2,583	1,469	7,145	4,542
+Cash flows from investing activities:
+Capital expenditures	(255)	(210)	(797)	(564)
+Cash paid for acquisitions, net of cash acquired	(7)	(441)	(25)	(441)
+Proceeds from sales and maturities of investments	302	374	971	1,013
+Purchases of investments	(465)	(339)	(1,195)	(1,175)
+Cash used in investing activities	(425)	(616)	(1,046)	(1,167)
+Cash flows from financing activities:
+Proceeds from commercial paper	297	—	892	—
+Repayments of commercial paper	(300)	—	(700)	—
+Proceeds from common stock issuances	—	—	111	96
+Common stock repurchases	(439)	(1,000)	(1,489)	(4,603)
+Tax withholding payments for vested equity awards	(11)	(3)	(165)	(259)
+Payments of dividends to stockholders	(268)	(225)	(707)	(650)
+Repayments of principal on finance leases	1	—	(8)	—
+Cash used in financing activities	(720)	(1,228)	(2,066)	(5,416)
+Increase (decrease) in cash, cash equivalents and restricted cash equivalents	1,438	(375)	4,033	(2,041)
+Cash, cash equivalents and restricted cash equivalents—beginning of period	4,695	3,435	2,100	5,101
+Cash, cash equivalents and restricted cash equivalents — end of period	$	6,133	$	3,060	$	6,133	$	3,060
+Reconciliation of cash, cash equivalents, and restricted cash equivalents
+Cash and cash equivalents	$	6,025	$	2,956	$	6,025	$	2,956
+Restricted cash equivalents included in deferred income taxes and other assets	108	104	108	104
+Total cash, cash equivalents, and restricted cash equivalents	$	6,133	$	3,060	$	6,133	$	3,060
+Supplemental cash flow information:
+Cash payments for income taxes	$	197	$	592	$	418	$	1,623
+Cash refunds from income taxes	$	—	$	5	$	51	$	133
+Cash payments for interest	$	35	$	35	$	137	$	137
+
+Applied Materials, Inc.
+Page 9 of 13
+
+APPLIED MATERIALS, INC.
+UNAUDITED SUPPLEMENTAL INFORMATION
+
+Corporate and Other
+(In millions)	Q3 FY2023	Q3 FY2022
+Unallocated net sales	$	50	$	33
+Unallocated cost of products sold and expenses	(218)	(218)
+Share-based compensation	(114)	(95)
+Total	$	(282)	$	(280)
+
+Additional Information
+Q3 FY2023	Q3 FY2022
+Net Sales by Geography (In millions)
+United States	$	1,039	$	725
+% of Total	16	%	11	%
+Europe	$	661	$	529
+% of Total	10	%	8	%
+Japan	$	478	$	438
+% of Total	8	%	7	%
+Korea	$	988	$	1,224
+% of Total	15	%	19	%
+Taiwan	$	1,345	$	1,537
+% of Total	21	%	24	%
+Southeast Asia	$	180	$	270
+% of Total	3	%	4	%
+China	$	1,734	$	1,797
+% of Total	27	%	27	%
+Employees (In thousands)
+Regular Full Time	34.5	31.9
+
+Applied Materials, Inc.
+Page 10 of 13
+
+APPLIED MATERIALS, INC.
+UNAUDITED RECONCILIATION OF GAAP TO NON-GAAP ADJUSTED RESULTS
+Three Months Ended	Nine Months Ended
+(In millions, except percentages)	July 30, 2023	July 31, 2022	July 30, 2023	July 31, 2022
+Non-GAAP Adjusted Gross Profit
+Reported gross profit - GAAP basis	$	2,976	$	3,006	$	9,215	$	8,892
+Certain items associated with acquisitions1	7	7	21	20
+Non-GAAP adjusted gross profit	$	2,983	$	3,013	$	9,236	$	8,912
+Non-GAAP adjusted gross margin	46.4	%	46.2	%	46.7	%	46.8	%
+Non-GAAP Adjusted Operating Income
+Reported operating income - GAAP basis	$	1,802	$	1,924	$	5,683	$	5,794
+Certain items associated with acquisitions1	10	10	32	29
+Acquisition integration and deal costs	6	19	20	32
+Severance and related charges2	—	—	—	(4)
+Non-GAAP adjusted operating income	$	1,818	$	1,953	$	5,735	$	5,851
+Non-GAAP adjusted operating margin	28.3	%	30.0	%	29.0	%	30.7	%
+Non-GAAP Adjusted Net Income
+Reported net income - GAAP basis	$	1,560	$	1,606	$	4,852	$	4,934
+Certain items associated with acquisitions1	10	10	32	29
+Acquisition integration and deal costs	6	12	20	28
+Severance and related charges2	—	—	—	(4)
+Realized loss (gain), dividends and impairments on strategic investments, net	(4)	(1)	109	(1)
+Unrealized loss (gain) on strategic investments, net	6	18	13	(15)
+Income tax effect of share-based compensation3	5	22	(6)	(22)
+Income tax effects related to intra-entity intangible asset transfers	9	21	25	120
+Resolution of prior years’ income tax filings and other tax items	10	1	(22)	(54)
+Income tax effect of non-GAAP adjustments4	(2)	(6)	(7)	—
+Non-GAAP adjusted net income	$	1,600	$	1,683	$	5,016	$	5,015
+
+1	These items are incremental charges attributable to completed acquisitions, consisting of amortization of purchased intangible assets.
+2	The severance and related charges primarily related to a one-time voluntary retirement program offered to certain eligible employees.
+3	GAAP basis tax benefit related to share-based compensation is recognized ratably over the fiscal year on a non-GAAP basis.
+4	Adjustment to provision for income taxes related to non-GAAP adjustments reflected in income before income taxes.
+
+Applied Materials, Inc.
+Page 11 of 13
+
+APPLIED MATERIALS, INC.
+UNAUDITED RECONCILIATION OF GAAP TO NON-GAAP ADJUSTED RESULTS
+
+Three Months Ended	Nine Months Ended
+(In millions, except per share amounts)	July 30, 2023	July 31, 2022	July 30, 2023	July 31, 2022
+Non-GAAP Adjusted Earnings Per Diluted Share
+Reported earnings per diluted share - GAAP basis	$	1.85	$	1.85	$	5.73	$	5.59
+Certain items associated with acquisitions	0.01	0.01	0.04	0.03
+Acquisition integration and deal costs	0.01	0.01	0.02	0.03
+Realized loss (gain), dividends and impairments on strategic investments, net	—	—	0.13	—
+Unrealized loss (gain) on strategic investments, net	—	0.02	0.01	(0.02)
+Income tax effect of share-based compensation	0.01	0.03	(0.01)	(0.03)
+Income tax effects related to intra-entity intangible asset transfers	0.01	0.02	0.03	0.14
+Resolution of prior years’ income tax filings and other tax items	0.01	—	(0.02)	(0.06)
+Non-GAAP adjusted earnings per diluted share	$	1.90	$	1.94	$	5.93	$	5.68
+Weighted average number of diluted shares	843	869	846	883
+
+Applied Materials, Inc.
+Page 12 of 13
+
+APPLIED MATERIALS, INC.
+UNAUDITED RECONCILIATION OF GAAP TO NON-GAAP ADJUSTED RESULTS
+Three Months Ended	Nine Months Ended
+(In millions, except percentages)	July 30, 2023	July 31, 2022	July 30, 2023	July 31, 2022
+Semiconductor Systems Non-GAAP Adjusted Operating Income
+Reported operating income - GAAP basis	$	1,618	$	1,701	$	5,299	$	5,120
+Certain items associated with acquisitions1	10	7	29	22
+Non-GAAP adjusted operating income	$	1,628	$	1,708	$	5,328	$	5,142
+Non-GAAP adjusted operating margin	34.8	%	36.1	%	36.0	%	37.4	%
+AGS Non-GAAP Adjusted Operating Income
+Reported operating income - GAAP basis	$	429	$	434	$	1,226	$	1,259
+Non-GAAP adjusted operating income	$	429	$	434	$	1,226	$	1,259
+Non-GAAP adjusted operating margin	29.3	%	30.6	%	28.8	%	30.5	%
+Display and Adjacent Markets Non-GAAP Adjusted Operating Income
+Reported operating income - GAAP basis	$	37	$	69	$	66	$	226
+Certain items associated with acquisitions1	—	1	—	3
+Non-GAAP adjusted operating income	$	37	$	70	$	66	$	229
+Non-GAAP adjusted operating margin	15.7	%	21.0	%	11.6	%	21.2	%
+1	These items are incremental charges attributable to completed acquisitions, consisting of amortization of purchased intangible assets.
+
+Note: The reconciliation of GAAP and non-GAAP adjusted segment results above does not include certain revenues, costs of products sold and operating expenses that are reported within corporate and other and included in consolidated operating income.
+
+Applied Materials, Inc.
+Page 13 of 13
+
+APPLIED MATERIALS, INC.
+UNAUDITED RECONCILIATION OF GAAP TO NON-GAAP ADJUSTED EFFECTIVE INCOME TAX RATE
+Three Months Ended
+(In millions, except percentages)	July 30, 2023
+Provision for income taxes - GAAP basis (a)	$	246
+Income tax effect of share-based compensation	(5)
+Income tax effects related to intra-entity intangible asset transfers	(9)
+Resolutions of prior years’ income tax filings and other tax items	(10)
+Income tax effect of non-GAAP adjustments	2
+Non-GAAP adjusted provision for income taxes (b)	$	224
+Income before income taxes - GAAP basis (c)	$	1,806
+Certain items associated with acquisitions	10
+Acquisition integration and deal costs	6
+Realized loss (gain), dividends and impairments on strategic investments, net	(4)
+Unrealized loss (gain) on strategic investments, net	6
+Non-GAAP adjusted income before income taxes (d)	$	1,824
+Effective income tax rate - GAAP basis (a/c)	13.6	%
+Non-GAAP adjusted effective income tax rate (b/d)	12.3	%

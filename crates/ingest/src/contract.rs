@@ -616,8 +616,13 @@ impl Ingest {
                     kind: ScopeKind::Derived,
                     unit: ScopeUnit::Sections,
                     scope: format!(
-                        "every 8-K Item {} section, read by {} version {}",
+                        "every 8-K Item {} section{}, read by {} version {}",
                         version.scope.items.join(", "),
+                        if version.scope.exhibits.is_empty() {
+                            String::new()
+                        } else {
+                            format!(" through its {} exhibits", version.scope.exhibits.join(", "))
+                        },
                         version.recipe,
                         version.version
                     ),

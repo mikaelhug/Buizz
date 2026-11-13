@@ -1,0 +1,275 @@
+Tyler Technologies Reports Earnings for Third Quarter 2024
+Strong results with 20% growth in SaaS revenues and 49% growth in cash flows
+PLANO, Texas – October 23, 2024 – Tyler Technologies, Inc. (NYSE: TYL), a large-cap growth and value equity company, today announced financial results for the third quarter ended September 30, 2024.
+Third Quarter 2024 Financial Highlights (all comparisons are to the third quarter of 2023):
+Revenues
+Total revenues were $543.3 million, up 9.8%. On an organic basis, revenues grew 9.4%.
+Recurring Revenues
+Recurring revenues from subscriptions and maintenance were $462.8 million, up 12.1%, and comprised 85.2% of total revenues, up from 83.4%. On an organic basis, recurring revenues grew 11.8%.
+•Subscription revenues were $347.2 million, up 17.6%. On an organic basis, subscription revenues grew 17.3%. Within subscriptions:
+◦SaaS revenues grew 20.3% to $166.6 million. On an organic basis, SaaS revenues grew 19.7%.
+◦Transaction-based revenues grew 15.2% on an organic basis to $180.6 million.
+◦SaaS arrangements comprised approximately 97% of the total new software contract value, up from approximately 80%.
+•Annualized recurring revenue (ARR) was $1.85 billion, up 12.1%.
+Earnings/EBITDA
+•GAAP operating income was $82.8 million, up 29.5%. Non-GAAP operating income was $137.8 million, up 12.4%.
+•GAAP net income was $75.9 million, or $1.74 per diluted share, up 61.4%. Non-GAAP net income was $110.0 million, or $2.52 per diluted share, up 20.0%.
+•Adjusted EBITDA was $152.4 million, up 15.0%.
+Cash Flow
+•Cash flow from operations was $263.7 million, up 48.6%.
+•Free cash flow was $252.9 million, up 55.5%.
+•During the third quarter, cash tax payments included approximately $6 million related to IRC Section 174 capitalization rules.
+
+Tyler Technologies Reports Earnings
+for Third Quarter 2024
+October 23, 2024
+Page 2
+"We carried our momentum from the first half of the year into the third quarter and delivered remarkable results," said Lynn Moore, Tyler's president and chief executive officer. "SaaS and transaction revenues fueled our growth, as both exceeded our expectations. Even as SaaS adoption accelerated to 97% of our new software contract value, our non-GAAP operating margin expanded to 25.4%, benefiting from our cloud efficiency initiatives and improved professional services margins. Free cash flow reached a new quarterly high, up 55.5%.
+"Activity in the public sector market remains robust and our elevated contract volume in the third quarter reflects solid execution under our go-to-market strategy, including growing cross-sell wins. Annual recurring revenue added from new SaaS contracts in the third quarter increased 55% over last year. We're also pleased that the total contract value signed this quarter for on-premises client flips to the cloud was more than triple that of last year's third quarter. While our progress toward our 2025 and 2030 targets will not be linear, our confidence in achieving those targets continues to grow with our success in executing against each of the pillars supporting those objectives. We have revised our full-year 2024 guidance to reflect our year-to-date results and our positive outlook for the fourth quarter," concluded Moore.
+Guidance for 2024
+As of October 23, 2024, Tyler Technologies is providing the following guidance for the full year 2024:
+•Total revenues are expected to be in the range of $2.125 billion to $2.145 billion.
+•GAAP diluted earnings per share are expected to be in the range of $6.13 to $6.28.
+•Non-GAAP diluted earnings per share are expected to be in the range of $9.47 to $9.62.
+•Free cash flow margin is expected to be in the range of 21% to 23%.
+•Research and development expense is expected to be in the range of $119 million to $122 million.
+•Capital expenditures are expected to be in the range of $47 million to $49 million, including approximately $31 million of capitalized software development costs.
+
+Tyler Technologies Reports Earnings
+for Third Quarter 2024
+October 23, 2024
+Page 3
+GAAP to non-GAAP guidance reconciliation	2024
+GAAP diluted earnings per share (1)	$6.13 - $6.28
+Plus:
+Share-based compensation expense	2.85
+Amortization of acquired software and other intangibles	2.23
+Acquisition-related costs	—
+Lease restructuring costs and other	—
+Less:
+Income tax impact (1)	(1.74)
+Non-GAAP diluted earnings per share	$9.47 - $9.62
+Shares used in computing diluted earnings per share (millions)	43.5
+GAAP estimated annual effective tax rate used in computing GAAP diluted earnings per share (1)	13.5%
+Non-GAAP estimated annual effective tax rate used in computing non-GAAP diluted earnings per share	22%
+(1) GAAP diluted earnings per share may fluctuate due to the impact on our annual effective tax rate of discrete tax items, such as stock incentive awards, future acquisitions, changes in tax legislation, and other transactions.
+Conference Call
+Tyler Technologies will hold a conference call on Thursday, October 24, 2024, at 10:00 a.m. ET to discuss its third quarter 2024 results. Participants can pre-register for the teleconference here. Alternatively, participants can also join the teleconference by dialing 646-307-1963 and providing the operator with the conference name or entering access code 89698 to join the live call.
+The live audio webcast and archived replay can also be accessed at the Events & Presentations section of Tyler's investor relations website.
+About Tyler Technologies, Inc.
+Tyler Technologies (NYSE: TYL) is a leading provider of integrated software and technology services for the public sector. Tyler's end-to-end solutions empower local, state, and federal government entities to operate efficiently and transparently with residents and each other. By connecting data and processes across disparate systems, Tyler's solutions transform how clients turn actionable insights into opportunities and solutions for their communities. Tyler has more than 44,000 successful installations across 13,000 locations, with clients in all 50 states, Canada, the Caribbean, Australia, and other international locations. Tyler has been recognized numerous times for growth and innovation, including Government Technology's GovTech 100 list. More information about Tyler Technologies, an S&P 500 company headquartered in Plano, Texas, can be found at tylertech.com.
+Non-GAAP Financial Measures
+Tyler Technologies has provided in this press release financial measures that have not been prepared in accordance with generally accepted accounting principles (GAAP) and are therefore considered non-GAAP
+
+Tyler Technologies Reports Earnings
+for Third Quarter 2024
+October 23, 2024
+Page 4
+financial measures. This information includes non-GAAP gross profit, non-GAAP gross margin, non-GAAP operating income, non-GAAP operating margin, non-GAAP net income, non-GAAP earnings per diluted share, EBITDA, adjusted EBITDA, free cash flow, and free cash flow margin. We use these non-GAAP financial measures internally in analyzing our financial results and believe they are useful to investors, as a supplement to GAAP measures, in evaluating Tyler’s ongoing operational performance because they provide additional insight in comparing results from period to period. Tyler believes the use of these non-GAAP financial measures provides an additional tool for investors to use in evaluating ongoing operating results and trends and in comparing our financial results with other companies in our industry, many of which present similar non-GAAP financial measures. Non-GAAP financial measures discussed above exclude share-based compensation expense, employer portion of payroll taxes on employee stock transactions, expenses associated with amortization of intangibles arising from business combinations, acquisition-related expenses, and lease restructuring costs and other. Annualized recurring revenues (ARR) is calculated by annualizing the current quarter's recurring revenues from subscriptions and maintenance.
+Tyler currently uses a non-GAAP tax rate of 22.0%. This rate is based on Tyler's estimated annual GAAP income tax rate forecast, adjusted to account for items excluded from GAAP income in calculating Tyler's non-GAAP income, as well as significant non-recurring tax adjustments. The non-GAAP tax rate used in future periods will be reviewed periodically to determine whether it remains appropriate in consideration of factors including Tyler's periodic annual effective tax rate calculated in accordance with GAAP, changes resulting from tax legislation, changes in the geographic mix of revenues and expenses, and other factors deemed significant. Due to differences in tax treatment of items excluded from non-GAAP earnings, as well as the methodology applied to Tyler's estimated annual tax rate as described above, the estimated tax rate on non-GAAP income may differ from the GAAP tax rate and from Tyler's actual tax liabilities.
+Non-GAAP financial measures should be considered in addition to, and not as a substitute for, or superior to, financial information prepared in accordance with GAAP. The non-GAAP measures used by Tyler Technologies may be different from non-GAAP measures used by other companies. Investors are encouraged to review the reconciliation of these non-GAAP measures to their most directly comparable GAAP financial measures, which has been provided in the financial statement tables included below in this press release.
+Forward-looking Statements
+This document contains “forward-looking statements” within the meaning of Section 27A of the Securities Act of 1933 and Section 21E of the Securities Exchange Act of 1934 that are not historical in nature and typically address future or anticipated events, trends, expectations or beliefs with respect to our financial condition, results of operations or business. Forward-looking statements often contain words such as “believes,” “expects,” “anticipates,” “foresees,” “forecasts,” “estimates,” “plans,” “intends,” “continues,” “may,” “will,” “should,” “projects,” “might,” “could” or other similar words or phrases. Similarly, statements that describe our business strategy, outlook, objectives, plans, intentions or goals also are forward-looking statements. We believe there is a reasonable basis for our forward-looking statements, but they are inherently subject to risks and uncertainties and actual results could differ materially from the expectations and beliefs reflected in the forward-looking statements. We presently consider the following to be among the important factors that could cause actual results to differ materially from our expectations and beliefs: (1) changes in the budgets or regulatory environments of our clients, primarily local and state governments, that could negatively impact information technology spending; (2) disruption to our business and harm to our competitive position resulting from cyber-attacks, security vulnerabilities and software updates; (3) our ability to protect client information from security breaches and provide uninterrupted operations of data centers; (4)
+
+Tyler Technologies Reports Earnings
+for Third Quarter 2024
+October 23, 2024
+Page 5
+our ability to achieve growth or operational synergies through the integration of acquired businesses, while avoiding unanticipated costs and disruptions to existing operations; (5) material portions of our business require the Internet infrastructure to be adequately maintained; (6) our ability to achieve our financial forecasts due to various factors, including project delays by our clients, reductions in transaction size, fewer transactions, delays in delivery of new products or releases or a decline in our renewal rates for service agreements; (7) general economic, political and market conditions, including continued inflation and rising interest rates; (8) technological and market risks associated with the development of new products or services or of new versions of existing or acquired products or services; (9) competition in the industry in which we conduct business and the impact of competition on pricing, client retention and pressure for new products or services; (10) the ability to attract and retain qualified personnel and dealing with rising labor costs, and the loss or retirement of key members of management or other key personnel; and (11) costs of compliance and any failure to comply with government and stock exchange regulations. These factors and other risks that affect our business are described in our filings with the Securities and Exchange Commission, including the detailed “Risk Factors” contained in our most recent annual report on Form 10-K and quarterly report on Form 10-Q. We expressly disclaim any obligation to publicly update or revise our forward-looking statements.
+(Comparative results follow)
+Contact: Hala Elsherbini
+Senior Director, Investor Relations
+Tyler Technologies, Inc.
+972-713-3770
+hala.elsherbini@tylertech.com
+
+Source: Tyler Technologies
+#TYL_Financial
+24-48
+
+TYLER TECHNOLOGIES, INC.
+CONDENSED CONSOLIDATED STATEMENTS OF INCOME
+(Amounts in thousands, except per share data)
+(Unaudited)
+
+Three months ended September 30,	Nine months ended September 30,
+2024	2023	2024	2023
+Revenues:
+Subscriptions	$	347,170	$	295,190	$	994,095	$	873,444
+Maintenance	115,587	117,484	348,114	349,154
+Professional services	64,462	61,126	201,196	188,475
+Software licenses and royalties	6,188	10,554	20,251	30,463
+Hardware and other	9,930	10,330	33,016	29,281
+Total revenues	543,337	494,684	1,596,672	1,470,817
+Cost of revenues:
+Subscriptions, maintenance, and professional services	283,750	247,781	829,765	755,985
+Software licenses and royalties	1,870	3,120	4,995	7,865
+Amortization of software development	4,961	3,083	13,808	8,568
+Amortization of acquired software	9,244	9,035	27,723	26,879
+Hardware and other	6,052	6,505	21,439	23,346
+Total cost of revenues	305,877	269,524	897,730	822,643
+Gross profit	237,460	225,160	698,942	648,174
+Sales and marketing expense	38,203	35,898	116,195	110,104
+General and administrative expense	72,460	78,519	220,590	228,560
+Research and development expense	30,120	28,282	88,504	83,421
+Amortization of other intangibles	13,850	18,526	45,813	55,300
+Operating income	82,827	63,935	227,840	170,789
+Interest expense	(1,235)	(5,808)	(4,672)	(19,879)
+Other income, net	4,504	787	8,232	2,676
+Income before income taxes	86,096	58,914	231,400	153,586
+Income tax provision	10,199	11,903	33,595	26,570
+Net income	$	75,897	$	47,011	$	197,805	$	127,016
+Earnings per common share:
+Basic	$	1.78	$	1.12	$	4.64	$	3.02
+Diluted	$	1.74	$	1.10	$	4.56	$	2.97
+Weighted average common shares outstanding:
+Basic	42,714	42,087	42,592	42,002
+Diluted	43,694	42,841	43,424	42,736
+
+TYLER TECHNOLOGIES, INC.
+RECONCILIATION OF GAAP TO NON-GAAP FINANCIAL MEASURES
+(Amounts in thousands, except per share data)
+(Unaudited)
+
+Three months ended September 30,	Nine months ended September 30,
+Reconciliation of non-GAAP gross profit and margin	2024	2023	2024	2023
+GAAP gross profit	$	237,460	$	225,160	$	698,942	$	648,174
+Non-GAAP adjustments:
+Add: Share-based compensation expense included in cost of revenues	7,972	6,847	22,982	19,626
+Add: Amortization of acquired software	9,244	9,035	27,723	26,879
+Non-GAAP gross profit	$	254,676	$	241,042	$	749,647	$	694,679
+GAAP gross margin	43.7	%	45.5	%	43.8	%	44.1	%
+Non-GAAP gross margin	46.9	%	48.7	%	47.0	%	47.2	%
+
+Three months ended September 30,	Nine months ended September 30,
+Reconciliation of non-GAAP operating income and margin	2024	2023	2024	2023
+GAAP operating income	$	82,827	$	63,935	$	227,840	$	170,789
+Non-GAAP adjustments:
+Add: Share-based compensation expense	31,187	26,981	88,460	80,905
+Add: Employer portion of payroll tax related to employee stock transactions	625	43	2,303	1,191
+Add: Acquisition-related costs	—	183	29	255
+Add: Lease restructuring costs and other	35	3,812	(124)	5,357
+Add: Amortization of acquired software	9,244	9,035	27,723	26,879
+Add: Amortization of other intangibles	13,850	18,526	45,813	55,300
+Non-GAAP adjustments subtotal	54,941	58,580	164,204	169,887
+Non-GAAP operating income	$	137,768	$	122,515	$	392,044	$	340,676
+GAAP operating margin	15.2	%	12.9	%	14.3	%	11.6	%
+Non-GAAP operating margin	25.4	%	24.8	%	24.6	%	23.2	%
+
+Three months ended September 30,	Nine months ended September 30,
+Reconciliation of non-GAAP net income and earnings per share	2024	2023	2024	2023
+GAAP net income	$	75,897	$	47,011	$	197,805	$	127,016
+Non-GAAP adjustments:
+Add: Total non-GAAP adjustments to operating income	54,941	58,580	164,204	169,887
+Less: Income tax impact	(20,829)	(13,946)	(53,438)	(44,594)
+Non-GAAP net income	$	110,009	$	91,645	$	308,571	$	252,309
+GAAP earnings per diluted share	$	1.74	$	1.10	$	4.56	$	2.97
+Non-GAAP earnings per diluted share	$	2.52	$	2.14	$	7.11	$	5.90
+
+TYLER TECHNOLOGIES, INC.
+RECONCILIATION OF GAAP TO NON-GAAP FINANCIAL MEASURES
+(Amounts in thousands, except per share data)
+(Unaudited)
+
+Three months ended September 30,	Nine months ended September 30,
+Detail of share-based compensation expense	2024	2023	2024	2023
+Subscriptions, maintenance, and professional services	$	7,972	$	6,847	$	22,982	$	19,626
+Sales and marketing expense	3,259	2,628	9,383	7,388
+General and administrative expense	19,956	17,506	56,095	53,891
+Total share-based compensation expense	$	31,187	$	26,981	$	88,460	$	80,905
+
+Three months ended September 30,	Nine months ended September 30,
+Reconciliation of EBITDA and adjusted EBITDA	2024	2023	2024	2023
+GAAP net income	$	75,897	$	47,011	$	197,805	$	127,016
+Amortization of other intangibles	13,850	18,526	45,813	55,300
+Depreciation and amortization included in cost of revenues, sales and marketing expense, general and administrative expense, and research and development expense	20,007	17,420	60,728	55,199
+Interest expense	1,235	6,640	4,672	19,879
+Income tax provision	10,199	11,903	33,595	26,570
+EBITDA	$	121,188	$	101,500	$	342,613	$	283,964
+Share-based compensation expense	31,187	26,981	88,460	80,905
+Acquisition-related costs	—	183	29	255
+Lease restructuring costs and other asset write-offs	35	3,812	(124)	5,357
+Adjusted EBITDA	$	152,410	$	132,476	$	430,978	$	370,481
+
+Three months ended September 30,	Nine months ended September 30,
+Reconciliation of free cash flow	2024	2023	2024	2023
+Net cash provided by operating activities	$	263,716	$	177,496	$	399,859	$	233,021
+Less: additions to property and equipment	(2,884)	(6,136)	(16,734)	(12,506)
+Less: investment in software development	(7,919)	(8,694)	(24,412)	(27,447)
+Free cash flow	$	252,913	$	162,666	$	358,713	$	193,068
+Free cash flow margin	46.5	%	32.9	%	22.5	%	13.1	%
+
+TYLER TECHNOLOGIES, INC.
+CONDENSED CONSOLIDATED BALANCE SHEETS
+(Amounts in thousands)
+(Unaudited)
+
+September 30, 2024	December 31, 2023
+ASSETS
+Current assets:
+Cash and cash equivalents	$	538,296	$	165,493
+Accounts receivable, net	619,508	619,704
+Short-term investments	5,985	10,385
+Prepaid expenses and other current assets	74,775	65,003
+Total current assets	1,238,564	860,585
+Accounts receivable, long-term portion	7,331	8,988
+Operating lease right-of-use assets	34,741	39,039
+Property and equipment, net	165,272	169,720
+Other assets:
+Software development costs, net	76,580	67,124
+Goodwill	2,531,653	2,532,109
+Other intangibles, net	855,099	928,870
+Non-current investments	3,884	7,046
+Other non-current assets	83,384	63,182
+Total assets	$	4,996,508	$	4,676,663
+LIABILITIES AND SHAREHOLDERS' EQUITY
+Current liabilities:
+Accounts payable and accrued liabilities	$	306,075	$	304,897
+Operating lease liabilities	10,653	11,060
+Current income tax payable	22,485	2,466
+Deferred revenue	682,422	632,914
+Current portion of term loans	—	49,801
+Total current liabilities	1,021,635	1,001,138
+Convertible senior notes due 2026, net	597,502	596,206
+Deferred revenue, long-term	—	291
+Deferred income taxes	36,660	78,590
+Operating lease liabilities, long-term	33,674	39,822
+Other long-term liabilities	31,925	22,621
+Total liabilities	1,721,396	1,738,668
+Shareholders' equity	$	3,275,112	$	2,937,995
+Total liabilities and shareholders' equity	$	4,996,508	$	4,676,663
+
+TYLER TECHNOLOGIES, INC.
+CONDENSED CONSOLIDATED STATEMENTS OF CASH FLOWS
+(Amounts in thousands)
+(Unaudited)
+Three months ended September 30,	Nine months ended September 30,
+2024	2023	2024	2023
+Cash flows from operating activities:
+Net income	$	75,897	$	47,011	$	197,805	$	127,016
+Adjustments to reconcile net income to cash provided by operations:
+Depreciation and amortization	34,530	38,450	108,766	114,198
+(Gains) losses from sale of investments	(1)	(1)	(2)	1
+Share-based compensation expense	31,187	26,981	88,460	80,905
+Operating lease right-of-use assets expense	2,397	5,689	7,262	12,258
+Deferred income tax benefit	(4,697)	(4,335)	(41,504)	(44,000)
+Other	38	(47)	228	398
+Changes in operating assets and liabilities, exclusive of effects of acquired companies	124,365	63,748	38,844	(57,755)
+Net cash provided by operating activities	263,716	177,496	399,859	233,021
+Cash flows from investing activities:
+Additions to property and equipment	(2,884)	(6,136)	(16,734)	(12,506)
+Purchase of marketable security investments	—	—	—	(10,617)
+Proceeds and maturities from marketable security investments	1,349	8,345	7,700	45,452
+Investment in software development	(7,919)	(8,694)	(24,412)	(27,447)
+Cost of acquisitions, net of cash acquired	(93)	(33,665)	(1,395)	(35,540)
+Other	147	32	168	48
+Net cash used by investing activities	(9,400)	(40,118)	(34,673)	(40,610)
+Cash flows from financing activities:
+Payment on term loans	—	(135,000)	(50,000)	(255,000)
+Payment of debt issuance costs	(2,637)	—	(2,637)	—
+Proceeds from exercise of stock options, net of withheld shares for taxes upon equity award settlement	31,548	6,315	47,433	8,438
+Contributions from employee stock purchase plan	4,347	4,029	12,821	11,780
+Net cash provided (used) by financing activities	33,258	(124,656)	7,617	(234,782)
+Net increase (decrease) in cash and cash equivalents	287,574	12,722	372,803	(42,371)
+Cash and cash equivalents at beginning of period	250,722	118,764	165,493	173,857
+Cash and cash equivalents at end of period	$	538,296	$	131,486	$	538,296	$	131,486

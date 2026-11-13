@@ -1,0 +1,143 @@
+{
+ "accession": "0001628280-25-037035",
+ "cik": 1699150,
+ "published_at": "2025-07-31T20:33:22Z",
+ "note": "Raise word names Revenue, Adjusted EBITDA and Adjusted EPS only; organic/FX/M&A/corporate rows kept not_stated. YoY growth in the EBITDA and EPS rows treated as restatement of the same metric, not separate facts (as in the dev Linde label). M&A ~$375M read as the revenue contribution in usd.",
+ "facts": [
+  {
+   "fields": {
+    "metric": "revenue",
+    "metric_label": "Revenue - Total Ingersoll Rand",
+    "basis": "not_stated",
+    "period_label": "full-year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 4,
+    "high": 6,
+    "unit": "percent_growth",
+    "stated_action": "raised"
+   },
+   "evidence": "Revenue - Total Ingersoll Rand3\t4-6%"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Ingersoll Rand (Organic)",
+    "basis": "non_gaap",
+    "period_label": "full-year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": -2,
+    "high": 0,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Ingersoll Rand (Organic)4\t(2)-0%"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Industrial Technologies & Services (Organic)",
+    "basis": "non_gaap",
+    "period_label": "full-year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": -2,
+    "high": 0,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Industrial Technologies & Services (Organic)\t(2)-0%"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Precision & Science Technologies (Organic)",
+    "basis": "non_gaap",
+    "period_label": "full-year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": -2,
+    "high": 0,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Precision & Science Technologies (Organic)\t(2)-0%"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "FX Impact",
+    "basis": "not_stated",
+    "period_label": "full-year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 1,
+    "high": 1,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "FX Impact5\t~1%"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "M&A",
+    "basis": "not_stated",
+    "period_label": "full-year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 375000000,
+    "high": 375000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "M&A6\t~$375M"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Corporate Costs",
+    "basis": "not_stated",
+    "period_label": "full-year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": -160000000,
+    "high": -160000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Corporate Costs\t(~$160M)"
+  },
+  {
+   "fields": {
+    "metric": "ebitda_adjusted",
+    "metric_label": "Adjusted EBITDA",
+    "basis": "non_gaap",
+    "period_label": "full-year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 2100000000,
+    "high": 2160000000,
+    "unit": "usd",
+    "stated_action": "raised"
+   },
+   "evidence": "Adjusted EBITDA4\t$2,100M - $2,160M (+4% - +7% YoY)"
+  },
+  {
+   "fields": {
+    "metric": "eps_adjusted",
+    "metric_label": "Adjusted EPS",
+    "basis": "non_gaap",
+    "period_label": "full-year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 3.34,
+    "high": 3.46,
+    "unit": "usd_per_share",
+    "stated_action": "raised"
+   },
+   "evidence": "Adjusted EPS4\t$3.34 - $3.46 (+2 - +5% YoY)"
+  }
+ ]
+}

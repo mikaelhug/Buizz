@@ -1,0 +1,232 @@
+{
+ "accession": "0001262039-23-000035",
+ "cik": 1262039,
+ "published_at": "2023-11-02T20:11:25Z",
+ "facts": [
+  {
+   "fields": {
+    "metric": "revenue",
+    "metric_label": "Revenue",
+    "basis": "not_stated",
+    "period_label": "fourth quarter of 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": 4,
+    "low": 1380000000,
+    "high": 1440000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Revenue in the range of $1.380 billion to $1.440 billion"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Billings",
+    "basis": "non_gaap",
+    "period_label": "fourth quarter of 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": 4,
+    "low": 1560000000,
+    "high": 1700000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Billings in the range of $1.560 billion to $1.700 billion"
+  },
+  {
+   "fields": {
+    "metric": "gross_margin",
+    "metric_label": "Non-GAAP gross margin",
+    "basis": "non_gaap",
+    "period_label": "fourth quarter of 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": 4,
+    "low": 75.5,
+    "high": 76.5,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Non-GAAP gross margin in the range of 75.5% to 76.5%"
+  },
+  {
+   "fields": {
+    "metric": "operating_margin",
+    "metric_label": "Non-GAAP operating margin",
+    "basis": "non_gaap",
+    "period_label": "fourth quarter of 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": 4,
+    "low": 27.5,
+    "high": 28.5,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Non-GAAP operating margin in the range of 27.5% to 28.5%"
+  },
+  {
+   "fields": {
+    "metric": "eps_adjusted",
+    "metric_label": "Diluted non-GAAP net income per share attributable to Fortinet, Inc.",
+    "basis": "non_gaap",
+    "period_label": "fourth quarter of 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": 4,
+    "low": 0.42,
+    "high": 0.44,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Diluted non-GAAP net income per share attributable to Fortinet, Inc. in the range of $0.42 to $0.44, assuming a non-GAAP effective tax rate of 17%. This assumes a diluted share count of 780 million to 790 million."
+  },
+  {
+   "fields": {
+    "metric": "tax_rate",
+    "metric_label": "non-GAAP effective tax rate",
+    "basis": "non_gaap",
+    "period_label": "fourth quarter of 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": 4,
+    "low": 17,
+    "high": 17,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Diluted non-GAAP net income per share attributable to Fortinet, Inc. in the range of $0.42 to $0.44, assuming a non-GAAP effective tax rate of 17%. This assumes a diluted share count of 780 million to 790 million."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "diluted share count",
+    "basis": "not_stated",
+    "period_label": "fourth quarter of 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": 4,
+    "low": 780000000,
+    "high": 790000000,
+    "unit": "other",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Diluted non-GAAP net income per share attributable to Fortinet, Inc. in the range of $0.42 to $0.44, assuming a non-GAAP effective tax rate of 17%. This assumes a diluted share count of 780 million to 790 million."
+  },
+  {
+   "fields": {
+    "metric": "revenue",
+    "metric_label": "Revenue",
+    "basis": "not_stated",
+    "period_label": "fiscal year 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 5270000000,
+    "high": 5330000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Revenue in the range of $5.270 billion to $5.330 billion"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Service revenue",
+    "basis": "not_stated",
+    "period_label": "fiscal year 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 3355000000,
+    "high": 3375000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Service revenue in the range of $3.355 billion to $3.375 billion"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Billings",
+    "basis": "non_gaap",
+    "period_label": "fiscal year 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 6095000000,
+    "high": 6235000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Billings in the range of $6.095 billion to $6.235 billion"
+  },
+  {
+   "fields": {
+    "metric": "gross_margin",
+    "metric_label": "Non-GAAP gross margin",
+    "basis": "non_gaap",
+    "period_label": "fiscal year 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 76.0,
+    "high": 77.0,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Non-GAAP gross margin in the range of 76.0% to 77.0%"
+  },
+  {
+   "fields": {
+    "metric": "operating_margin",
+    "metric_label": "Non-GAAP operating margin",
+    "basis": "non_gaap",
+    "period_label": "fiscal year 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 26.5,
+    "high": 27.5,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Non-GAAP operating margin in the range of 26.5% to 27.5%"
+  },
+  {
+   "fields": {
+    "metric": "eps_adjusted",
+    "metric_label": "Diluted non-GAAP net income per share attributable to Fortinet, Inc.",
+    "basis": "non_gaap",
+    "period_label": "fiscal year 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 1.54,
+    "high": 1.56,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Diluted non-GAAP net income per share attributable to Fortinet, Inc. in the range of $1.54 to $1.56, assuming a non-GAAP effective tax rate of 17%. This assumes a diluted share count of 790 million to 800 million."
+  },
+  {
+   "fields": {
+    "metric": "tax_rate",
+    "metric_label": "non-GAAP effective tax rate",
+    "basis": "non_gaap",
+    "period_label": "fiscal year 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 17,
+    "high": 17,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Diluted non-GAAP net income per share attributable to Fortinet, Inc. in the range of $1.54 to $1.56, assuming a non-GAAP effective tax rate of 17%. This assumes a diluted share count of 790 million to 800 million."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "diluted share count",
+    "basis": "not_stated",
+    "period_label": "fiscal year 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 790000000,
+    "high": 800000000,
+    "unit": "other",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Diluted non-GAAP net income per share attributable to Fortinet, Inc. in the range of $1.54 to $1.56, assuming a non-GAAP effective tax rate of 17%. This assumes a diluted share count of 790 million to 800 million."
+  }
+ ]
+}

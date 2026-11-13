@@ -1,0 +1,38 @@
+{
+ "accession": "0001058090-26-000063",
+ "cik": 1058090,
+ "published_at": "2026-07-29T20:10:46Z",
+ "note": "Comparable sales guidance is raised (headline) but only 'low single digit range', so kept with null bounds. 350 to 370 new restaurant openings and ~80% Chipotlane share excluded as non-financial. Tax rate 'before discrete items' treated as excluding items (non_gaap).",
+ "facts": [
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Full year comparable restaurant sales growth",
+    "basis": "not_stated",
+    "period_label": "2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": null,
+    "low": null,
+    "high": null,
+    "unit": "percent_growth",
+    "stated_action": "raised"
+   },
+   "evidence": "•Full year comparable restaurant sales growth in the low single digit range"
+  },
+  {
+   "fields": {
+    "metric": "tax_rate",
+    "metric_label": "underlying full year effective tax rate",
+    "basis": "non_gaap",
+    "period_label": "2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": null,
+    "low": 24,
+    "high": 26,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "•An estimated underlying full year effective tax rate between 24% and 26% before discrete items"
+  }
+ ]
+}

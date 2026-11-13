@@ -1,0 +1,128 @@
+{
+ "accession": "0000048465-24-000009",
+ "cik": 48465,
+ "published_at": "2024-02-28T23:39:54Z",
+ "note": "Net sales given both as growth (1-3%) and dollars ($12.2-12.5B), kept as two facts. Headline 'reaffirms full-year guidance' applied to the outlook-table items (sales, EPS, tax rate); capex target, D&A and the $0.08 adjustment marked not_stated.",
+ "facts": [
+  {
+   "fields": {
+    "metric": "revenue",
+    "metric_label": "net sales growth",
+    "basis": "not_stated",
+    "period_label": "fiscal year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 1,
+    "high": 3,
+    "unit": "percent_growth",
+    "stated_action": "reaffirmed"
+   },
+   "evidence": "•Reaffirming its net sales growth outlook of 1% to 3%, which assumes volume growth in key categories, higher brand support and innovation, impacts from incremental pricing actions and its current assumptions for raw material input costs."
+  },
+  {
+   "fields": {
+    "metric": "revenue",
+    "metric_label": "Net Sales",
+    "basis": "not_stated",
+    "period_label": "fiscal 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 12200000000,
+    "high": 12500000000,
+    "unit": "usd",
+    "stated_action": "reaffirmed"
+   },
+   "evidence": "Net Sales\t$12.2 - $12.5 billion"
+  },
+  {
+   "fields": {
+    "metric": "eps_gaap",
+    "metric_label": "diluted net earnings per share",
+    "basis": "gaap",
+    "period_label": "fiscal year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 1.43,
+    "high": 1.57,
+    "unit": "usd_per_share",
+    "stated_action": "reaffirmed"
+   },
+   "evidence": "•Reaffirming its diluted net earnings per share and adjusted diluted net earnings per share1 expectations of $1.43 to $1.57, and $1.51 to $1.65,* respectively."
+  },
+  {
+   "fields": {
+    "metric": "eps_adjusted",
+    "metric_label": "adjusted diluted net earnings per share",
+    "basis": "non_gaap",
+    "period_label": "fiscal year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 1.51,
+    "high": 1.65,
+    "unit": "usd_per_share",
+    "stated_action": "reaffirmed"
+   },
+   "evidence": "•Reaffirming its diluted net earnings per share and adjusted diluted net earnings per share1 expectations of $1.43 to $1.57, and $1.51 to $1.65,* respectively."
+  },
+  {
+   "fields": {
+    "metric": "tax_rate",
+    "metric_label": "Effective Tax Rate",
+    "basis": "not_stated",
+    "period_label": "fiscal 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 21,
+    "high": 23,
+    "unit": "percent",
+    "stated_action": "reaffirmed"
+   },
+   "evidence": "Effective Tax Rate\t21.0 - 23.0%"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Transformation and Modernization Initiative",
+    "basis": "not_stated",
+    "period_label": "fiscal 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 0.08,
+    "high": 0.08,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Transformation and Modernization Initiative\t$0.08"
+  },
+  {
+   "fields": {
+    "metric": "capex",
+    "metric_label": "capital expenditures",
+    "basis": "not_stated",
+    "period_label": "fiscal 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 280000000,
+    "high": 280000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "The Company's target for capital expenditures in fiscal 2024 is $280 million."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Depreciation and amortization expense",
+    "basis": "not_stated",
+    "period_label": "fiscal 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 250000000,
+    "high": 250000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "The full-year expense for fiscal 2024 is expected to be approximately $250 million."
+  }
+ ]
+}

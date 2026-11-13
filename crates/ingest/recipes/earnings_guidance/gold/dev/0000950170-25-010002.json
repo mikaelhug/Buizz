@@ -1,0 +1,22 @@
+{
+ "accession": "0000950170-25-010002",
+ "cik": 75677,
+ "published_at": "2025-01-28T23:02:16Z",
+ "facts": [
+  {
+   "fields": {
+    "metric": "eps_adjusted",
+    "metric_label": "first quarter earnings per share",
+    "basis": "non_gaap",
+    "period_label": "first quarter",
+    "fiscal_year": 2025,
+    "fiscal_quarter": 1,
+    "low": 2.21,
+    "high": 2.21,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Considering these items, we expect first quarter earnings of $2.21 per share."
+  }
+ ]
+}

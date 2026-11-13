@@ -1,0 +1,53 @@
+{
+ "accession": "0000827052-26-000072",
+ "cik": 827052,
+ "published_at": "2026-10-29T20:06:59Z",
+ "note": "Basic EPS range moved but the release's only word for the table is 'reaffirmed'; non-core items row included as a guidance-table line; 5-7% EPS growth 2025-2030 excluded as long-term target.",
+ "facts": [
+  {
+   "fields": {
+    "metric": "eps_adjusted",
+    "metric_label": "core EPS",
+    "basis": "non_gaap",
+    "period_label": "2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": null,
+    "low": 5.9,
+    "high": 6.2,
+    "unit": "usd_per_share",
+    "stated_action": "reaffirmed"
+   },
+   "evidence": "Reaffirmed 2026 core EPS guidance of $5.90 to $6.20"
+  },
+  {
+   "fields": {
+    "metric": "eps_gaap",
+    "metric_label": "EIX Basic EPS",
+    "basis": "gaap",
+    "period_label": "2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": null,
+    "low": 5.66,
+    "high": 5.96,
+    "unit": "usd_per_share",
+    "stated_action": "reaffirmed"
+   },
+   "evidence": "EIX Basic EPS\t$\t5.70\t$\t6.00\t$\t5.66\t$\t5.96"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Non-core Items",
+    "basis": "not_stated",
+    "period_label": "2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": null,
+    "low": -0.24,
+    "high": -0.24,
+    "unit": "usd_per_share",
+    "stated_action": "reaffirmed"
+   },
+   "evidence": "Less: Non-core Items*\t(0.20)\t(0.20)\t(0.24)\t(0.24)"
+  }
+ ]
+}

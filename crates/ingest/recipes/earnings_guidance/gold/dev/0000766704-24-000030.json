@@ -1,0 +1,307 @@
+{
+ "accession": "0000766704-24-000030",
+ "cik": 766704,
+ "published_at": "2024-07-29T20:45:37Z",
+ "facts": [
+  {
+   "fields": {
+    "metric": "eps_gaap",
+    "metric_label": "Net income attributable to common stockholders",
+    "basis": "gaap",
+    "period_label": "2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 1.52,
+    "high": 1.6,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Net income attributable to common stockholders guidance has been revised to a range of $1.52 to $1.60 per diluted share from the previous range of $1.45 to $1.57 per diluted share."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "normalized FFO attributable to common stockholders",
+    "basis": "non_gaap",
+    "period_label": "full year",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 4.13,
+    "high": 4.21,
+    "unit": "usd_per_share",
+    "stated_action": "raised"
+   },
+   "evidence": "We increased the guidance range of full year normalized FFO attributable to common stockholders to a range of $4.13 to $4.21 per diluted share from the previous range of $4.05 to $4.17 per diluted share."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "NAREIT FFO",
+    "basis": "not_stated",
+    "period_label": "Year Ending December 31, 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 3.84,
+    "high": 3.92,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "NAREIT FFO\t$\t3.96\t$\t4.08\t$\t3.84\t$\t3.92"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Net income attributable to common stockholders",
+    "basis": "gaap",
+    "period_label": "Year Ending December 31, 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 918000000.0,
+    "high": 966000000.0,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Net income attributable to common stockholders\t$\t868\t$\t940\t$\t918\t$\t966"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Impairments and losses (gains) on real estate dispositions, net",
+    "basis": "not_stated",
+    "period_label": "Year Ending December 31, 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": -249000000,
+    "high": -249000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Impairments and losses (gains) on real estate dispositions, net(1,2)\t(154)\t(154)\t(249)\t(249)"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "NAREIT FFO attributable to common stockholders",
+    "basis": "not_stated",
+    "period_label": "Year Ending December 31, 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 2319000000.0,
+    "high": 2367000000.0,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "NAREIT FFO attributable to common stockholders\t2,367\t2,439\t2,319\t2,367"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Normalized FFO attributable to common stockholders",
+    "basis": "non_gaap",
+    "period_label": "Year Ending December 31, 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 2491000000.0,
+    "high": 2539000000.0,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Normalized FFO attributable to common stockholders\t$\t2,422\t$\t2,494\t$\t2,491\t$\t2,539"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Normalizing items, net",
+    "basis": "not_stated",
+    "period_label": "Year Ending December 31, 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 172000000,
+    "high": 172000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Normalizing items, net(1,3)\t55\t55\t172\t172"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Depreciation and amortization",
+    "basis": "not_stated",
+    "period_label": "Year Ending December 31, 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 1650000000.0,
+    "high": 1650000000.0,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Depreciation and amortization(1)\t1,653\t1,653\t1,650\t1,650"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Net straight-line rent and above/below market rent amortization",
+    "basis": "not_stated",
+    "period_label": "Year Ending December 31, 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": -144000000,
+    "high": -144000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Net straight-line rent and above/below market rent amortization\t$\t(138)\t$\t(138)\t$\t(144)\t$\t(144)"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Non-cash interest expenses",
+    "basis": "not_stated",
+    "period_label": "Year Ending December 31, 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 44000000.0,
+    "high": 44000000.0,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Non-cash interest expenses\t48\t48\t44\t44"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Recurring cap-ex, tenant improvements, and lease commissions",
+    "basis": "not_stated",
+    "period_label": "Year Ending December 31, 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": -251000000,
+    "high": -251000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Recurring cap-ex, tenant improvements, and lease commissions\t(235)\t(235)\t(251)\t(251)"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "average blended SSNOI growth",
+    "basis": "not_stated",
+    "period_label": "2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 10.0,
+    "high": 12.5,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "\u2022Same Store NOI: We expect average blended SSNOI growth of 10.0% to 12.5%, which is comprised of the following components:"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Seniors Housing Operating",
+    "basis": "not_stated",
+    "period_label": "2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 19.0,
+    "high": 23.0,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "\u25e6Seniors Housing Operating approximately 19.0% to 23.0%"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Seniors Housing Triple-net",
+    "basis": "not_stated",
+    "period_label": "2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 3.0,
+    "high": 4.0,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "\u25e6Seniors Housing Triple-net approximately 3.0% to 4.0%"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Outpatient Medical",
+    "basis": "not_stated",
+    "period_label": "2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 2.0,
+    "high": 3.0,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "\u25e6Outpatient Medical approximately 2.0% to 3.0%"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Long-Term/Post-Acute Care",
+    "basis": "not_stated",
+    "period_label": "2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 2.0,
+    "high": 3.0,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "\u25e6Long-Term/Post-Acute Care approximately 2.0% to 3.0%"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "general and administrative expenses",
+    "basis": "not_stated",
+    "period_label": "2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 205000000.0,
+    "high": 211000000.0,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "We anticipate general and administrative expenses to be approximately $205 million to $211 million and stock-based compensation expense to be approximately $40 million."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "stock-based compensation expense",
+    "basis": "not_stated",
+    "period_label": "2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 40000000.0,
+    "high": 40000000.0,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "We anticipate general and administrative expenses to be approximately $205 million to $211 million and stock-based compensation expense to be approximately $40 million."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "development",
+    "basis": "not_stated",
+    "period_label": "2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 328000000.0,
+    "high": 328000000.0,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "We anticipate funding an additional $328 million of development in 2024 relating to projects underway as of June 30, 2024."
+  }
+ ]
+}

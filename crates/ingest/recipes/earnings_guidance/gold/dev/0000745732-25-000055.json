@@ -1,0 +1,52 @@
+{
+ "accession": "0000745732-25-000055",
+ "cik": 745732,
+ "published_at": "2025-11-20T21:03:03Z",
+ "facts": [
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "comparable store sales",
+    "basis": "not_stated",
+    "period_label": "13 weeks ending January 31, 2026",
+    "fiscal_year": 2025,
+    "fiscal_quarter": 4,
+    "low": 3,
+    "high": 4,
+    "unit": "percent_growth",
+    "stated_action": "raised"
+   },
+   "evidence": "As a result, for the 13 weeks ending January 31, 2026, we are raising our comparable store sales forecast to be up 3% to 4% with earnings per share in the range of $1.77 to $1.85."
+  },
+  {
+   "fields": {
+    "metric": "eps_gaap",
+    "metric_label": "earnings per share",
+    "basis": "gaap",
+    "period_label": "13 weeks ending January 31, 2026",
+    "fiscal_year": 2025,
+    "fiscal_quarter": 4,
+    "low": 1.77,
+    "high": 1.85,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "As a result, for the 13 weeks ending January 31, 2026, we are raising our comparable store sales forecast to be up 3% to 4% with earnings per share in the range of $1.77 to $1.85."
+  },
+  {
+   "fields": {
+    "metric": "eps_gaap",
+    "metric_label": "earnings per share",
+    "basis": "gaap",
+    "period_label": "fiscal 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 6.38,
+    "high": 6.46,
+    "unit": "usd_per_share",
+    "stated_action": "raised"
+   },
+   "evidence": "Mr. Conroy continued, \u201cBased on our year-to-date results and updated fourth quarter forecast, we are increasing our earnings per share guidance for fiscal 2025 to be in the range of $6.38 to $6.46, which includes approximately $0.16 per share negative impact from tariff-related costs."
+  }
+ ]
+}

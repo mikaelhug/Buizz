@@ -1,0 +1,148 @@
+Exhibit 99.1
+
+For more information contact
+Media:
+Communications
+Media.Relations@CenterPointEnergy.com
+Investors:
+Ben Vallejo / Ellie Wood
+Phone	713.207.6500
+
+CenterPoint Energy reports strong Q1 2026 results; reiterates full-year 2026 guidance; provides an update on Houston Electric load growth
+
+·	Reports Q1 2026 earnings of $0.48 per diluted share on a GAAP basis and $0.56 per diluted share on a non-GAAP basis (“non-GAAP EPS”)
+
+·	Reiterates its 2026 non-GAAP EPS guidance range of at least the midpoint of $1.89-$1.91, which, at the midpoint, would represent 8% growth over 2025 delivered results1
+
+·	Announces 12.2 gigawatts of firmly committed industrial load at Houston Electric, expecting 8 gigawatts of data center load to be energized by 2029
+
+Houston – April 23, 2026 – CenterPoint Energy, Inc. (NYSE: CNP), or “CenterPoint,” today reported net income of $316 million, or $0.48 per diluted share, on a GAAP basis for the first quarter of 2026, compared to $0.45 per diluted share in the comparable period of 2025.
+
+Non-GAAP EPS for the first quarter of 2026 was $0.56, compared to $0.53 per diluted share in the comparable period of 2025. These strong first-quarter results were primarily driven by growth and regulatory recovery, which contributed $0.11 per share of favorability compared to the first quarter of 2025. This favorability was partially offset by $0.02 per share of unfavorable weather and usage and $0.04 of unfavorability from increased interest expense. Additionally, $0.03 of unfavorable variance was primarily related to the divestiture of Louisiana and Mississippi natural gas LDC businesses, reflecting the completed sale in the first quarter of 2025.
+
+CenterPoint announced more than 12 gigawatts of firmly committed industrial load and increased its data center load forecast, now expecting to energize 8 gigawatts of projects in the Greater Houston area by 2029, with 3.5 gigawatts already under construction.
+
+“We are fortunate to be living in one of the most unique and exciting times in our industry’s history. Our teams are moving at pace to execute our customer-focused capital plans, deliver strong financial results, and facilitate real and tangible electric load growth for the benefit of all our customers. Our strong first quarter performance positions us well for the remainder of the year and delivering results at or above the midpoint of our 2026 earnings guidance range. We remain confident that we are making the right investments to produce safer, more reliable, and more resilient outcomes than ever before.” said Jason Wells, chair of the Board, president and CEO of CenterPoint.
+
+“We understand the best way to deliver on affordability for our current customers is by bringing more connections onto our electric systems. With the incremental and accelerating growth we see in Greater Houston alone, we project to be able to deliver customer savings of approximately $4 billion over the next decade. Through our team’s disciplined execution and moving at the speed of business, we have made meaningful progress for numerous new customers to help them realize their large load connections. As a result, we now have clear line of sight to 12.2 gigawatts of firmly committed industrial load. Given all these trends, we continue to believe we have one of the most tangible and executable growth plans in the industry.” concluded Wells.
+
+1 CenterPoint is unable to present a quantitative reconciliation of forward-looking non-GAAP diluted earnings per share without unreasonable effort because changes in the value of ZENS (as defined herein) and related securities, future impairments, and other unusual items are not estimable and are difficult to predict due to various factors outside of management’s control.
+
+1
+
+Earnings Outlook
+
+In addition to presenting its financial results in accordance with GAAP, including presentation of net income or income available to common shareholders (loss) and diluted earnings (loss) per share, CenterPoint provides guidance based on non-GAAP income and non-GAAP diluted earnings per share. Generally, a non-GAAP financial measure is a numerical measure of a company’s historical or future financial performance that excludes or includes amounts that are not normally excluded or included in the most directly comparable GAAP financial measure.
+
+Management evaluates CenterPoint’s financial performance in part based on non-GAAP income and non-GAAP diluted earnings per share. Management believes that presenting these non-GAAP financial measures enhances an investor’s understanding of CenterPoint’s overall financial performance by providing them with an additional meaningful and relevant comparison of current and anticipated future results across periods. The adjustments made in these non-GAAP financial measures exclude items that management believes do not most accurately reflect the company’s fundamental business performance. These excluded items are reflected in the reconciliation tables of this news release, where applicable. CenterPoint’s non-GAAP income and non-GAAP diluted earnings per share measures should be considered as a supplement to, and not as a substitute for, or superior to, net income and diluted earnings per share, which respectively are the most directly comparable GAAP financial measures. These non-GAAP financial measures also may be different than non-GAAP financial measures used by other companies.
+
+2025 and 2026 non-GAAP EPS and 2026 non-GAAP EPS guidance range
+
+·	2025 and 2026 non-GAAP EPS and 2026 non-GAAP EPS guidance excludes:
+
+◦	Earnings or losses from the change in value of CenterPoint’s 2.0% Zero-Premium Exchangeable Subordinated Notes due 2029 (“ZENS”) and related securities;
+
+◦	Gains, losses and impacts, including related expenses, associated with mergers and divestitures, such as the divestiture of our Louisiana and Mississippi natural gas LDC businesses and the announced sale of our Ohio natural gas LDC business;
+
+◦	Impacts related to temporary emergency electric energy facilities “TEEEF” once they are no longer part of our rate-regulated business.
+
+In providing 2025 and 2026 non-GAAP EPS and 2026 non-GAAP EPS guidance, CenterPoint does not consider the items noted above and other potential impacts such as changes in accounting standards, impairments, or other unusual items, which could have a material impact on GAAP reported results for the applicable guidance period. The 2026 non-GAAP EPS guidance range also considers assumptions for certain significant variables that may impact earnings, such as customer growth and usage including normal weather, throughput, recovery of capital invested, effective tax rates, financing activities and related interest rates, and regulatory and judicial proceedings. To the extent actual results deviate from these assumptions, the 2026 non-GAAP EPS guidance range may not be met, or the projected annual non-GAAP EPS growth rate may change. CenterPoint is unable to present a quantitative reconciliation of forward-looking non-GAAP diluted earnings per share without unreasonable effort because changes in the value of ZENS and related securities, future impairments, and other unusual items are not estimable and are difficult to predict due to various factors outside of management’s control.
+
+2
+
+Reconciliation of consolidated net income and diluted earnings per share (GAAP) to non-GAAP income and non-GAAP diluted earnings per share
+
+Three Months Ended March 31, 2026
+Dollars in millions	Diluted EPS(1)
+Consolidated net income and diluted EPS on a GAAP basis	$	316	$	0.48
+ZENS-related mark-to-market (gains) losses:
+Equity securities (net of tax expense of $10)(2)(3)	(36	)	(0.05	)
+Indexed debt securities (net of tax benefit of $9)(2)	35	0.05
+Impacts associated with mergers and divestitures (net of tax expense of $15)(2)(4)	34	0.05
+Impacts associated with TEEEF Units removed from Rate Base (net of tax benefit of $5)(5)	19	0.03
+Consolidated income and diluted EPS on a non-GAAP basis(6)	$	368	$	0.56
+
+1)	Quarterly diluted EPS on both a GAAP and non-GAAP basis are based on the weighted average number of shares of common stock outstanding during the quarter, and the sum of the quarters may not equal year-to-date diluted EPS
+
+2)	Taxes are computed based on the impact removing such item would have on tax expense. Taxes related to the Ohio natural gas LDC business sale are booked proportionately by applying the projected annual effective tax rate percentage to income earned each quarter in accordance with GAAP
+
+3)	Comprised of common stock of AT&T Inc., Charter Communications, Inc., and Warner Bros. Discovery, Inc.
+
+4)	Includes $13 million loss on early debt extinguishment associated with the planned divestiture of the Ohio natural gas LDC business and removes income tax impacts related to the sale
+
+5)	Represents impacts related to temporary emergency electric energy facilities following the removal of the units from our rate regulated business
+
+6)	The calculation on a per-share basis may not add down due to rounding
+
+Reconciliation of consolidated net income and diluted earnings per share (GAAP) to non-GAAP income and non-GAAP diluted earnings per share
+
+Three Months Ended March 31, 2025
+Dollars in millions	Diluted EPS(1)
+Consolidated net income and diluted EPS on a GAAP basis	$	297	$	0.45
+ZENS-related mark-to-market (gains) losses:
+Equity securities (net of tax expense of $17)(2)(3)	(63	)	(0.10	)
+Indexed debt securities (net of tax benefit of $16)(2)	62	0.10
+Impacts associated with mergers and divestitures (net of tax expense of $0)(2)(4)	48	0.08
+Consolidated income and diluted EPS on a non-GAAP basis(5)	$	344	$	0.53
+
+1)	Quarterly diluted EPS on both a GAAP and non-GAAP basis are based on the weighted average number of shares of common stock outstanding during the quarter, and the sum of the quarters may not equal year-to-date diluted EPS
+
+2)	Taxes are computed based on the impact removing such item would have on tax expense. Taxes related to the Louisiana and Mississippi natural gas LDC businesses sale are booked proportionately by applying the projected annual effective tax rate percentage to income earned each quarter in accordance with GAAP. Additional tax expense related primarily to the write-off of non-deductible goodwill was reflected in tax expense over the remainder of 2025 and excluded from non-GAAP EPS.
+
+3)	Comprised of common stock of AT&T Inc., Charter Communications, Inc., and Warner Bros. Discovery, Inc.
+
+4)	Includes $43 million loss on sale associated with the divestiture of our Louisiana and Mississippi natural gas LDC businesses
+
+5)	The calculation on a per-share basis may not add down due to rounding
+
+3
+
+Reconciliation of consolidated net income and diluted earnings per share (GAAP) to non-GAAP income and non-GAAP diluted earnings per share
+
+Twelve Months Ended December 31, 2025
+Dollars in millions	Diluted EPS(1)
+Consolidated net income and diluted EPS on a GAAP basis	$	1,052	$	1.60
+ZENS-related mark-to-market (gains) losses:
+Equity securities (net of tax benefit of $11)(2)(3)	40	0.06
+Indexed debt securities (net of tax expense of $12)(2)	(43	)	(0.07	)
+Impacts associated with mergers and divestitures (net of tax expense of $22)(2)(4)	60	0.09
+Impacts associated with TEEEF Units removed from Rate Base (net of tax benefit of $12)(5)	46	0.07
+Consolidated income and diluted EPS on a non-GAAP basis(6)	$	1,155	$	1.76
+
+1)	Quarterly diluted EPS on both a GAAP and non-GAAP basis are based on the weighted average number of shares of common stock outstanding during the quarter, and the sum of the quarters may not equal year-to-date diluted EPS
+
+2)	Taxes are computed based on the impact removing such item would have on tax expense. Taxes related to the Louisiana and Mississippi natural gas LDC business sale are booked proportionately by applying the projected annual effective tax rate percentage to income earned each quarter in accordance with GAAP. Additional tax expense related primarily to the write-off of non-deductible goodwill was reflected in tax expense over the remainder of 2025 and excluded from non-GAAP EPS
+
+3)	Comprised of common stock of AT&T Inc., Charter Communications, Inc., and Warner Bros. Discovery, Inc.
+
+4)	Includes $37 million loss on sale associated with the divestiture of our Louisiana and Mississippi natural gas LDC businesses and gain on early extinguishment of debt with proceeds from the divestiture of the Louisiana and Mississippi natural gas LDC businesses
+
+5)	Represents impacts related to temporary emergency electric energy facilities following the removal of the units from our rate regulated business
+
+6)	The calculation on a per-share basis may not add down due to rounding
+
+Filing of Form 10-Q for CenterPoint Energy, Inc.
+
+Today, CenterPoint Energy, Inc. filed with the Securities and Exchange Commission (“SEC”) its Quarterly Report on Form 10-Q for the quarter ended March 31, 2026. A copy of that report is available on the company’s website, under the Investors section. Investors and others should note that we may announce material information using SEC filings, press releases, public conference calls, webcasts, and the Investor Relations page of our website. In the future, we will continue to use these channels to distribute material information about the company and to communicate important information about the company, key personnel, corporate initiatives, regulatory updates, and other matters. Information that we post on our website could be deemed material; therefore, we encourage investors, the media, our customers, business partners and others interested in our company to review the information we post on our website.
+
+Webcast of Earnings Conference Call
+
+CenterPoint’s management will host an earnings conference call on April 23, 2026, at 7:00 a.m. Central time / 8:00 a.m. Eastern time. Interested parties may listen to a live audio broadcast of the conference call on the company’s website under the Investors section. A replay of the call can be accessed approximately two hours after the completion of the call and will be archived on the website for at least one year.
+
+4
+
+About CenterPoint Energy, Inc.
+
+As the only investor owned electric and gas utility based in Texas, CenterPoint Energy, Inc. (NYSE: CNP) is an energy delivery company with electric transmission and distribution, power generation and natural gas distribution operations that serve more than 7 million metered customers in Indiana, Minnesota, Ohio and Texas. As of March 31, 2026, the company owned approximately $47.8 billion in assets. With approximately 8,800 employees, CenterPoint Energy and its predecessor companies have been in business for more than 150 years. For more information, visit CenterPointEnergy.com.
+
+Forward-looking Statements
+
+This news release includes, and the earnings conference call will include forward-looking statements within the meaning of Section 27A of the Securities Act of 1933 and Section 21E of the Securities Exchange Act of 1934. All statements other than statements of historical fact included in this news release and the earnings conference call are forward-looking statements made in good faith by CenterPoint and are intended to qualify for the safe harbor from liability established by the Private Securities Litigation Reform Act of 1995, including statements concerning CenterPoint’s expectations, beliefs, plans, objectives, goals, strategies, future operations, events, financial position, earnings and guidance, growth, costs, prospects, capital investments or performance or underlying assumptions and other statements that are not historical facts. You should not place undue reliance on forward-looking statements. When used in this news release and the conference call, the words "anticipate," "believe," "continue," "could," "estimate," "expect," "forecast," "goal," "intend," "may," "objective," "plan," "potential," "predict," "projection," "should," "target," "will" or other similar words are intended to identify forward-looking statements. The absence of these words, however, does not mean that the statements are not forward-looking.
+
+Examples of forward-looking statements in this news release or on the earnings conference call include statements about CenterPoint’s 10-year capital investment plan and the projects and programs therein (which include Houston Electric’s Greater Houston Resiliency Initiative, System Resiliency Plan, the Houston Downtown Revitalization Project, industrial load growth projects and 765 kilovolt projects, and other plans, projects and programs relating to electric transmission, generation, resiliency, reliability, safety, gas meter upgrades, and system modernization), including the timing, execution, financing, costs, affordability, and anticipated benefits thereof, regulatory matters relating thereto, and related matters, other capital investments and opportunities therefor (including with respect to incremental capital opportunities, deployment of capital, execution, financing and timing of such projects, and anticipated benefits related thereto), future earnings and guidance, CenterPoint’s goals regarding the resiliency, reliability, and safety of our electric and gas systems, CenterPoint’s long-term growth rate and plans related thereto, dividend growth and payouts, customer charges, customer bills and rate affordability (including forecasts of potential customer savings), operations and maintenance expense reductions, the announced sale of our Ohio natural gas LDC business (including with respect to timing, anticipated benefits, and related matters, such as the Seller’s Note), anticipated benefits thereof, regulatory matters including the timing of, projections for, recovery through and anticipated benefits from the settlement of, rate cases and interim capital trackers for CenterPoint and its subsidiaries (as applicable), base rate growth and population growth and economic development in CenterPoint’s service territories, CenterPoint’s ability to support economic growth, meet customer needs and improve customer experiences, Houston Electric’s release of its 15 large 27 megawatt (“MW”) to 32 MW temporary emergency electric energy facilities (“TEEEF”) units to the San Antonio area and its ability to complete one or more other future transactions involving various sizes of TEEEF units (including with respect to timing, filings related thereto, corresponding reductions in Houston Electric’s TEEEF fleet capacity, anticipated benefits including with respect to revenue generation, rates, expected market demand for the units, and related matters), the timing and extent of CenterPoint's recovery of costs and investments, electric demand growth (including industrial load growth) in CenterPoint’s service territories (including forecasts and the drivers thereof, our ability to meet capacity needs related thereto, interconnection requests and projects related thereto and our ability to connect customers, anticipated timing and the speed with which we can energize such projects and the charges and bills related to such projects, capital investment opportunities related thereto, the timing of investments related thereto, and anticipated benefits of such growth), transmission planning studies and anticipated results thereof, financing plans (including in relation to operating cash flow, capital recycling, and the need for, timing of, and anticipated benefits of any future equity or debt issuances, forward sales, and securitization, credit metrics and parent level debt), preparation for weather conditions, CenterPoint’s 2.0% Zero-Premium Exchangeable Subordinated Notes due 2029 (“ZENS”) and impacts of the maturity of ZENS, CenterPoint’s credit health, tax structure and liability (including with respect to the Corporate Alternative Minimum Tax and guidance related thereto), balance sheet health, future financial condition, financial performance and results of operations, value creation, opportunities and expectations. We have based our forward-looking statements on our management’s beliefs and assumptions based on information currently available to our management at the time the statements are made. We caution you that assumptions, beliefs, expectations, intentions, and projections about future events may and often do vary materially from actual results. Therefore, we cannot assure you that actual results will not differ materially from those expressed or implied by our forward-looking statements. Each forward-looking statement contained in this news release or discussed on the earnings conference call speaks only as of the date of this release or the earnings conference call.
+
+5
+
+Some of the factors that could cause actual results to differ from those expressed or implied by our forward-looking information include, but are not limited to, risks and uncertainties relating to: (1) the business strategies and strategic initiatives, restructurings, joint ventures and acquisitions or dispositions of assets or businesses involving CenterPoint or its industry, including the ability to successfully complete such strategies, initiatives, transactions or plans on the timelines we expect or at all, such as the proposed sale of our Ohio natural gas LDC business, which we cannot assure you will have the anticipated benefits to us; (2) industrial, commercial and residential growth in CenterPoint’s service territories and changes in market demand and energy consumption, including in relation to the expansion of data centers, energy refining and exports, advanced manufacturing and logistics, as well as the effects of energy efficiency measures, technological advances and demographic patterns, and our ability to appropriately estimate/forecast and effectively manage such demand and the business opportunities relating to such matters; (3) CenterPoint’s ability to fund and invest planned capital, and the timely recovery of its investments, including those related to CenterPoint’s 10-year capital plan; (4) the ability to execute and complete CenterPoint’s planned capital projects and programs, including those within CenterPoint’s 10-year capital plan, in a timely and cost-effective manner and within budget, obtain the anticipated benefits of such projects, and manage costs and impacts of such projects on customer affordability; (5) CenterPoint’s ability to successfully construct, operate, repair, maintain, replace and restart electric generating facilities, natural gas facilities, TEEEF and electric transmission facilities; (6) the timing and success of, and the ability to obtain approval for matters relating to, Houston Electric’s release of its large TEEEF units to the San Antonio area, proposed removal of its medium TEEEF units, reduction of its TEEEF fleet capacity and reduction of rates to reflect the removal of the large and medium TEEEF units from Houston Electric’s TEEEF fleet, as well as the ability to complete one or more other future transactions involving the large and medium TEEEF units on acceptable terms and conditions within the anticipated timeframe; (7) financial market and general economic conditions, including access to debt and equity capital, economic uncertainty and volatility, inflation, potential for recession, interest rates, and their effect on sales, prices and costs; (8) disruptions to the global supply chain, labor shortages and scarcity of certain materials, including as a result of changes in U.S. and foreign trade policy and geopolitical and economic uncertainty or instability, including the conflict involving Iran; (9) actions by credit rating agencies, including any potential downgrades to credit ratings; (10) the timing and impact of regulatory proceedings and actions and legal proceedings, including those related to, among other things, Hurricane Beryl, Houston Electric’s TEEEF units and the February 2021 winter storm event, and requested or favorable adjustments to rates and approval of other requested items as part of base rate proceedings or interim rate mechanisms; (11) federal, state and local legislative, executive and regulatory actions or developments, including any actions resulting from Hurricane Beryl, pipeline integrity and safety, actions relating to our facilities and changes in regulation, legislation and governmental actions pertaining to the utility model, trade (including tariffs, bans, retaliatory trade measures taken against the United States or related government action), tax legislation and guidance (including further changes to or clarification of the One Big Beautiful Bill Act and the Inflation Reduction Act), the implementation of budget and spending cuts to federal government agencies and programs, effects of government shutdowns, and developments related to the environment; (12) the impact of public health threats; (13) severe weather events, natural disasters and other climate-related impacts, and CenterPoint’s ability to mitigate such impacts, including the approval and timing of securitization issuances; (14) damages to our network, facilities and systems, including as a result of wildfires; (15) changes in business plans; (16) changes to technology and our ability to anticipate, adapt to and implement technological changes and advances in and our ability to timely adopt, develop and deploy, artificial intelligence; (17) operations and maintenance costs, our ability to control such costs and cost-related impacts on the affordability of our rates for our customers; (18) CenterPoint’s ability to timely obtain and maintain necessary land rights, licenses, permits, easements and approvals from landowners and local, federal and other regulatory authorities on acceptable terms and resolve disputes or third-party challenges to such licenses, permits or approvals, as applicable; (19) CenterPoint’s ability to execute on its strategy, initiatives, targets and goals, including its energy transition goals and operations and maintenance goals; and (20) other factors discussed in CenterPoint’s Annual Report on Form 10-K for the fiscal year ended December 31, 2025 and CenterPoint’s Quarterly Report on Form 10-Q for the quarter ended March 31, 2026, including under “Risk Factors,” “Cautionary Statements Regarding Forward-Looking Information” and “Management’s Discussion and Analysis of Financial Condition and Results of Operations — Certain Factors Affecting Future Earnings” in such report and in other filings with the Securities and Exchange Commission (“SEC”) by CenterPoint, which can be found at www.centerpointenergy.com on the Investor Relations page or on the SEC website at www.sec.gov.
+
+6

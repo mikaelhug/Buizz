@@ -1,0 +1,552 @@
+Exhibit 99.1
+PNC Reports Second Quarter 2024 Net Income of $1.5 Billion, $3.39 Diluted EPS
+Generated positive operating leverage; grew NII and NIM; maintained 2.5% SCB requirement
+Increased quarterly common stock dividend 5 cents to $1.60 per share on July 2, 2024
+PITTSBURGH, July 16, 2024 – The PNC Financial Services Group, Inc. (NYSE: PNC) today reported:
+For the quarter
+In millions, except per share data and as noted	2Q24	1Q24	2Q23	Second Quarter Highlights
+▪
+Financial Results	Comparisons reflect 2Q24 vs. 1Q24
+Net interest income (NII)	$	3,302	$	3,264	$	3,510	Income Statement ▪Generated positive operating leverage; PPNR increased 13% ▪Revenue increased 5% –NII and NIM increased ▪Noninterest expense increased 1% ▪Gain on Visa share exchange of $754 million substantially offset by other significant items, resulting in a 9 cent benefit to EPS Balance Sheet ▪Average loans and deposits were relatively stable ▪Average securities increased 4% ▪Net loan charge-offs were $262 million, or 0.33% annualized to average loans ▪ACL to total loans stable at 1.7% ▪AOCI improved $0.6 billion, including securities repositioning impact ▪TBV per share increased 4% ▪Maintained strong capital position –CET1 capital ratio of 10.2% –Maintained regulatory minimum Stress Capital Buffer (SCB) of 2.5% –Increased quarterly common stock dividend 5 cents to $1.60 per share on July 2, 2024
+Noninterest income	2,109	1,881	1,783
+Revenue	5,411	5,145	5,293
+Noninterest expense	3,357	3,334	3,372
+Pretax, pre-provision earnings (PPNR) (non-GAAP)	2,054	1,811	1,921
+Provision for credit losses	235	155	146
+Net income	1,477	1,344	1,500
+Per Common Share
+Diluted earnings per share (EPS)	$	3.39	$	3.10	$	3.36
+Average diluted common shares outstanding	400	400	401
+Book value	116.70	113.30	105.67
+Tangible book value (TBV) (non-GAAP)	89.12	85.70	77.80
+Balance Sheet & Credit Quality
+Average loans In billions	$	319.9	$	320.6	$	324.5
+Average securities In billions	141.3	135.4	141.0
+Average deposits In billions	417.2	420.2	425.7
+Accumulated other comprehensive income (loss) (AOCI) In billions	(7.4)	(8.0)	(9.5)
+Net loan charge-offs	262	243	194
+Allowance for credit losses (ACL) to total loans	1.67	%	1.68	%	1.68	%
+Selected Ratios
+Return on average common shareholders’ equity	12.16	%	11.39	%	13.01	%
+Return on average assets	1.05	0.97	1.08
+Net interest margin (NIM) (non-GAAP)	2.60	2.57	2.79
+Noninterest income to total revenue	39	37	34
+Efficiency	62	65	64
+Common equity Tier 1 (CET1) capital ratio	10.2	10.1	9.5
+See non-GAAP financial measures in the Consolidated Financial Highlights accompanying this release.
+From Bill Demchak, PNC Chairman and Chief Executive Officer:
+“PNC delivered strong results in the second quarter; generating positive operating leverage through revenue growth and well controlled expenses while adding customers, and strengthening our capital levels. Importantly, net interest income and net interest margin increased, marking the beginning of our growth trajectory towards expected record NII in 2025. In June, the Federal Reserve announced the results of the annual stress test and PNC’s start-to-trough CET1 ratio depletion was 1.6%, the best in our peer group. And earlier this month, our board approved a 5 cent increase to our quarterly common stock dividend.”
+
+- more -
+
+PNC Reports Second Quarter 2024 Net Income of $1.5 Billion, $3.39 Diluted EPS – Page 2
+Significant Items
+In the second quarter of 2024, PNC participated in the Visa exchange program, allowing PNC to monetize 50% of its Visa Class B-1 shares and converting its remaining holdings into 1.8 million of Visa Class B-2 shares. The exchange resulted in a gain of $754 million. The second quarter of 2024 also included Visa Class B-2 derivative fair value adjustments of negative $116 million, primarily related to the extension of anticipated litigation resolution timing, and a $120 million expense related to a PNC Foundation contribution. During the quarter, PNC also repositioned the investment securities portfolio, selling available-for-sale securities with a market value of $3.8 billion and a weighted average yield of approximately 1.5%. The sale of securities resulted in a loss of $497 million. PNC redeployed the sale proceeds into available-for-sale securities with a market value of $3.8 billion and a weighted average yield of approximately 5.5%. The combined net income impact of these significant items was $35 million, or $0.09 per common share.
+Income Statement Impact of Significant Items
+In millions	2Q24
+Noninterest Income
+Significant items impacting Other Noninterest Income
+Gain on exchange of Visa Class B-1 shares	$	754
+Visa Class B-2 derivative fair value adjustments	(116)
+Loss on sale of securities	(497)
+Noninterest income increase from significant items	$	141
+Noninterest Expense
+Significant items impacting Other Noninterest Expense
+Contribution to PNC Foundation	$	120
+Noninterest expense increase from significant items	$	120
+Net Income and EPS
+Pretax, pre-provision impact of significant items	$	21
+Tax impact of significant items	14
+Net Income increase from significant items	$	35
+EPS impact of significant items	$	0.09
+Tax impact of significant items includes the benefit of shares donated to the PNC Foundation, partially offset by the tax impact of pretax, pre-provision significant items at a statutory tax rate of 21%.
+
+Income Statement Highlights
+Second quarter 2024 compared with first quarter 2024
+▪Total revenue of $5.4 billion increased $266 million, or 5%, due to higher noninterest and net interest income.
+▪Net interest income of $3.3 billion increased $38 million, or 1%, reflecting higher yields on interest-earning assets.
+–Net interest margin of 2.60% increased 3 basis points.
+▪Noninterest income of $2.1 billion increased $228 million, or 12%.
+–Fee income of $1.8 billion increased $31 million, or 2%, primarily due to seasonally higher card and cash management fees and increased capital markets and advisory activity, partially offset by lower residential mortgage revenue.
+–Other noninterest income of $332 million increased $197 million reflecting the impact of $141 million of significant items in the second quarter of 2024.
+- more -
+
+PNC Reports Second Quarter 2024 Net Income of $1.5 Billion, $3.39 Diluted EPS – Page 3
+▪Noninterest expense of $3.4 billion increased $23 million, or 1%, and included a $120 million PNC Foundation contribution expense in the second quarter of 2024, while the first quarter included a $130 million FDIC special assessment expense.
+▪Provision for credit losses was $235 million in the second quarter, primarily reflecting the impact of portfolio activity. The first quarter of 2024 included a provision for credit losses of $155 million.
+▪The effective tax rate was 18.8% for both the second and first quarter.
+Balance Sheet Highlights
+Second quarter 2024 compared with first quarter 2024 or June 30, 2024 compared with March 31, 2024
+▪Average loans of $319.9 billion were stable, reflecting average commercial loans of $219.1 billion and average consumer loans of $100.8 billion.
+▪Credit quality performance:
+–Delinquencies of $1.3 billion were stable.
+–Total nonperforming loans of $2.5 billion increased $123 million, or 5%, primarily due to higher commercial nonperforming loans.
+–Net loan charge-offs of $262 million increased $19 million, primarily due to higher commercial real estate net loan charge-offs.
+–The allowance for credit losses of $5.4 billion was relatively stable. The allowance for credit losses to total loans was 1.67% at June 30, 2024 and 1.68% at March 31, 2024.
+▪Average investment securities of $141.3 billion increased $5.9 billion, or 4%, reflecting net purchase activity, primarily of U.S. Treasury securities.
+▪Average Federal Reserve Bank balances of $40.7 billion decreased $7.1 billion, primarily reflecting net securities purchases.
+▪Average deposits of $417.2 billion were relatively stable and included seasonal declines in corporate deposits.
+▪Average borrowed funds of $77.5 billion increased $1.9 billion, or 2%, reflecting parent company senior debt issuances.
+▪PNC maintained a strong capital and liquidity position.
+–Based on the results of the Federal Reserve’s 2024 annual stress test, PNC’s SCB for the four-quarter period beginning October 1, 2024 will remain at the regulatory minimum of 2.5%.
+–On July 2, 2024, the PNC board of directors raised the quarterly cash dividend on common stock to $1.60 per share, an increase of 5 cents per share. The dividend is payable on August 5, 2024 to shareholders of record at the close of business July 15, 2024.
+–PNC returned $0.7 billion of capital to shareholders, reflecting $0.6 billion of dividends on common shares and $0.1 billion of common share repurchases, representing 0.7 million shares.
+–The Basel III common equity Tier 1 capital ratio was an estimated 10.2% at June 30, 2024 and was 10.1% at March 31, 2024.
+–PNC’s average LCR for the three months ended June 30, 2024 was 108%, exceeding the regulatory minimum requirement throughout the quarter.
+- more -
+
+PNC Reports Second Quarter 2024 Net Income of $1.5 Billion, $3.39 Diluted EPS – Page 4
+Earnings Summary
+In millions, except per share data	2Q24	1Q24	2Q23
+Net income	$	1,477	$	1,344	$	1,500
+Net income attributable to diluted common shares	$	1,355	$	1,240	$	1,347
+Diluted earnings per common share	$	3.39	$	3.10	$	3.36
+Average diluted common shares outstanding	400	400	401
+Cash dividends declared per common share	$	1.55	$	1.55	$	1.50
+
+The Consolidated Financial Highlights accompanying this news release include additional information regarding reconciliations of non-GAAP financial measures to reported (GAAP) amounts. This information supplements results as reported in accordance with GAAP and should not be viewed in isolation from, or as a substitute for, GAAP results. Fee income, a non-GAAP financial measure, refers to noninterest income in the following categories: asset management and brokerage, capital markets and advisory, card and cash management, lending and deposit services, and residential and commercial mortgage. Information in this news release, including the financial tables, is unaudited.
+CONSOLIDATED REVENUE REVIEW
+Revenue	Change	Change
+2Q24 vs	2Q24 vs
+In millions	2Q24	1Q24	2Q23	1Q24	2Q23
+Net interest income	$	3,302	$	3,264	$	3,510	1	%	(6)	%
+Noninterest income	2,109	1,881	1,783	12	%	18	%
+Total revenue	$	5,411	$	5,145	$	5,293	5	%	2	%
+
+Total revenue for the second quarter of 2024 increased $266 million from the first quarter of 2024 and $118 million compared with the second quarter of 2023. In both comparisons, the increase was driven by higher noninterest income. The linked quarter increase also reflected the benefit of higher net interest income.
+Net interest income of $3.3 billion increased $38 million from the first quarter of 2024, reflecting higher yields on interest-earning assets. Net interest margin was 2.60% in the second quarter of 2024, increasing 3 basis points from the first quarter of 2024.
+Compared to the second quarter of 2023, net interest income decreased $208 million and net interest margin declined 19 basis points, as the benefit of higher interest-earning asset yields was more than offset by increased funding costs and lower loan balances.
+- more -
+
+PNC Reports Second Quarter 2024 Net Income of $1.5 Billion, $3.39 Diluted EPS – Page 5
+Noninterest Income	Change	Change
+2Q24 vs	2Q24 vs
+In millions	2Q24	1Q24	2Q23	1Q24	2Q23
+Asset management and brokerage	$	364	$	364	$	348	—	5	%
+Capital markets and advisory	272	259	213	5	%	28	%
+Card and cash management	706	671	697	5	%	1	%
+Lending and deposit services	304	305	298	—	2	%
+Residential and commercial mortgage	131	147	98	(11)	%	34	%
+Fee income	1,777	1,746	1,654	2	%	7	%
+Other	332	135	129	146	%	157	%
+Total noninterest income	$	2,109	$	1,881	$	1,783	12	%	18	%
+
+Noninterest income for the second quarter of 2024 increased $228 million compared with the first quarter of 2024. Capital markets and advisory revenue increased $13 million, driven by higher merger and acquisition advisory activity and increased loan syndication revenue, partially offset by lower underwriting fees. Card and cash management fees grew $35 million reflecting seasonally higher consumer transaction volumes and higher treasury management product revenue. Residential and commercial mortgage revenue decreased $16 million primarily due to lower residential mortgage activity. Other noninterest income increased $197 million primarily reflecting the impact of $141 million of significant items in the second quarter of 2024.
+Noninterest income for the second quarter of 2024, increased $326 million from the second quarter of 2023. Fee income increased $123 million driven by growth across all categories. Other noninterest income increased $203 million primarily reflecting the impact of $141 million of significant items in the second quarter of 2024. The second quarter of 2023 also included negative Visa derivative fair value adjustments of $83 million.
+CONSOLIDATED EXPENSE REVIEW
+Noninterest Expense	Change	Change
+2Q24 vs	2Q24 vs
+In millions	2Q24	1Q24	2Q23	1Q24	2Q23
+Personnel	$	1,782	$	1,794	$	1,846	(1)	%	(3)	%
+Occupancy	236	244	244	(3)	%	(3)	%
+Equipment	356	341	349	4	%	2	%
+Marketing	93	64	109	45	%	(15)	%
+Other	890	891	824	—	8	%
+Total noninterest expense	$	3,357	$	3,334	$	3,372	1	%	—
+
+Noninterest expense for the second quarter of 2024 increased $23 million compared to the first quarter of 2024 and reflected PNC’s continued focus on expense management. The modest increase was driven by the timing of marketing spend and higher equipment expense, partially offset by seasonally lower incentive compensation. Other noninterest expense included a $120 million PNC Foundation contribution expense in the second quarter of 2024, while the first quarter of 2024 included a $130 million FDIC special assessment expense.
+Noninterest expense of $3.4 billion for the second quarter of 2024, which included a $120 million PNC Foundation contribution expense, decreased $15 million compared with the second quarter of 2023, reflecting a continued focus on expense management.
+- more -
+
+PNC Reports Second Quarter 2024 Net Income of $1.5 Billion, $3.39 Diluted EPS – Page 6
+The effective tax rate was 18.8% for both the second and first quarter of 2024 and 15.5% for the second quarter of 2023.
+CONSOLIDATED BALANCE SHEET REVIEW
+Average total assets of $563.0 billion were relatively stable in comparison to both the first quarter of 2024 and the second quarter of 2023.
+Average Loans	Change	Change
+2Q24 vs	2Q24 vs
+In billions	2Q24	1Q24	2Q23	1Q24	2Q23
+Commercial	$	219.1	$	219.2	$	223.2	—	(2)	%
+Consumer	100.8	101.4	101.3	(1)	%	(1)	%
+Total	$	319.9	$	320.6	$	324.5	—	(1)	%
+Average loans for the second quarter of 2024 were stable compared to the first quarter of 2024 and included a modest decline in consumer balances reflecting lower residential real estate and home equity loans.
+Average loans for the second quarter of 2024 decreased $4.6 billion in comparison to the second quarter of 2023. Average commercial loans declined $4.1 billion from the second quarter of 2023, driven by lower utilization of loan commitments. Average consumer loans decreased $0.5 billion and included lower home equity balances.
+Average Investment Securities	Change	Change
+2Q24 vs	2Q24 vs
+In billions	2Q24	1Q24	2Q23	1Q24	2Q23
+Available for sale	$	53.4	$	46.0	$	46.6	16	%	15	%
+Held to maturity	87.9	89.4	94.4	(2)	%	(7)	%
+Total	$	141.3	$	135.4	$	141.0	4	%	—
+Average investment securities of $141.3 billion in the second quarter of 2024 increased $5.9 billion and $0.3 billion from the first quarter of 2024 and the second quarter of 2023, respectively. In both comparisons, the increase reflected net purchase activity, primarily of U.S. Treasury securities, partially offset by portfolio paydowns and maturities. The duration of the investment securities portfolio was 3.5 years at June 30, 2024, 4.1 years at March 31, 2024 and 4.3 years at June 30, 2023.
+Net unrealized losses on available-for-sale securities were $3.7 billion at June 30, 2024, decreasing from $4.0 billion at March 31, 2024 and $4.2 billion at June 30, 2023. In both comparisons, the decrease primarily reflected the impact of securities repositioning during the second quarter of 2024.
+Average Federal Reserve Bank balances for the second quarter of 2024 were $40.7 billion, decreasing $7.1 billion from the first quarter of 2024 primarily reflecting net securities purchases. Compared to the second quarter of 2023, average Federal Reserve Bank balances increased $10.1 billion primarily due to higher borrowed funds outstanding and lower loan balances, partially offset by lower deposit balances.
+
+- more -
+
+PNC Reports Second Quarter 2024 Net Income of $1.5 Billion, $3.39 Diluted EPS – Page 7
+Average Deposits	Change	Change
+2Q24 vs	2Q24 vs
+In billions	2Q24	1Q24	2Q23	1Q24	2Q23
+Commercial	$	199.7	$	202.5	$	204.1	(1)	%	(2)	%
+Consumer	217.5	217.6	221.6	—	(2)	%
+Total	$	417.2	$	420.2	$	425.7	(1)	%	(2)	%
+IB % of total avg. deposits	77%	76%	73%
+NIB % of total avg. deposits	23%	24%	27%
+IB - Interest-bearing NIB - Noninterest-bearing
+Totals may not sum due to rounding
+Average deposits for the second quarter of 2024 of $417.2 billion were relatively stable compared to the first quarter of 2024 and included a modest decline in commercial balances reflecting seasonal declines in corporate deposits. Compared to the second quarter of 2023, average deposits decreased $8.5 billion due to lower commercial and consumer deposits.
+Average Borrowed Funds	Change	Change
+2Q24 vs	2Q24 vs
+In billions	2Q24	1Q24	2Q23	1Q24	2Q23
+Total	$	77.5	$	75.6	$	65.7	2	%	18	%
+Avg. borrowed funds to avg. liabilities	15	%	15	%	13	%
+
+Average borrowed funds of $77.5 billion in the second quarter of 2024 increased $1.9 billion compared to the first quarter of 2024 reflecting parent company senior debt issuances. Compared to the second quarter of 2023, borrowed funds increased $11.8 billion primarily driven by parent company senior debt issuances.
+Capital	June 30, 2024	March 31, 2024	June 30, 2023
+Common shareholders’ equity In billions	$	46.4	$	45.1	$	42.1
+Accumulated other comprehensive income (loss) In billions	$	(7.4)	$	(8.0)	$	(9.5)
+Basel III common equity Tier 1 capital ratio *	10.2	%	10.1	%	9.5	%
+Basel III common equity Tier 1 fully implemented capital ratio (estimated)	10.1	%	10.0	%	9.4	%
+*June 30, 2024 ratio is estimated
+PNC maintained a strong capital position. Common shareholders’ equity at June 30, 2024 increased $1.3 billion from March 31, 2024, driven by net income and an improvement in accumulated other comprehensive income, partially offset by dividends paid and share repurchases.
+As a Category III institution, PNC has elected to exclude accumulated other comprehensive income related to both available-for-sale securities and pension and other post-retirement plans from CET1 capital. Accumulated other comprehensive income at June 30, 2024 improved $0.6 billion from March 31, 2024 and included the impact of securities repositioning. Compared to June 30, 2023, accumulated other comprehensive income improved $2.1 billion, reflecting the benefit of paydowns and maturities as well as the impact of securities repositioning.
+- more -
+
+PNC Reports Second Quarter 2024 Net Income of $1.5 Billion, $3.39 Diluted EPS – Page 8
+In the second quarter of 2024, PNC returned $0.7 billion of capital to shareholders, reflecting $0.6 billion of dividends on common shares and $0.1 billion of common share repurchases, representing 0.7 million shares. Consistent with the Stress Capital Buffer (SCB) framework, which allows for capital return in amounts in excess of the SCB minimum levels, our board of directors has authorized a repurchase framework under the previously approved repurchase program of up to 100 million common shares, of which approximately 43% were still available for repurchase at June 30, 2024.
+In light of the Federal banking agencies’ proposed rules to adjust the Basel III capital framework, third quarter 2024 share repurchase activity is expected to approximate recent quarterly average share repurchase levels. PNC continues to evaluate the potential impact of the proposed rules and may adjust share repurchase activity depending on market and economic conditions, as well as other factors.
+Based on the results of the Federal Reserve’s 2024 annual stress test, PNC’s SCB for the four-quarter period beginning October 1, 2024 will remain at the regulatory minimum of 2.5%.
+On July 2, 2024, the PNC board of directors raised the quarterly cash dividend on common stock to $1.60 per share, an increase of 5 cents per share. The dividend is payable on August 5, 2024 to shareholders of record at the close of business July 15, 2024.
+At June 30, 2024, PNC was considered “well capitalized” based on applicable U.S. regulatory capital ratio requirements. For additional information regarding PNC’s Basel III capital ratios, see Capital Ratios in the Consolidated Financial Highlights. PNC elected a five-year transition provision effective March 31, 2020 to delay until December 31, 2021 the full impact of the Current Expected Credit Losses (CECL) standard on regulatory capital, followed by a three-year transition period. Effective for the first quarter of 2022, PNC is now in the three-year transition period, and the full impact of the CECL standard is being phased-in to regulatory capital through December 31, 2024. The fully implemented ratios reflect the full impact of CECL and exclude the benefits of this transition provision.
+CREDIT QUALITY REVIEW
+Credit Quality	Change	Change
+June 30, 2024	March 31, 2024	June 30, 2023	06/30/24 vs	06/30/24 vs
+In millions	03/31/24	06/30/23
+Provision for credit losses (a)	$	235	$	155	$	146	$	80	$	89
+Net loan charge-offs (a)	$	262	$	243	$	194	8	%	35	%
+Allowance for credit losses (b)	$	5,353	$	5,365	$	5,400	—	(1)	%
+Total delinquencies (c)	$	1,272	$	1,275	$	1,212	—	5	%
+Nonperforming loans	$	2,503	$	2,380	$	1,913	5	%	31	%
+Net charge-offs to average loans (annualized)	0.33	%	0.30	%	0.24	%
+Allowance for credit losses to total loans	1.67	%	1.68	%	1.68	%
+Nonperforming loans to total loans	0.78	%	0.74	%	0.59	%
+(a) Represents amounts for the three months ended for each respective period (b) Excludes allowances for investment securities and other financial assets (c) Total delinquencies represent accruing loans more than 30 days past due
+Provision for credit losses was $235 million in the second quarter of 2024, primarily reflecting the impact of portfolio activity. The first quarter of 2024 included a provision for credit losses of $155 million.
+- more -
+
+PNC Reports Second Quarter 2024 Net Income of $1.5 Billion, $3.39 Diluted EPS – Page 9
+Net loan charge-offs were $262 million in the second quarter of 2024, increasing $19 million compared to the first quarter of 2024, primarily due to higher commercial real estate net loan charge-offs. Compared to the second quarter of 2023, net loan charge-offs increased $68 million driven by higher commercial and consumer net loan charge-offs.
+The allowance for credit losses was $5.4 billion at June 30, 2024, March 31, 2024 and June 30, 2023. The allowance for credit losses as a percentage of total loans was 1.67% at June 30, 2024, and 1.68% at both March 31, 2024 and June 30, 2023.
+Delinquencies at June 30, 2024 were $1.3 billion, stable from March 31, 2024. Compared to June 30, 2023, delinquencies increased $60 million due to higher consumer and commercial loan delinquencies.
+Nonperforming loans at June 30, 2024 were $2.5 billion, increasing $123 million from March 31, 2024, due to higher commercial nonperforming loans. Compared to June 30, 2023, nonperforming loans increased $590 million, reflecting higher commercial nonperforming loans, partially offset by lower consumer nonperforming loans.
+BUSINESS SEGMENT RESULTS
+Business Segment Income (Loss)
+In millions	2Q24	1Q24	2Q23
+Retail Banking	$	1,715	$	1,085	$	954
+Corporate & Institutional Banking	1,046	1,121	817
+Asset Management Group	103	97	63
+Other	(1,405)	(973)	(351)
+Net income excluding noncontrolling interests	$	1,459	$	1,330	$	1,483
+Retail Banking	Change	Change
+2Q24 vs	2Q24 vs
+In millions	2Q24	1Q24	2Q23	1Q24	2Q23
+Net interest income	$	2,709	$	2,617	$	2,448	$	92	$	261
+Noninterest income	$	1,409	$	764	$	702	$	645	$	707
+Noninterest expense	$	1,841	$	1,837	$	1,904	$	4	$	(63)
+Provision for (recapture of) credit losses	$	27	$	118	$	(14)	$	(91)	$	41
+Earnings	$	1,715	$	1,085	$	954	$	630	$	761
+In billions
+Average loans	$	96.5	$	97.2	$	97.6	$	(0.7)	$	(1.1)
+Average deposits	$	249.7	$	249.0	$	257.3	$	0.7	$	(7.6)
+Net loan charge-offs In millions	$	138	$	139	$	109	$	(1)	$	29
+Retail Banking Highlights
+Second quarter 2024 compared with first quarter 2024
+▪Earnings increased 58%, primarily driven by higher noninterest and net interest income as well as a lower provision for credit losses.
+–Noninterest income increased 84%, and included a gain of $754 million related to one half of PNC’s total exchanged Visa shares. The second quarter of 2024 also included Visa derivative fair value adjustments of negative $116 million primarily related to the extension of anticipated litigation resolution timing. Visa derivative fair value adjustments were negative $7 million in the first quarter of 2024.
+- more -
+
+PNC Reports Second Quarter 2024 Net Income of $1.5 Billion, $3.39 Diluted EPS – Page 10
+–Noninterest expense was stable.
+–Provision for credit losses of $27 million in the second quarter of 2024 reflected the impact of portfolio activity.
+▪Average loans decreased 1% reflecting lower residential real estate and home equity loans.
+▪Average deposits were stable.
+Second quarter 2024 compared with second quarter 2023
+▪Earnings increased 80%, primarily due to higher noninterest and net interest income as well as lower noninterest expense.
+–Noninterest income increased 101%, and included the aforementioned second quarter of 2024 Visa exchange impacts and derivative fair value adjustments. The second quarter of 2023 included Visa derivative fair value adjustments of negative $83 million.
+–Noninterest expense decreased 3%, reflecting a continued focus on expense management, partially offset by higher technology investment.
+▪Average loans decreased 1%, and included lower residential mortgage and home equity loans.
+▪Average deposits decreased 3%, and included the impact of increased customer spending.
+Corporate & Institutional Banking	Change	Change
+2Q24 vs	2Q24 vs
+In millions	2Q24	1Q24	2Q23	1Q24	2Q23
+Net interest income	$	1,560	$	1,549	$	1,381	$	11	$	179
+Noninterest income	$	942	$	888	$	821	$	54	$	121
+Noninterest expense	$	911	$	922	$	921	$	(11)	$	(10)
+Provision for credit losses	$	228	$	47	$	209	$	181	$	19
+Earnings	$	1,046	$	1,121	$	817	$	(75)	$	229
+In billions
+Average loans	$	204.0	$	204.2	$	208.1	$	(0.2)	$	(4.1)
+Average deposits	$	139.9	$	142.7	$	141.0	$	(2.8)	$	(1.1)
+Net loan charge-offs In millions	$	129	$	108	$	93	$	21	$	36
+Corporate & Institutional Banking Highlights
+Second quarter 2024 compared with first quarter 2024
+▪Earnings decreased 7%, driven by a higher provision for credit losses, partially offset by higher noninterest and net interest income as well as lower noninterest expense.
+–Noninterest income increased 6%, reflecting higher merger and acquisition advisory activity and higher treasury management product revenue.
+–Noninterest expense decreased 1%, reflecting a continued focus on expense management.
+–Provision for credit losses of $228 million in the second quarter of 2024 reflected the impact of portfolio activity.
+▪Average loans were stable.
+▪Average deposits decreased 2%, reflecting seasonal declines in corporate deposits.
+
+- more -
+
+PNC Reports Second Quarter 2024 Net Income of $1.5 Billion, $3.39 Diluted EPS – Page 11
+Second quarter 2024 compared with second quarter 2023
+▪Earnings increased 28% driven by higher net interest and noninterest income as well as lower noninterest expense.
+–Noninterest income increased 15%, reflecting business growth across the franchise.
+–Noninterest expense decreased 1%, reflecting a continued focus on expense management.
+▪Average loans decreased 2%, driven by lower utilization of loan commitments.
+▪Average deposits decreased less than 1%.
+Asset Management Group	Change	Change
+2Q24 vs	2Q24 vs
+In millions	2Q24	1Q24	2Q23	1Q24	2Q23
+Net interest income	$	163	$	157	$	125	$	6	$	38
+Noninterest income	$	235	$	230	$	228	$	5	$	7
+Noninterest expense	$	261	$	265	$	280	$	(4)	$	(19)
+Provision for (recapture of) credit losses	$	2	$	(5)	$	(10)	$	7	$	12
+Earnings	$	103	$	97	$	63	$	6	$	40
+In billions
+Discretionary client assets under management	$	196	$	195	$	176	$	1	$	20
+Nondiscretionary client assets under administration	$	208	$	199	$	168	$	9	$	40
+Client assets under administration at quarter end	$	404	$	394	$	344	$	10	$	60
+In billions
+Average loans	$	16.6	$	16.3	$	15.1	$	0.3	$	1.5
+Average deposits	$	27.9	$	28.7	$	27.3	$	(0.8)	$	0.6
+Net loan charge-offs (recoveries) In millions	—	—	$	(2)	—	$	2
+Asset Management Group Highlights
+Second quarter 2024 compared with first quarter 2024
+▪Earnings increased 6%, reflecting higher net interest and noninterest income and lower noninterest expense, partially offset by a provision for credit losses.
+–Noninterest income increased 2%, and included the impact of higher average equity markets.
+–Noninterest expense decreased 2%, driven by lower personnel expense and a continued focus on expense management.
+▪Discretionary client assets under management increased 1%, reflecting higher spot equity markets.
+▪Average loans increased 2%, primarily due to growth in residential mortgage loans.
+▪Average deposits decreased 3%, driven by the timing of client annual income tax payments.
+Second quarter 2024 compared with second quarter 2023
+▪Earnings increased 63%, due to higher net interest income, lower noninterest expense and higher noninterest income, partially offset by a provision for credit losses.
+–Noninterest income increased 3%, reflecting higher average equity markets.
+–Noninterest expense decreased 7%, reflecting a continued focus on expense management.
+▪Discretionary client assets under management increased 11%, reflecting higher spot equity markets.
+▪Average loans increased 10%, primarily driven by growth in residential mortgage loans.
+- more -
+
+PNC Reports Second Quarter 2024 Net Income of $1.5 Billion, $3.39 Diluted EPS – Page 12
+▪Average deposits increased 2%, reflecting growth in CD and deposit sweep balances.
+Other
+The “Other” category, for the purposes of this release, includes residual activities that do not meet the criteria for disclosure as a separate reportable business, such as asset and liability management activities, including net securities gains or losses, ACL for investment securities, certain trading activities, certain runoff consumer loan portfolios, private equity investments, intercompany eliminations, corporate overhead net of allocations, tax adjustments that are not allocated to business segments, exited businesses and the residual impact from funds transfer pricing operations.
+CONFERENCE CALL AND SUPPLEMENTAL FINANCIAL INFORMATION
+PNC Chairman and Chief Executive Officer William S. Demchak and Executive Vice President and Chief Financial Officer Robert Q. Reilly will hold a conference call for investors today at 10:00 a.m. Eastern Time regarding the topics addressed in this news release and the related earnings materials. Dial-in numbers for the conference call are (866) 604-1697 and (215) 268-9875 (international) and Internet access to the live audio listen-only webcast of the call is available at www.pnc.com/investorevents. PNC’s second quarter 2024 earnings materials to accompany the conference call remarks will be available at www.pnc.com/investorevents prior to the beginning of the call. A telephone replay of the call will be available for one week at (877) 660-6853 and (201) 612-7415 (international), Access ID 13746966 and a replay of the audio webcast will be available on PNC’s website for 30 days.
+The PNC Financial Services Group, Inc. is one of the largest diversified financial services institutions in the United States, organized around its customers and communities for strong relationships and local delivery of retail and business banking including a full range of lending products; specialized services for corporations and government entities, including corporate banking, real estate finance and asset-based lending; wealth management and asset management. For information about PNC, visit www.pnc.com.
+CONTACTS
+MEDIA:	INVESTORS:
+Timothy Miller	Bryan Gill
+(412) 762-4550	(412) 768-4143
+media.relations@pnc.com	investor.relations@pnc.com
+
+[TABULAR MATERIAL FOLLOWS]
+- more -
+
+PNC Reports Second Quarter 2024 Net Income of $1.5 Billion, $3.39 Diluted EPS – Page 13
+2
+The PNC Financial Services Group, Inc.	Consolidated Financial Highlights (Unaudited)
+FINANCIAL RESULTS	Three months ended	Six months ended
+Dollars in millions, except per share data	June 30	March 31	June 30	June 30	June 30
+2024	2024	2023	2024	2023
+Revenue
+Net interest income	$	3,302	$	3,264	$	3,510	$	6,566	$	7,095
+Noninterest income	2,109	1,881	1,783	3,990	3,801
+Total revenue	5,411	5,145	5,293	10,556	10,896
+Provision for credit losses	235	155	146	390	381
+Noninterest expense	3,357	3,334	3,372	6,691	6,693
+Income before income taxes and noncontrolling interests	$	1,819	$	1,656	$	1,775	$	3,475	$	3,822
+Income taxes	342	312	275	654	628
+Net income	$	1,477	$	1,344	$	1,500	$	2,821	$	3,194
+Less:
+Net income attributable to noncontrolling interests	18	14	17	32	34
+Preferred stock dividends (a)	95	81	127	176	195
+Preferred stock discount accretion and redemptions	2	2	2	4	4
+Net income attributable to common shareholders	$	1,362	$	1,247	$	1,354	$	2,609	$	2,961
+Per Common Share
+Basic	$	3.39	$	3.10	$	3.36	$	6.49	$	7.35
+Diluted	$	3.39	$	3.10	$	3.36	$	6.48	$	7.34
+Cash dividends declared per common share	$	1.55	$	1.55	$	1.50	$	3.10	$	3.00
+Effective tax rate (b)	18.8	%	18.8	%	15.5	%	18.8	%	16.4	%
+PERFORMANCE RATIOS
+Net interest margin (c)	2.60	%	2.57	%	2.79	%	2.58	%	2.81	%
+Noninterest income to total revenue	39	%	37	%	34	%	38	%	35	%
+Efficiency (d)	62	%	65	%	64	%	63	%	61	%
+Return on:
+Average common shareholders' equity	12.16	%	11.39	%	13.01	%	11.78	%	14.53	%
+Average assets	1.05	%	0.97	%	1.08	%	1.01	%	1.15	%
+(a)Dividends are payable quarterly, other than Series S preferred stock, which is payable semiannually.
+(b)The effective income tax rates are generally lower than the statutory rate due to the relationship of pretax income to tax credits and earnings that are not subject to tax.
+(c)Net interest margin is the total yield on interest-earning assets minus the total rate on interest-bearing liabilities and includes the benefit from use of noninterest-bearing sources. To provide more meaningful comparisons of net interest margins, we use net interest income on a taxable-equivalent basis in calculating average yields used in the calculation of net interest margin by increasing the interest income earned on tax-exempt assets to make it fully equivalent to interest income earned on taxable investments. This adjustment is not permitted under generally accepted accounting principles (GAAP) in the Consolidated Income Statement. The taxable-equivalent adjustments to net interest income for the three months ended June 30, 2024, March 31, 2024 and June 30, 2023 were $34 million, $34 million and $37 million, respectively. The taxable-equivalent adjustments to net interest income for the six months ended June 30, 2024 and June 30, 2023 were $68 million and $75 million, respectively.
+(d)Calculated as noninterest expense divided by total revenue.
+
+- more -
+
+PNC Reports Second Quarter 2024 Net Income of $1.5 Billion, $3.39 Diluted EPS – Page 14
+The PNC Financial Services Group, Inc.	Consolidated Financial Highlights (Unaudited)
+June 30	March 31	June 30
+2024	2024	2023
+BALANCE SHEET DATA
+Dollars in millions, except per share data and as noted
+Assets	$	556,519	$	566,162	$	558,207
+Loans (a)	$	321,429	$	319,781	$	321,761
+Allowance for loan and lease losses	$	4,636	$	4,693	$	4,737
+Interest-earning deposits with banks	$	33,039	$	53,612	$	38,259
+Investment securities	$	138,645	$	130,460	$	135,661
+Total deposits	$	416,391	$	425,624	$	427,489
+Borrowed funds (a)	$	71,391	$	72,707	$	65,384
+Allowance for unfunded lending related commitments	$	717	$	672	$	663
+Total shareholders' equity	$	52,642	$	51,340	$	49,320
+Common shareholders' equity	$	46,397	$	45,097	$	42,083
+Accumulated other comprehensive income (loss)	$	(7,446)	$	(8,042)	$	(9,525)
+Book value per common share	$	116.70	$	113.30	$	105.67
+Tangible book value per common share (non-GAAP) (b)	$	89.12	$	85.70	$	77.80
+Period end common shares outstanding (In millions)	398	398	398
+Loans to deposits	77	%	75	%	75	%
+Common shareholders' equity to total assets	8.3	%	8.0	%	7.5	%
+CLIENT ASSETS (In billions)
+Discretionary client assets under management	$	196	$	195	$	176
+Nondiscretionary client assets under administration	208	199	168
+Total client assets under administration	404	394	344
+Brokerage account client assets	83	83	80
+Total client assets	$	487	$	477	$	424
+CAPITAL RATIOS
+Basel III (c) (d)
+Common equity Tier 1	10.2	%	10.1	%	9.5	%
+Common equity Tier 1 fully implemented (e)	10.1	%	10.0	%	9.4	%
+Tier 1 risk-based	11.6	%	11.6	%	11.2	%
+Total capital risk-based	13.5	%	13.4	%	13.1	%
+Leverage	8.9	%	8.7	%	8.8	%
+Supplementary leverage	7.4	%	7.3	%	7.4	%
+ASSET QUALITY
+Nonperforming loans to total loans	0.78	%	0.74	%	0.59	%
+Nonperforming assets to total loans, OREO and foreclosed assets	0.79	%	0.76	%	0.61	%
+Nonperforming assets to total assets	0.46	%	0.43	%	0.35	%
+Net charge-offs to average loans (for the three months ended) (annualized)	0.33	%	0.30	%	0.24	%
+Allowance for loan and lease losses to total loans	1.44	%	1.47	%	1.47	%
+Allowance for credit losses to total loans (f)	1.67	%	1.68	%	1.68	%
+Allowance for loan and lease losses to nonperforming loans	185	%	197	%	248	%
+Total delinquencies (In millions) (g)	$	1,272	$	1,275	$	1,212
+(a)Amounts include assets and liabilities for which we have elected the fair value option. Our first quarter 2024 Form 10-Q included, and our second quarter 2024 Form 10-Q will include, additional information regarding these Consolidated Balance Sheet line items.
+(b)See the Tangible Book Value per Common Share table on page 16 for additional information.
+(c)All ratios are calculated using the regulatory capital methodology applicable to PNC during each period presented and calculated based on the standardized approach. See Capital Ratios on page 15 for additional information. The ratios as of June 30, 2024 are estimated.
+(d)The ratios are calculated to reflect PNC's election to adopt the CECL optional five-year transition provision.
+(e)The estimated fully implemented ratios are calculated to reflect the full impact of CECL and exclude the benefits of the five-year transition provision.
+(f)Excludes allowances for investment securities and other financial assets.
+(g)Total delinquencies represent accruing loans more than 30 days past due.
+- more -
+
+PNC Reports Second Quarter 2024 Net Income of $1.5 Billion, $3.39 Diluted EPS – Page 15
+The PNC Financial Services Group, Inc. Consolidated Financial Highlights (Unaudited)
+
+CAPITAL RATIOS
+
+PNC's regulatory risk-based capital ratios in 2024 are calculated using the standardized approach for determining risk-weighted assets. Under the standardized approach for determining credit risk-weighted assets, exposures are generally assigned a pre-defined risk weight. Exposures to high volatility commercial real estate, past due exposures and equity exposures are generally subject to higher risk weights than other types of exposures.
+PNC elected a five-year transition provision effective March 31, 2020 to delay until December 31, 2021 the full impact of the CECL standard on regulatory capital, followed by a three-year transition period. Effective for the first quarter 2022, PNC is now in the three-year transition period, and the full impact of the CECL standard is being phased-in to regulatory capital through December 31, 2024. See the table below for the March 31, 2024, June 30, 2023 and estimated June 30, 2024 ratios. For the full impact of PNC's adoption of CECL, which excludes the benefits of the five-year transition provision, see the June 30, 2024 and March 31, 2024 (Fully Implemented) estimates presented in the table below.
+Our Basel III capital ratios may be impacted by changes to the regulatory capital rules and additional regulatory guidance or analysis.
+Basel lll Common Equity Tier 1 Capital Ratios (a)
+Basel III
+June 30 2024 (estimated) (b)	March 31 2024 (b)	June 30 2023 (b)	June 30, 2024 (Fully Implemented) (estimated) (c)	March 31, 2024 (Fully Implemented) (estimated) (c)
+Dollars in millions
+Common stock, related surplus and retained earnings, net of treasury stock	$	54,084	$	53,380	$	52,091	$	53,843	$	53,139
+Less regulatory capital adjustments:
+Goodwill and disallowed intangibles, net of deferred tax liabilities	(10,965)	(10,982)	(11,101)	(10,965)	(10,982)
+All other adjustments	(102)	(88)	(89)	(104)	(90)
+Basel III Common equity Tier 1 capital	$	43,017	$	42,310	$	40,901	$	42,774	$	42,067
+Basel III standardized approach risk-weighted assets (d)	$	423,339	$	420,342	$	429,634	$	423,430	$	420,397
+Basel III Common equity Tier 1 capital ratio	10.2	%	10.1	%	9.5	%	10.1	%	10.0	%
+(a)All ratios are calculated using the regulatory capital methodology applicable to PNC during each period presented.
+(b)The ratios are calculated to reflect PNC's election to adopt the CECL optional five-year transition provisions.
+(c)The June 30, 2024 and March 31, 2024 ratios are calculated to reflect the full impact of CECL and exclude the benefits of the five-year transition provisions.
+(d)Basel III standardized approach risk-weighted assets are based on the Basel III standardized approach rules and include credit and market risk-weighted assets.
+
+- more -
+
+PNC Reports Second Quarter 2024 Net Income of $1.5 Billion, $3.39 Diluted EPS – Page 16
+The PNC Financial Services Group, Inc. Consolidated Financial Highlights (Unaudited)
+
+NON-GAAP MEASURES
+
+Pretax Pre-Provision Earnings (non-GAAP)	Three months ended
+June 30	March 31	June 30
+Dollars in millions	2024	2024	2023
+Income before income taxes and noncontrolling interests	$	1,819	$	1,656	$	1,775
+Provision for credit losses	235	155	146
+Pretax pre-provision earnings (non-GAAP)	$	2,054	$	1,811	$	1,921
+
+Pretax pre-provision earnings is a non-GAAP measure and is based on adjusting income before income taxes and noncontrolling interests to exclude provision for credit losses. We believe that pretax, pre-provision earnings is a useful tool to help evaluate the ability to provide for credit costs through operations and provides an additional basis to compare results between periods by isolating the impact of provision for credit losses, which can vary significantly between periods.
+
+Tangible Book Value per Common Share (non-GAAP)
+June 30	March 31	June 30
+Dollars in millions, except per share data	2024	2024	2023
+Book value per common share	$	116.70	$	113.30	$	105.67
+Tangible book value per common share
+Common shareholders' equity	$	46,397	$	45,097	$	42,083
+Goodwill and other intangible assets	(11,206)	(11,225)	(11,357)
+Deferred tax liabilities on goodwill and other intangible assets	241	242	256
+Tangible common shareholders' equity	$	35,432	$	34,114	$	30,982
+Period-end common shares outstanding (In millions)	398	398	398
+Tangible book value per common share (non-GAAP)	$	89.12	$	85.70	$	77.80
+
+Tangible book value per common share is a non-GAAP measure and is calculated based on tangible common shareholders' equity divided by period-end common shares outstanding. We believe this non-GAAP measure serves as a useful tool to help evaluate the strength and discipline of a company’s capital management strategies and as an additional, conservative measure of total company value.
+
+Taxable-Equivalent Net Interest Income (non-GAAP)	Three months ended
+June 30	March 31	June 30
+Dollars in millions	2024	2024	2023
+Net interest income	$	3,302	$	3,264	$	3,510
+Taxable-equivalent adjustments	34	34	37
+Net interest income (Fully Taxable-Equivalent - FTE) (non-GAAP)	$	3,336	$	3,298	$	3,547
+
+The interest income earned on certain earning assets is completely or partially exempt from federal income tax. As such, these tax-exempt instruments typically yield lower returns than taxable investments. To provide more meaningful comparisons of net interest income, we use interest income on a taxable-equivalent basis by increasing the interest income earned on tax-exempt assets to make it fully equivalent to interest income earned on taxable investments. This adjustment is not permitted under GAAP. Taxable-equivalent net interest income is only used for calculating net interest margin. Net interest income shown elsewhere in this presentation is GAAP net interest income.
+- more -
+
+PNC Reports Second Quarter 2024 Net Income of $1.5 Billion, $3.39 Diluted EPS – Page 17
+Cautionary Statement Regarding Forward-Looking Information
+
+We make statements in this news release and related conference call, and we may from time to time make other statements, regarding our outlook for financial performance, such as earnings, revenues, expenses, tax rates, capital and liquidity levels and ratios, asset levels, asset quality, financial position, and other matters regarding or affecting us and our future business and operations, including our sustainability strategy, that are forward-looking statements within the meaning of the Private Securities Litigation Reform Act. Forward-looking statements are typically identified by words such as “believe,” “plan,” “expect,” “anticipate,” “see,” “look,” “intend,” “outlook,” “project,” “forecast,” “estimate,” “goal,” “will,” “should” and other similar words and expressions.
+
+Forward-looking statements are necessarily subject to numerous assumptions, risks and uncertainties, which change over time. Future events or circumstances may change our outlook and may also affect the nature of the assumptions, risks and uncertainties to which our forward-looking statements are subject. Forward-looking statements speak only as of the date made. We do not assume any duty and do not undertake any obligation to update forward-looking statements. Actual results or future events could differ, possibly materially, from those anticipated in forward-looking statements, as well as from historical performance. As a result, we caution against placing undue reliance on any forward-looking statements.
+
+Our forward-looking statements are subject to the following principal risks and uncertainties.
+▪Our businesses, financial results and balance sheet values are affected by business and economic conditions, including:
+–Changes in interest rates and valuations in debt, equity and other financial markets,
+–Disruptions in the U.S. and global financial markets,
+–Actions by the Federal Reserve Board, U.S. Treasury and other government agencies, including those that impact money supply, market interest rates and inflation,
+–Changes in customer behavior due to changing business and economic conditions or legislative or regulatory initiatives,
+–Changes in customers’, suppliers’ and other counterparties’ performance and creditworthiness,
+–Impacts of sanctions, tariffs and other trade policies of the U.S. and its global trading partners,
+–Impacts of changes in federal, state and local governmental policy, including on the regulatory landscape, capital markets, taxes, infrastructure spending and social programs,
+–Our ability to attract, recruit and retain skilled employees, and
+–Commodity price volatility.
+▪Our forward-looking financial statements are subject to the risk that economic and financial market conditions will be substantially different than those we are currently expecting and do not take into account potential legal and regulatory contingencies. These statements are based on our views that:
+–Job and income gains will continue to support consumer spending growth this year, but PNC’s baseline forecast is for slower economic growth in 2024 as higher interest rates remain a drag on the economy.
+–Real GDP growth this year will be close to trend at around 2%, and the unemployment rate will increase modestly to somewhat above 4% by the end of 2024. Inflation will continue to slow as wage pressures abate, gradually moving back to the Federal Reserve’s 2% long-term objective.
+–With slowing inflation PNC expects two federal funds rate cuts of 25 basis points each at the Federal Open Market Committee’s September and December meetings, with the rate ending this year in a range between 4.75% and 5.00%. PNC expects multiple federal funds rate cuts in 2025 as inflation continues to ease.
+
+▪PNC’s ability to take certain capital actions, including returning capital to shareholders, is subject to PNC meeting or exceeding minimum capital levels, including a stress capital buffer established by the Federal Reserve Board in connection with the Federal Reserve Board’s Comprehensive Capital Analysis and Review (CCAR) process.
+
+▪PNC's regulatory capital ratios in the future will depend on, among other things, PNC’s financial performance, the scope and terms of final capital regulations then in effect and management actions affecting the composition of PNC’s balance sheet. In addition, PNC’s ability to determine, evaluate and forecast regulatory capital ratios, and to take actions (such as capital distributions) based on actual or forecasted capital ratios, will be dependent at least in part on the development, validation and regulatory review of related models and the reliability of and risks resulting from extensive use of such models.
+
+- more -
+
+PNC Reports Second Quarter 2024 Net Income of $1.5 Billion, $3.39 Diluted EPS – Page 18
+Cautionary Statement Regarding Forward-Looking Information (Continued)
+
+▪Legal and regulatory developments could have an impact on our ability to operate our businesses, financial condition, results of operations, competitive position, reputation, or pursuit of attractive acquisition opportunities. Reputational impacts could affect matters such as business generation and retention, liquidity, funding, and ability to attract and retain employees. These developments could include:
+–Changes to laws and regulations, including changes affecting oversight of the financial services industry, changes in the enforcement and interpretation of such laws and regulations, and changes in accounting and reporting standards.
+–Unfavorable resolution of legal proceedings or other claims and regulatory and other governmental investigations or other inquiries resulting in monetary losses, costs, or alterations in our business practices, and potentially causing reputational harm to PNC.
+–Results of the regulatory examination and supervision process, including our failure to satisfy requirements of agreements with governmental agencies.
+–Costs associated with obtaining rights in intellectual property claimed by others and of adequacy of our intellectual property protection in general.
+
+▪Business and operating results are affected by our ability to identify and effectively manage risks inherent in our businesses, including, where appropriate, through effective use of systems and controls, third-party insurance, derivatives, and capital management techniques, and to meet evolving regulatory capital and liquidity standards.
+
+▪Our reputation and business and operating results may be affected by our ability to appropriately meet or address environmental, social or governance targets, goals, commitments or concerns that may arise.
+
+▪We grow our business in part through acquisitions and new strategic initiatives. Risks and uncertainties include those presented by the nature of the business acquired and strategic initiative, including in some cases those associated with our entry into new businesses or new geographic or other markets and risks resulting from our inexperience in those new areas, as well as risks and uncertainties related to the acquisition transactions themselves, regulatory issues, the integration of the acquired businesses into PNC after closing or any failure to execute strategic or operational plans.
+
+▪Competition can have an impact on customer acquisition, growth and retention and on credit spreads and product pricing, which can affect market share, deposits and revenues. Our ability to anticipate and respond to technological changes can also impact our ability to respond to customer needs and meet competitive demands.
+
+▪Business and operating results can also be affected by widespread manmade, natural and other disasters (including severe weather events), health emergencies, dislocations, geopolitical instabilities or events, terrorist activities, system failures or disruptions, security breaches, cyberattacks, international hostilities, or other extraordinary events beyond PNC’s control through impacts on the economy and financial markets generally or on us or our counterparties, customers or third-party vendors and service providers specifically.
+
+We provide greater detail regarding these as well as other factors in our 2023 Form 10-K and in our first quarter 2023 Form 10-Q, including in the Risk Factors and Risk Management sections and the Legal Proceedings and Commitments Notes of the Notes To Consolidated Financial Statements in those reports, and in our subsequent SEC filings. Our forward-looking statements may also be subject to other risks and uncertainties, including those we may discuss elsewhere in this news release or in our SEC filings, accessible on the SEC’s website at www.sec.gov and on our corporate website at www.pnc.com/secfilings. We have included these web addresses as inactive textual references only. Information on these websites is not part of this document.
+###

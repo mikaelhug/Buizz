@@ -1,0 +1,82 @@
+{
+ "accession": "0001093557-24-000078",
+ "cik": 1093557,
+ "published_at": "2024-04-25T20:05:23Z",
+ "facts": [
+  {
+   "fields": {
+    "metric": "revenue",
+    "metric_label": "Revenue",
+    "basis": "not_stated",
+    "period_label": "fiscal year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 4200000000,
+    "high": 4350000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Revenue of approximately $4.20 - 4.35 billion (17 - 21% organic growth2)"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "organic growth",
+    "basis": "non_gaap",
+    "period_label": "fiscal year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 17,
+    "high": 21,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Revenue of approximately $4.20 - 4.35 billion (17 - 21% organic growth2)"
+  },
+  {
+   "fields": {
+    "metric": "gross_margin",
+    "metric_label": "Non-GAAP Gross Profit Margin",
+    "basis": "non_gaap",
+    "period_label": "fiscal year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 63,
+    "high": 64,
+    "unit": "percent",
+    "stated_action": "reaffirmed"
+   },
+   "evidence": "Non-GAAP Gross Profit Margin of approximately 63 - 64%"
+  },
+  {
+   "fields": {
+    "metric": "operating_margin",
+    "metric_label": "Non-GAAP Operating Margin",
+    "basis": "non_gaap",
+    "period_label": "fiscal year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 20,
+    "high": 20,
+    "unit": "percent",
+    "stated_action": "reaffirmed"
+   },
+   "evidence": "Non-GAAP Operating Margin of approximately 20%"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Adjusted EBITDA Margin",
+    "basis": "non_gaap",
+    "period_label": "fiscal year 2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 29,
+    "high": 29,
+    "unit": "percent",
+    "stated_action": "reaffirmed"
+   },
+   "evidence": "Adjusted EBITDA Margin of approximately 29%"
+  }
+ ]
+}

@@ -1,0 +1,22 @@
+{
+ "accession": "0001104659-26-047123",
+ "cik": 1130310,
+ "published_at": "2026-04-23T10:16:08Z",
+ "facts": [
+  {
+   "fields": {
+    "metric": "eps_adjusted",
+    "metric_label": "non-GAAP EPS",
+    "basis": "non_gaap",
+    "period_label": "2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": null,
+    "low": 1.89,
+    "high": 1.91,
+    "unit": "usd_per_share",
+    "stated_action": "reaffirmed"
+   },
+   "evidence": "Reiterates its 2026 non-GAAP EPS guidance range of at least the midpoint of $1.89-$1.91, which, at the midpoint, would represent 8% growth over 2025 delivered results1"
+  }
+ ]
+}

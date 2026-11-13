@@ -1,0 +1,97 @@
+{
+ "accession": "0000950170-24-017560",
+ "cik": 1121788,
+ "published_at": "2024-02-21T12:02:14Z",
+ "facts": [
+  {
+   "fields": {
+    "metric": "revenue",
+    "metric_label": "Revenue",
+    "basis": "not_stated",
+    "period_label": "2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 5750000000,
+    "high": 5750000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Revenue\t$5.75B"
+  },
+  {
+   "fields": {
+    "metric": "revenue",
+    "metric_label": "revenue",
+    "basis": "not_stated",
+    "period_label": "2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 10,
+    "high": 10,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "We expect full year 2024 revenue of approximately $5.75 billion, an increase of approximately 10% over 2023."
+  },
+  {
+   "fields": {
+    "metric": "gross_margin",
+    "metric_label": "Gross Margin",
+    "basis": "not_stated",
+    "period_label": "2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 56.5,
+    "high": 56.5,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Gross Margin\t56.5%"
+  },
+  {
+   "fields": {
+    "metric": "operating_margin",
+    "metric_label": "Operating Margin",
+    "basis": "not_stated",
+    "period_label": "2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 20.0,
+    "high": 20.0,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Operating Margin\t20.0%"
+  },
+  {
+   "fields": {
+    "metric": "tax_rate",
+    "metric_label": "Pro forma Effective Tax Rate",
+    "basis": "non_gaap",
+    "period_label": "2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 15.5,
+    "high": 15.5,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Pro forma Effective Tax Rate\t15.5%"
+  },
+  {
+   "fields": {
+    "metric": "eps_adjusted",
+    "metric_label": "Pro forma EPS",
+    "basis": "non_gaap",
+    "period_label": "2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 5.4,
+    "high": 5.4,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Pro forma EPS\t$5.40"
+  }
+ ]
+}

@@ -1,0 +1,233 @@
+{
+ "accession": "0001262039-25-000014",
+ "cik": 1262039,
+ "published_at": "2025-05-07T20:11:27Z",
+ "note": "Billings basis non_gaap. RPO 'expect to recognize approximately $3.38 billion as revenue over the next 12 months' excluded: not a fiscal period.",
+ "facts": [
+  {
+   "fields": {
+    "metric": "revenue",
+    "metric_label": "Revenue",
+    "basis": "not_stated",
+    "period_label": "second quarter of 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": 2,
+    "low": 1590000000.0,
+    "high": 1650000000.0,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Revenue in the range of $1.590 billion to $1.650 billion"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Billings",
+    "basis": "non_gaap",
+    "period_label": "second quarter of 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": 2,
+    "low": 1685000000.0,
+    "high": 1765000000.0,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Billings in the range of $1.685 billion to $1.765 billion"
+  },
+  {
+   "fields": {
+    "metric": "gross_margin",
+    "metric_label": "Non-GAAP gross margin",
+    "basis": "non_gaap",
+    "period_label": "second quarter of 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": 2,
+    "low": 80.0,
+    "high": 81.0,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Non-GAAP gross margin in the range of 80.0% to 81.0%"
+  },
+  {
+   "fields": {
+    "metric": "operating_margin",
+    "metric_label": "Non-GAAP operating margin",
+    "basis": "non_gaap",
+    "period_label": "second quarter of 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": 2,
+    "low": 31.5,
+    "high": 32.5,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Non-GAAP operating margin in the range of 31.5% to 32.5%"
+  },
+  {
+   "fields": {
+    "metric": "eps_adjusted",
+    "metric_label": "Diluted non-GAAP net income per share",
+    "basis": "non_gaap",
+    "period_label": "second quarter of 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": 2,
+    "low": 0.58,
+    "high": 0.6,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Diluted non-GAAP net income per share in the range of $0.58 to $0.60, assuming a non-GAAP effective tax rate of 18%."
+  },
+  {
+   "fields": {
+    "metric": "tax_rate",
+    "metric_label": "non-GAAP effective tax rate",
+    "basis": "non_gaap",
+    "period_label": "second quarter of 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": 2,
+    "low": 18,
+    "high": 18,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Diluted non-GAAP net income per share in the range of $0.58 to $0.60, assuming a non-GAAP effective tax rate of 18%."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "diluted share count",
+    "basis": "not_stated",
+    "period_label": "second quarter of 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": 2,
+    "low": 773000000.0,
+    "high": 777000000.0,
+    "unit": "other",
+    "stated_action": "not_stated"
+   },
+   "evidence": "This assumes a diluted share count of 773 million to 777 million."
+  },
+  {
+   "fields": {
+    "metric": "revenue",
+    "metric_label": "Revenue",
+    "basis": "not_stated",
+    "period_label": "fiscal year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 6650000000.0,
+    "high": 6850000000.0,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Revenue in the range of $6.650 billion to $6.850 billion"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Service revenue",
+    "basis": "not_stated",
+    "period_label": "fiscal year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 4575000000.0,
+    "high": 4725000000.0,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Service revenue in the range of $4.575 billion to $4.725 billion"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Billings",
+    "basis": "non_gaap",
+    "period_label": "fiscal year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 7200000000.0,
+    "high": 7400000000.0,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Billings in the range of $7.200 billion to $7.400 billion"
+  },
+  {
+   "fields": {
+    "metric": "gross_margin",
+    "metric_label": "Non-GAAP gross margin",
+    "basis": "non_gaap",
+    "period_label": "fiscal year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 79.0,
+    "high": 81.0,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Non-GAAP gross margin in the range of 79.0% to 81.0%"
+  },
+  {
+   "fields": {
+    "metric": "operating_margin",
+    "metric_label": "Non-GAAP operating margin",
+    "basis": "non_gaap",
+    "period_label": "fiscal year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 31.5,
+    "high": 33.5,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Non-GAAP operating margin in the range of 31.5% to 33.5%"
+  },
+  {
+   "fields": {
+    "metric": "eps_adjusted",
+    "metric_label": "Diluted non-GAAP net income per share",
+    "basis": "non_gaap",
+    "period_label": "fiscal year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 2.43,
+    "high": 2.49,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Diluted non-GAAP net income per share in the range of $2.43 to $2.49, assuming a non-GAAP effective tax rate of 18%."
+  },
+  {
+   "fields": {
+    "metric": "tax_rate",
+    "metric_label": "non-GAAP effective tax rate",
+    "basis": "non_gaap",
+    "period_label": "fiscal year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 18,
+    "high": 18,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Diluted non-GAAP net income per share in the range of $2.43 to $2.49, assuming a non-GAAP effective tax rate of 18%."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "diluted share count",
+    "basis": "not_stated",
+    "period_label": "fiscal year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 769000000.0,
+    "high": 779000000.0,
+    "unit": "other",
+    "stated_action": "not_stated"
+   },
+   "evidence": "This assumes a diluted share count of 769 million to 779 million."
+  }
+ ]
+}

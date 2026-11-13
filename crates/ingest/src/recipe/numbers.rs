@@ -6,13 +6,13 @@ use rust_decimal::Decimal;
 
 static NUMBER: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"(?i)(?P<digits>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?|\.\d+)|\b(?P<word>zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|twelfth)(?:[-\s](?P<unit>one|two|three|four|five|six|seven|eight|nine)\b)?\b",
+        r"(?i)(?P<digits>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?|\.\d+)|\b(?P<word>flat|zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|twelfth)(?:[-\s](?P<unit>one|two|three|four|five|six|seven|eight|nine)\b)?\b",
     )
     .expect("a valid number pattern")
 });
 
 static SCALE_WORD: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)^\s*(hundred|thousand|million|billion|trillion)\b")
+    Regex::new(r"(?i)^\+?\s*(hundred|thousand|million|billion|trillion)\b")
         .expect("a valid scale pattern")
 });
 
@@ -23,13 +23,24 @@ static PERCENT: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)^\s*(%|percent\b|per\s+cent\b)").expect("a valid percent pattern")
 });
 
+static CENTS: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)^\s*cents?\b").expect("a valid cents pattern"));
+
 static RANGE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)^\s*(?:%|percent)?\s*(?:to|-|–|—|and|or|through)\s*(?:US\$|\$|USD)?\s*$")
         .expect("a valid range pattern")
 });
 
 static DECLARED: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)\bin\s+(thousands|millions|billions)\b").expect("a valid declaration pattern")
+    Regex::new(
+        r"(?i)\bin\s+(thousands|millions|billions)\b|\(\s*(?:(?:US)?\$\s*)?(?:in\s+)?(thousands|millions|billions)\s*\)|\(\s*(?:US)?\$\s*(?:in\s+)?(K|M|MM|B|BN)\s*\)",
+    )
+    .expect("a valid declaration pattern")
+});
+
+static PLUS_OR_MINUS: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)^\s*(?:hundred|thousand|million|billion|trillion|k|mm|mn|m|bn|b|tn)?\s*,?\s*(?:plus\s+or\s+minus|\+/-|±)\s*(?:US\$|\$|USD)?\s*$")
+        .expect("a valid plus or minus pattern")
 });
 
 struct Token {
@@ -38,6 +49,7 @@ struct Token {
     end: usize,
     scale: Option<Decimal>,
     percent: bool,
+    cents: bool,
 }
 
 fn power(exponent: u32) -> Decimal {
@@ -87,6 +99,7 @@ fn word_value(word: &str) -> u32 {
     let word = word.to_ascii_lowercase();
     let position = |list: &[&str]| list.iter().position(|known| *known == word);
     position(&WORDS)
+        .or_else(|| (word == "flat").then_some(0))
         .or_else(|| position(&TENS).map(|tens| (tens + 2) * 10))
         .or_else(|| position(&ORDINALS).map(|ordinal| ordinal + 1))
         .and_then(|value| u32::try_from(value).ok())
@@ -96,7 +109,8 @@ fn word_value(word: &str) -> u32 {
 pub(crate) fn declared_scales(section: &str) -> Vec<Decimal> {
     let mut scales: Vec<Decimal> = DECLARED
         .captures_iter(section)
-        .map(|found| scale_of(&found[1]))
+        .filter_map(|found| found.iter().skip(1).flatten().next())
+        .map(|scale| scale_of(scale.as_str()))
         .collect();
     scales.sort();
     scales.dedup();
@@ -129,6 +143,7 @@ fn tokens(quote: &str) -> Vec<Token> {
                 end: whole.end(),
                 scale,
                 percent: scale.is_none() && PERCENT.is_match(rest),
+                cents: CENTS.is_match(rest),
             })
         })
         .collect();
@@ -144,13 +159,29 @@ fn tokens(quote: &str) -> Vec<Token> {
     tokens
 }
 
+impl Token {
+    fn scaled(&self) -> Decimal {
+        self.scale
+            .and_then(|scale| self.value.checked_mul(scale))
+            .unwrap_or(self.value)
+    }
+}
+
 pub(crate) fn written_values(quote: &str, declared: &[Decimal]) -> Vec<Decimal> {
     let mut values = Vec::new();
-    for token in tokens(quote) {
+    let tokens = tokens(quote);
+    for pair in tokens.windows(2) {
+        if PLUS_OR_MINUS.is_match(&quote[pair[0].end..pair[1].start]) {
+            let (centre, spread) = (pair[0].scaled(), pair[1].scaled());
+            values.extend(centre.checked_sub(spread));
+            values.extend(centre.checked_add(spread));
+        }
+    }
+    for token in tokens {
         values.push(token.value);
         if let Some(scale) = token.scale {
             values.extend(token.value.checked_mul(scale));
-        } else if token.percent {
+        } else if token.percent || token.cents {
             values.extend(token.value.checked_div(power(2)));
         } else {
             values.extend(
@@ -200,5 +231,24 @@ mod tests {
         ));
         assert!(written("for Q3 of fiscal 2026", "", "3"));
         assert!(written("a $500M buyback", "", "500000000"));
+        let row = "Interest and other expense, net ($M)\t~$95\t~$95";
+        assert!(written(row, row, "95000000"));
+        let spread = "net sales to be approximately $6.51 billion, plus or minus $400 million";
+        assert!(written(spread, spread, "6110000000"));
+        assert!(written(spread, spread, "6910000000"));
+        let shares = "Shares used in computing diluted earnings per share (millions)\t43.5";
+        assert!(written(shares, shares, "43500000"));
+        assert!(!written(
+            "Rule 5550(b)(2) requires 1",
+            "Rule 5550(b)(2)",
+            "1000000000"
+        ));
+        assert!(written("comparable sales flat to up 1%", "", "0"));
+        assert!(written("estimated to be about 35 cents.", "", "0.35"));
+        assert!(written(
+            "Adjusted free cash flow\t$1.2+ billion",
+            "",
+            "1200000000"
+        ));
     }
 }

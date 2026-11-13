@@ -1,0 +1,437 @@
+Exhibit 99.1
+Qnity Reports Fourth Quarter and Full Year 2025 Results
+–Full year net sales of $4.75 billion, up 10% year-over-year, organic sales(1) up 10%
+–GAAP net income of $729 million, up 1% year-over-year; Adjusted Pro Forma Earnings(1) of $703 million, up 13% year-over-year
+–Adjusted Pro Forma Operating EBITDA(1) of $1.4 billion, up 11% year-over-year
+–GAAP EPS of $3.30; Adjusted Pro Forma EPS(1) of $3.35, up 12% year-over-year
+–Provides full year 2026 financial guidance
+–Announces multi-year transformation plan to deliver $100 million run rate EBITDA benefit by 2028
+–Authorizes the repurchase of up to $500 million of outstanding common shares
+
+WILMINGTON, Del., Feb. 26, 2026 - Qnity Electronics, Inc. (“Qnity”) (NYSE: Q) today reported results for the fourth quarter and full year ended December 31, 2025.
+
+“We successfully completed our spin-off into an independent company in November, establishing Qnity as a leading pure play technology solutions provider across the semiconductor value chain,” said Jon Kemp, Qnity’s Chief Executive Officer. “Our fourth quarter and full year 2025 results reflect disciplined execution with strong organic growth across both of our segments driven by our differentiated solutions for the industry’s most advanced technologies. This performance is a testament to the strength of our end-to-end portfolio, the depth of our customer relationships, and our local-for-local operating model.”
+
+Kemp added, “Looking to 2026, we are well positioned to drive sustained growth by leveraging our deep innovation and application engineering expertise to address our customers’ most complex challenges and capitalize on continued demand for AI, high-performance computing, and advanced connectivity. At the same time, we are beginning to implement a multi-year transformation plan to simplify our operating model, enhance productivity, and reduce costs. We remain focused on shareholder value creation by continuing to advance our strategy and returning capital to shareholders through our dividend and a share repurchase authorization.”
+
+Financial Results Summary
+In millions, except per share amounts	GAAP Results
+Three Months Ended	Full Year
+Q4 2025	Q4 2024	2025	2024
+Net Sales	$	1,190	$	1,101	$	4,754	$	4,335
+Semiconductor Technologies	661	616	2,642	2,450
+Interconnect Solutions	529	485	2,112	1,885
+Gross Profit	$	549	$	515	$	2,195	$	1,996
+Net Income	$	109	$	221	$	729	$	724
+Diluted Earnings Per Share	$	0.48	$	1.02	$	3.30	$	3.31
+Non-GAAP Results (1)
+Adjusted Pro Forma Gross Profit	$	549	$	517	$	2,198	$	2,004
+Adjusted Pro Forma Operating EBITDA	$	349	$	322	$	1,402	$	1,262
+Adjusted Pro Forma Earnings, net of tax	$	173	$	182	$	703	$	623
+Adjusted Pro Forma Earnings Per Share	$	0.82	$	0.87	$	3.35	$	2.98
+(1) Organic sales, Adjusted Pro Forma Gross Profit, Adjusted Pro Forma Operating EBITDA, Adjusted Pro Forma Earnings, and Adjusted Pro Forma EPS are non-GAAP measures. The Pro Forma non-GAAP measures give effect to pro forma adjustments related to interest expense associated with our current indebtedness, agreements executed in connection with the spin-off from DuPont de Nemours, Inc. ("DuPont") and other standalone costs as if the transaction had occurred on January 1, 2024. See “Non-GAAP Measures” for further discussion, including a definition of significant items. Reconciliations to the most directly comparable GAAP measure, including details of significant items, can be found in the “Non-GAAP Measures” section of this press release.
+
+Outlook for Full Year 2026
+Qnity’s full year 2026 guidance2 is as follows:
+Net Sales	$4.97B - $5.17B
+Adjusted Operating EBITDA	$1.465B - $1.575B
+Adjusted EPS	$3.55 to $3.95
+Adjusted free cash flow	$450M - $550M
+Transformation Plan
+Today, Qnity also announced a multi-year transformation plan designed to support its long-term strategy and unlock future growth and profitability. The program aims to enhance commercial and innovation excellence, strengthen operational productivity through automation and tailored AI applications, and optimize the Company’s presence in key markets central to its core activities and growth potential. These combined actions are expected to deliver approximately $100 million in Adjusted Operating EBITDA run-rate benefit by the end of 2028. To execute this program, Qnity expects to incur approximately $140 million in costs to achieve over the next two to three years.
+Share Repurchase Authorization
+Qnity’s Board of Directors authorized the repurchase of up to $500 million of outstanding common stock. This authorization reflects the Company’s commitment to maintaining a balanced, returns-focused capital allocation framework and enhancing long-term shareholder value. The share repurchase program has no expiration date. Repurchases may be effected from time to time, either on the open market (including pre-set trading plans), in privately negotiated transactions, and other transactions in accordance with applicable securities laws. The timing and amount of repurchases under the program will depend on a variety of factors.
+Conference Call and Webcast Information
+Qnity will hold a conference call to review these results on Thursday, February 26, 2026, at 8:00 a.m. ET. Investors can join the conference call via telephone by dialing (800) 343-5172 (domestic) or +1 (203) 518-9856 (international) and using the participant code QNITY. An audio-only live webcast, presentation materials, and replay will also be made available at Events | Qnity Electronics, Inc. (Q).
+About Qnity
+Qnity is a premier technology provider across the semiconductor value chain, empowering AI, high performance computing, and advanced connectivity. From groundbreaking solutions for semiconductor chip manufacturing, to enabling high-speed transmission within complex electronic systems, our high-performance materials and integration expertise make tomorrow’s technologies possible. More information about the company, its businesses and solutions can be found at www.qnityelectronics.com.
+Qnity™, the Qnity Node Logo, and all products, unless otherwise noted, denoted with TM or ® are trademarks, trade names or registered trademarks of affiliates of Qnity Electronics, Inc.
+
+2 We calculate forward-looking Adjusted Operating EBITDA, Adjusted EPS, and Adjusted Free Cash Flow based on internal forecasts that exclude certain information that would be included in the most directly comparable forward-looking GAAP measures. We are not providing a quantitative reconciliation of forward-looking Non-GAAP financial measures to the corresponding GAAP financial measure for these measures due to the unreasonable effort and uncertainty in estimating certain items necessary for such reconciliations, including adjustments that could be made for significant items, interest expense, indirect legacy benefits/costs, restructurings, acquisition, integration, and separation costs, share-based compensation amounts, non-recurring, unusual or unanticipated charges, expenses or gains.
+2
+
+Cautionary Statement Regarding Forward-Looking Statements
+This release contains “forward-looking statements” within the meaning of the “safe harbor” provisions of the U.S. Private Securities Litigation Reform Act of 1995. Forward-looking statements use words such as "plans", "expects", "will", "would", "anticipates", "believes", "intends", "seeks", "projects", "efforts", "estimates", "potential", "continue", "intend", “outlook”, "may", "could", "should" and similar expressions, among others, as well as other words or expressions referencing future events, conditions or circumstances. Statements that describe or relate to the market, industry and macroeconomic environment, Qnity's business plans or prospects, goals, intentions, strategies, future operating or financial performance, outlook, including without limitation statements under the heading “Outlook for Full Year 2026” and statements regarding Qnity’s strategic path, operating model, transformation plan and its expected costs and benefits and timing thereof, share repurchases, and capital allocation plan to deliver above-market growth and strong profitability and statements that do not relate to historical or current fact, are examples of forward-looking statements. Forward-looking statements are based on our current beliefs, expectations and assumptions, which may not prove to be accurate, and involve a number of known and unknown risks and uncertainties, many of which are out of Qnity's control. Forward-looking statements are not guarantees of future performance, and there are a number of important factors that could cause actual outcomes and results to differ materially from the results contemplated by such forward-looking statements, including Qnity’s ability to realize the anticipated benefits of its multi-year transformation plan in the anticipated timeframe or at all and the risk that the costs of such plan may be higher than currently anticipated; the competitive environment in which Qnity operates; the risks from Qnity’s international operations, including trade restrictions and sanctions laws; Qnity’s ability to comply with complex and increasing legal and regulatory requirements; the ability to realize the intended benefits of Qnity’s spin-off from DuPont, including achievement of the anticipated synergies and operational efficiencies in connection with the spin-off and completed and future, if any, divestitures, mergers, acquisitions, and other portfolio management, productivity and infrastructure actions; contractual allocation of certain liabilities in connection with the spin-off; and the possibility of disputes, litigation or unanticipated costs in connection with the spin-off. Additional information concerning risks and uncertainties can be found in Qnity's filings with the U.S. Securities and Exchange Commission (the “SEC”), including under the headings “Management’s Discussion and Analysis of Financial Condition and Results of Operations” and “Risk Factors” in the Information Statement, dated October 15, 2025, filed as Exhibit 99.1 to Qnity’s Current Report on Form 8-K filed with the SEC on October 15, 2025 and in Qnity’s future filings with the SEC. Any forward-looking statement speaks only as of the date on which it is made. Qnity does not undertake any obligation to publicly update or revise any forward-looking statements, whether as a result of new information, future events or otherwise, except as required by applicable law.
+
+Investor Contact
+Nahla Azmy
+nahla.azmy@qnityelectronics.com
+
+Media Contact
+Ashley Boucher
+ashley.boucher@qnityelectronics.com
+
+3
+
+Non-GAAP Financial Measures
+
+This press release includes information that does not conform to accounting principles generally accepted in the United States of America (“U.S. GAAP”) and are considered non-GAAP measures, including the presentation of Organic Sales, Adjusted Pro Forma Gross Profit, Adjusted Operating EBITDA, Adjusted Pro Forma Operating EBITDA, Adjusted Pro Forma Operating EBITDA Margin, Adjusted Earnings, Adjusted Pro Forma Earnings, Adjusted EPS, Adjusted Pro Forma EPS, Base Tax Rate, Adjusted Free Cash Flow, Adjusted Pro Forma Free Cash Flow. The non-GAAP measures presented are not necessarily indicative of the future possible key performance indicators or non-GAAP measures of Qnity.
+
+Qnity believes these non-GAAP financial measures are useful to investors because they provide additional information related to the performance of Qnity on an as-managed basis by DuPont and a stand-alone basis. These non-GAAP financial measures supplement disclosures prepared in accordance with U.S. GAAP and reflect results in a manner that enables, in some instances, more meaningful analysis of trends and facilitates comparison of results across periods. These non-GAAP financial measures should not be viewed as an alternative to U.S. GAAP. Furthermore, such non-GAAP measures may not be consistent with similar measures provided or used by other companies. Reconciliations for these non-GAAP measures to their most directly comparable U.S. GAAP financial measures are provided below. Non-GAAP measures included in this press release are defined below.
+
+Adjusted Earnings is defined as net income available for Qnity common stockholders excluding the impacts of significant items, amortization expense of intangibles, non-operating pension / other post-employment benefits (“OPEB”) credits / costs, and indirect legacy benefits/costs and adjusted for the income tax effect of these excluded items. Adjusted Earnings is the numerator used in the calculation of Adjusted EPS.
+
+Adjusted EPS is defined as Adjusted Earnings per common share - diluted.
+
+Base Tax Rate is a non-GAAP measure defined as the GAAP Effective Tax Rate excluding the tax rate impacts of adjustments to net income available for Qnity common stockholders in determining Adjusted Earnings.
+
+Adjusted Operating EBITDA is defined as Pre-tax Earnings (i.e., “Income before income taxes") before interest, depreciation, amortization, non-operating pension / OPEB benefits / charges, foreign exchange gains / losses, indirect legacy benefits/costs, and adjusted for significant items.
+
+Adjusted Operating EBITDA Margin is defined as Adjusted Operating EBITDA divided by Net Sales.
+
+Adjusted Free Cash Flow is defined as cash provided by/used for operating activities less capital expenditures and excluding the impact of indirect legacy benefits/costs related to cost sharing arrangements executed between DuPont and Qnity at the time of spin-off, IT independence costs, and acquisition, integration, and separation costs, as well as cash inflows/outflows that are unusual in nature and/or infrequent in occurrence that neither relate to the ordinary course of the Company's underlying business liquidity.
+
+Significant items are items that impact Qnity and arise outside the ordinary course of business that management believes may cause misinterpretation of underlying business performance, both historical and future, based on a combination of some or all of the item’s size, unusual nature and infrequent occurrence. Within this definition, Management classifies as significant items certain costs and expenses associated with acquisition, integration, and separation activities related to transformational acquisitions and divestitures as they are considered unrelated to ongoing business performance.
+4
+
+Indirect legacy benefits/costs relate to cost sharing arrangements executed between DuPont and Qnity at the time of the spin-off. Such costs include certain litigation and environmental-related shared costs, taxes, and indirect cost sharing arrangements, and are excluded from Adjusted Operating EBITDA, as defined above, as they are considered unrelated to ongoing Qnity business performance.
+
+Organic Sales is defined as net sales excluding the impacts of currency and portfolio actions.
+
+Qnity has also presented measures on a pro forma basis which were prepared in a manner consistent with Article 11 of Regulation S-X. Our pro forma results give effect to the spin-off and related transactions as if the transaction occurred on January 1, 2024. Our Pro Forma adjustments reflect:
+•Interest expense associated with our current debt structure;
+•The impact of the Transition Services Agreements and other commercial agreements entered into with DuPont in connection with the spin-off; and
+•Transaction and other incremental costs required to operate as a stand-alone entity.
+We believe pro forma measures are helpful to supplement our financial results as they allow a comparison of results as a stand-alone company as if the agreements were in place for the periods presented.
+
+Adjusted Pro Forma Earnings is defined as net income available for Qnity common stockholders excluding the impacts of significant items, amortization expense of intangibles, non-operating pension / other post-employment benefits credits / costs, and indirect legacy benefits/costs, less the after-tax impacts of the pro forma adjustments described above and adjusted for the income tax effect of these excluded items. Adjusted Pro Forma Earnings is the numerator used in the calculation of Adjusted Pro Forma EPS.
+
+Adjusted Pro Forma EPS is defined as Adjusted Pro Forma Earnings per common share - diluted.
+
+Adjusted Pro Forma Operating EBITDA is defined as Adjusted Operating EBITDA less certain pro forma adjustments described above.
+
+Adjusted Pro Forma Operating EBITDA Margin is defined as Adjusted Pro Forma Operating EBITDA divided by Net Sales.
+
+Adjusted Pro Forma Free Cash Flow is defined as pro forma cash provided by/used for operating activities less capital expenditures and excluding the impact of indirect legacy costs related to cost sharing arrangements executed between DuPont and Qnity at the time of spin-off, IT independence costs, acquisition, integration, and separation costs, and transaction and other incremental costs required to operate as a stand-alone entity, as well as cash inflows/outflows that are unusual in nature and/or infrequent in occurrence that neither relate to the ordinary course of the Company's underlying business liquidity.
+
+Adjusted Pro Forma Gross Profit is calculated as Gross Profit (net sales less cost of sales), excluding the impact on Cost of Sales from certain services associated with transaction agreements entered with DuPont, including the Transition Services Agreement, certain product service agreements, contract manufacturing agreements, raw materials supply agreements, and site services agreements.
+5
+Qnity Electronics, Inc.
+Consolidated Statements of Operations
+
+Three Months Ended December 31,	Twelve Months Ended December 31,
+In millions, except per share amounts (Unaudited)	2025	2024	2025	2024
+Net sales	$	1,190	$	1,101	$	4,754	$	4,335
+Cost of sales	641	586	2,559	2,339
+Research and development expenses	90	84	354	314
+Selling, general and administrative expenses	167	142	620	603
+Amortization of intangibles	51	55	207	232
+Restructuring and asset related charges - net	—	1	20	8
+Acquisition, integration and separation costs	25	—	25	—
+Equity in earnings of nonconsolidated affiliates	10	4	47	37
+Interest expense	51	—	65	—
+Other income (expense) - net	14	16	11	25
+Income before income taxes	$	189	$	253	$	962	$	901
+Provision for income taxes	80	32	233	177
+Net income	$	109	$	221	$	729	$	724
+Net income attributable to noncontrolling interests	9	8	37	31
+Net income available for Qnity common stockholders	$	100	$	213	$	692	$	693
+Per common share data:
+Earnings per common share - basic	$	0.48	$	1.02	$	3.30	$	3.31
+Earnings per common share - diluted	0.48	1.02	3.30	3.31
+Weighted-average common shares outstanding - basic	209.6	209.4	209.6	209.4
+Weighted-average common shares outstanding - diluted	210.0	209.4	209.8	209.4
+6
+Qnity Electronics, Inc.
+Consolidated Balance Sheets
+
+(In millions, except share and par value amounts)	December 31, 2025	December 31, 2024
+Assets
+Current Assets
+Cash and cash equivalents	$	915	$	166
+Accounts and notes receivable - net	992	682
+Inventories - net	661	597
+Prepaid and other current assets	70	38
+Total current assets	$	2,638	$	1,483
+Property
+Property, plant and equipment	3,151	2,669
+Less: Accumulated depreciation	1,450	1,121
+Property, plant and equipment - net	1,701	1,548
+Other Assets
+Goodwill	7,522	7,379
+Other intangible assets	1,111	1,286
+Investments and noncurrent receivables	402	394
+Deferred income tax assets	42	42
+Deferred charges and other assets	654	141
+Total other assets	$	9,731	$	9,242
+Total Assets	$	14,070	$	12,273
+Liabilities and Equity
+Current Liabilities
+Short-term borrowings	24	—
+Accounts payable	680	528
+Income taxes payable	150	161
+Accrued and other current liabilities	502	150
+Total current liabilities	$	1,356	$	839
+Long-Term Debt	4,003	—
+Other Noncurrent Liabilities
+Deferred income tax liabilities	273	259
+Pension and other post-employment benefits - noncurrent	80	65
+Other noncurrent obligations	992	214
+Total other noncurrent liabilities	$	1,345	$	538
+Total Liabilities	$	6,704	$	1,377
+Commitments and contingent liabilities
+Stockholders' Equity
+Common stock (authorized 1,666,666,667 shares of $0.01 par value each; issued 2025: 209,479,173 shares; 2024: 0 shares)	2	—
+Preferred stock (authorized 1 share of $1.50 million par value; issued 2025: 1 share; 2024: 0 shares)	2	—
+Additional paid-in capital	7,286	—
+Retained earnings	18	—
+Parent company net investment	—	11,058
+Accumulated other comprehensive loss	(213)	(414)
+Total Qnity equity	$	7,095	$	10,644
+Noncontrolling interests	271	252
+Total equity	$	7,366	$	10,896
+Total Liabilities and Equity	$	14,070	$	12,273
+
+7
+Qnity Electronics, Inc.
+Consolidated Statement of Cash Flows
+
+(In millions) For the years ended December 31,	2025	2024
+Operating Activities
+Net income	$	729	$	724
+Adjustments to reconcile net income to net cash provided by operating activities:
+Depreciation of property, plant and equipment	169	162
+Amortization of definite-lived intangible assets	207	232
+Stock-based compensation	20	13
+Credit for deferred income tax and other tax related items	(79)	(81)
+Net gain on sales of assets	(1)	(16)
+Restructuring and asset related charges - net	20	8
+Net periodic pension benefit cost	9	5
+Periodic benefit plan contributions	(10)	(4)
+Earnings of nonconsolidated affiliates less dividends received	(5)	4
+Changes in assets and liabilities:
+Accounts and notes receivable	(12)	(53)
+Inventories	(51)	(84)
+Other assets	(395)	39
+Accounts payable	119	78
+Accrued and other current liabilities	108	39
+Other noncurrent liabilities	385	(33)
+Income tax liabilities	60	28
+Cash provided by operating activities	$	1,273	$	1,061
+Investing Activities
+Capital expenditures	(285)	(200)
+Proceeds from sales of property and other assets	—	15
+Other investing activities, net	—	13
+Cash used for investing activities	$	(285)	$	(172)
+Financing Activities
+Proceeds from issuance of Company stock	1	—
+Proceeds from issuance of Preferred stock	2	—
+Distributions to noncontrolling interests	(21)	(17)
+Dividends paid to stockholders	(13)	—
+Net transfers to Parent (DuPont)	(4,229)	(831)
+Proceeds from issuance of long-term debt	4,100	—
+Payments for debt issuance costs	(88)	—
+Cash used for financing activities	$	(248)	$	(848)
+Effect of exchange rate changes on cash and cash equivalents	9	(14)
+Increase in cash and cash equivalents	$	749	$	27
+Cash and cash equivalents at beginning of the period	$	166	$	139
+Cash and cash equivalents at end of period	$	915	$	166
+(In millions) For the years ended December 31,	2025	2024
+Supplemental cash flow information
+Cash paid during the year for:
+Interest, net of amounts capitalized	$	—	$	—
+Income taxes, net of refunds	94	62
+8
+Qnity Electronics, Inc.
+Net Sales by Segment and Geographic Region
+Net Sales by Segment and Geographic Region	Three Months Ended	Twelve Months Ended
+In millions (Unaudited)	December 31, 2025	December 31, 2024	December 31, 2025	December 31, 2024
+Semiconductor Technologies	$	661	$	616	$	2,642	$	2,450
+Interconnect Solutions	529	485	2,112	1,885
+Total	$	1,190	$	1,101	$	4,754	$	4,335
+Americas 1	$	157	$	148	$	629	$	559
+EMEA 2	85	86	378	358
+Asia Pacific	948	867	3,747	3,418
+Total	$	1,190	$	1,101	$	4,754	$	4,335
+
+Net Sales Variance by Segment and Geographic Region	Twelve Months Ended December 31, 2025
+Local Price & Product Mix	Volume	Total Organic	Currency	Total
+Percent change from prior year (Unaudited)
+Semiconductor Technologies	(1)	%	9	%	8	%	—	%	8	%
+Interconnect Solutions	(2)	14	12	—	12
+Total	(1)	%	11	%	10	%	—	%	10	%
+Americas 1	—	%	13	%	13	%	—	%	13	%
+EMEA 2	(1)	6	5	1	6
+Asia Pacific	(1)	11	10	—	10
+Total	(1)	%	11	%	10	%	—	%	10	%
+
+Net Sales Variance by Segment and Geographic Region	Twelve Months Ended December 31, 2024
+Local Price & Product Mix	Volume	Total Organic	Currency	Total
+Percent change from prior year (Unaudited)
+Semiconductor Technologies	(2)	%	12	%	10	%	(1)	%	9	%
+Interconnect Solutions	(2)	9	7	(1)	6
+Total	(2)	%	10	%	8	%	(1)	%	7	%
+Americas 1	—	%	(4)	%	(4)	%	—	%	(4)	%
+EMEA 2	(2)	(1)	(3)	—	(3)
+Asia Pacific	(2)	14	12	(1)	11
+Total	(2)	%	10	%	8	%	(1)	%	7	%
+1.Includes United States, Canada, and Latin America
+2.Europe, Middle East and Africa.
+9
+Qnity Electronics, Inc.
+Net Sales by Segment and Geographic Region
+Net Sales Variance by Segment and Geographic Region	Three Months Ended December 31, 2025
+Local Price & Product Mix	Volume	Total Organic	Currency	Total
+Percent change from prior year (Unaudited)
+Semiconductor Technologies	(2)	%	9	%	7	%	—	%	7	%
+Interconnect Solutions	(1)	9	8	1	9
+Total	(1)	%	9	%	8	%	—	%	8	%
+Americas 1	1	%	5	%	6	%	—	%	6	%
+EMEA 2	(3)	(1)	(4)	3	(1)
+Asia Pacific	(2)	11	9	—	9
+Total	(1)	%	9	%	8	%	—	%	8	%
+
+Net Sales Variance by Segment and Geographic Region	Three Months Ended December 31, 2024
+Local Price & Product Mix	Volume	Total Organic	Currency	Total
+Percent change from prior year (Unaudited)
+Semiconductor Technologies	(2)	%	12	%	10	%	—	%	10	%
+Interconnect Solutions	(1)	12	11	—	11
+Total	(2)	%	12	%	10	%	—	%	10	%
+Americas 1	(1)	%	12	%	11	%	—	%	11	%
+EMEA 2	(2)	(4)	(6)	1	(5)
+Asia Pacific	(2)	14	12	—	12
+Total	(2)	%	12	%	10	%	—	%	10	%
+1.Includes United States, Canada, and Latin America
+2.Europe, Middle East and Africa.
+10
+Qnity Electronics, Inc.
+Selected Financial Information and Non-GAAP Measures
+Reconciliation of Net Income to Adjusted Operating EBITDA and Adjusted Pro Forma Operating EBITDA and reconciliation of Net Income Margin to Adjusted Pro Forma Operating EBITDA Margin	Three Months Ended	Twelve Months Ended
+In millions (Unaudited)	Dec 31, 2025	Dec 31, 2024	Dec 31, 2025	Dec 31, 2024
+Net Income (GAAP)	$	109	$	221	$	729	$	724
++ Provision for income taxes	80	32	233	177
+Income before income taxes	$	189	$	253	$	962	$	901
++ Depreciation and amortization	96	97	376	394
+'- Interest income 1	2	—	2	—
+'+ Interest expense	51	—	65	—
+'- Non-operating pension/OPEB benefit credits	4	—	2	1
+'- Foreign exchange gains (losses), net	—	2	(4)	5
+- Indirect legacy benefits (costs) - net	5	—	5	—
+- Significant items (charge) benefit	(25)	14	(43)	(18)
+Adjusted Operating EBITDA (non-GAAP)	$	350	$	334	$	1,441	$	1,307
++ Pro forma adjustments 2, 3	(1)	(12)	(39)	(45)
+Adjusted Pro Forma Operating EBITDA (non-GAAP)	$	349	$	322	$	1,402	$	1,262
+Net Income Margin (GAAP)	9.2	%	20.1	%	15.3	%	16.7	%
+Adjusted Pro Forma Operating EBITDA Margin (non-GAAP)	29.3	%	29.2	%	29.5	%	29.1	%
+1.The twelve months period ended December 31, 2025 excludes accrued interest income earned on employee retention credits. Refer to details of significant items below.
+2.Reflects the incremental costs required to operate as a stand-alone entity in the amount of $1 million and $15 million for the three months ended December 31, 2025 and 2024, respectively, and $46 million and $60 million for the twelve months ended December 31, 2025 and 2024.
+3.Reflects the net benefit of the Transition Services Agreements and other commercial agreements entered into with DuPont in connection with the spin-off in the amount of zero and $3 million for the three months ended December 31, 2025 and 2024, respectively, and $7 million and $15 million for the twelve months ended December 31, 2025 and 2024, respectively.
+
+Adjusted Operating EBITDA by Segment	Three Months Ended	Twelve Months Ended
+In millions (Unaudited)	Dec 31, 2025	Dec 31, 2024	Dec 31, 2025	Dec 31, 2024
+Semiconductor Technologies	$	232	$	221	$	945	$	884
+Interconnect Solutions	136	117	539	448
+Corporate	(18)	(4)	(43)	(25)
+Total	$	350	$	334	$	1,441	$	1,307
++ Pro forma adjustments 1, 2	(1)	(12)	(39)	(45)
+Adjusted Pro Forma Operating EBITDA (non-GAAP)	$	349	$	322	$	1,402	$	1,262
+1.Reflects the incremental costs required to operate as a stand-alone entity in the amount of $1 million and $15 million for the three months ended December 31, 2025 and 2024, respectively, and $46 million and $60 million for the twelve months ended December 31, 2025 and 2024.
+2.Reflects the net benefit of the Transition Services Agreements and other commercial agreements entered into with DuPont in connection with the spin-off in the amount of zero and $3 million for the three months ended December 31, 2025 and 2024, respectively, and $7 million and $15 million for the twelve months ended December 31, 2025 and 2024, respectively.
+
+Equity in Earnings of Nonconsolidated Affiliates by Segment	Three Months Ended	Twelve Months Ended
+In millions (Unaudited)	Dec 31, 2025	Dec 31, 2024	Dec 31, 2025	Dec 31, 2024
+Semiconductor Technologies	$	10	$	6	$	48	$	40
+Interconnect Solutions	—	(2)	(1)	(3)
+Total Equity Earnings included in Net Income (GAAP)	$	10	$	4	$	47	$	37
+11
+Qnity Electronics, Inc.
+Selected Financial Information and Non-GAAP Measures
+
+Reconciliation of Cash provided by operating activities to Adjusted Free Cash Flow 1, Adjusted Pro Forma Free Cash Flow 1	Twelve Months Ended
+In millions (Unaudited)	Dec 31, 2025	Dec 31, 2024
+Cash provided by operating activities (GAAP) 2	$	1,273	$	1,061
+Capital expenditures	(285)	(200)
+Transaction costs	15	—
+Adjusted Free Cash Flow (non-GAAP)	$	1,003	$	861
+Pro forma adjustments 3, 4, 5, 6	(297)	(292)
+Adjusted Pro Forma Free Cash Flow (non-GAAP)	$	706	$	569
+1.Refer to the definitions of Non-GAAP metrics on pages 4-5 for additional information.
+2.Refer to the Consolidated Statement of Cash Flows included in the schedules above for major GAAP cash flow categories as well as further detail relating to the changes in "Cash provided by operating activities" for the twelve month periods noted.
+3.Reflects the after-tax incremental interest expense related to our current debt structure in the amount of $186 million and $241 million for the twelve months ended December 31, 2025 and 2024, respectively
+4.Reflects the after-tax incremental costs required to operate as a stand-alone entity in the amount of $35 million and $46 million for the twelve months ended December 31, 2025 and 2024.
+5.Reflects the net after-tax benefit of the Transition Services Agreements and other commercial agreements entered into with DuPont in connection with the spin-off in the amount of $5 million and $12 million for the twelve months ended December 31, 2025 and 2024, respectively.
+6.Reflects an adjustment to reflect principal payments and interest expense payable, as well as adjustments to employee related liabilities as if these amounts were presented on a stand-alone basis in the amount of $81 million and $17 million for the twelve months ended December 31, 2025 and 2024.
+12
+Qnity Electronics, Inc.
+Selected Financial Information and Non-GAAP Measures
+
+Reconciliation of Net Income1 to Adjusted Earnings and Adjusted Pro Forma Earnings	Three Months Ended December 31,
+In millions, except per share amounts (Unaudited)	2025	2024	Income Statement Classification
+Net Income available for Qnity common stockholders (GAAP) 1	$	100	$	213
+Earnings Per Share (GAAP) 2	$	0.48	$	1.02
+Less: Significant Items and Other Non-GAAP Adjustments 3
+Acquisition, integration & separation costs 4	(25)	—	Acquisition, integration and separation costs
+Restructuring and asset related charges - net 5	-	(1)	Restructuring and asset related charges - net
+Legal costs 6	-	2	Selling, general and administrative expenses
+Gain on licensing agreement 7	-	13	Other income (expense) - net
+Amortization of intangibles	(51)	(55)	Amortization of intangibles
+Non-op pension benefit credits	4	-	Other income (expense) - net
+Indirect legacy benefits (costs) - net	5	-	Other income (expense) - net
+Income Tax Items 8	(30)	-	Provision for income taxes
+Tax effect of Non-GAAP Adjustments 9	12	5	Provision for income taxes
+Adjusted Earnings (non-GAAP)	$	185	$	249
+Less: Pro forma adjustments 10, 11, 12	(12)	(67)
+Adjusted Pro Forma Earnings	$	173	$	182
+Adjusted Pro Forma Earnings Per Share 13	$	0.82	$	0.87
+1. Net income available for Qnity common stockholders.
+2. Earnings per common share - diluted.
+3. All Non-GAAP Adjustments are shown on a pre-tax basis with the exception of "Income Tax Items" and "Tax effect of Non-GAAP Adjustments"
+4. Acquisition, integration and separation costs primarily related to financial advisory, accounting, consulting, and other professional advisory fees.
+5. Reflects restructuring charges related to the DuPont sponsored restructuring program which initiated prior to spin-off and was recognized in "Restructuring and asset related charges - net" in the Company's Consolidated Statement of Operations.
+6. Reflects legal settlement charges relating to an intellectual property matter.
+7. Reflects the license fee income received under an intellectual property license agreement.
+8. Reflects non-recurring or significant tax items, including uncertain tax position expense related to tax actions in the year associated with the spin-off, with corresponding adjustments to indemnification balances related to the share that DuPont is responsible for.
+9. The income tax effect on significant items was calculated based upon the enacted tax laws and statutory income tax rates applicable in the tax jurisdiction(s) of the underlying non-GAAP adjustment.
+10. Reflects the after-tax incremental interest expense related to our current debt structure in the amounts of $11 million and $57 million for the three months ended December 31, 2025 and 2024, respectively.
+11. Reflects the after-tax incremental costs required to operate as a stand-alone entity in the amounts of $1 million and $12 million for the three months ended December 31, 2025 and 2024, respectively.
+12. Reflects the after-tax net benefit of the Transition Services Agreements and other commercial agreements entered into with DuPont in connection with the spin-off in the amounts of zero and $2 million for the three months ended December 31, 2025 and 2024, respectively.
+13. Adjusted Pro Forma Earnings Per Share is calculated based on Adjusted Pro Forma Earnings divided by common shares – diluted as of December 31, 2025 and 2024, respectively.
+
+13
+Qnity Electronics, Inc.
+Selected Financial Information and Non-GAAP Measures
+
+Reconciliation of Net Income1 to Adjusted Earnings and Adjusted Pro Forma Earnings	Twelve Months Ended December 31,
+In millions, except per share amounts (Unaudited)	2025	2024	Income Statement Classification
+Net Income available for Qnity common stockholders (GAAP) 1	$	692	$	693
+Earnings Per Share (GAAP) 2	$	3.30	$	3.31
+Less: Significant Items and Other Non-GAAP Adjustments 3
+Acquisition, integration & separation costs 4	(25)	-	Acquisition, integration and separation costs
+Employee retention credit 5	2	-	Other income (expense) - net
+Restructuring and asset related charges - net 6	(20)	(8)	Restructuring and asset related charges - net
+Legal costs 7	-	(23)	Selling, general and administrative expenses
+Gain on licensing agreement 8	-	13	Other income (expense) - net
+Amortization of intangibles	(207)	(232)	Amortization of intangibles
+Non-op pension benefit credits	2	1	Other income (expense) - net
+Indirect legacy benefits (costs) - net	5	-	Other income (expense) - net
+Income Tax Items 9	(30)	-	Provision for income taxes
+Tax effect of Non-GAAP Adjustments 10	47	53	Provision for income taxes
+Adjusted Earnings (non-GAAP)	$	918	$	889
+Less: Pro forma adjustments 11, 12, 13	(215)	(266)
+Adjusted Pro Forma Earnings	$	703	$	623
+Adjusted Pro Forma Earnings Per Share 14	$	3.35	$	2.98
+1. Net income available for Qnity common stockholders.
+2. Earnings per common share - diluted.
+3. All Non-GAAP Adjustments are shown on a pre-tax basis with the exception of "Income Tax Items" and "Tax effect of Non-GAAP Adjustments"
+4. Acquisition, integration and separation costs primarily related to financial advisory, accounting, consulting, and other professional advisory fees.
+5. Reflects accrued interest earned on employee retention credits and is recorded in “Interest income” within the “Other income (expense) - net” line item in the Company’s Consolidated Statements of Operations.
+6. Reflects restructuring charges primarily related to the DuPont sponsored restructuring program which initiated prior to spin-off and was recognized in "Restructuring and asset related charges - net" in the Company's Consolidated Statement of Operations.
+7. Reflects legal settlement charges relating to an intellectual property matter.
+8. Reflects the license fee income received under an intellectual property license agreement.
+9. Reflects non-recurring or significant tax items, including uncertain tax position expense related to tax actions in the year associated with the spin-off, with corresponding adjustments to indemnification balances related to the share that DuPont is responsible for.
+10. The income tax effect on significant items was calculated based upon the enacted tax laws and statutory income tax rates applicable in the tax jurisdiction(s) of the underlying non-GAAP adjustment.
+11. Reflects the after-tax incremental interest expense related to our current debt structure in the amounts of $186 million and $232 million for the twelve months ended December 31, 2025 and 2024, respectively.
+12. Reflects the after-tax incremental costs required to operate as a stand-alone entity in the amounts of $35 million and $46 million for the twelve months ended December 31, 2025 and 2024, respectively.
+13. Reflects the after-tax net benefit of the Transition Services Agreements and other commercial agreements entered into with DuPont in connection with the spin-off in the before tax amounts of $5 million and $12 million for the twelve months ended December 31, 2025 and 2024.
+14. Adjusted Pro Forma Earnings Per Share is calculated based on Adjusted Pro Forma Earnings divided by common shares – diluted as of December 31, 2025 and 2024, respectively.
+14
+Qnity Electronics, Inc.
+Selected Financial Information and Non-GAAP Measures
+
+Reconciliation of Gross Profit to Adjusted Pro Forma Gross Profit	Three Months Ended	Twelve Months Ended
+In millions (Unaudited)	Dec 31, 2025	Dec 31, 2024	Dec 31, 2025	Dec 31, 2024
+Gross Profit (GAAP)	$	549	$	515	$	2,195	$	1,996
+Less: Pro forma adjustments 1	—	(2)	(3)	(8)
+Adjusted Pro Forma Gross Profit (non-GAAP)	$	549	$	517	$	2,198	$	2,004
+1.Reflects the net benefit of the Transition Services Agreements and other commercial agreements entered into with DuPont in connection with the spin-off on Cost of Sales in the amount of zero and $2 million for the three months ended December 31, 2025 and 2024, respectively, and $3 million and $8 million for the twelve months ended December 31, 2025 and 2024, respectively.
+15

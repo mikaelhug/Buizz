@@ -673,6 +673,36 @@ pub struct UnsplitDocument {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ModelSpend {
+    pub recipe: String,
+    pub version: u32,
+    pub spent_at: Timestamp,
+    pub calls: u32,
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+    pub usd: Decimal,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ModelRequest {
+    pub custom_id: String,
+    pub doc_id: String,
+    pub section_key: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ModelBatch {
+    pub recipe: String,
+    pub version: u32,
+    pub remote_id: String,
+    pub open: bool,
+    pub requests: u32,
+    pub failed: Option<u32>,
+    pub reserved: Decimal,
+    pub at: Timestamp,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DocumentSections {
     pub doc_id: String,
     pub content_hash: String,
@@ -726,7 +756,7 @@ pub struct RecipeSection {
     pub accession: Option<String>,
     pub cik: Option<u32>,
     pub published_at: Timestamp,
-    pub text: Option<String>,
+    pub text: Result<String, String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1311,10 +1341,11 @@ pub enum Dataset {
     ShortVolume,
     Delistings,
     ListingNotices,
+    EarningsGuidance,
 }
 
 impl Dataset {
-    pub const ALL: [Self; 26] = [
+    pub const ALL: [Self; 27] = [
         Self::Bars1d,
         Self::Bars1m,
         Self::CorporateActions,
@@ -1332,6 +1363,7 @@ impl Dataset {
         Self::FilingDocuments,
         Self::FilingSections,
         Self::ListingNotices,
+        Self::EarningsGuidance,
         Self::InsiderTrades,
         Self::Estimates,
         Self::Rates,
@@ -1360,6 +1392,7 @@ impl Dataset {
             | Self::FilingDocuments
             | Self::FilingSections
             | Self::ListingNotices
+            | Self::EarningsGuidance
             | Self::InsiderTrades
             | Self::Estimates => DataDomain::Filings,
             Self::Rates | Self::Macro | Self::Fomc => DataDomain::Macro,

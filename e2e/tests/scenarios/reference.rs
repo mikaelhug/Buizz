@@ -1,21 +1,25 @@
 use std::collections::BTreeMap;
 
-use buizz_core::api::{PositionView, RunSummary};
+use buizz_core::api::{JobView, PositionView, RunSummary};
 use buizz_core::order::OrderStatus;
 use buizz_core::run::{RecipeRead, RunBadge, RunEventKind};
 use buizz_core::time::Timestamp;
 use buizz_sources::wikipedia::{SP500_CHANGES, SP500_CONSTITUENTS, SP500_MEMBERS};
+use chrono::TimeDelta;
 use serde_json::{Value, json};
 
 use crate::fake::FakeProviders;
-use crate::spine::{Options, Spine};
+use crate::spine::{Options, Spine, eventually};
 use crate::world::{
-    Company, Filing, World, decimal, recorded_earnings_insight, repository, stamp, submissions,
+    ClaudeAnswer, Company, Filing, World, decimal, recorded_earnings_insight, repository, stamp,
+    submissions,
 };
 
 const RESULTS: &str = "0009999001-24-000050";
 const QUARTERLY: &str = "0009999001-24-000045";
 const LISTING_NOTICE: &str = "0009999001-24-000044";
+const OUTLOOK: &str = "For the fourth quarter, Beta Fixture expects revenue of $1.30 billion to \
+     $1.35 billion.";
 const BID_PRICE_NOTICE: &str = "On October 14, 2024, the Company received a letter from the Listing \
      Qualifications Department of The Nasdaq Stock Market LLC stating that it no longer complies \
      with Nasdaq Listing Rule 5550(a)(2), as its bid price closed below $1.00 for 30 consecutive \
@@ -119,11 +123,35 @@ fn world(mut world: World) -> World {
         ),
         (
             format!("{folder}/bbb-ex991.htm"),
-            "<html><body><p>Beta Fixture reports third quarter results</p>\
-             <table><tr><td>Revenue</td><td>$</td><td>1,250</td></tr></table></body></html>"
-                .to_owned(),
+            format!(
+                "<html><body><p>Beta Fixture reports third quarter results</p>\
+                 <table><tr><td>Revenue</td><td>$</td><td>1,250</td></tr></table>\
+                 <p>{OUTLOOK}</p></body></html>"
+            ),
         ),
     ]);
+    let guidance = |high: u64| {
+        json!({"facts": [{
+            "fields": {
+                "metric": "revenue",
+                "metric_label": "revenue",
+                "basis": "not_stated",
+                "period_label": "fourth quarter",
+                "fiscal_year": 2024,
+                "fiscal_quarter": 4,
+                "low": 1_300_000_000_u64,
+                "high": high,
+                "unit": "usd",
+                "stated_action": "not_stated",
+            },
+            "evidence": OUTLOOK,
+        }]})
+    };
+    world.claude.push(ClaudeAnswer {
+        reading: OUTLOOK.to_owned(),
+        first: guidance(1_400_000_000),
+        told: guidance(1_350_000_000),
+    });
     let notice = format!("{}/{}", beta.cik, LISTING_NOTICE.replace('-', ""));
     world.archives.extend([
         (
@@ -198,7 +226,7 @@ async fn backtest(spine: &Spine, bot: &str) -> (RunSummary, BTreeMap<Timestamp, 
 #[tokio::test(flavor = "multi_thread")]
 async fn bots_see_index_membership_profiles_earnings_and_8k_events_as_of_their_clock() {
     let world = world(World::fixture_market().await);
-    let spine = Spine::start(
+    let mut spine = Spine::start(
         FakeProviders::serve(world).await,
         Options {
             bots: &["reference", "reference_stocks"],
@@ -380,7 +408,7 @@ async fn bots_see_index_membership_profiles_earnings_and_8k_events_as_of_their_c
         at("2024-11-27T21:00:00Z")["press"],
         json!([[
             RESULTS,
-            "Beta Fixture reports third quarter results\n\nRevenue\t$\t1,250"
+            format!("Beta Fixture reports third quarter results\n\nRevenue\t$\t1,250\n{OUTLOOK}")
         ]]),
         "the press release exhibit is plain text, its table one tab-separated line per row"
     );
@@ -471,6 +499,72 @@ async fn bots_see_index_membership_profiles_earnings_and_8k_events_as_of_their_c
         stocks[&stamp("2024-12-04T21:00:00Z")]["bars"],
         json!(["AAA", "BBB"]),
         "a sold instrument outside the universe stops reaching the bot"
+    );
+
+    let recipe_job = |jobs: &[JobView]| {
+        jobs.iter()
+            .find(|job| job.name == "recipe_facts")
+            .map(|job| {
+                format!(
+                    "{:?} {}",
+                    job.last_outcome,
+                    job.last_message.clone().unwrap_or_default()
+                )
+            })
+            .unwrap_or_else(|| {
+                format!("{:?}", jobs.iter().map(|job| &job.name).collect::<Vec<_>>())
+            })
+    };
+    let first = recipe_job(&spine.get::<Vec<JobView>>("/api/data/jobs").await);
+    assert!(
+        first.contains("earnings_guidance: its gold report passed on")
+            && first.contains("1 batches open"),
+        "the guidance version earns its fill on the gold test split through Messages, then sends \
+         the 2024 release to a batch: {first}"
+    );
+    spine.stop().await;
+    spine.restart_later(TimeDelta::hours(7)).await;
+    let guidance: Vec<Value> = eventually("the guidance read from the collected batch", || async {
+        let release: Value = spine
+            .get(&format!("/api/data/text/document?id=edgar:{RESULTS}:1"))
+            .await;
+        let facts: Vec<Value> = release["facts"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(|fact| {
+                json!([
+                    fact["section_key"],
+                    fact["status"],
+                    fact["metric"],
+                    fact["fiscal_quarter"],
+                    fact["low"],
+                    fact["high"],
+                    fact["evidence"]
+                ])
+            })
+            .collect();
+        (!facts.is_empty()).then_some(facts)
+    })
+    .await;
+    assert_eq!(
+        guidance,
+        [json!([
+            "8-K:2.02",
+            "ok",
+            "revenue",
+            4,
+            1_300_000_000.0,
+            1_350_000_000.0,
+            OUTLOOK
+        ])],
+        "after a restart the stored batch is collected by its id; the answer whose high was not in \
+         its quote is retried once, told what failed, and the corrected fact is served"
+    );
+    let second = recipe_job(&spine.get::<Vec<JobView>>("/api/data/jobs").await);
+    assert!(
+        second.contains("committed this month"),
+        "the job shows the month's spend against its cap: {second}"
     );
 }
 

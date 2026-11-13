@@ -1,0 +1,218 @@
+{
+ "accession": "0000915913-23-000113",
+ "cik": 915913,
+ "published_at": "2023-05-03T20:25:28Z",
+ "note": "'revising'/'adjusting' and Ketjen 'up from prior guidance' are not listed action words -> not_stated; Energy Storage volume (+30-40%) and realized pricing (+20-30%) growth excluded as operating drivers; segment adjusted EBITDA as other.",
+ "facts": [
+  {
+   "fields": {
+    "metric": "revenue",
+    "metric_label": "Net sales",
+    "basis": "not_stated",
+    "period_label": "FY 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 35,
+    "high": 55,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Net sales are expected to increase 35% to 55% over prior year, primarily driven by a continued global shift to electric vehicles."
+  },
+  {
+   "fields": {
+    "metric": "ebitda_adjusted",
+    "metric_label": "Adjusted EBITDA",
+    "basis": "non_gaap",
+    "period_label": "FY 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": -5,
+    "high": 15,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "The year-over-year change in Adjusted EBITDA is expected to be in the range of (5%) to 15% as higher net sales are partially offset by timing impacts of higher priced inventories."
+  },
+  {
+   "fields": {
+    "metric": "revenue",
+    "metric_label": "Net sales",
+    "basis": "not_stated",
+    "period_label": "FY 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 9800000000,
+    "high": 11500000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Net sales\t$11.3 - $12.9 billion\t$9.8 - $11.5 billion"
+  },
+  {
+   "fields": {
+    "metric": "ebitda_adjusted",
+    "metric_label": "Adjusted EBITDA",
+    "basis": "non_gaap",
+    "period_label": "FY 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 3300000000,
+    "high": 4000000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Adjusted EBITDA(a)\t$4.2 - $5.1 billion\t$3.3 - $4.0 billion"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Adjusted EBITDA Margin",
+    "basis": "non_gaap",
+    "period_label": "FY 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 34,
+    "high": 35,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Adjusted EBITDA Margin(a)\t37% - 40%\t34% - 35%"
+  },
+  {
+   "fields": {
+    "metric": "eps_adjusted",
+    "metric_label": "Adjusted Diluted EPS",
+    "basis": "non_gaap",
+    "period_label": "FY 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 20.75,
+    "high": 25.75,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Adjusted Diluted EPS(a)\t$26.00 - $33.00\t$20.75 - $25.75"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Net Cash from Operations",
+    "basis": "not_stated",
+    "period_label": "FY 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 1700000000,
+    "high": 2300000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Net Cash from Operations\t$2.1 - $2.4 billion\t$1.7 - $2.3 billion"
+  },
+  {
+   "fields": {
+    "metric": "capex",
+    "metric_label": "Capital Expenditures",
+    "basis": "not_stated",
+    "period_label": "FY 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 1700000000,
+    "high": 1900000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "The company’s capital expenditures are expected to be between $1.7 billion and $1.9 billion for 2023."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Energy Storage net sales",
+    "basis": "not_stated",
+    "period_label": "2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 6900000000,
+    "high": 8400000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Energy Storage net sales are estimated to range between $6.9 to $8.4 billion."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Adjusted EBITDA",
+    "basis": "non_gaap",
+    "period_label": "2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 2700000000,
+    "high": 3400000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Adjusted EBITDA anticipated to range between $2.7 and $3.4 billion as higher priced spodumene inventories more than offset higher pricing."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Specialties net sales",
+    "basis": "not_stated",
+    "period_label": "2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 1800000000,
+    "high": 1900000000,
+    "unit": "usd",
+    "stated_action": "reaffirmed"
+   },
+   "evidence": "Albemarle is reaffirming its 2023 outlook for Specialties net sales to range between $1.8 billion to $1.9 billion, with adjusted EBITDA estimated from $555 million to $585 million."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "adjusted EBITDA",
+    "basis": "non_gaap",
+    "period_label": "2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 555000000,
+    "high": 585000000,
+    "unit": "usd",
+    "stated_action": "reaffirmed"
+   },
+   "evidence": "Albemarle is reaffirming its 2023 outlook for Specialties net sales to range between $1.8 billion to $1.9 billion, with adjusted EBITDA estimated from $555 million to $585 million."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Ketjen net sales",
+    "basis": "not_stated",
+    "period_label": "2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 1000000000,
+    "high": 1100000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Albemarle expects Ketjen net sales in 2023 to range between $1.0 billion and $1.1 billion, with adjusted EBITDA in the range of $100 million to $140 million."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "adjusted EBITDA",
+    "basis": "non_gaap",
+    "period_label": "2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": null,
+    "low": 100000000,
+    "high": 140000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Albemarle expects Ketjen net sales in 2023 to range between $1.0 billion and $1.1 billion, with adjusted EBITDA in the range of $100 million to $140 million."
+  }
+ ]
+}

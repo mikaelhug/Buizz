@@ -13,10 +13,10 @@ use buizz_core::market::{
     EarningsInsight, EarningsRelease, EstimateFact, Fact, Filing, FilingText, FomcAnnouncement,
     FomcMeeting, FundamentalFact, FundamentalMetric, FundamentalPoint, IndexHistory, InsiderFiling,
     InsiderPlan, InsiderTrade, Instrument, InstrumentProfile, Liquidity, MacroObservation,
-    MacroPoint, MacroSeries, NewsArticle, PendingDelisting, PressCandidate, PressExhibit,
-    PressRelease, RecipeSection, RecipeState, RecipeVersion, RiskFreeRate, SecFiling, Session,
-    ShortInterest, ShortInterestRecord, ShortVolume, ShortVolumeRecord, StockIndex, Symbol,
-    TextCandidate, Timeframe, UnsplitDocument, Watermarks,
+    MacroPoint, MacroSeries, ModelBatch, ModelRequest, ModelSpend, NewsArticle, PendingDelisting,
+    PressCandidate, PressExhibit, PressRelease, RecipeSection, RecipeState, RecipeVersion,
+    RiskFreeRate, SecFiling, Session, ShortInterest, ShortInterestRecord, ShortVolume,
+    ShortVolumeRecord, StockIndex, Symbol, TextCandidate, Timeframe, UnsplitDocument, Watermarks,
 };
 use buizz_core::ops::{
     ActionDisagreement, CoverageGap, DataWarning, UNPRICED_DELISTINGS_TOLERATED,
@@ -51,7 +51,7 @@ pub use restore::Restored;
 
 pub(crate) const SCHEMA: &str = include_str!("../schema.sql");
 pub const FILE_NAME: &str = "market.duckdb";
-const APPENDED: [(&str, &str); 21] = [
+const APPENDED: [(&str, &str); 24] = [
     ("ingest_batch", "id"),
     ("borrow_availability", "batch_id"),
     ("short_interest", "batch_id"),
@@ -73,6 +73,9 @@ const APPENDED: [(&str, &str); 21] = [
     ("press_release", "batch_id"),
     ("recipe_version", "batch_id"),
     ("fact", "batch_id"),
+    ("model_batch", "batch_id"),
+    ("model_request", "batch_id"),
+    ("model_spend", "batch_id"),
 ];
 const REPLACED: [&str; 2] = ["index_member", "index_history"];
 pub const TIMESTAMP_RESOLUTION: TimeDelta = TimeDelta::microseconds(1);
@@ -817,31 +820,51 @@ impl MarketStore {
         let volumes = Arc::clone(&self.text);
         self.readers
             .run(move |connection| {
-                let located = recipe::unread_sections(
-                    connection,
-                    &version.recipe,
-                    version.version,
-                    &version.scope,
-                    limit,
-                )?;
-                Ok(with_texts(connection, &volumes, located, |section| {
-                    (
-                        &section.volume,
-                        &section.path,
-                        &section.doc_id,
-                        &section.content_hash,
-                    )
-                })?
-                .into_iter()
-                .map(|(location, text)| RecipeSection {
-                    text,
-                    doc_id: location.doc_id,
-                    section_key: location.section_key,
-                    accession: location.accession,
-                    cik: location.cik,
-                    published_at: location.published_at,
-                })
-                .collect())
+                let located = recipe::unread_sections(connection, &version, limit)?;
+                recipe_texts(connection, &volumes, &version, located)
+            })
+            .await
+    }
+
+    pub async fn requested_sections(
+        &self,
+        version: RecipeVersion,
+        remote_id: String,
+    ) -> Result<(Vec<ModelRequest>, Vec<RecipeSection>)> {
+        let volumes = Arc::clone(&self.text);
+        self.readers
+            .run(move |connection| {
+                let (requests, located) =
+                    recipe::requested_sections(connection, &version, &remote_id)?;
+                Ok((
+                    requests,
+                    recipe_texts(connection, &volumes, &version, located)?,
+                ))
+            })
+            .await
+    }
+
+    pub async fn model_batches(&self, recipe: String, version: u32) -> Result<Vec<ModelBatch>> {
+        self.readers
+            .run(move |connection| recipe::model_batches(connection, &recipe, version))
+            .await
+    }
+
+    pub async fn committed_spend(&self, since: Timestamp) -> Result<Decimal> {
+        self.readers
+            .run(move |connection| recipe::committed_spend(connection, since))
+            .await
+    }
+
+    pub async fn submit_model_batch(
+        &self,
+        dataset: Dataset,
+        batch: ModelBatch,
+        requests: Vec<ModelRequest>,
+    ) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| {
+                recipe::submit_batch(connection, DataSource::Edgar, dataset, batch, requests)
             })
             .await
     }
@@ -886,9 +909,24 @@ impl MarketStore {
             .await
     }
 
-    pub async fn append_facts(&self, dataset: Dataset, facts: Vec<Fact>) -> Result<WriteSummary> {
+    pub async fn append_facts(
+        &self,
+        dataset: Dataset,
+        facts: Vec<Fact>,
+        spend: Option<ModelSpend>,
+        collected: Option<ModelBatch>,
+    ) -> Result<WriteSummary> {
         self.writer
-            .run(move |connection| recipe::facts(connection, DataSource::Edgar, dataset, facts))
+            .run(move |connection| {
+                recipe::facts(
+                    connection,
+                    DataSource::Edgar,
+                    dataset,
+                    facts,
+                    spend,
+                    collected,
+                )
+            })
             .await
     }
 
@@ -1895,6 +1933,91 @@ fn with_texts<T>(
         }));
     }
     Ok(texts)
+}
+
+fn recipe_texts(
+    connection: &Connection,
+    volumes: &TextVolumes,
+    version: &RecipeVersion,
+    located: Vec<recipe::SectionLocation>,
+) -> Result<Vec<RecipeSection>> {
+    let reads_exhibits = !version.scope.exhibits.is_empty();
+    let accessions: Vec<&str> = located
+        .iter()
+        .filter_map(|section| section.accession.as_deref())
+        .collect();
+    let exhibits = recipe::exhibits(connection, &accessions, &version.scope.exhibits)?;
+    let mut exhibit_texts: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for (exhibit, text) in with_texts(connection, volumes, exhibits, |exhibit| {
+        (
+            &exhibit.volume,
+            &exhibit.path,
+            &exhibit.doc_id,
+            &exhibit.content_hash,
+        )
+    })? {
+        exhibit_texts
+            .entry(exhibit.accession)
+            .or_default()
+            .extend(text);
+    }
+    let main_texts = if reads_exhibits {
+        located.into_iter().map(|section| (section, None)).collect()
+    } else {
+        with_texts(connection, volumes, located, |section| {
+            (
+                &section.volume,
+                &section.path,
+                &section.doc_id,
+                &section.content_hash,
+            )
+        })?
+    };
+    let mut sections: Vec<RecipeSection> = main_texts
+        .into_iter()
+        .map(|(location, text)| {
+            let item = location.section_key.trim_start_matches("8-K:");
+            let read = if reads_exhibits {
+                location
+                    .accession
+                    .as_ref()
+                    .and_then(|accession| exhibit_texts.get(accession))
+                    .filter(|texts| !texts.is_empty())
+                    .map(|texts| texts.join("\n\n"))
+                    .ok_or_else(|| {
+                        format!(
+                            "the filing has no {} exhibit with text",
+                            version.scope.exhibits.join(" or ")
+                        )
+                    })
+            } else {
+                match (text, location.chars) {
+                    (None, _) => Err("the document has no text".to_owned()),
+                    (Some(_), None) => Err(format!("the splitter found no Item {item} heading")),
+                    (Some(text), Some((start, end))) => Ok(text
+                        .chars()
+                        .skip(usize::try_from(start).unwrap_or(usize::MAX))
+                        .take(usize::try_from(end.saturating_sub(start)).unwrap_or(usize::MAX))
+                        .collect()),
+                }
+            };
+            RecipeSection {
+                text: read,
+                doc_id: location.doc_id,
+                section_key: location.section_key,
+                accession: location.accession,
+                cik: location.cik,
+                published_at: location.published_at,
+            }
+        })
+        .collect();
+    sections.sort_by(|a, b| {
+        b.published_at
+            .cmp(&a.published_at)
+            .then_with(|| a.doc_id.cmp(&b.doc_id))
+            .then_with(|| a.section_key.cmp(&b.section_key))
+    });
+    Ok(sections)
 }
 
 fn visible_through(timeframe: Timeframe, bars: &[Bar], calendar: &Calendar) -> Option<Timestamp> {

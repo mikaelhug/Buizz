@@ -1,0 +1,173 @@
+{
+ "accession": "0001757898-24-000005",
+ "cik": 1757898,
+ "published_at": "2024-05-08T20:49:47Z",
+ "note": "Fiscal 2025 ends March 31, 2025. Capex and FCF also appear in the outlook table (360,000 / $700,000 in thousands); one fact each. Free cash flow basis non_gaap because the release names it a non-GAAP measure. Not labelled: currency 'neutral' (no number), remaining ~$55.6M restructuring charge (implied, not stated), ~$25M/yr EBIT benefit (no fiscal year).",
+ "facts": [
+  {
+   "fields": {
+    "metric": "revenue",
+    "metric_label": "as reported revenue from continuing operations",
+    "basis": "not_stated",
+    "period_label": "fiscal 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 6.5,
+    "high": 7.5,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "For fiscal 2025, the Company expects as reported revenue from continuing operations to increase 6.5-7.5%."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Constant currency organic revenue from continuing operations",
+    "basis": "non_gaap",
+    "period_label": "fiscal 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 6,
+    "high": 7,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Constant currency organic revenue from continuing operations is anticipated to increase 6-7%."
+  },
+  {
+   "fields": {
+    "metric": "eps_adjusted",
+    "metric_label": "Adjusted net income from continuing operations per diluted share",
+    "basis": "non_gaap",
+    "period_label": "Twelve Months Ended March 31, 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 9.05,
+    "high": 9.25,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Adjusted net income from continuing operations per diluted share\t$9.05 - $9.25"
+  },
+  {
+   "fields": {
+    "metric": "eps_gaap",
+    "metric_label": "Net income from continuing operations per diluted share",
+    "basis": "gaap",
+    "period_label": "Twelve Months Ended March 31, 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 6.55,
+    "high": 6.75,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Net income from continuing operations per diluted share\t$6.55 - $6.75"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Amortization of acquired intangible assets",
+    "basis": "not_stated",
+    "period_label": "Twelve Months Ended March 31, 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 2.06,
+    "high": 2.06,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Amortization of acquired intangible assets\t2.06"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Acquisition and integration related charges",
+    "basis": "not_stated",
+    "period_label": "Twelve Months Ended March 31, 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 0.02,
+    "high": 0.02,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Acquisition and integration related charges\t0.02"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Restructuring",
+    "basis": "not_stated",
+    "period_label": "Twelve Months Ended March 31, 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 0.42,
+    "high": 0.42,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Restructuring\t0.42"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Cash flows from operating activities",
+    "basis": "not_stated",
+    "period_label": "Twelve Months Ended March 31, 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 1060000000,
+    "high": 1060000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Cash flows from operating activities\t$1,060,000"
+  },
+  {
+   "fields": {
+    "metric": "tax_rate",
+    "metric_label": "effective tax rate",
+    "basis": "not_stated",
+    "period_label": "fiscal 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 23,
+    "high": 23,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "The fiscal 2025 outlook assumes an effective tax rate of approximately 23%."
+  },
+  {
+   "fields": {
+    "metric": "capex",
+    "metric_label": "Capital expenditures",
+    "basis": "not_stated",
+    "period_label": "fiscal 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 360000000,
+    "high": 360000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Capital expenditures are anticipated to be approximately $360 million and free cash flow is expected to be approximately $700 million."
+  },
+  {
+   "fields": {
+    "metric": "free_cash_flow",
+    "metric_label": "free cash flow",
+    "basis": "non_gaap",
+    "period_label": "fiscal 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 700000000,
+    "high": 700000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Capital expenditures are anticipated to be approximately $360 million and free cash flow is expected to be approximately $700 million."
+  }
+ ]
+}

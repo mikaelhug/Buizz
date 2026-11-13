@@ -1,0 +1,82 @@
+{
+ "accession": "0002011641-25-000004",
+ "cik": 2011641,
+ "published_at": "2025-03-11T10:50:17Z",
+ "facts": [
+  {
+   "fields": {
+    "metric": "revenue",
+    "metric_label": "Net sales",
+    "basis": "not_stated",
+    "period_label": "FY2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": null,
+    "high": null,
+    "unit": "percent_growth",
+    "stated_action": "reaffirmed"
+   },
+   "evidence": "\u201cGiven this backdrop, we are reaffirming our full year revenue guidance of low single digit growth, but updating the expected full year adjusted operating margin range to 8.3% to 8.8%."
+  },
+  {
+   "fields": {
+    "metric": "operating_margin",
+    "metric_label": "Adjusted operating margin",
+    "basis": "non_gaap",
+    "period_label": "FY2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 8.3,
+    "high": 8.8,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Adjusted operating margin**\t9.0% - 9.5%\t8.3% - 8.8%"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Interest expense",
+    "basis": "not_stated",
+    "period_label": "FY2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 180000000,
+    "high": 200000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Interest expense\t$180 - $200 million\t$180 - $200 million"
+  },
+  {
+   "fields": {
+    "metric": "tax_rate",
+    "metric_label": "Adjusted effective tax rate",
+    "basis": "non_gaap",
+    "period_label": "FY2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 26,
+    "high": 26,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Adjusted effective tax rate**\t~26%\t~26%"
+  },
+  {
+   "fields": {
+    "metric": "capex",
+    "metric_label": "Capital expenditures",
+    "basis": "not_stated",
+    "period_label": "FY2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 325000000,
+    "high": 375000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Capital expenditures\t$400 - $450 million\t$325 - $375 million"
+  }
+ ]
+}

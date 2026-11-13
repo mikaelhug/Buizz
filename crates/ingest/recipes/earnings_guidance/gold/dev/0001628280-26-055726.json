@@ -1,0 +1,52 @@
+{
+ "accession": "0001628280-26-055726",
+ "cik": 1633978,
+ "published_at": "2026-08-11T20:24:11Z",
+ "facts": [
+  {
+   "fields": {
+    "metric": "revenue",
+    "metric_label": "Net revenue",
+    "basis": "not_stated",
+    "period_label": "first quarter of fiscal year 2027",
+    "fiscal_year": 2027,
+    "fiscal_quarter": 1,
+    "low": 1225000000,
+    "high": 1275000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "\u2022Net revenue in the range of $1.225 billion to $1.275 billion"
+  },
+  {
+   "fields": {
+    "metric": "operating_margin",
+    "metric_label": "Non-GAAP operating margin",
+    "basis": "non_gaap",
+    "period_label": "first quarter of fiscal year 2027",
+    "fiscal_year": 2027,
+    "fiscal_quarter": 1,
+    "low": 39.5,
+    "high": 40.5,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "\u2022Non-GAAP operating margin of 39.5% - 40.5%"
+  },
+  {
+   "fields": {
+    "metric": "eps_adjusted",
+    "metric_label": "Non-GAAP diluted net income per share",
+    "basis": "non_gaap",
+    "period_label": "first quarter of fiscal year 2027",
+    "fiscal_year": 2027,
+    "fiscal_quarter": 1,
+    "low": 4.05,
+    "high": 4.35,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "\u2022Non-GAAP diluted net income per share of $4.05 to $4.35"
+  }
+ ]
+}

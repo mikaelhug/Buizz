@@ -1,0 +1,233 @@
+{
+ "accession": "0001628280-25-014001",
+ "cik": 898293,
+ "published_at": "2025-03-20T11:51:36Z",
+ "note": "FY2025 figures marked 'raised' from the headline 'Raises Fiscal 2025 Outlook'. Q3 footnote adjustments given one fact per unit ($ and per-share). '$1.2+ billion' read as low 1.2B, high null.",
+ "facts": [
+  {
+   "fields": {
+    "metric": "revenue",
+    "metric_label": "Net revenue",
+    "basis": "not_stated",
+    "period_label": "third quarter of fiscal year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": 3,
+    "low": 6700000000.0,
+    "high": 7300000000.0,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Net revenue\t$6.7 billion to $7.3 billion"
+  },
+  {
+   "fields": {
+    "metric": "operating_income",
+    "metric_label": "U.S. GAAP operating income",
+    "basis": "gaap",
+    "period_label": "third quarter of fiscal year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": 3,
+    "low": 282000000.0,
+    "high": 352000000.0,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "U.S. GAAP operating income\t$282 million to $352 million"
+  },
+  {
+   "fields": {
+    "metric": "eps_gaap",
+    "metric_label": "U.S. GAAP diluted earnings per share",
+    "basis": "gaap",
+    "period_label": "third quarter of fiscal year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": 3,
+    "low": 1.5,
+    "high": 1.99,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "U.S. GAAP diluted earnings per share\t$1.50 to $1.99 per diluted share"
+  },
+  {
+   "fields": {
+    "metric": "operating_income",
+    "metric_label": "Core operating income (Non-GAAP)",
+    "basis": "non_gaap",
+    "period_label": "third quarter of fiscal year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": 3,
+    "low": 348000000.0,
+    "high": 408000000.0,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Core operating income (Non-GAAP)(1)\t$348 million to $408 million"
+  },
+  {
+   "fields": {
+    "metric": "eps_adjusted",
+    "metric_label": "Core diluted earnings per share (Non-GAAP)",
+    "basis": "non_gaap",
+    "period_label": "third quarter of fiscal year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": 3,
+    "low": 2.08,
+    "high": 2.48,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Core diluted earnings per share (Non-GAAP)(1)\t$2.08 to $2.48 per diluted share"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "amortization of intangibles",
+    "basis": "not_stated",
+    "period_label": "third quarter of fiscal year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": 3,
+    "low": 17000000.0,
+    "high": 17000000.0,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "(1)Core operating income and core diluted earnings per share exclude anticipated adjustments of $17 million for amortization of intangibles (or $0.14 per diluted share) and $19 million for stock-based compensation expense and related charges (or $0.17 per diluted share) and $30 million to $20 million (or $0.27 to $0.18 per diluted share) for restructuring, severance and related charges."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "amortization of intangibles",
+    "basis": "not_stated",
+    "period_label": "third quarter of fiscal year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": 3,
+    "low": 0.14,
+    "high": 0.14,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "(1)Core operating income and core diluted earnings per share exclude anticipated adjustments of $17 million for amortization of intangibles (or $0.14 per diluted share) and $19 million for stock-based compensation expense and related charges (or $0.17 per diluted share) and $30 million to $20 million (or $0.27 to $0.18 per diluted share) for restructuring, severance and related charges."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "stock-based compensation expense and related charges",
+    "basis": "not_stated",
+    "period_label": "third quarter of fiscal year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": 3,
+    "low": 19000000.0,
+    "high": 19000000.0,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "(1)Core operating income and core diluted earnings per share exclude anticipated adjustments of $17 million for amortization of intangibles (or $0.14 per diluted share) and $19 million for stock-based compensation expense and related charges (or $0.17 per diluted share) and $30 million to $20 million (or $0.27 to $0.18 per diluted share) for restructuring, severance and related charges."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "stock-based compensation expense and related charges",
+    "basis": "not_stated",
+    "period_label": "third quarter of fiscal year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": 3,
+    "low": 0.17,
+    "high": 0.17,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "(1)Core operating income and core diluted earnings per share exclude anticipated adjustments of $17 million for amortization of intangibles (or $0.14 per diluted share) and $19 million for stock-based compensation expense and related charges (or $0.17 per diluted share) and $30 million to $20 million (or $0.27 to $0.18 per diluted share) for restructuring, severance and related charges."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "restructuring, severance and related charges",
+    "basis": "not_stated",
+    "period_label": "third quarter of fiscal year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": 3,
+    "low": 20000000.0,
+    "high": 30000000.0,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "(1)Core operating income and core diluted earnings per share exclude anticipated adjustments of $17 million for amortization of intangibles (or $0.14 per diluted share) and $19 million for stock-based compensation expense and related charges (or $0.17 per diluted share) and $30 million to $20 million (or $0.27 to $0.18 per diluted share) for restructuring, severance and related charges."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "restructuring, severance and related charges",
+    "basis": "not_stated",
+    "period_label": "third quarter of fiscal year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": 3,
+    "low": 0.18,
+    "high": 0.27,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "(1)Core operating income and core diluted earnings per share exclude anticipated adjustments of $17 million for amortization of intangibles (or $0.14 per diluted share) and $19 million for stock-based compensation expense and related charges (or $0.17 per diluted share) and $30 million to $20 million (or $0.27 to $0.18 per diluted share) for restructuring, severance and related charges."
+  },
+  {
+   "fields": {
+    "metric": "revenue",
+    "metric_label": "Net revenue",
+    "basis": "not_stated",
+    "period_label": "Fiscal Year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 27900000000.0,
+    "high": 27900000000.0,
+    "unit": "usd",
+    "stated_action": "raised"
+   },
+   "evidence": "Net revenue\t$27.9 billion"
+  },
+  {
+   "fields": {
+    "metric": "operating_margin",
+    "metric_label": "Core operating margin (Non-GAAP)",
+    "basis": "non_gaap",
+    "period_label": "Fiscal Year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 5.4,
+    "high": 5.4,
+    "unit": "percent",
+    "stated_action": "raised"
+   },
+   "evidence": "Core operating margin (Non-GAAP)\t5.4%"
+  },
+  {
+   "fields": {
+    "metric": "eps_adjusted",
+    "metric_label": "Core diluted earnings per share (Non-GAAP)",
+    "basis": "non_gaap",
+    "period_label": "Fiscal Year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 8.95,
+    "high": 8.95,
+    "unit": "usd_per_share",
+    "stated_action": "raised"
+   },
+   "evidence": "Core diluted earnings per share (Non-GAAP)\t$8.95 per diluted share"
+  },
+  {
+   "fields": {
+    "metric": "free_cash_flow",
+    "metric_label": "Adjusted free cash flow (Non-GAAP)",
+    "basis": "non_gaap",
+    "period_label": "Fiscal Year 2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 1200000000.0,
+    "high": null,
+    "unit": "usd",
+    "stated_action": "raised"
+   },
+   "evidence": "Adjusted free cash flow (Non-GAAP)\t$1.2+ billion"
+  }
+ ]
+}

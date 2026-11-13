@@ -1,0 +1,203 @@
+{
+ "accession": "0000860731-24-000050",
+ "cik": 860731,
+ "published_at": "2024-10-23T20:25:58Z",
+ "note": "'revised' is not a listed action word, so all not_stated; reconciliation rows with a dash (no number) skipped.",
+ "facts": [
+  {
+   "fields": {
+    "metric": "revenue",
+    "metric_label": "Total revenues",
+    "basis": "not_stated",
+    "period_label": "2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 2125000000,
+    "high": 2145000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Total revenues are expected to be in the range of $2.125 billion to $2.145 billion."
+  },
+  {
+   "fields": {
+    "metric": "eps_gaap",
+    "metric_label": "GAAP diluted earnings per share",
+    "basis": "gaap",
+    "period_label": "2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 6.13,
+    "high": 6.28,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "GAAP diluted earnings per share are expected to be in the range of $6.13 to $6.28."
+  },
+  {
+   "fields": {
+    "metric": "eps_adjusted",
+    "metric_label": "Non-GAAP diluted earnings per share",
+    "basis": "non_gaap",
+    "period_label": "2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 9.47,
+    "high": 9.62,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Non-GAAP diluted earnings per share are expected to be in the range of $9.47 to $9.62."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Free cash flow margin",
+    "basis": "non_gaap",
+    "period_label": "2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 21,
+    "high": 23,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Free cash flow margin is expected to be in the range of 21% to 23%."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Research and development expense",
+    "basis": "not_stated",
+    "period_label": "2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 119000000,
+    "high": 122000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Research and development expense is expected to be in the range of $119 million to $122 million."
+  },
+  {
+   "fields": {
+    "metric": "capex",
+    "metric_label": "Capital expenditures",
+    "basis": "not_stated",
+    "period_label": "2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 47000000,
+    "high": 49000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Capital expenditures are expected to be in the range of $47 million to $49 million, including approximately $31 million of capitalized software development costs."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "capitalized software development costs",
+    "basis": "not_stated",
+    "period_label": "2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 31000000,
+    "high": 31000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Capital expenditures are expected to be in the range of $47 million to $49 million, including approximately $31 million of capitalized software development costs."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Share-based compensation expense",
+    "basis": "not_stated",
+    "period_label": "2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 2.85,
+    "high": 2.85,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Share-based compensation expense\t2.85"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Amortization of acquired software and other intangibles",
+    "basis": "not_stated",
+    "period_label": "2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 2.23,
+    "high": 2.23,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Amortization of acquired software and other intangibles\t2.23"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Income tax impact",
+    "basis": "not_stated",
+    "period_label": "2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": -1.74,
+    "high": -1.74,
+    "unit": "usd_per_share",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Income tax impact (1)\t(1.74)"
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Shares used in computing diluted earnings per share (millions)",
+    "basis": "not_stated",
+    "period_label": "2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 43500000,
+    "high": 43500000,
+    "unit": "other",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Shares used in computing diluted earnings per share (millions)\t43.5"
+  },
+  {
+   "fields": {
+    "metric": "tax_rate",
+    "metric_label": "GAAP estimated annual effective tax rate used in computing GAAP diluted earnings per share",
+    "basis": "gaap",
+    "period_label": "2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 13.5,
+    "high": 13.5,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "GAAP estimated annual effective tax rate used in computing GAAP diluted earnings per share (1)\t13.5%"
+  },
+  {
+   "fields": {
+    "metric": "tax_rate",
+    "metric_label": "Non-GAAP estimated annual effective tax rate used in computing non-GAAP diluted earnings per share",
+    "basis": "non_gaap",
+    "period_label": "2024",
+    "fiscal_year": 2024,
+    "fiscal_quarter": null,
+    "low": 22,
+    "high": 22,
+    "unit": "percent",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Non-GAAP estimated annual effective tax rate used in computing non-GAAP diluted earnings per share\t22%"
+  }
+ ]
+}

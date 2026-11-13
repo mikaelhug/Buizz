@@ -1,0 +1,38 @@
+{
+ "accession": "0001193125-23-202832",
+ "cik": 1559720,
+ "published_at": "2023-08-03T20:01:02Z",
+ "note": "Excluded the possible $2.5B-$3B one-time tax valuation allowance release in H2 2023: conditional ('reasonable possibility') one-off item, not a period forecast. Adjusted EBITDA/margin outlook is qualitative only.",
+ "facts": [
+  {
+   "fields": {
+    "metric": "revenue",
+    "metric_label": "revenue",
+    "basis": "not_stated",
+    "period_label": "Q3 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": 3,
+    "low": 3300000000.0,
+    "high": 3400000000.0,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "For Q3 2023, we expect to deliver revenue of $3.3 billion to $3.4 billion, which represents year-over-year growth of between 14% and 18%, and a few points lower excluding the impact of FX."
+  },
+  {
+   "fields": {
+    "metric": "revenue",
+    "metric_label": "revenue year-over-year growth",
+    "basis": "not_stated",
+    "period_label": "Q3 2023",
+    "fiscal_year": 2023,
+    "fiscal_quarter": 3,
+    "low": 14,
+    "high": 18,
+    "unit": "percent_growth",
+    "stated_action": "not_stated"
+   },
+   "evidence": "For Q3 2023, we expect to deliver revenue of $3.3 billion to $3.4 billion, which represents year-over-year growth of between 14% and 18%, and a few points lower excluding the impact of FX."
+  }
+ ]
+}

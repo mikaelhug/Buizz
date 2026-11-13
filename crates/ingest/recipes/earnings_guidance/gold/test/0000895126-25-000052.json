@@ -1,0 +1,83 @@
+{
+ "accession": "0000895126-25-000052",
+ "cik": 895126,
+ "published_at": "2025-04-29T20:01:56Z",
+ "note": "Production (7.1, 7.2, 7.5 Bcfe/d) and rig counts excluded as non-financial; synergy targets and $300M incremental capacity spend included as dated financial forecasts; declared $0.575 dividend excluded.",
+ "facts": [
+  {
+   "fields": {
+    "metric": "capex",
+    "metric_label": "invest",
+    "basis": "not_stated",
+    "period_label": "2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 2700000000,
+    "high": 2700000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "In 2025, Expand Energy expects to run approximately 12 rigs and invest approximately $2.7 billion yielding an estimated daily production of approximately 7.1 Bcfe/d."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "incremental productive capacity",
+    "basis": "not_stated",
+    "period_label": "2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 300000000,
+    "high": 300000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "The Company intends to build incremental productive capacity for an additional $300 million by exiting 2025 with approximately 15 rigs."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "annual synergy target",
+    "basis": "not_stated",
+    "period_label": "2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 400000000,
+    "high": 400000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "Expand Energy is on track to capture its 2025 expected annual synergy target of approximately $400 million."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "annual synergies",
+    "basis": "not_stated",
+    "period_label": "year end 2026",
+    "fiscal_year": 2026,
+    "fiscal_quarter": null,
+    "low": 500000000,
+    "high": 500000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "The Company expects to achieve the full $500 million in annual synergies by year end 2026."
+  },
+  {
+   "fields": {
+    "metric": "other",
+    "metric_label": "Net Debt reduction",
+    "basis": "not_stated",
+    "period_label": "2025",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "low": 500000000,
+    "high": 500000000,
+    "unit": "usd",
+    "stated_action": "not_stated"
+   },
+   "evidence": "The Company expects to allocate $500 million to Net Debt reduction in 2025, and at current market conditions, to have additional free cash flow available to allocate to the combination of variable dividends, share repurchases, and the balance sheet."
+  }
+ ]
+}

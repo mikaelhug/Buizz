@@ -2425,7 +2425,8 @@
           "short_interest",
           "short_volume",
           "delistings",
-          "listing_notices"
+          "listing_notices",
+          "earnings_guidance"
         ]
       },
       "DatasetSpine": {

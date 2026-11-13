@@ -1,0 +1,1082 @@
+EXHIBIT 99.1
+
+Table of Contents
+Second Quarter 2022
+Supplemental Financial and Operating Data	Page
+Income Statements	13
+Wellhead Volumes and Prices	14
+Balance Sheets	15
+Cash Flows Statements	16
+Non-GAAP Financial Measures	17
+Adjusted Net Income (Loss)	18
+Adjusted Net Income Per Share	21
+Cash Flow from Operations and Free Cash Flow	23
+Total Expenditures	27
+EBITDAX and Adjusted EBITDAX	29
+Net Debt-to-Total Capitalization Ratio	30
+Reserve Replacement Cost Data	37
+Financial Commodity Derivative Contracts	39
+Direct After-Tax Rate of Return	42
+ROCE & ROE	43
+Revenues, Costs and Margins Per Barrel of Oil Equivalent	47
+
+12
+
+Income Statements
+In millions of USD, except share data (in millions) and per share data (Unaudited)
+2Q 2022	1Q 2022	2Q 2021	YTD 2022	YTD 2021
+Operating Revenues and Other
+Crude Oil and Condensate	4,699	3,889	2,699	8,588	4,950
+Natural Gas Liquids	777	681	367	1,458	681
+Natural Gas	1,000	716	404	1,716	1,029
+Losses on Mark-to-Market Financial Commodity Derivative Contracts	(1,377)	(2,820)	(427)	(4,197)	(794)
+Gathering, Processing and Marketing	2,169	1,469	1,022	3,638	1,870
+Gains on Asset Dispositions, Net	97	25	51	122	45
+Other, Net	42	23	23	65	52
+Total	7,407	3,983	4,139	11,390	7,833
+Operating Expenses
+Lease and Well	324	318	270	642	540
+Transportation Costs	244	228	214	472	416
+Gathering and Processing Costs	152	144	128	296	267
+Exploration Costs	35	45	35	80	68
+Dry Hole Costs	20	3	13	23	24
+Impairments	91	55	44	146	88
+Marketing Costs	2,127	1,283	991	3,410	1,829
+Depreciation, Depletion and Amortization	911	847	914	1,758	1,814
+General and Administrative	128	124	120	252	230
+Taxes Other Than Income	472	390	239	862	454
+Total	4,504	3,437	2,968	7,941	5,730
+Operating Income	2,903	546	1,171	3,449	2,103
+Other Income (Expense), Net	27	(1)	(2)	26	(6)
+Income Before Interest Expense and Income Taxes	2,930	545	1,169	3,475	2,097
+Interest Expense, Net	48	48	45	96	92
+Income Before Income Taxes	2,882	497	1,124	3,379	2,005
+Income Tax Provision	644	107	217	751	421
+Net Income	2,238	390	907	2,628	1,584
+Dividends Declared per Common Share	2.5500	1.7500	1.4125	4.3000	1.8250
+Net Income Per Share
+Basic	3.84	0.67	1.56	4.52	2.73
+Diluted	3.81	0.67	1.55	4.48	2.72
+Average Number of Common Shares
+Basic	583	582	580	582	580
+Diluted	588	586	584	587	583
+13
+
+Wellhead Volumes and Prices
+(Unaudited)
+2Q 2022	2Q 2021	% Change	1Q 2022	YTD 2022	YTD 2021	% Change
+Crude Oil and Condensate Volumes (MBbld) (A)
+United States	463.5	446.9	4	%	449.4	456.5	437.8	4	%
+Trinidad	0.6	1.7	-65	%	0.7	0.7	2.0	-65	%
+Other International (B)	—	—	—	—	—
+Total	464.1	448.6	3	%	450.1	457.2	439.8	4	%
+Average Crude Oil and Condensate Prices ($/Bbl) (C)
+United States	$	111.26	66.16	68	%	$	96.02	$	103.80	$	62.22	67	%
+Trinidad	98.29	56.26	75	%	83.82	90.33	52.57	72	%
+Other International (B)	—	55.56	-100	%	—	—	42.36	-100	%
+Composite	111.25	66.12	68	%	96.00	103.78	62.18	67	%
+58.02
+Natural Gas Liquids Volumes (MBbld) (A)
+United States	201.9	138.5	46	%	190.3	196.1	131.5	49	%
+Total	201.9	138.5	46	%	190.3	196.1	131.5	49	%
+Average Natural Gas Liquids Prices ($/Bbl) (C)
+United States	$	42.28	$	29.15	45	%	$	39.77	$	41.07	$	28.62	43	%
+Composite	42.28	29.15	45	%	39.77	41.07	28.62	43	%
+Natural Gas Volumes (MMcfd) (A)
+United States	1,324	1,199	10	%	1,249	1,287	1,150	12	%
+Trinidad	204	233	-12	%	209	206	225	-8	%
+Other International (B)	—	13	-100	%	—	—	19	-100	%
+Total	1,528	1,445	6	%	1,458	1,493	1,394	7	%
+Average Natural Gas Prices ($/Mcf) (C)
+United States	$	7.77	$	2.99	160	%	$	5.81	$	6.83	$	4.19	63	%
+Trinidad	3.42	3.37	2	%	3.36	3.39	3.37	0	%
+Other International (B)	—	5.69	-100	%	—	—	5.67	-100	%
+Composite	7.19	3.07	134	%	5.46	6.35	4.08	56	%
+Crude Oil Equivalent Volumes (MBoed) (D)
+United States	886.1	785.2	13	%	847.8	867.1	761.0	14	%
+Trinidad	34.6	40.6	-15	%	35.5	35.0	39.5	-11	%
+Other International (B)	—	2.2	-100	%	—	—	3.1	-100	%
+Total	920.7	828.0	11	%	883.3	902.1	803.6	12	%
+Total MMBoe (D)	83.8	75.3	11	%	79.5	163.3	145.4	12	%
+(A) Thousand barrels per day or million cubic feet per day, as applicable.
+(B) Other International includes EOG's China and Canada operations. The China operations were sold in the second quarter of 2021.
+(C) Dollars per barrel or per thousand cubic feet, as applicable. Excludes the impact of financial commodity derivative instruments (see Note 12 to the Condensed Consolidated Financial Statements in EOG's Quarterly Report on Form 10-Q for the quarterly period ended June 30, 2022).
+(D) Thousand barrels of oil equivalent per day or million barrels of oil equivalent, as applicable; includes crude oil and condensate, NGLs and natural gas. Crude oil equivalent volumes are determined using a ratio of 1.0 barrel of crude oil and condensate or NGLs to 6.0 thousand cubic feet of natural gas. MMBoe is calculated by multiplying the MBoed amount by the number of days in the period and then dividing that amount by one thousand.
+14
+
+Balance Sheets
+In millions of USD, except share data (Unaudited)
+June 30,	December 31,
+2022	2021
+Current Assets
+Cash and Cash Equivalents	3,073	5,209
+Accounts Receivable, Net	3,735	2,335
+Inventories	739	584
+Assets from Price Risk Management Activities	1	—
+Other	605	456
+Total	8,153	8,584
+Property, Plant and Equipment
+Oil and Gas Properties (Successful Efforts Method)	66,098	67,644
+Other Property, Plant and Equipment	4,862	4,753
+Total Property, Plant and Equipment	70,960	72,397
+Less: Accumulated Depreciation, Depletion and Amortization	(42,113)	(43,971)
+Total Property, Plant and Equipment, Net	28,847	28,426
+Deferred Income Taxes	12	11
+Other Assets	1,127	1,215
+Total Assets	38,139	38,236
+Current Liabilities
+Accounts Payable	2,896	2,242
+Accrued Taxes Payable	594	518
+Dividends Payable	437	436
+Liabilities from Price Risk Management Activities	79	269
+Current Portion of Long-Term Debt	1,282	37
+Current Portion of Operating Lease Liabilities	216	240
+Other	264	300
+Total	5,768	4,042
+Long-Term Debt	3,809	5,072
+Other Liabilities	2,067	2,193
+Deferred Income Taxes	4,183	4,749
+Commitments and Contingencies
+Stockholders' Equity
+Common Stock, $0.01 Par, 1,280,000,000 Shares Authorized and 586,391,670 Shares Issued at June 30, 2022 and 585,521,512 Shares Issued at December 31, 2021	206	206
+Additional Paid in Capital	6,128	6,087
+Accumulated Other Comprehensive Loss	(12)	(12)
+Retained Earnings	16,028	15,919
+Common Stock Held in Treasury, 344,705 Shares at June 30, 2022 and 257,268 Shares at December 31, 2021	(38)	(20)
+Total Stockholders' Equity	22,312	22,180
+Total Liabilities and Stockholders' Equity	38,139	38,236
+
+15
+
+Cash Flows Statements
+In millions of USD (Unaudited)
+2Q 2022	2Q 2021	1Q 2022	YTD 2022	YTD 2021
+Cash Flows from Operating Activities
+Reconciliation of Net Income to Net Cash Provided by Operating Activities:
+Net Income	2,238	907	390	2,628	1,584
+Items Not Requiring (Providing) Cash
+Depreciation, Depletion and Amortization	911	914	847	1,758	1,814
+Impairments	91	44	55	146	88
+Stock-Based Compensation Expenses	30	31	35	65	66
+Deferred Income Taxes	(102)	(97)	(465)	(567)	(133)
+Gains on Asset Dispositions, Net	(97)	(51)	(25)	(122)	(45)
+Other, Net	(16)	6	6	(10)	13
+Dry Hole Costs	20	13	3	23	24
+Mark-to-Market Financial Commodity Derivative Contracts Total Losses	1,377	427	2,820	4,197	794
+Net Cash Payments for Settlements of Financial Commodity Derivative Contracts	(2,114)	(193)	(296)	(2,410)	(223)
+Other, Net	19	—	2	21	1
+Changes in Components of Working Capital and Other Assets and Liabilities
+Accounts Receivable	(522)	(186)	(878)	(1,400)	(494)
+Inventories	(157)	37	(14)	(171)	101
+Accounts Payable	259	11	130	389	183
+Accrued Taxes Payable	(536)	(163)	613	77	80
+Other Assets	71	(119)	(213)	(142)	(222)
+Other Liabilities	433	32	(2,250)	(1,817)	(57)
+Changes in Components of Working Capital Associated with Investing Activities	143	(54)	68	211	(145)
+Net Cash Provided by Operating Activities	2,048	1,559	828	2,876	3,429
+Investing Cash Flows
+Additions to Oil and Gas Properties	(1,349)	(968)	(939)	(2,288)	(1,843)
+Additions to Other Property, Plant and Equipment	(75)	(55)	(70)	(145)	(97)
+Proceeds from Sales of Assets	110	141	121	231	146
+Other Investing Activities	(30)	—	—	(30)	—
+Changes in Components of Working Capital Associated with Investing Activities	(143)	54	(68)	(211)	145
+Net Cash Used in Investing Activities	(1,487)	(828)	(956)	(2,443)	(1,649)
+Financing Cash Flows
+Long-Term Debt Repayments	—	—	—	—	(750)
+Dividends Paid	(1,486)	(239)	(1,023)	(2,509)	(458)
+Treasury Stock Purchased	(15)	(2)	(43)	(58)	(12)
+Proceeds from Stock Options Exercised and Employee Stock Purchase Plan	13	9	4	17	9
+Repayment of Finance Lease Liabilities	(9)	(9)	(10)	(19)	(18)
+Net Cash Used in Financing Activities	(1,497)	(241)	(1,072)	(2,569)	(1,229)
+Effect of Exchange Rate Changes on Cash	—	2	—	—	—
+Increase (Decrease) in Cash and Cash Equivalents	(936)	492	(1,200)	(2,136)	551
+Cash and Cash Equivalents at Beginning of Period	4,009	3,388	5,209	5,209	3,329
+Cash and Cash Equivalents at End of Period	3,073	3,880	4,009	3,073	3,880
+16
+
+Non-GAAP Financial Measures
+To supplement the presentation of its financial results prepared in accordance with generally accepted accounting principles in the United States of America (GAAP), EOG’s quarterly earnings releases and related conference calls, accompanying investor presentation slides and presentation slides for investor conferences contain certain financial measures that are not prepared or presented in accordance with GAAP. These non-GAAP financial measures may include, but are not limited to, Adjusted Net Income (Loss), Cash Flow from Operations Before Working Capital, Free Cash Flow, Adjusted EBITDAX, Net Debt and related statistics.
+
+A reconciliation of each of these measures to their most directly comparable GAAP financial measure and related discussion is included in the tables on the following pages and can also be found in the “Reconciliations & Guidance” section of the “Investors” page of the EOG website at www.eogresources.com.
+
+As further discussed in the tables on the following pages, EOG believes these measures may be useful to investors who follow the practice of some industry analysts who make certain adjustments to GAAP measures (for example, to exclude non-recurring items) to facilitate comparisons to others in EOG’s industry, and who utilize non-GAAP measures in their calculations of certain statistics (for example, return on capital employed and return on equity) used to evaluate EOG’s performance.
+
+EOG believes that the non-GAAP measures presented, when viewed in combination with its financial and operating results prepared in accordance with GAAP, provide a more complete understanding of the factors and trends affecting the company’s performance. As is discussed in the tables on the following pages, EOG uses these non-GAAP measures for purposes of (i) comparing EOG’s financial and operating performance with the financial and operating performance of other companies in the industry and (ii) analyzing EOG’s financial and operating performance across periods.
+
+The non-GAAP measures presented should not be considered in isolation, and should not be considered as a substitute for, or as an alternative to, EOG’s reported Net Income (Loss), Long-Term Debt (including Current Portion of Long-Term Debt), Net Cash Provided by Operating Activities and other financial results calculated in accordance with GAAP. The non-GAAP measures presented should be read in conjunction with EOG's consolidated financial statements prepared in accordance with GAAP.
+
+In addition, because not all companies use identical calculations, EOG’s presentation of non-GAAP measures may not be comparable to, and may be calculated differently from, similarly titled measures disclosed by other companies, including its peer companies. EOG may also change the calculation of one or more of its non-GAAP measures from time to time – for example, to account for changes in its business and operations or to more closely conform to peer company or industry analysts’ practices.
+17
+
+Adjusted Net Income (Loss)
+In millions of USD, except share data (in millions) and per share data (Unaudited)
+The following tables adjust the reported Net Income (Loss) (GAAP) to reflect actual net cash received from (payments for) settlements of financial commodity derivative contracts by eliminating the unrealized mark-to-market (gains) losses from these transactions, to eliminate the net (gains) losses on asset dispositions, to add back impairment charges related to certain of EOG's assets (which are generally (i) attributable to declines in commodity prices, (ii) related to sales of certain oil and gas properties or (iii) the result of certain other events or decisions (e.g., a periodic review of EOG's oil and gas properties or other assets) - see "Revenues, Costs and Margins Per Barrel of Oil Equivalent" below for additional related discussion) and to make certain other adjustments to exclude non-recurring and certain other items as further described below. EOG believes this presentation may be useful to investors who follow the practice of some industry analysts who adjust reported company earnings to match hedge realizations to production settlement months and make certain other adjustments to exclude non-recurring and certain other items. EOG management uses this information for purposes of comparing its financial performance with the financial performance of other companies in the industry.
+2Q 2022
+Before Tax	Income Tax Impact	After Tax	Diluted Earnings per Share
+Reported Net Income (GAAP)	2,882	(644)	2,238	3.81
+Adjustments:
+Losses on Mark-to-Market Financial Commodity Derivative Contracts	1,377	(299)	1,078	1.82
+Net Cash Payments for Settlements of Financial Commodity Derivative Contracts (1)	(2,114)	459	(1,655)	(2.81)
+Less: Gains on Asset Dispositions, Net	(97)	21	(76)	(0.13)
+Add: Certain Impairments	36	(7)	29	0.05
+Adjustments to Net Income	(798)	174	(624)	(1.07)
+Adjusted Net Income (Non-GAAP)	2,084	(470)	1,614	2.74
+Average Number of Common Shares (Non-GAAP)
+Basic	583
+Diluted	588
+(1) Consistent with its customary practice, in calculating Adjusted Net Income (Loss) (non-GAAP), EOG subtracts from reported Net Income (Loss) (GAAP) the total net cash paid for settlements of financial commodity derivative contracts during such period. For the second quarter of 2022, such amount was $2,114 million, of which $1,328 million was related to the early termination of certain contracts. See "Financial Commodity Derivative Contracts" below for further discussion.
+
+18
+
+Adjusted Net Income (Loss) (Continued)
+In millions of USD, except share data (in millions) and per share data (Unaudited)
+1Q 2022
+Before Tax	Income Tax Impact	After Tax	Diluted Earnings per Share
+Reported Net Income (GAAP)	497	(107)	390	0.67
+Adjustments:
+Losses on Mark-to-Market Financial Commodity Derivative Contracts	2,820	(612)	2,208	3.76
+Net Cash Payments for Settlements of Financial Commodity Derivative Contracts	(296)	64	(232)	(0.40)
+Less: Gains on Asset Dispositions, Net	(25)	5	(20)	(0.03)
+Adjustments to Net Income	2,499	(543)	1,956	3.33
+Adjusted Net Income (Non-GAAP)	2,996	(650)	2,346	4.00
+Average Number of Common Shares (Non-GAAP)
+Basic	582
+Diluted	586
+
+2Q 2021
+Before Tax	Income Tax Impact	After Tax	Diluted Earnings per Share
+Reported Net Income (GAAP)	1,124	(217)	907	1.55
+Adjustments:
+Losses on Mark-to-Market Financial Commodity Derivative Contracts	427	(93)	334	0.58
+Net Cash Payments for Settlements of Financial Commodity Derivative Contracts	(193)	42	(151)	(0.26)
+Less: Gains on Asset Dispositions, Net	(51)	17	(34)	(0.06)
+Add: Certain Impairments	1	—	1	—
+Less: Tax Benefits Related to Exiting Canada Operations	—	(45)	(45)	(0.08)
+Adjustments to Net Income	184	(79)	105	0.18
+Adjusted Net Income (Non-GAAP)	1,308	(296)	1,012	1.73
+Average Number of Common Shares (Non-GAAP)
+Basic	580
+Diluted	584
+19
+
+Adjusted Net Income (Loss) (Continued)
+In millions of USD, except share data (in millions) and per share data (Unaudited)
+YTD 2022
+Before Tax	Income Tax Impact	After Tax	Diluted Earnings per Share
+Reported Net Income (GAAP)	3,379	(751)	2,628	4.48
+Adjustments:
+Losses on Mark-to-Market Commodity Derivative Contracts	4,197	(911)	3,286	5.59
+Net Cash Payments for Settlements of Financial Commodity Derivative Contracts (1)	(2,410)	523	(1,887)	(3.21)
+Less: Gains on Asset Dispositions, Net	(122)	26	(96)	(0.16)
+Add: Certain Impairments	36	(7)	29	0.05
+Adjustments to Net Income	1,701	(369)	1,332	2.27
+Adjusted Net Income (Non-GAAP)	5,080	(1,120)	3,960	6.75
+Average Number of Common Shares (Non-GAAP)
+Basic	582
+Diluted	587
+(1) Consistent with its customary practice, in calculating Adjusted Net Income (Loss) (non-GAAP), EOG subtracts from reported Net Income (Loss) (GAAP) the total net cash paid for settlements of financial commodity derivative contracts during such period. For the first six months of 2022, such amount was $2,410 million, of which $1,328 million was related to the early termination of certain contracts. See "Financial Commodity Derivative Contracts" below for further discussion.
+
+YTD 2021
+Before Tax	Income Tax Impact	After Tax	Diluted Earnings per Share
+Reported Net Income (GAAP)	2,005	(421)	1,584	2.72
+Adjustments:
+Losses on Mark-to-Market Commodity Derivative Contracts	794	(174)	620	1.07
+Net Cash Payments from Settlements of Commodity Derivative Contracts	(223)	49	(174)	(0.30)
+Less: Gains on Asset Dispositions, Net	(45)	16	(29)	(0.05)
+Add: Certain Impairments	2	—	2	—
+Less: Tax Benefits Related to Exiting Canada Operations	—	(45)	(45)	(0.08)
+Adjustments to Net Income	528	(154)	374	0.64
+Adjusted Net Income (Non-GAAP)	2,533	(575)	1,958	3.36
+Average Number of Common Shares (Non-GAAP)
+Basic	580
+Diluted	583
+20
+
+Adjusted Net Income Per Share
+In millions of USD, except share data (in millions), per share data, production volume data and per Boe data (Unaudited)
+1Q 2022 Adjusted Net Income per Share (Non-GAAP)	4.00
+Realized Price
+2Q 2022 Composite Average Wellhead Revenue per Boe	77.29
+Less: 1Q 2022 Composite Average Welhead Revenue per Boe	(66.50)
+Subtotal	10.79
+Multiplied by: 2Q 2022 Crude Oil Equivalent Volumes (MMBoe)	83.8
+Total Change in Revenue	904
+Less: Income Tax Benefit (Provision) Imputed (based on 23%)	(208)
+Change in Net Income	696
+Change in Diluted Earnings per Share	1.18
+Net Cash Received from (Payments for) Settlements of Financial Commodity Derivative Contracts
+2Q 2022 Net Cash Received from (Payments for) Settlement of Financial Commodity Derivative Contracts	(2,114)
+Less: Income Tax Benefit (Provision)	459
+After Tax - (a)	(1,655)
+1Q 2022 Net Cash Received from (Payments for) Settlement of Financial Commodity Derivative Contracts	(296)
+Less: Income Tax Benefit (Provision)	64
+After Tax - (b)	(232)
+Change in Net Income - (a) - (b)	(1,423)
+Change in Diluted Earnings per Share	(2.42)
+Wellhead Volumes
+2Q 2022 Crude Oil Equivalent Volumes (MMBoe)	83.8
+Less: 1Q 2022 Crude Oil Equivalent Volumes (MMBoe)	(79.5)
+Subtotal	4.3
+Multiplied by: 2Q 2022 Composite Average Margin per Boe (Non-GAAP) (Including Total Exploration Costs) (refer to "Revenues, Costs and Margins Per Barrel of Oil Equivalent" schedule)	48.79
+Change in Revenue	209
+Less: Income Tax Benefit (Provision) Imputed (based on 23%)	(48)
+Change in Net Income	161
+Change in Diluted Earnings per Share	0.27
+
+21
+
+Adjusted Net Income Per Share (Continued)
+In millions of USD, except share data (in millions), per share data, production volume data and per Boe data (Unaudited)
+Operating Cost per Boe
+1Q 2022 Total Operating Cost per Boe (Non-GAAP) (including Total Exploration Costs) (refer to "Revenues, Costs and Margins Per Barrel of Oil Equivalent" schedule)	27.70
+Less: 1Q 2022 Taxes Other Than Income	(4.91)
+Less: 2Q 2022 Total Operating Cost per Boe (Non-GAAP) (including Total Exploration Costs) (refer to "Revenues, Costs and Margins Per Barrel of Oil Equivalent" schedule)	(28.50)
+Add: 2Q 2022 Taxes Other Than Income	5.63
+Subtotal	(0.08)
+Multiplied by: 2Q 2022 Crude Oil Equivalent Volumes (MMBoe)	83.8
+Change in Before-Tax Net Income	(7)
+Less: Income Tax Benefit (Provision) Imputed (based on 23%)	2
+Change in Net Income	(5)
+Change in Diluted Earnings per Share	(0.01)
+Other (1)	(0.28)
+2Q 2022 Adjusted Net Income per Share (Non-GAAP)	2.74
+2Q 2022 Average Number of Common Shares (Non-GAAP) - Diluted	588
+(1) Includes gathering, processing and marketing revenue, other revenue, marketing costs, taxes other than income, other income (expense), interest expense and the effect of changes in the effective income tax rate.
+22
+
+Cash Flow from Operations and Free Cash Flow
+In millions of USD (Unaudited)
+The following tables reconcile Net Cash Provided by Operating Activities (GAAP) to Cash Flow from Operations Before Working Capital (Non-GAAP). EOG believes this presentation may be useful to investors who follow the practice of some industry analysts who adjust Net Cash Provided by Operating Activities for Changes in Components of Working Capital and Other Assets and Liabilities, Changes in Components of Working Capital Associated with Investing and Financing Activities and certain other adjustments to exclude non-recurring and certain other items as further described below. EOG defines Free Cash Flow (Non-GAAP) for a given period as Cash Flow from Operations Before Working Capital (Non-GAAP) (see below reconciliation) for such period less the total capital expenditures (Non-GAAP) during such period, as is illustrated below. EOG management uses this information for comparative purposes within the industry. To further the comparability of EOG’s financial results with those of EOG’s peer companies and other companies in the industry, EOG now utilizes Cash Flow from Operations Before Working Capital (Non-GAAP), instead of Discretionary Cash Flow (Non-GAAP), in calculating its Free Cash Flow (Non-GAAP). Accordingly, Free Cash Flow (Non-GAAP) for the three-month and six-month periods ended June 30, 2022 have been calculated on such basis, and the calculations of Free Cash Flow (Non-GAAP) for each of the prior periods shown have been revised and conformed.
+2Q 2022	1Q 2022	4Q 2021	3Q 2021	2Q 2021
+Net Cash Provided by Operating Activities (GAAP)	2,048	828	3,166	2,196	1,559
+Adjustments:
+Changes in Components of Working Capital and Other Assets and Liabilities
+Accounts Receivable	522	878	182	145	186
+Inventories	157	14	108	6	(37)
+Accounts Payable	(259)	(130)	(341)	68	(11)
+Accrued Taxes Payable	536	(613)	(26)	(206)	163
+Other Assets	(71)	213	81	(167)	119
+Other Liabilities	(433)	2,250	(201)	260	(32)
+Changes in Components of Working Capital Associated with Investing Activities	(143)	(68)	100	(45)	54
+Cash Flow from Operations Before Working Capital (Non-GAAP)	2,357	3,372	3,069	2,257	2,001
+Cash Flow from Operations Before Working Capital (Non-GAAP)	2,357	3,372	3,069	2,257	2,001
+Less:
+Total Capital Expenditures (Non-GAAP) (a)	(1,071)	(1,009)	(1,015)	(891)	(937)
+Free Cash Flow (Non-GAAP)	1,286	2,363	2,054	1,366	1,064
+(a) See below reconciliation of Total Expenditures (GAAP) to Total Capital Expenditures (Non-GAAP):
+2Q 2022	1Q 2022	4Q 2021	3Q 2021	2Q 2021
+Total Expenditures (GAAP)	1,521	1,144	1,137	962	1,089
+Less:
+Asset Retirement Costs	(43)	(27)	(71)	(8)	(31)
+Non-Cash Acquisition Costs of Unproved Properties	(21)	(58)	(8)	(15)	—
+Non-Cash Finance Leases	—	—	—	—	—
+Acquisition Costs of Proved Properties	(351)	(5)	(1)	(4)	(86)
+Exploration Costs	(35)	(45)	(42)	(44)	(35)
+Total Capital Expenditures (Non-GAAP)	1,071	1,009	1,015	891	937
+23
+
+Cash Flow from Operations and Free Cash Flow (Continued)
+In millions of USD (Unaudited)
+YTD 2022	YTD 2021
+Net Cash Provided by Operating Activities (GAAP)	2,876	3,429
+Adjustments:
+Changes in Components of Working Capital and Other Assets and Liabilities
+Accounts Receivable	1,400	494
+Inventories	171	(101)
+Accounts Payable	(389)	(183)
+Accrued Taxes Payable	(77)	(80)
+Other Assets	142	222
+Other Liabilities	1,817	57
+Changes in Components of Working Capital Associated with Investing Activities	(211)	145
+Cash Flow from Operations Before Working Capital (Non-GAAP)	5,729	3,983
+Cash Flow from Operations Before Working Capital (Non-GAAP)	5,729	3,983
+Less:
+Total Capital Expenditures (Non-GAAP) (a)	(2,080)	(1,849)
+Free Cash Flow (Non-GAAP)	3,649	2,134
+(a) See below reconciliation of Total Expenditures (GAAP) to Total Capital Expenditures (Non-GAAP):
+YTD 2022	YTD 2021
+Total Expenditures (GAAP)	2,665	2,156
+Less:
+Asset Retirement Costs	(70)	(48)
+Non-Cash Acquisition Costs of Unproved Properties	(79)	(22)
+Non-Cash Finance Leases	—	(74)
+Acquisition Costs of Proved Properties	(356)	(95)
+Exploration Costs	(80)	(68)
+Total Capital Expenditures (Non-GAAP)	2,080	1,849
+24
+
+Cash Flow from Operations and Free Cash Flow (Continued)
+In millions of USD (Unaudited)
+FY 2021	FY 2020	FY 2019
+Net Cash Provided by Operating Activities (GAAP)	8,791	5,008	8,163
+Adjustments:
+Changes in Components of Working Capital and Other Assets and Liabilities
+Accounts Receivable	821	(467)	92
+Inventories	13	(123)	(90)
+Accounts Payable	(456)	795	(169)
+Accrued Taxes Payable	(312)	49	(40)
+Other Assets	136	(325)	(358)
+Other Liabilities	116	(8)	57
+Changes in Components of Working Capital Associated with Investing and Financing Activities	200	(75)	115
+Other Non-Current Income Taxes - Net Receivable	—	113	239
+Cash Flow from Operations Before Working Capital (Non-GAAP)	9,309	4,967	8,009
+Cash Flow from Operations Before Working Capital (Non-GAAP)	9,309	4,967	8,009
+Less:
+Total Capital Expenditures (Non-GAAP) (a)	(3,755)	(3,344)	(6,094)
+Free Cash Flow (Non-GAAP)	5,554	1,623	1,915
+(a) See below reconciliation of Total Expenditures (GAAP) to Total Capital Expenditures (Non-GAAP):
+Total Expenditures (GAAP)	4,255	4,113	6,900
+Less:
+Asset Retirement Costs	(127)	(117)	(186)
+Non-Cash Expenditures of Other Property, Plant and Equipment	—	—	(2)
+Non-Cash Acquisition Costs of Unproved Properties	(45)	(197)	(98)
+Non-Cash Finance Leases	(74)	(174)	—
+Acquisition Costs of Proved Properties	(100)	(135)	(380)
+Exploration Costs	(154)	(146)	(140)
+Total Capital Expenditures (Non-GAAP)	3,755	3,344	6,094
+
+25
+
+Cash Flow from Operations and Free Cash Flow (Continued)
+In millions of USD (Unaudited)
+FY 2018	FY 2017	FY 2016
+Net Cash Provided by Operating Activities (GAAP)	7,769	4,265	2,359
+Adjustments:
+Changes in Components of Working Capital and Other Assets and Liabilities
+Accounts Receivable	368	392	233
+Inventories	395	175	(171)
+Accounts Payable	(439)	(324)	74
+Accrued Taxes Payable	92	64	(93)
+Other Assets	125	659	41
+Other Liabilities	(11)	90	16
+Changes in Components of Working Capital Associated with Investing and Financing Activities	(301)	(90)	156
+Other Non-Current Income Taxes - Net (Payable) Receivable	149	(513)	—
+Excess Tax Benefits from Stock-Based Compensation	—	—	30
+Cash Flow from Operations Before Working Capital (Non-GAAP)	8,147	4,718	2,645
+Cash Flow from Operations Before Working Capital (Non-GAAP)	8,147	4,718	2,645
+Less:
+Total Capital Expenditures (Non-GAAP) (a)	(6,023)	(4,083)	(2,581)
+Free Cash Flow (Non-GAAP)	2,124	635	64
+(a) See below reconciliation of Total Expenditures (GAAP) to Total Capital Expenditures (Non-GAAP):
+Total Expenditures (GAAP)	6,706	4,613	6,554
+Less:
+Asset Retirement Costs	(70)	(56)	20
+Non-Cash Expenditures of Other Property, Plant and Equipment	(1)	—	(17)
+Non-Cash Acquisition Costs of Unproved Properties	(291)	(256)	(3,102)
+Non-Cash Finance Leases	(48)	—	—
+Acquisition Costs of Proved Properties	(124)	(73)	(749)
+Exploration Costs	(149)	(145)	(125)
+Total Capital Expenditures (Non-GAAP)	6,023	4,083	2,581
+
+26
+
+Total Expenditures
+In millions of USD (Unaudited)
+2Q 2022	1Q 2022	4Q 2021	3Q 2021	2Q 2021	YTD 2022	YTD 2021
+Exploration and Development Drilling	866	813	767	653	711	1,679	1,444
+Facilities	90	109	118	100	105	199	187
+Leasehold Acquisitions	34	64	21	90	46	98	104
+Property Acquisitions	351	5	1	4	86	356	95
+Capitalized Interest	7	8	9	9	7	15	15
+Subtotal	1,348	999	916	856	955	2,347	1,845
+Exploration Costs	35	45	42	44	35	80	68
+Dry Hole Costs	20	3	43	4	13	23	24
+Exploration and Development Expenditures	1,403	1,047	1,001	904	1,003	2,450	1,937
+Asset Retirement Costs	43	27	71	8	31	70	48
+Total Exploration and Development Expenditures	1,446	1,074	1,072	912	1,034	2,520	1,985
+Other Property, Plant and Equipment	75	70	65	50	55	145	171
+Total Expenditures	1,521	1,144	1,137	962	1,089	2,665	2,156
+
+27
+
+Total Expenditures (Continued)
+In millions of USD (Unaudited)
+FY 2021	FY 2020	FY 2019	FY 2018	FY 2017	FY 2016
+Exploration and Development Drilling	2,864	2,664	4,951	4,935	3,132	1,957
+Facilities	405	347	629	625	575	375
+Leasehold Acquisitions	215	265	276	488	427	3,217
+Property Acquisitions	100	135	380	124	73	749
+Capitalized Interest	33	31	38	24	27	31
+Subtotal	3,617	3,442	6,274	6,196	4,234	6,329
+Exploration Costs	154	146	140	149	145	125
+Dry Hole Costs	71	13	28	5	5	11
+Exploration and Development Expenditures	3,842	3,601	6,442	6,350	4,384	6,465
+Asset Retirement Costs	127	117	186	70	56	(20)
+Total Exploration and Development Expenditures	3,969	3,718	6,628	6,420	4,440	6,445
+Other Property, Plant and Equipment	286	395	272	286	173	109
+Total Expenditures	4,255	4,113	6,900	6,706	4,613	6,554
+28
+
+EBITDAX and Adjusted EBITDAX
+In millions of USD (Unaudited)
+The following table adjusts the reported Net Income (Loss) (GAAP) to Earnings Before Interest Expense, Net, Income Taxes (Income Tax Provision (Benefit)), Depreciation, Depletion and Amortization, Exploration Costs, Dry Hole Costs and Impairments (EBITDAX) (Non-GAAP) and further adjusts such amount to reflect actual Net Cash Received from (Payments for) Settlements of Financial Commodity Derivative Contracts by eliminating the unrealized Mark-to-Market (MTM) (Gains) Losses from these transactions and to eliminate the (Gains) Losses on Asset Dispositions (Net). EOG believes this presentation may be useful to investors who follow the practice of some industry analysts who adjust reported Net Income (Loss) (GAAP) to add back Interest Expense, Net, Income Taxes (Income Tax Provision (Benefit)), Depreciation, Depletion and Amortization, Exploration Costs, Dry Hole Costs and Impairments and further adjust such amount to match realizations to production settlement months and make certain other adjustments to exclude non-recurring and certain other items. EOG management uses this information for purposes of comparing its financial performance with the financial performance of other companies in the industry.
+2Q 2022	2Q 2021	YTD 2022	YTD 2021
+Net Income (GAAP)	2,238	907	2,628	1,584
+Adjustments:
+Interest Expense, Net	48	45	96	92
+Income Tax Provision	644	217	751	421
+Depreciation, Depletion and Amortization	911	914	1,758	1,814
+Exploration Costs	35	35	80	68
+Dry Hole Costs	20	13	23	24
+Impairments	91	44	146	88
+EBITDAX (Non-GAAP)	3,987	2,175	5,482	4,091
+Losses on MTM Financial Commodity Derivative Contracts	1,377	427	4,197	794
+Net Cash Payments for Settlements of Commodity Derivative Contracts	(2,114)	(193)	(2,410)	(223)
+Gains on Asset Dispositions, Net	(97)	(51)	(122)	(45)
+Adjusted EBITDAX (Non-GAAP)	3,153	2,358	7,147	4,617
+Definitions
+EBITDAX - Earnings Before Interest Expense, Net; Income Tax Provision (Benefit); Depreciation, Depletion and Amortization; Exploration Costs; Dry Hole Costs; and Impairments
+
+29
+
+Net Debt-to-Total Capitalization Ratio
+In millions of USD, except ratio data (Unaudited)
+The following tables reconcile Current and Long-Term Debt (GAAP) to Net Debt (Non-GAAP) and Total Capitalization (GAAP) to Total Capitalization (Non-GAAP), as used in the Net Debt-to-Total Capitalization ratio calculation. A portion of the cash is associated with international subsidiaries; tax considerations may impact debt paydown. EOG believes this presentation may be useful to investors who follow the practice of some industry analysts who utilize Net Debt and Total Capitalization (Non-GAAP) in their Net Debt-to-Total Capitalization ratio calculation. EOG management uses this information for comparative purposes within the industry.
+June 30, 2022	March 31, 2022
+Total Stockholders' Equity - (a)	22,312	21,540
+Current and Long-Term Debt (GAAP) - (b)	5,091	5,099
+Less: Cash	(3,073)	(4,009)
+Net Debt (Non-GAAP) - (c)	2,018	1,090
+Total Capitalization (GAAP) - (a) + (b)	27,403	26,639
+Total Capitalization (Non-GAAP) - (a) + (c)	24,330	22,630
+Debt-to-Total Capitalization (GAAP) - (b) / [(a) + (b)]	18.6	%	19.1	%
+Net Debt-to-Total Capitalization (Non-GAAP) - (c) / [(a) + (c)]	8.3	%	4.8	%
+
+30
+
+Net Debt-to-Total Capitalization Ratio (Continued)
+In millions of USD, except ratio data (Unaudited)
+December 31, 2021	September 30, 2021	June 30, 2021	March 31, 2021
+Total Stockholders' Equity - (a)	22,180	21,765	20,881	20,762
+Current and Long-Term Debt (GAAP) - (b)	5,109	5,117	5,125	5,133
+Less: Cash	(5,209)	(4,293)	(3,880)	(3,388)
+Net Debt (Non-GAAP) - (c)	(100)	824	1,245	1,745
+Total Capitalization (GAAP) - (a) + (b)	27,289	26,882	26,006	25,895
+Total Capitalization (Non-GAAP) - (a) + (c)	22,080	22,589	22,126	22,507
+Debt-to-Total Capitalization (GAAP) - (b) / [(a) + (b)]	18.7	%	19.0	%	19.7	%	19.8	%
+Net Debt-to-Total Capitalization (Non-GAAP) - (c) / [(a) + (c)]	-0.5	%	3.6	%	5.6	%	7.8	%
+31
+
+Net Debt-to-Total Capitalization Ratio (Continued)
+In millions of USD, except ratio data (Unaudited)
+December 31, 2020	September 30, 2020	June 30, 2020	March 31, 2020
+Total Stockholders' Equity - (a)	20,302	20,148	20,388	21,471
+Current and Long-Term Debt (GAAP) - (b)	5,816	5,721	5,724	5,222
+Less: Cash	(3,329)	(3,066)	(2,417)	(2,907)
+Net Debt (Non-GAAP) - (c)	2,487	2,655	3,307	2,315
+Total Capitalization (GAAP) - (a) + (b)	26,118	25,869	26,112	26,693
+Total Capitalization (Non-GAAP) - (a) + (c)	22,789	22,803	23,695	23,786
+Debt-to-Total Capitalization (GAAP) - (b) / [(a) + (b)]	22.3	%	22.1	%	21.9	%	19.6	%
+Net Debt-to-Total Capitalization (Non-GAAP) - (c) / [(a) + (c)]	10.9	%	11.6	%	14.0	%	9.7	%
+
+32
+
+Net Debt-to-Total Capitalization Ratio (Continued)
+In millions of USD, except ratio data (Unaudited)
+December 31, 2019	September 30, 2019	June 30, 2019	March 31, 2019
+Total Stockholders' Equity - (a)	21,641	21,124	20,630	19,904
+Current and Long-Term Debt (GAAP) - (b)	5,175	5,177	5,179	6,081
+Less: Cash	(2,028)	(1,583)	(1,160)	(1,136)
+Net Debt (Non-GAAP) - (c)	3,147	3,594	4,019	4,945
+Total Capitalization (GAAP) - (a) + (b)	26,816	26,301	25,809	25,985
+Total Capitalization (Non-GAAP) - (a) + (c)	24,788	24,718	24,649	24,849
+Debt-to-Total Capitalization (GAAP) - (b) / [(a) + (b)]	19.3	%	19.7	%	20.1	%	23.4	%
+Net Debt-to-Total Capitalization (Non-GAAP) - (c) / [(a) + (c)]	12.7	%	14.5	%	16.3	%	19.9	%
+
+33
+
+Net Debt-to-Total Capitalization Ratio (Continued)
+In millions of USD, except ratio data (Unaudited)
+December 31, 2018	September 30, 2018	June 30, 2018	March 31, 2018
+Total Stockholders' Equity - (a)	19,364	18,538	17,452	16,841
+Current and Long-Term Debt (GAAP) - (b)	6,083	6,435	6,435	6,435
+Less: Cash	(1,556)	(1,274)	(1,008)	(816)
+Net Debt (Non-GAAP) - (c)	4,527	5,161	5,427	5,619
+Total Capitalization (GAAP) - (a) + (b)	25,447	24,973	23,887	23,276
+Total Capitalization (Non-GAAP) - (a) + (c)	23,891	23,699	22,879	22,460
+Debt-to-Total Capitalization (GAAP) - (b) / [(a) + (b)]	23.9	%	25.8	%	26.9	%	27.6	%
+Net Debt-to-Total Capitalization (Non-GAAP) - (c) / [(a) + (c)]	18.9	%	21.8	%	23.7	%	25.0	%
+
+34
+
+Net Debt-to-Total Capitalization Ratio (Continued)
+In millions of USD, except ratio data (Unaudited)
+December 31, 2017	September 30, 2017	June 30, 2017	March 31, 2017
+Total Stockholders' Equity - (a)	16,283	13,922	13,902	13,928
+Current and Long-Term Debt (GAAP) - (b)	6,387	6,387	6,987	6,987
+Less: Cash	(834)	(846)	(1,649)	(1,547)
+Net Debt (Non-GAAP) - (c)	5,553	5,541	5,338	5,440
+Total Capitalization (GAAP) - (a) + (b)	22,670	20,309	20,889	20,915
+Total Capitalization (Non-GAAP) - (a) + (c)	21,836	19,463	19,240	19,368
+Debt-to-Total Capitalization (GAAP) - (b) / [(a) + (b)]	28.2	%	31.4	%	33.4	%	33.4	%
+Net Debt-to-Total Capitalization (Non-GAAP) - (c) / [(a) + (c)]	25.4	%	28.5	%	27.7	%	28.1	%
+
+35
+
+Net Debt-to-Total Capitalization Ratio (Continued)
+In millions of USD, except ratio data (Unaudited)
+December 31, 2016	September 30, 2016	June 30, 2016	March 31, 2016	December 31, 2015
+Total Stockholders' Equity - (a)	13,982	11,798	12,057	12,405	12,943
+Current and Long-Term Debt (GAAP) - (b)	6,986	6,986	6,986	6,986	6,656
+Less: Cash	(1,600)	(1,049)	(780)	(668)	(719)
+Net Debt (Non-GAAP) - (c)	5,386	5,937	6,206	6,318	5,937
+Total Capitalization (GAAP) - (a) + (b)	20,968	18,784	19,043	19,391	19,599
+Total Capitalization (Non-GAAP) - (a) + (c)	19,368	17,735	18,263	18,723	18,880
+Debt-to-Total Capitalization (GAAP) - (b) / [(a) + (b)]	33.3	%	37.2	%	36.7	%	36.0	%	34.0	%
+Net Debt-to-Total Capitalization (Non-GAAP) - (c) / [(a) + (c)]	27.8	%	33.5	%	34.0	%	33.7	%	31.4	%
+
+36
+
+Reserve Replacement Cost Data
+In millions of USD, except reserves and ratio data (Unaudited)
+The following table reconciles Total Costs Incurred in Exploration and Development Activities (GAAP) to Total Exploration and Development Expenditures for Drilling Only (Non-GAAP) and Total Exploration and Development Expenditures (Non-GAAP), as used in the calculation of Reserve Replacement Costs per Boe. There are numerous ways that industry participants present Reserve Replacement Costs, including “Drilling Only” and “All-In”, which reflect total exploration and development expenditures divided by total net proved reserve additions from extensions and discoveries only, or from all sources. Combined with Reserve Replacement, these statistics (and the non-GAAP measures used in calculating such statistics) provide management and investors with an indication of the results of the current year capital investment program. Reserve Replacement Cost statistics (and the non-GAAP measures used in calculating such statistics) are widely recognized and reported by industry participants and are used by EOG management and other third parties for comparative purposes within the industry. Please note that the actual cost of adding reserves will vary from the reported statistics due to timing differences in reserve bookings and capital expenditures. Accordingly, some analysts use three or five year averages of reported statistics, while others prefer to estimate future costs. EOG has not included future capital costs to develop proved undeveloped reserves in exploration and development expenditures.
+2021	2020	2019	2018
+Total Costs Incurred in Exploration and Development Activities (GAAP)	3,969	3,718	6,628	6,420
+Less: Asset Retirement Costs	(127)	(117)	(186)	(70)
+Non-Cash Acquisition Costs of Unproved Properties	(45)	(197)	(98)	(291)
+Acquisition Costs of Proved Properties	(100)	(135)	(380)	(124)
+Total Exploration and Development Expenditures for Drilling Only (Non-GAAP) - (a)	3,697	3,269	5,964	5,935
+Total Costs Incurred in Exploration and Development Activities (GAAP)	3,969	3,718	6,628	6,420
+Less: Asset Retirement Costs	(127)	(117)	(186)	(70)
+Non-Cash Acquisition Costs of Unproved Properties	(45)	(197)	(98)	(291)
+Non-Cash Acquisition Costs of Proved Properties	(5)	(15)	(52)	(71)
+Total Exploration and Development Expenditures (Non-GAAP) - (b)	3,792	3,389	6,292	5,988
+Net Proved Reserve Additions From All Sources - Oil Equivalents (MMBoe)
+Revisions Due to Price - (c)	194	(278)	(60)	35
+Revisions Other Than Price	(308)	(89)	—	(40)
+Purchases in Place	9	10	17	12
+Extensions, Discoveries and Other Additions - (d)	952	564	750	670
+Total Proved Reserve Additions - (e)	847	207	707	677
+Sales in Place	(11)	(31)	(5)	(11)
+Net Proved Reserve Additions From All Sources	836	176	702	666
+Production	309	285	301	265
+Reserve Replacement Costs ($ / Boe)
+Total Drilling, Before Revisions - (a / d)	3.88	5.79	7.95	8.86
+All-in Total, Net of Revisions - (b / e)	4.48	16.32	8.90	8.85
+All-in Total, Excluding Revisions Due to Price - (b / ( e - c))	5.81	6.98	8.21	9.33
+
+37
+
+Reserve Replacement Cost Data (Continued)
+In millions of USD, except reserves and ratio data (Unaudited)
+2017	2016	2015	2014
+Total Costs Incurred in Exploration and Development Activities (GAAP)	4,440	6,445	4,928	7,905
+Less: Asset Retirement Costs	(56)	20	(53)	(196)
+Non-Cash Acquisition Costs of Unproved Properties	(256)	(3,102)	—	—
+Acquisition Costs of Proved Properties	(73)	(749)	(481)	(139)
+Total Exploration and Development Expenditures for Drilling Only (Non-GAAP) - (a)	4,055	2,614	4,394	7,570
+Total Costs Incurred in Exploration and Development Activities (GAAP)	4,440	6,445	4,928	7,905
+Less: Asset Retirement Costs	(56)	20	(53)	(196)
+Non-Cash Acquisition Costs of Unproved Properties	(256)	(3,102)	—	—
+Non-Cash Acquisition Costs of Proved Properties	(26)	(732)	—	—
+Total Exploration and Development Expenditures (Non-GAAP) - (b)	4,102	2,631	4,875	7,709
+Net Proved Reserve Additions From All Sources - Oil Equivalents (MMBoe)
+Revisions Due to Price - (c)	154	(101)	(574)	52
+Revisions Other Than Price	48	253	107	49
+Purchases in Place	2	42	56	14
+Extensions, Discoveries and Other Additions - (d)	421	209	246	519
+Total Proved Reserve Additions - (e)	625	403	(165)	634
+Sales in Place	(21)	(168)	(4)	(36)
+Net Proved Reserve Additions From All Sources	604	235	(169)	598
+Production	224	206	210	220
+Reserve Replacement Costs ($ / Boe)
+Total Drilling, Before Revisions - (a / d)	9.64	12.51	17.87	14.58
+All-in Total, Net of Revisions - (b / e)	6.56	6.52	(29.63)	12.16
+All-in Total, Excluding Revisions Due to Price - (b / ( e - c))	8.71	5.22	11.91	13.25
+
+Definitions
+$/Boe	U.S. Dollars per barrel of oil equivalent
+MMBoe	Million barrels of oil equivalent
+38
+
+Financial Commodity Derivative Contracts
+EOG accounts for financial commodity derivative contracts using the mark-to-market accounting method.
+
+Presented below is a comprehensive summary of EOG's financial commodity derivative contracts settled during the period from January 1, 2022 to July 29, 2022 (closed) and outstanding as of July 29, 2022.
+
+Crude Oil Financial Price Swap Contracts
+Contracts Sold	Contracts Purchased
+Period	Settlement Index	Volume (MBbld)	Weighted Average Price ($/Bbl)	Volume (MBbld)	Weighted Average Price ($/Bbl)
+January - March 2022 (closed)	NYMEX WTI	140	$	65.58	—	$	—
+April - June 2022 (closed)	NYMEX WTI	140	65.62	—	—
+July 2022 (closed)	NYMEX WTI	140	65.59	—	—
+August - September 2022	NYMEX WTI	140	65.59	—	—
+October - December 2022 (closed) (1)	NYMEX WTI	53	66.11	—	—
+October - December 2022	NYMEX WTI	87	65.41	87	88.85
+January - February 2023 (closed) (1)	NYMEX WTI	7	69.51	—	—
+January - February 2023	NYMEX WTI	143	67.84	6	102.26
+March 2023 (closed) (1)	NYMEX WTI	37	67.35	—	—
+March 2023	NYMEX WTI	113	68.11	6	102.26
+April - May 2023 (closed) (1)	NYMEX WTI	29	68.28	—	—
+April - May 2023	NYMEX WTI	91	67.63	2	98.15
+June 2023 (closed) (1)	NYMEX WTI	118	67.77	—	—
+June 2023	NYMEX WTI	2	69.10	2	98.15
+July - September 2023 (closed) (1)	NYMEX WTI	100	70.15	—	—
+October - December 2023 (closed) (1)	NYMEX WTI	69	69.41	—	—
+
+(1) In the second quarter of 2022, EOG executed the early termination provision granting EOG the right to terminate certain of its October 2022 - December 2023 crude oil financial price swap contracts which were open at that time. EOG paid net cash of $593 million for the settlement of these contracts.
+
+39
+
+Financial Commodity Derivative Contracts (Continued)
+Crude Oil Basis Swap Contracts
+Contracts Sold
+Period	Settlement Index	Volume (MBbld)	Weighted Average Price Differential ($/Bbl)
+January - August 2022 (closed)	NYMEX WTI Roll Differential (1)	125	$	0.15
+September - December 2022	NYMEX WTI Roll Differential (1)	125	0.15
+
+(1) This settlement index is used to fix the differential in pricing between the NYMEX calendar month average and the physical crude oil delivery month.
+
+Natural Gas Financial Price Swap Contracts
+Contracts Sold
+Period	Settlement Index	Volume (MMBtud in thousands)	Weighted Average Price ($/MMBtu)
+January - August 2022 (closed)	NYMEX Henry Hub	725	$	3.57
+September 2022	NYMEX Henry Hub	725	3.57
+October - December 2022 (closed) (1)	NYMEX Henry Hub	425	3.05
+October - December 2022	NYMEX Henry Hub	300	4.32
+January - December 2023 (closed) (1)	NYMEX Henry Hub	425	3.05
+January - December 2023	NYMEX Henry Hub	300	3.36
+January - December 2024	NYMEX Henry Hub	725	3.07
+January - December 2025	NYMEX Henry Hub	725	3.07
+
+(1) In the second quarter of 2022, EOG executed the early termination provision granting EOG the right to terminate certain of its October 2022 - December 2023 natural gas financial price swap contracts which were open at that time. EOG paid net cash of $735 million for the settlement of these contracts.
+
+Natural Gas Basis Swap Contracts
+Contracts Sold
+Period	Settlement Index	Volume (MMBtud in thousands)	Weighted Average Price Differential ($/MMBtu)
+January - July 2022 (closed)	NYMEX Henry Hub HSC Differential (1)	210	$	(0.01)
+August - December 2022	NYMEX Henry Hub HSC Differential (1)	210	(0.01)
+January - December 2023	NYMEX Henry Hub HSC Differential (1)	135	(0.01)
+January - December 2024	NYMEX Henry Hub HSC Differential (1)	10	0.00
+January - December 2025	NYMEX Henry Hub HSC Differential (1)	10	0.00
+
+(1) This settlement index is used to fix the differential between pricing at the Houston Ship Channel and NYMEX Henry Hub prices.
+
+40
+
+Financial Commodity Derivative Contracts (Continued)
+Glossary:
+$/Bbl	Dollars per barrel
+$/MMBtu	Dollars per million British Thermal Units
+Bbl	Barrel
+EOG	EOG Resources, Inc.
+HSC	Houston Ship Channel
+MBbld	Thousand barrels per day
+MMBtu	Million British Thermal Units
+MMBtud	Million British Thermal Units per day
+NGL	Natural Gas Liquids
+NYMEX	New York Mercantile Exchange
+WTI	West Texas Intermediate
+
+41
+
+Direct After-Tax Rate of Return
+The calculation of EOG's direct after-tax rate of return (ATROR) with respect to EOG's capital expenditure program for a particular play or well is based on the estimated recoverable reserves ("net" to EOG’s interest) for all wells in such play or such well (as the case may be), the estimated net present value (NPV) of the future net cash flows from such reserves (for which we utilize certain assumptions regarding future commodity prices and operating costs) and EOG's direct net costs incurred in drilling or acquiring (as the case may be) such wells or well (as the case may be). As such, EOG's direct ATROR with respect to our capital expenditures for a particular play or well cannot be calculated from our consolidated financial statements.
+Direct ATROR
+Based on Cash Flow and Time Value of Money
+- Estimated future commodity prices and operating costs
+- Costs incurred to drill, complete and equip a well, including wellsite facilities and flowback
+Excludes Indirect Capital
+- Gathering and Processing and other Midstream
+- Land, Seismic, Geological and Geophysical
+- Offsite Production Facilities
+Payback ~12 Months on 100% Direct ATROR Wells
+First Five Years ~1/2 Estimated Ultimate Recovery Produced but ~3/4 of NPV Captured
+Return on Equity / Return on Capital Employed
+Based on GAAP Accrual Accounting
+Includes All Indirect Capital and Growth Capital for Infrastructure
+- Eagle Ford, Bakken, Permian, Powder River Basin and Dorado Facilities
+- Gathering and Processing
+Includes Legacy Gas Capital and Capital from Mature Wells
+
+42
+
+ROCE & ROE
+In millions of USD, except ratio data (Unaudited)
+The following tables reconcile Interest Expense, Net (GAAP), Net Income (Loss) (GAAP), Current and Long-Term Debt (GAAP) and Total Capitalization (GAAP) to After-Tax Net Interest Expense (Non-GAAP), Adjusted Net Income (Non-GAAP), Net Debt (Non-GAAP) and Total Capitalization (Non-GAAP), respectively, as used in the Return on Capital Employed (ROCE) and Return on Equity (ROE) calculations. EOG believes this presentation may be useful to investors who follow the practice of some industry analysts who utilize After-Tax Net Interest Expense, Adjusted Net Income, Net Debt and Total Capitalization (Non-GAAP) in their ROCE and ROE calculations. EOG management uses this information for purposes of comparing its financial performance with the financial performance of other companies in the industry.
+2021	2020	2019	2018
+Interest Expense, Net (GAAP)	178	205	185	245
+Tax Benefit Imputed (based on 21%)	(37)	(43)	(39)	(51)
+After-Tax Net Interest Expense (Non-GAAP) - (a)	141	162	146	194
+Net Income (Loss) (GAAP) - (b)	4,664	(605)	2,735	3,419
+Adjustments to Net Income (Loss), Net of Tax (See Below Detail) (1)	364	1,455	158	(201)
+Adjusted Net Income (Non-GAAP) - (c)	5,028	850	2,893	3,218
+Total Stockholders' Equity - (d)	22,180	20,302	21,641	19,364
+Average Total Stockholders' Equity * - (e)	21,241	20,972	20,503	17,824
+Current and Long-Term Debt (GAAP) - (f)	5,109	5,816	5,175	6,083
+Less: Cash	(5,209)	(3,329)	(2,028)	(1,556)
+Net Debt (Non-GAAP) - (g)	(100)	2,487	3,147	4,527
+Total Capitalization (GAAP) - (d) + (f)	27,289	26,118	26,816	25,447
+Total Capitalization (Non-GAAP) - (d) + (g)	22,080	22,789	24,788	23,891
+Average Total Capitalization (Non-GAAP) * - (h)	22,435	23,789	24,340	22,864
+Return on Capital Employed (ROCE)
+Calculated Using GAAP Net Income (Loss) - [(a) + (b)] / (h) (Non-GAAP)	21.4	%	-1.9	%	11.8	%	15.8	%
+Calculated Using Non-GAAP Adjusted Net Income - [(a) + (c)] / (h) (Non-GAAP)	23.0	%	4.3	%	12.5	%	14.9	%
+Return on Equity (ROE)
+Calculated Using GAAP Net Income (Loss) - (b) / (e) (GAAP)	22.0	%	-2.9	%	13.3	%	19.2	%
+Calculated Using Non-GAAP Adjusted Net Income - (c) / (e) (Non-GAAP)	23.7	%	4.1	%	14.1	%	18.1	%
+* Average for the current and immediately preceding year
+43
+
+ROCE & ROE (Continued)
+(1) Detail of adjustments to Net Income (Loss) (GAAP):
+Before Tax	Income Tax Impact	After Tax
+Year Ended December 31, 2021
+Adjustments:
+Add: Mark-to-Market Financial Commodity Derivative Contracts Impact	514	(112)	402
+Add: Certain Impairments	15	—	15
+Less: Gains on Asset Dispositions, Net	(17)	9	(8)
+Less: Tax Benefits Related to Exiting Canada Operations	—	(45)	(45)
+Total	512	(148)	364
+Year Ended December 31, 2020
+Adjustments:
+Add: Mark-to-Market Financial Commodity Derivative Contracts Impact	(74)	16	(58)
+Add: Certain Impairments	1,868	(392)	1,476
+Add: Losses on Asset Dispositions, Net	47	(10)	37
+Total	1,841	(386)	1,455
+Year Ended December 31, 2019
+Adjustments:
+Add: Mark-to-Market Financial Commodity Derivative Contracts Impact	51	(11)	40
+Add: Certain Impairments	275	(60)	215
+Less: Gains on Asset Dispositions, Net	(124)	27	(97)
+Total	202	(44)	158
+Year Ended December 31, 2018
+Adjustments:
+Add: Mark-to-Market Financial Commodity Derivative Contracts Impact	(93)	20	(73)
+Add: Certain Impairments	153	(34)	119
+Less: Gains on Asset Dispositions, Net	(175)	38	(137)
+Less: Tax Reform Impact	—	(110)	(110)
+Total	(115)	(86)	(201)
+
+44
+
+ROCE & ROE
+In millions of USD, except ratio data (Unaudited)
+The following tables reconcile Interest Expense, Net (GAAP), Current and Long-Term Debt (GAAP) and Total Capitalization (GAAP) to After-Tax Net Interest Expense (Non-GAAP), Net Debt (Non-GAAP) and Total Capitalization (Non-GAAP), respectively, as used in the Return on Capital Employed (ROCE) and Return on Equity (ROE) calculations. EOG believes this presentation may be useful to investors who follow the practice of some industry analysts who utilize After-Tax Net Interest Expense, Net Debt and Total Capitalization (Non-GAAP) in their ROCE calculation. EOG management uses this information for purposes of comparing its financial performance with the financial performance of other companies in the industry.
+2017	2016	2015
+Interest Expense, Net (GAAP)	274	282	237
+Tax Benefit Imputed (based on 35%)	(96)	(99)	(83)
+After-Tax Net Interest Expense (Non-GAAP) - (a)	178	183	154
+Net Income (Loss) (GAAP) - (b)	2,583	(1,097)	(4,525)
+Total Stockholders' Equity - (d)	16,283	13,982	12,943
+Average Total Stockholders' Equity* - (e)	15,133	13,463	15,328
+Current and Long-Term Debt (GAAP) - (f)	6,387	6,986	6,655
+Less: Cash	(834)	(1,600)	(719)
+Net Debt (Non-GAAP) - (g)	5,553	5,386	5,936
+Total Capitalization (GAAP) - (d) + (f)	22,670	20,968	19,598
+Total Capitalization (Non-GAAP) - (d) + (g)	21,836	19,368	18,879
+Average Total Capitalization (Non-GAAP)* - (h)	20,602	19,124	20,206
+Return on Capital Employed (ROCE)
+Calculated Using GAAP Net Income (Loss) - [(a) + (b)] / (h) (Non-GAAP)	13.4	%	-4.8	%	-21.6	%
+Return on Equity (ROE)
+Calculated Using GAAP Net Income (Loss) - (b) / (e) (GAAP)	17.1	%	-8.1	%	-29.5	%
+* Average for the current and immediately preceding year
+
+45
+
+ROCE & ROE (Continued)
+In millions of USD, except ratio data (Unaudited)
+2014	2013	2012	2011
+Interest Expense, Net (GAAP)	201	235	214
+Tax Benefit Imputed (based on 35%)	(70)	(82)	(75)
+After-Tax Net Interest Expense (Non-GAAP) - (a)	131	153	139
+Net Income (GAAP) - (b)	2,915	2,197	570
+Total Stockholders' Equity - (d)	17,713	15,418	13,285	12,641
+Average Total Stockholders' Equity* - (e)	16,566	14,352	12,963
+Current and Long-Term Debt (GAAP) - (f)	5,906	5,909	6,312	5,009
+Less: Cash	(2,087)	(1,318)	(876)	(616)
+Net Debt (Non-GAAP) - (g)	3,819	4,591	5,436	4,393
+Total Capitalization (GAAP) - (d) + (f)	23,619	21,327	19,597	17,650
+Total Capitalization (Non-GAAP) - (d) + (g)	21,532	20,009	18,721	17,034
+Average Total Capitalization (Non-GAAP)* - (h)	20,771	19,365	17,878
+Return on Capital Employed (ROCE)
+Calculated Using GAAP Net Income - [(a) + (b)] / (h) (Non-GAAP)	14.7	%	12.1	%	4.0	%
+Return on Equity (ROE)
+Calculated Using GAAP Net Income - (b) / (e) (GAAP)	17.6	%	15.3	%	4.4	%
+* Average for the current and immediately preceding year
+46
+
+Revenues, Costs and Margins Per Barrel of Oil Equivalent
+In millions of USD, except Boe and per Boe amounts (Unaudited)
+EOG believes this presentation may be useful to investors who follow the practice of some industry analysts who review certain components and/or groups of components of revenues, costs and/or margin per barrel of oil equivalent (Boe). Certain of these components are adjusted for non-recurring and certain other items, as further discussed below. EOG management uses this information for purposes of comparing its financial performance with the financial performance of other companies in the industry.
+2Q 2022	1Q 2022	4Q 2021	3Q 2021	2Q 2021
+Volume - Million Barrels of Oil Equivalent - (a)	83.8	79.5	79.4	77.7	75.3
+Total Operating Revenues and Other (b)	7,407	3,983	6,044	4,765	4,139
+Total Operating Expenses (c)	4,504	3,437	3,516	3,294	2,968
+Operating Income (d)	2,903	546	2,528	1,471	1,171
+Wellhead Revenues
+Crude Oil and Condensate	4,699	3,889	3,246	2,929	2,699
+Natural Gas Liquids	777	681	583	548	367
+Natural Gas	1,000	716	847	568	404
+Total Wellhead Revenues - (e)	6,476	5,286	4,676	4,045	3,470
+Operating Costs
+Lease and Well	324	318	325	270	270
+Transportation Costs	244	228	228	219	214
+Gathering and Processing Costs	152	144	147	145	128
+General and Administrative	128	124	139	142	120
+Taxes Other Than Income	472	390	316	277	239
+Interest Expense, Net	48	48	38	48	45
+Total Operating Cost (excluding DD&A and Total Exploration Costs) (f)	1,368	1,252	1,193	1,101	1,016
+Depreciation, Depletion and Amortization (DD&A)	911	847	910	927	914
+Total Operating Cost (excluding Total Exploration Costs) - (g)	2,279	2,099	2,103	2,028	1,930
+Exploration Costs	35	45	42	44	35
+Dry Hole Costs	20	3	43	4	13
+Impairments	91	55	206	82	44
+Total Exploration Costs (GAAP)	146	103	291	130	92
+Less: Certain Impairments (1)	(36)	—	—	(13)	(1)
+Total Exploration Costs (Non-GAAP)	110	103	291	117	91
+Total Operating Cost (including Total Exploration Costs (GAAP)) - (h)	2,425	2,202	2,394	2,158	2,022
+Total Operating Cost (including Total Exploration Costs (Non-GAAP)) - (i)	2,389	2,202	2,394	2,145	2,021
+Total Wellhead Revenues less Total Operating Cost (including Total Exploration Costs (GAAP))	4,051	3,084	2,282	1,887	1,448
+Total Wellhead Revenues less Total Operating Cost (including Total Exploration Costs (Non-GAAP))	4,087	3,084	2,282	1,900	1,449
+47
+
+Revenues, Costs and Margins Per Barrel of Oil Equivalent (Continued)
+In millions of USD, except Boe and per Boe amounts (Unaudited)
+2Q 2022	1Q 2022	4Q 2021	3Q 2021	2Q 2021
+Per Barrel of Oil Equivalent (Boe) Calculations (GAAP)
+Composite Average Operating Revenues and Other per Boe - (b) / (a)	88.39	50.10	76.12	61.33	54.97
+Composite Average Operating Expenses per Boe - (c) / (a)	53.75	43.23	44.28	42.40	39.42
+Composite Average Operating Income per Boe - (d) / (a)	34.64	6.87	31.84	18.93	15.55
+Composite Average Wellhead Revenue per Boe - (e) / (a)	77.29	66.50	58.88	52.07	46.07
+Total Operating Cost per Boe (excluding DD&A and Total Exploration Costs) - (f) / (a)	16.32	15.75	15.02	14.19	13.48
+Composite Average Margin per Boe (excluding DD&A and Total Exploration Costs) - [(e) / (a) - (f) / (a)]	60.97	50.75	43.86	37.88	32.59
+Total Operating Cost per Boe (excluding Total Exploration Costs) - (g) / (a)	27.19	26.40	26.48	26.12	25.61
+Composite Average Margin per Boe (excluding Total Exploration Costs) - [(e) / (a) - (g) / (a)]	50.10	40.10	32.40	25.95	20.46
+Total Operating Cost per Boe (including Total Exploration Costs) - (h) / (a)	28.94	27.70	30.15	27.79	26.85
+Composite Average Margin per Boe (including Total Exploration Costs) - [(e) / (a) - (h) / (a)]	48.35	38.80	28.73	24.28	19.22
+Per Barrel of Oil Equivalent (Boe) Calculations (Non-GAAP)
+Total Operating Cost per Boe (including Total Exploration Costs) - (i) / (a)	28.50	27.70	30.14	27.62	26.82
+Composite Average Margin per Boe (including Total Exploration Costs) - [(e) / (a) - (i) / (a)]	48.79	38.80	28.74	24.45	19.25
+(1) In general, EOG excludes impairments which are (i) attributable to declines in commodity prices, (ii) related to sales of certain oil and gas properties or (iii) the result of certain other events or decisions (e.g., a periodic review of EOG's oil and gas properties or other assets). EOG believes excluding these impairments from total exploration costs is appropriate and provides useful information to investors, as such impairments were caused by factors outside of EOG’s control (versus, for example, impairments that are due to EOG’s proved oil and gas properties not being as productive as it originally estimated).
+48
+
+Revenues, Costs and Margins Per Barrel of Oil Equivalent (Continued)
+In millions of USD, except Boe and per Boe amounts (Unaudited)
+2021	2020	2019	2018	2017
+Volume - Million Barrels of Oil Equivalent - (a)	302.5	275.9	298.6	262.5	222.3
+Total Operating Revenues and Other (b)	18,642	11,032	17,380	17,275	11,208
+Total Operating Expenses (c)	12,540	11,576	13,681	12,806	10,282
+Operating Income (Loss) (d)	6,102	(544)	3,699	4,469	926
+Wellhead Revenues
+Crude Oil and Condensate	11,125	5,786	9,613	9,517	6,256
+Natural Gas Liquids	1,812	668	785	1,128	730
+Natural Gas	2,444	837	1,184	1,302	922
+Total Wellhead Revenues - (e)	15,381	7,291	11,582	11,947	7,908
+Operating Costs
+Lease and Well	1,135	1,063	1,367	1,283	1,045
+Transportation Costs	863	735	758	747	740
+Gathering and Processing Costs	559	459	479	437	149
+General and Administrative (GAAP)	511	484	489	427	434
+Less: Legal Settlement - Early Leasehold Termination	—	—	—	—	(10)
+Less: Joint Venture Transaction Costs	—	—	—	—	(3)
+Less: Joint Interest Billings Deemed Uncollectible	—	—	—	—	(5)
+General and Administrative (Non-GAAP) (1)	511	484	489	427	416
+Taxes Other Than Income	1,047	478	800	772	545
+Interest Expense, Net	178	205	185	245	274
+Total Operating Cost (GAAP) (excluding DD&A and Total Exploration Costs) - (f)	4,293	3,424	4,078	3,911	3,187
+Total Operating Cost (Non-GAAP) (excluding DD&A and Total Exploration Costs) - (g)	4,293	3,424	4,078	3,911	3,169
+Depreciation, Depletion and Amortization (DD&A)	3,651	3,400	3,750	3,435	3,409
+Total Operating Cost (GAAP) (excluding Total Exploration Costs) - (h)	7,944	6,824	7,828	7,346	6,596
+Total Operating Cost (Non-GAAP) (excluding Total Exploration Costs) - (i)	7,944	6,824	7,828	7,346	6,578
+Exploration Costs	154	146	140	149	145
+Dry Hole Costs	71	13	28	5	5
+Impairments	376	2,100	518	347	479
+Total Exploration Costs (GAAP)	601	601	2,259	686	501	629
+Less: Certain Impairments (2)	(15)	(1,868)	(275)	(153)	(261)
+Total Exploration Costs (Non-GAAP)	586	391	411	348	368
+Total Operating Cost (GAAP) (including Total Exploration Costs (GAAP)) - (j)	8,545	9,083	8,514	7,847	7,225
+Total Operating Cost (Non-GAAP) (including Total Exploration Costs (Non-GAAP)) - (k)	8,530	7,215	8,239	7,694	6,946
+Total Wellhead Revenues less Total Operating Cost (GAAP) (including Total Exploration Costs (GAAP))	6,836	(1,792)	3,068	4,100	683
+Total Wellhead Revenues less Total Operating Cost (Non-GAAP) (including Total Exploration Costs (Non-GAAP))	6,851	76	3,343	4,253	962
+49
+
+Revenues, Costs and Margins Per Barrel of Oil Equivalent (Continued)
+In millions of USD, except Boe and per Boe amounts (Unaudited)
+2021	2020	2019	2018	2017
+Per Barrel of Oil Equivalent (Boe) Calculations (GAAP)
+Composite Average Operating Revenues and Other per Boe - (b) / (a)	61.63	39.99	58.20	65.81	50.42
+Composite Average Operating Expenses per Boe - (c) / (a)	41.46	41.96	45.81	48.79	46.25
+Composite Average Operating Income (Loss) per Boe - (d) / (a)	20.17	(1.97)	12.39	17.02	4.17
+Composite Average Wellhead Revenue per Boe - (e) / (a)	50.84	26.42	38.79	45.51	35.58
+Total Operating Cost per Boe (excluding DD&A and Total Exploration Costs) - (f) / (a)	14.19	12.39	13.66	14.90	14.34
+Composite Average Margin per Boe (excluding DD&A and Total Exploration Costs) - [(e) / (a) - (f) / (a)]	36.65	14.03	25.13	30.61	21.24
+Total Operating Cost per Boe (excluding Total Exploration Costs) - (h) / (a)	26.26	24.71	26.22	27.99	29.67
+Composite Average Margin per Boe (excluding Total Exploration Costs) - [(e) / (a) - (h) / (a)]	24.58	1.71	12.57	17.52	5.91
+Total Operating Cost per Boe (including Total Exploration Costs) - (j) / (a)	28.25	32.92	28.51	29.89	32.50
+Composite Average Margin per Boe (including Total Exploration Costs) - [(e) / (a) - (j) / (a)]	22.59	(6.50)	10.28	15.62	3.08
+Per Barrel of Oil Equivalent (Boe) Calculations (Non-GAAP)
+Total Operating Cost per Boe (excluding DD&A and Total Exploration Costs) - (g) / (a)	14.19	12.39	13.66	14.90	14.25
+Composite Average Margin per Boe (excluding DD&A and Total Exploration Costs) - [(e) / (a) - (g) / (a)]	36.65	14.03	25.13	30.61	21.33
+Total Operating Cost per Boe (excluding Total Exploration Costs) - (i) / (a)	26.26	24.71	26.22	27.99	29.59
+Composite Average Margin per Boe (excluding Total Exploration Costs) - [(e) / (a) - (i) / (a)]	24.58	1.71	12.57	17.52	5.99
+Total Operating Cost per Boe (including Total Exploration Costs) - (k) / (a)	28.20	26.13	27.60	29.32	31.24
+Composite Average Margin per Boe (including Total Exploration Costs) - [(e) / (a) - (k) / (a)]	22.64	0.29	11.19	16.19	4.34
+(1) EOG believes excluding the above-referenced items from general and administrative expense is appropriate and provides useful information to investors, as EOG views such items as non-recurring.
+(2) In general, EOG excludes impairments which are (i) attributable to declines in commodity prices, (ii) related to sales of certain oil and gas properties or (iii) the result of certain other events or decisions (e.g., a periodic review of EOG's oil and gas properties or other assets). EOG believes excluding these impairments from total exploration costs is appropriate and provides useful information to investors, as such impairments were caused by factors outside of EOG’s control (versus, for example, impairments that are due to EOG’s proved oil and gas properties not being as productive as it originally estimated).
+50
+
+Revenues, Costs and Margins Per Barrel of Oil Equivalent (Continued)
+In millions of USD, except Boe and per Boe amounts (Unaudited)
+2016	2015	2014
+Volume - Million Barrels of Oil Equivalent - (a)	205.0	208.9	217.1
+Total Operating Revenues and Other (b)	7,651	8,757	18,035
+Total Operating Expenses (c)	8,876	15,443	12,793
+Operating Income (Loss) (d)	(1,225)	(6,686)	5,242
+Wellhead Revenues
+Crude Oil and Condensate	4,317	4,935	9,742
+Natural Gas Liquids	437	408	934
+Natural Gas	742	1,061	1,916
+Total Wellhead Revenues - (e)	5,496	6,404	12,592
+Operating Costs
+Lease and Well	927	1,182	1,416
+Transportation Costs	764	849	972
+Gathering and Processing Costs	123	146	146
+General and Administrative (GAAP)	395	367	402
+Less: Voluntary Retirement Expense	(42)	—	—
+Less: Acquisition Costs	(5)	—	—
+Less: Legal Settlement - Early Leasehold Termination	—	(19)	—
+General and Administrative (Non-GAAP) (1)	348	348	402
+Taxes Other Than Income	350	422	758
+Interest Expense, Net	282	237	201
+Total Operating Cost (GAAP) (excluding DD&A and Total Exploration Costs) - (f)	2,841	3,203	3,895
+Total Operating Cost (Non-GAAP) (excluding DD&A and Total Exploration Costs) - (g)	2,794	3,184	3,895
+Depreciation, Depletion and Amortization (DD&A)	3,553	3,314	3,997
+Total Operating Cost (GAAP) (excluding Total Exploration Costs) - (h)	6,394	6,517	7,892
+Total Operating Cost (Non-GAAP) (excluding Total Exploration Costs) - (i)	6,347	6,498	7,892
+Exploration Costs	125	149	184
+Dry Hole Costs	11	15	48
+Impairments	620	6,614	744
+Total Exploration Costs (GAAP)	756	6,778	976
+Less: Certain Impairments (2)	(321)	(6,308)	(824)
+Total Exploration Costs (Non-GAAP)	435	470	152
+Total Operating Cost (GAAP) (including Total Exploration Costs (GAAP)) - (j)	7,150	13,295	8,868
+Total Operating Cost (Non-GAAP) (including Total Exploration Costs (Non-GAAP)) - (k)	6,782	6,968	8,044
+Total Wellhead Revenues less Total Operating Cost (GAAP) (including Total Exploration Costs (GAAP))	(1,654)	(6,891)	3,724
+Total Wellhead Revenues less Total Operating Cost (Non-GAAP) (including Total Exploration Costs (Non-GAAP))	(1,286)	(564)	4,548
+51
+
+Revenues, Costs and Margins Per Barrel of Oil Equivalent (Continued)
+In millions of USD, except Boe and per Boe amounts (Unaudited)
+2016	2015	2014
+Per Barrel of Oil Equivalent (Boe) Calculations (GAAP)
+Composite Average Operating Revenues and Other per Boe - (b) / (a)	37.32	41.92	83.07
+Composite Average Operating Expenses per Boe - (c) / (a)	43.30	73.93	58.92
+Composite Average Operating Income (Loss) per Boe - (d) / (a)	(5.98)	(32.01)	24.15
+Composite Average Wellhead Revenue per Boe - (e) / (a)	26.82	30.66	58.01
+Total Operating Cost per Boe (excluding DD&A and Total Exploration Costs) - (f) / (a)	13.86	15.33	17.95
+Composite Average Margin per Boe (excluding DD&A and Total Exploration Costs) - [(e) / (a) - (f) / (a)]	12.96	15.33	40.06
+Total Operating Cost per Boe (excluding Total Exploration Costs) - (h) / (a)	31.19	31.20	36.38
+Composite Average Margin per Boe (excluding Total Exploration Costs) - [(e) / (a) - (h) / (a)]	(4.37)	(0.54)	21.63
+Total Operating Cost per Boe (including Total Exploration Costs) - (j) / (a)	34.88	63.64	40.85
+Composite Average Margin per Boe (including Total Exploration Costs) - [(e) / (a) - (j) / (a)]	(8.06)	(32.98)	17.16
+Per Barrel of Oil Equivalent (Boe) Calculations (Non-GAAP)
+Total Operating Cost per Boe (excluding DD&A and Total Exploration Costs) - (g) / (a)	13.64	15.25	17.95
+Composite Average Margin per Boe (excluding DD&A and Total Exploration Costs) - [(e) / (a) - (g) / (a)]	13.18	15.41	40.06
+Total Operating Cost per Boe (excluding Total Exploration Costs) - (i) / (a)	30.98	31.11	36.38
+Composite Average Margin per Boe (excluding Total Exploration Costs) - [(e) / (a) - (i) / (a)]	(4.16)	(0.45)	21.63
+Total Operating Cost per Boe (including Total Exploration Costs) - (k) / (a)	33.10	33.36	37.08
+Composite Average Margin per Boe (including Total Exploration Costs) - [(e) / (a) - (k) / (a)]	(6.28)	(2.70)	20.93
+(1) EOG believes excluding the above-referenced items from general and administrative expense is appropriate and provides useful information to investors, as EOG views such items as non-recurring.
+(2) In general, EOG excludes impairments which are (i) attributable to declines in commodity prices, (ii) related to sales of certain oil and gas properties or (iii) the result of certain other events or decisions (e.g., a periodic review of EOG's oil and gas properties or other assets). EOG believes excluding these impairments from total exploration costs is appropriate and provides useful information to investors, as such impairments were caused by factors outside of EOG’s control (versus, for example, impairments that are due to EOG’s proved oil and gas properties not being as productive as it originally estimated).
+52

@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
 use buizz_core::market::{
-    Calendar, DataSource, Dataset, Fact, FactStatus, RecipeScope, RecipeState, RecipeVersion,
-    Symbol,
+    Calendar, DataSource, Dataset, Fact, FactStatus, ModelBatch, ModelRequest, ModelSpend,
+    RecipeScope, RecipeState, RecipeVersion, Symbol,
 };
 use buizz_core::protocol::FactRow;
 use buizz_core::time::Timestamp;
@@ -12,7 +12,9 @@ use duckdb::{Connection, Transaction, params, params_from_iter};
 use rust_decimal::Decimal;
 use serde_json::{Map, Number, Value};
 
-use crate::codec::{IN_SYMBOLS, Params, Sym, Ts, Wire, symbol_list, text_list, wire_name};
+use crate::codec::{
+    Dec, IN_SYMBOLS, Params, Sym, Ts, Wire, symbol_list, text_list, wire_name,
+};
 use crate::write::{Coverage, cover, write_batch};
 use crate::{AccessionProgress, MarketError, Result, WriteSummary};
 
@@ -44,6 +46,18 @@ const IN_SCOPE: &str = "WITH main_document AS (SELECT d.doc_id, d.content_hash, 
      in_scope AS (SELECT m.*, '8-K:' || r.item AS section_key FROM main_document m \
      JOIN reported r USING (accession) WHERE r.item IN (SELECT unnest(?::VARCHAR[])))";
 
+const LOCATED: &str = "SELECT s.doc_id, s.content_hash, s.section_key, s.accession, s.cik, \
+     s.published_at, s.volume, s.path, p.start_char, p.end_char FROM in_scope s \
+     LEFT JOIN (SELECT doc_id, content_hash, key, start_char, end_char FROM section \
+     WHERE key IS NOT NULL QUALIFY splitter_version = max(splitter_version) \
+     OVER (PARTITION BY doc_id, content_hash)) p \
+     ON p.doc_id = s.doc_id AND p.content_hash = s.content_hash AND p.key = s.section_key \
+     WHERE EXISTS (SELECT 1 FROM section x WHERE x.doc_id = s.doc_id \
+     AND x.content_hash = s.content_hash)";
+
+const LATEST_BATCH: &str = "SELECT recipe, version, remote_id, state, requests, failed, reserved_usd, recorded_at \
+     FROM model_batch QUALIFY row_number() OVER (PARTITION BY remote_id ORDER BY batch_id DESC) = 1";
+
 pub(crate) struct SectionLocation {
     pub(crate) doc_id: String,
     pub(crate) content_hash: String,
@@ -51,6 +65,15 @@ pub(crate) struct SectionLocation {
     pub(crate) accession: Option<String>,
     pub(crate) cik: Option<u32>,
     pub(crate) published_at: Timestamp,
+    pub(crate) volume: String,
+    pub(crate) path: String,
+    pub(crate) chars: Option<(u64, u64)>,
+}
+
+pub(crate) struct ExhibitLocation {
+    pub(crate) accession: String,
+    pub(crate) doc_id: String,
+    pub(crate) content_hash: String,
     pub(crate) volume: String,
     pub(crate) path: String,
 }
@@ -210,6 +233,7 @@ pub(crate) fn advance(
                 "needs a passing gold report before it fills".to_owned(),
             ));
         }
+        (RecipeState::Evaluating, RecipeState::Evaluating) if known.gold.is_none() => {}
         (RecipeState::Evaluating, RecipeState::Filling)
         | (RecipeState::Complete, RecipeState::Current) => {}
         (RecipeState::Filling, RecipeState::Complete) => {
@@ -349,26 +373,21 @@ fn sync_views(connection: &Connection) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn unread_sections(
+fn located(
     connection: &Connection,
-    recipe: &str,
-    version: u32,
-    scope: &RecipeScope,
+    version: &RecipeVersion,
+    filter: &str,
     limit: usize,
 ) -> Result<Vec<SectionLocation>> {
-    let mut statement = connection.prepare_cached(&format!(
-        "{IN_SCOPE} SELECT doc_id, content_hash, section_key, accession, cik, published_at, volume, \
-         path FROM in_scope s WHERE NOT EXISTS (SELECT 1 FROM fact x WHERE x.recipe = ? \
-         AND x.version = ? AND x.doc_id = s.doc_id AND x.section_key = s.section_key) \
+    let mut statement = connection.prepare(&format!(
+        "{IN_SCOPE} SELECT * FROM ({LOCATED}) s WHERE {filter} \
          ORDER BY published_at DESC, doc_id, section_key LIMIT ?"
     ))?;
     let sections = statement
         .query_map(
             params![
-                scope.from,
-                text_list(scope.items.iter().map(String::as_str)),
-                recipe,
-                version,
+                version.scope.from,
+                text_list(version.scope.items.iter().map(String::as_str)),
                 limit as u64
             ],
             |row| {
@@ -381,11 +400,200 @@ pub(crate) fn unread_sections(
                     published_at: row.get::<_, Ts>(5)?.0,
                     volume: row.get(6)?,
                     path: row.get(7)?,
+                    chars: row
+                        .get::<_, Option<u64>>(8)?
+                        .zip(row.get::<_, Option<u64>>(9)?),
                 })
             },
         )?
         .collect::<duckdb::Result<Vec<_>>>()?;
     Ok(sections)
+}
+
+pub(crate) fn unread_sections(
+    connection: &Connection,
+    version: &RecipeVersion,
+    limit: usize,
+) -> Result<Vec<SectionLocation>> {
+    let (recipe, number) = (&version.recipe, version.version);
+    located(
+        connection,
+        version,
+        &format!(
+            "NOT EXISTS (SELECT 1 FROM fact x WHERE x.recipe = '{recipe}' AND x.version = {number} \
+             AND x.doc_id = s.doc_id AND x.section_key = s.section_key) \
+             AND NOT EXISTS (SELECT 1 FROM model_request q JOIN ({LATEST_BATCH}) b \
+             ON b.remote_id = q.remote_id WHERE b.state = 'submitted' AND b.recipe = '{recipe}' \
+             AND b.version = {number} AND q.doc_id = s.doc_id AND q.section_key = s.section_key)"
+        ),
+        limit,
+    )
+}
+
+pub(crate) fn requested_sections(
+    connection: &Connection,
+    version: &RecipeVersion,
+    remote_id: &str,
+) -> Result<(Vec<ModelRequest>, Vec<SectionLocation>)> {
+    let mut statement = connection.prepare(
+        "SELECT custom_id, doc_id, section_key FROM model_request WHERE remote_id = ? \
+         ORDER BY custom_id",
+    )?;
+    let requests = statement
+        .query_map([remote_id], |row| {
+            Ok(ModelRequest {
+                custom_id: row.get(0)?,
+                doc_id: row.get(1)?,
+                section_key: row.get(2)?,
+            })
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    let quoted = remote_id.replace('\'', "''");
+    let sections = located(
+        connection,
+        version,
+        &format!(
+            "EXISTS (SELECT 1 FROM model_request q WHERE q.remote_id = '{quoted}' \
+             AND q.doc_id = s.doc_id AND q.section_key = s.section_key)"
+        ),
+        requests.len(),
+    )?;
+    Ok((requests, sections))
+}
+
+pub(crate) fn exhibits(
+    connection: &Connection,
+    accessions: &[&str],
+    kinds: &[String],
+) -> Result<Vec<ExhibitLocation>> {
+    if kinds.is_empty() || accessions.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut statement = connection.prepare(
+        "SELECT d.accession, d.doc_id, d.content_hash, f.volume, f.path FROM text_document d \
+         JOIN text_file f ON f.id = d.file_id WHERE d.accession IN (SELECT unnest(?::VARCHAR[])) \
+         AND EXISTS (SELECT 1 FROM (SELECT unnest(?::VARCHAR[]) AS prefix) k \
+         WHERE starts_with(upper(d.kind), k.prefix)) \
+         QUALIFY row_number() OVER (PARTITION BY d.doc_id ORDER BY d.batch_id DESC) = 1 \
+         ORDER BY d.accession, d.sequence, d.doc_id",
+    )?;
+    let found = statement
+        .query_map(
+            params![
+                text_list(accessions.iter().copied()),
+                text_list(kinds.iter().map(String::as_str))
+            ],
+            |row| {
+                Ok(ExhibitLocation {
+                    accession: row.get(0)?,
+                    doc_id: row.get(1)?,
+                    content_hash: row.get(2)?,
+                    volume: row.get(3)?,
+                    path: row.get(4)?,
+                })
+            },
+        )?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    Ok(found)
+}
+
+pub(crate) fn model_batches(
+    connection: &Connection,
+    recipe: &str,
+    version: u32,
+) -> Result<Vec<ModelBatch>> {
+    let mut statement = connection.prepare(&format!(
+        "SELECT * FROM ({LATEST_BATCH}) WHERE recipe = ? AND version = ? ORDER BY recorded_at, remote_id"
+    ))?;
+    let batches = statement
+        .query_map(params![recipe, version], |row| {
+            Ok(ModelBatch {
+                recipe: row.get(0)?,
+                version: row.get(1)?,
+                remote_id: row.get(2)?,
+                open: row.get::<_, String>(3)? == "submitted",
+                requests: row.get(4)?,
+                failed: row.get(5)?,
+                reserved: row.get::<_, Dec>(6)?.0,
+                at: row.get::<_, Ts>(7)?.0,
+            })
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    Ok(batches)
+}
+
+pub(crate) fn committed_spend(connection: &Connection, since: Timestamp) -> Result<Decimal> {
+    Ok(connection.query_row(
+        &format!(
+            "SELECT coalesce((SELECT sum(usd) FROM model_spend WHERE spent_at >= ?), 0) \
+             + coalesce((SELECT sum(reserved_usd) FROM ({LATEST_BATCH}) WHERE state = 'submitted'), 0)"
+        ),
+        [Ts(since)],
+        |row| Ok(row.get::<_, Dec>(0)?.0),
+    )?)
+}
+
+fn append_spend(transaction: &Transaction<'_>, spend: &ModelSpend, batch_id: i64) -> Result<u64> {
+    Ok(transaction.execute(
+        "INSERT INTO main.model_spend VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        params![
+            spend.recipe,
+            spend.version,
+            Ts(spend.spent_at),
+            spend.calls,
+            spend.input_tokens,
+            spend.output_tokens,
+            Dec(spend.usd),
+            batch_id,
+        ],
+    )? as u64)
+}
+
+fn append_batch(transaction: &Transaction<'_>, batch: &ModelBatch, batch_id: i64) -> Result<u64> {
+    Ok(transaction.execute(
+        "INSERT INTO main.model_batch VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        params![
+            batch.recipe,
+            batch.version,
+            batch.remote_id,
+            if batch.open { "submitted" } else { "collected" },
+            batch.requests,
+            batch.failed,
+            Dec(batch.reserved),
+            Ts(batch.at),
+            batch_id,
+        ],
+    )? as u64)
+}
+
+pub(crate) fn submit_batch(
+    connection: &mut Connection,
+    source: DataSource,
+    dataset: Dataset,
+    batch: ModelBatch,
+    requests: Vec<ModelRequest>,
+) -> Result<WriteSummary> {
+    write_batch(
+        connection,
+        source,
+        dataset,
+        Coverage::new(),
+        |transaction, batch_id| {
+            let mut rows = append_batch(transaction, &batch, batch_id)?;
+            let mut statement = transaction
+                .prepare_cached("INSERT INTO main.model_request VALUES (?, ?, ?, ?, ?)")?;
+            for request in &requests {
+                rows += statement.execute(params![
+                    batch.remote_id,
+                    request.custom_id,
+                    request.doc_id,
+                    request.section_key,
+                    batch_id
+                ])? as u64;
+            }
+            Ok(rows)
+        },
+    )
 }
 
 pub(crate) fn recipe_progress(
@@ -427,6 +635,8 @@ pub(crate) fn facts(
     source: DataSource,
     dataset: Dataset,
     facts: Vec<Fact>,
+    spend: Option<ModelSpend>,
+    collected: Option<ModelBatch>,
 ) -> Result<WriteSummary> {
     let mut coverage = Coverage::new();
     for fact in &facts {
@@ -439,8 +649,8 @@ pub(crate) fn facts(
         coverage,
         |transaction, batch_id| {
             let mut statement = transaction.prepare_cached(
-            "INSERT OR IGNORE INTO main.fact VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        )?;
+                "INSERT OR IGNORE INTO main.fact VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            )?;
             let mut rows = 0;
             for fact in &facts {
                 rows += statement.execute(params![
@@ -461,6 +671,12 @@ pub(crate) fn facts(
                     fact.input_hash,
                     batch_id,
                 ])? as u64;
+            }
+            if let Some(spend) = &spend {
+                append_spend(transaction, spend, batch_id)?;
+            }
+            if let Some(batch) = &collected {
+                append_batch(transaction, batch, batch_id)?;
             }
             Ok(rows)
         },
