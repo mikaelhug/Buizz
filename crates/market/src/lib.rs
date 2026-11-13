@@ -23,7 +23,7 @@ use tokio::sync::watch;
 
 use crate::fixture::{ActionRow, DailyRow};
 use crate::lane::Lane;
-use crate::read::BarQuery;
+use crate::read::{Actions, BarQuery};
 
 mod codec;
 mod fixture;
@@ -136,6 +136,7 @@ pub struct WriteSummary {
 struct Shared {
     calendar: RwLock<Arc<Calendar>>,
     listings: RwLock<Arc<Listings>>,
+    actions: RwLock<Arc<Actions>>,
     watermarks: watch::Sender<Watermarks>,
 }
 
@@ -165,6 +166,16 @@ impl Shared {
             .unwrap_or_else(PoisonError::into_inner) = listings;
         Ok(())
     }
+
+    fn actions(&self) -> Arc<Actions> {
+        Arc::clone(&self.actions.read().unwrap_or_else(PoisonError::into_inner))
+    }
+
+    fn refresh_actions(&self, connection: &Connection) -> Result<()> {
+        let actions = Arc::new(read::actions(connection)?);
+        *self.actions.write().unwrap_or_else(PoisonError::into_inner) = actions;
+        Ok(())
+    }
 }
 
 #[derive(Clone)]
@@ -177,25 +188,28 @@ pub struct MarketStore {
 impl MarketStore {
     pub async fn open(path: &Path, readers: usize) -> Result<Self> {
         let path = path.to_owned();
-        let (writer, pool, calendar, listings, day) = tokio::task::spawn_blocking(move || {
-            let mut writer = Connection::open(path)?;
-            migrate::migrate(&mut writer)?;
-            write::prepare(&writer)?;
-            let pool = (0..readers.max(1))
-                .map(|_| writer.try_clone())
-                .collect::<duckdb::Result<Vec<_>>>()?;
-            let calendar = read::calendar(&writer)?;
-            let listings = read::listings(&writer)?;
-            let day = read::daily_watermark(&writer)?;
-            Ok::<_, MarketError>((writer, pool, calendar, listings, day))
-        })
-        .await??;
+        let (writer, pool, calendar, listings, actions, day) =
+            tokio::task::spawn_blocking(move || {
+                let mut writer = Connection::open(path)?;
+                migrate::migrate(&mut writer)?;
+                write::prepare(&writer)?;
+                let pool = (0..readers.max(1))
+                    .map(|_| writer.try_clone())
+                    .collect::<duckdb::Result<Vec<_>>>()?;
+                let calendar = read::calendar(&writer)?;
+                let listings = read::listings(&writer)?;
+                let actions = read::actions(&writer)?;
+                let day = read::daily_watermark(&writer)?;
+                Ok::<_, MarketError>((writer, pool, calendar, listings, actions, day))
+            })
+            .await??;
         Ok(Self {
             writer: Lane::spawn("market-writer", vec![writer])?,
             readers: Lane::spawn("market-reader", pool)?,
             shared: Arc::new(Shared {
                 calendar: RwLock::new(Arc::new(calendar)),
                 listings: RwLock::new(Arc::new(listings)),
+                actions: RwLock::new(Arc::new(actions)),
                 watermarks: watch::Sender::new(Watermarks { day, minute: None }),
             }),
         })
@@ -274,6 +288,7 @@ impl MarketStore {
                 let parts = restore::parts(&backup)?;
                 let restored = restore::restore(connection, &parts)?;
                 shared.refresh_listings(connection)?;
+                shared.refresh_actions(connection)?;
                 Ok(restored)
             })
             .await
@@ -438,9 +453,13 @@ impl MarketStore {
         actions: Vec<CorporateAction>,
         window: ActionWindow,
     ) -> Result<WriteSummary> {
+        let shared = Arc::clone(&self.shared);
         self.writer
             .run(move |connection| {
-                write::corporate_actions(connection, source, actions, &window, false)
+                let summary =
+                    write::corporate_actions(connection, source, actions, &window, false)?;
+                shared.refresh_actions(connection)?;
+                Ok(summary)
             })
             .await
     }
@@ -456,6 +475,7 @@ impl MarketStore {
             .run(move |connection| {
                 let summary = write::corporate_actions(connection, source, actions, &window, true)?;
                 shared.refresh_listings(connection)?;
+                shared.refresh_actions(connection)?;
                 Ok(summary)
             })
             .await
@@ -744,9 +764,15 @@ impl MarketStore {
     }
 
     pub async fn history(&self, request: HistoryRequest) -> Result<Vec<BarRow>> {
-        let (calendar, listings) = (self.shared.calendar(), self.shared.listings());
+        let (calendar, listings, actions) = (
+            self.shared.calendar(),
+            self.shared.listings(),
+            self.shared.actions(),
+        );
         self.readers
-            .run(move |connection| read::history(connection, &calendar, &listings, &request))
+            .run(move |connection| {
+                read::history(connection, &calendar, &listings, &actions, &request)
+            })
             .await
     }
 
@@ -755,18 +781,30 @@ impl MarketStore {
         symbols: Vec<Symbol>,
         as_of: Timestamp,
     ) -> Result<BTreeMap<Symbol, Decimal>> {
-        let (calendar, listings) = (self.shared.calendar(), self.shared.listings());
+        let (calendar, listings, actions) = (
+            self.shared.calendar(),
+            self.shared.listings(),
+            self.shared.actions(),
+        );
         self.readers
             .run(move |connection| {
-                read::split_adjusted_closes(connection, &calendar, &listings, &symbols, as_of)
+                read::split_adjusted_closes(
+                    connection, &calendar, &listings, &actions, &symbols, as_of,
+                )
             })
             .await
     }
 
     pub async fn chart(&self, request: ChartRequest) -> Result<ChartBars> {
-        let (calendar, listings) = (self.shared.calendar(), self.shared.listings());
+        let (calendar, listings, actions) = (
+            self.shared.calendar(),
+            self.shared.listings(),
+            self.shared.actions(),
+        );
         self.readers
-            .run(move |connection| read::chart(connection, &calendar, &listings, &request))
+            .run(move |connection| {
+                read::chart(connection, &calendar, &listings, &actions, &request)
+            })
             .await
     }
 
@@ -794,9 +832,7 @@ impl MarketStore {
         from: NaiveDate,
         to: NaiveDate,
     ) -> Result<Vec<CorporateAction>> {
-        self.readers
-            .run(move |connection| read::corporate_actions(connection, &symbols, from, to))
-            .await
+        Ok(self.shared.actions().between(&symbols, from, to))
     }
 
     pub async fn traded_actions(
@@ -805,12 +841,14 @@ impl MarketStore {
         from: NaiveDate,
         to: NaiveDate,
     ) -> Result<Vec<CorporateAction>> {
-        let (calendar, listings) = (self.shared.calendar(), self.shared.listings());
-        self.readers
-            .run(move |connection| {
-                read::traded_actions(connection, &calendar, &listings, &symbols, from, to)
-            })
-            .await
+        Ok(read::traded_actions(
+            &self.shared.actions(),
+            &self.shared.calendar(),
+            &self.shared.listings(),
+            &symbols,
+            from,
+            to,
+        ))
     }
 
     pub async fn average_daily_volume(
@@ -819,11 +857,15 @@ impl MarketStore {
         before: NaiveDate,
         sessions: u32,
     ) -> Result<BTreeMap<Symbol, u64>> {
-        let (calendar, listings) = (self.shared.calendar(), self.shared.listings());
+        let (calendar, listings, actions) = (
+            self.shared.calendar(),
+            self.shared.listings(),
+            self.shared.actions(),
+        );
         self.readers
             .run(move |connection| {
                 read::average_daily_volume(
-                    connection, &calendar, &listings, &symbols, before, sessions,
+                    connection, &calendar, &listings, &actions, &symbols, before, sessions,
                 )
             })
             .await
@@ -1057,10 +1099,10 @@ impl MarketStore {
         from: NaiveDate,
         to: NaiveDate,
     ) -> Result<Vec<DataWarning>> {
-        let calendar = self.shared.calendar();
+        let (calendar, actions) = (self.shared.calendar(), self.shared.actions());
         self.readers
             .run(move |connection| {
-                read::unexplained_moves(connection, &calendar, &symbols, from, to)
+                read::unexplained_moves(connection, &calendar, &actions, &symbols, from, to)
             })
             .await
     }
@@ -1088,8 +1130,15 @@ impl MarketStore {
     }
 
     pub async fn normalize_splits(&self, source: DataSource) -> Result<u64> {
+        let shared = Arc::clone(&self.shared);
         self.writer
-            .run(move |connection| write::normalized_splits(connection, source))
+            .run(move |connection| {
+                let normalized = write::normalized_splits(connection, source)?;
+                if normalized > 0 {
+                    shared.refresh_actions(connection)?;
+                }
+                Ok(normalized)
+            })
             .await
     }
 }
