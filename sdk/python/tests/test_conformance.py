@@ -61,6 +61,7 @@ class RedGreen(Bot):
         observed["short_volume"] = ctx.short_volume(["AAA"], date(2024, 11, 20))
         observed["borrow"] = ctx.borrow(["AAA"], date(2024, 11, 20))
         observed["completeness"] = ctx.completeness(["news"], date(2019, 1, 1), date(2024, 11, 20))
+        observed["facts"] = ctx.facts("listing_notice", ["BBB"], date(2024, 10, 1))
         ctx.order_target_weight("AAA", ctx.params["weight"], reason="red day")
         ctx.order("BBB", -100, reason="take profit", limit_price=Decimal("49.60"), client_id="BBB-limit-1")
         ctx.cancel("BBB-limit-0")
@@ -121,6 +122,8 @@ def play_spine(connection: ServerConnection, received: list[bytes]) -> None:
     connection.send(golden("data_borrow"))
     expect()
     connection.send(golden("data_completeness"))
+    expect()
+    connection.send(golden("data_facts"))
     expect()
     connection.send(golden("step_live"))
     expect()
@@ -184,6 +187,7 @@ def test_bot_replies_match_the_golden_frames(monkeypatch: pytest.MonkeyPatch) ->
         "short_volume",
         "borrow",
         "completeness",
+        "facts",
     ]
     assert queries == [golden(f"query_{kind}") for kind in kinds]
     assert ack_first == golden("ack_backtest")
@@ -230,6 +234,9 @@ def test_bot_replies_match_the_golden_frames(monkeypatch: pytest.MonkeyPatch) ->
     assert (snapshot.fee_rate, snapshot.available_or_more, snapshot.available_at.minute) == (Decimal("0.25"), True, 2)
     [news] = observed["completeness"]
     assert (news.source, news.complete, news.complete_through) == ("alpaca", False, date(2020, 10, 31))
+    notice, unstated = observed["facts"]
+    assert (notice.exchange, notice.rule, notice.available_at.hour) == ("nasdaq", "5550(a)(2)", 13)
+    assert (unstated.status, unstated.exchange, unstated.evidence) == ("not_stated", None, None)
     assert len(observed["live_bars"]) == 2
     assert observed["live_events"][0].symbol == "AAA"
 

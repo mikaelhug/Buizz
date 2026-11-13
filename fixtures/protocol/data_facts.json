@@ -1,0 +1,28 @@
+{
+  "id": 16,
+  "result": {
+    "facts": [
+      {
+        "accession": "0009999001-24-000044",
+        "available_at": 1729171800000000000,
+        "evidence": "it no longer complies with Nasdaq Listing Rule 5550(a)(2)",
+        "fields": {
+          "exchange": "nasdaq",
+          "rule": "5550(a)(2)"
+        },
+        "status": "ok",
+        "symbol": "BBB"
+      },
+      {
+        "accession": "0009999001-24-000046",
+        "available_at": 1730817000000000000,
+        "evidence": null,
+        "fields": {},
+        "status": "not_stated",
+        "symbol": "BBB"
+      }
+    ],
+    "kind": "facts"
+  },
+  "type": "data"
+}

@@ -13,8 +13,8 @@ use buizz_core::protocol::{
     StepEvent,
 };
 use buizz_core::run::{
-    DRAWDOWN_STOP, DesiredState, EquityPoint, LogLevel, Mode, Reproducibility, RunBadge, RunConfig,
-    RunEvent, RunEventKind, RunId, RunStatus, UniverseSpec,
+    DRAWDOWN_STOP, DesiredState, EquityPoint, LogLevel, Mode, RecipeRead, Reproducibility,
+    RunBadge, RunConfig, RunEvent, RunEventKind, RunId, RunStatus, UniverseSpec,
 };
 use buizz_core::time::Timestamp;
 use buizz_core::visibility::{close_auction_session, open_auction_session, order_session};
@@ -33,7 +33,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::{OwnedSemaphorePermit, mpsc, watch};
 
 use crate::commit::Committer;
-use crate::link::{BotLink, LinkError, SessionUniverse};
+use crate::link::{BotLink, LinkError, RecipeReads, SessionUniverse};
 use crate::timeline::{Point, Timeline};
 use crate::{Inner, describe, gate_symbols, report};
 
@@ -98,6 +98,7 @@ struct Pending {
     equity_points: Vec<EquityPoint>,
     events: Vec<RunEvent>,
     bot_state: Option<Vec<u8>>,
+    recipe_versions: Option<Vec<RecipeRead>>,
     dirty: bool,
 }
 
@@ -518,6 +519,7 @@ struct Driver {
     unshown_equity: Option<EquityPoint>,
     day_mark: Option<Timestamp>,
     unbacked: BTreeSet<String>,
+    reads: RecipeReads,
 }
 
 impl Driver {
@@ -581,6 +583,13 @@ impl Driver {
             committer: Committer::spawn(Arc::clone(&inner), run.id, run.mode, last_step),
             day_mark,
             unbacked: BTreeSet::new(),
+            reads: RecipeReads::new(
+                run.mode,
+                run.reproducibility
+                    .as_ref()
+                    .map(|reproducibility| reproducibility.recipe_versions.clone())
+                    .unwrap_or_default(),
+            ),
             pending: Pending::default(),
             frame,
             after,
@@ -1502,7 +1511,13 @@ impl Driver {
                 date: data.date,
                 symbols: &data.universe_at,
             };
-            let mut answer = std::pin::pin!(link.step(step, &market, &contracts, session_universe));
+            let mut answer = std::pin::pin!(link.step(
+                step,
+                &market,
+                &contracts,
+                session_universe,
+                &mut self.reads
+            ));
             loop {
                 tokio::select! {
                     answered = &mut answer => break Some(answered),
@@ -1523,6 +1538,10 @@ impl Driver {
                     if self.unbacked.insert(asked) {
                         self.note(RunEventKind::DataWarning { message });
                     }
+                }
+                if let Some(read) = self.reads.take_changed() {
+                    self.pending.recipe_versions = Some(read);
+                    self.pending.dirty = true;
                 }
                 self.live_slot = None;
                 self.arrived_while_deciding = asked.zip(self.visible_through());
@@ -1645,6 +1664,7 @@ impl Driver {
                 engine_checkpoint: self.engine.checkpoint(),
                 bot_state: pending.bot_state,
                 undelivered: self.frame.undelivered(),
+                recipe_versions: pending.recipe_versions,
             })
             .await?;
         Ok(())

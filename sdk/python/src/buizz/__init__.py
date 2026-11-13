@@ -21,6 +21,7 @@ from buizz.context import (
     to_ns,
 )
 from buizz.errors import BuizzError, ProtocolError, SpineError, StateTooLarge, UsageError
+from buizz.facts import Fact, FactStatus
 from buizz.runtime import run
 from buizz.wire import (
     CorporateAction,
@@ -56,6 +57,8 @@ __all__ = [
     "EarningsRelease",
     "EndReason",
     "Event",
+    "Fact",
+    "FactStatus",
     "Filing",
     "Fill",
     "FomcAnnouncement",

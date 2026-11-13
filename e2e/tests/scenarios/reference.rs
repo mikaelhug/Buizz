@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use buizz_core::api::{PositionView, RunSummary};
 use buizz_core::order::OrderStatus;
-use buizz_core::run::{RunBadge, RunEventKind};
+use buizz_core::run::{RecipeRead, RunBadge, RunEventKind};
 use buizz_core::time::Timestamp;
 use buizz_sources::wikipedia::{SP500_CHANGES, SP500_CONSTITUENTS, SP500_MEMBERS};
 use serde_json::{Value, json};
@@ -88,8 +88,8 @@ fn world(mut world: World) -> World {
                 accession: LISTING_NOTICE,
                 form: "8-K",
                 items: "3.01",
-                report_date: "2024-10-14",
-                accepted: stamp("2024-10-16T20:30:00Z"),
+                report_date: "2024-11-19",
+                accepted: stamp("2024-11-21T21:30:00Z"),
             },
             Filing {
                 accession: "0009999001-24-000049",
@@ -334,16 +334,47 @@ async fn bots_see_index_membership_profiles_earnings_and_8k_events_as_of_their_c
         "an 8-K/A amending the release is not a second earnings event"
     );
     let other_event = json!(["0009999001-24-000049", ["8.01"]]);
-    assert_eq!(at("2024-11-22T21:00:00Z")["filings"], json!([other_event]));
+    let listing_event = json!([LISTING_NOTICE, ["3.01"]]);
+    assert_eq!(at("2024-11-21T21:00:00Z")["filings"], json!([]));
+    assert_eq!(
+        at("2024-11-22T21:00:00Z")["filings"],
+        json!([listing_event, other_event])
+    );
     assert_eq!(
         at("2024-11-26T21:00:00Z")["filings"],
-        json!([other_event]),
+        json!([listing_event, other_event]),
         "an 8-K accepted after the close is not seen at that close"
+    );
+    assert_eq!(
+        at("2024-11-21T21:00:00Z")["listing_notices"],
+        json!([]),
+        "the notice accepted after Thursday's close is not a fact at that close"
+    );
+    assert_eq!(
+        at("2024-11-22T21:00:00Z")["listing_notices"],
+        json!([[
+            LISTING_NOTICE,
+            "ok",
+            "nasdaq",
+            "5550(a)(2)",
+            "2024-11-22T14:30:00Z"
+        ]]),
+        "its typed fact is read from Friday's open, when the filing became public"
+    );
+    assert_eq!(
+        run.reproducibility
+            .as_ref()
+            .map(|reproducibility| reproducibility.recipe_versions.clone()),
+        Some(vec![RecipeRead {
+            recipe: "listing_notice".to_owned(),
+            version: 1
+        }]),
+        "the run records the recipe version it read, so it replays exactly"
     );
     assert_eq!(at("2024-11-26T21:00:00Z")["press"], json!([]));
     assert_eq!(
         at("2024-11-27T21:00:00Z")["filings"],
-        json!([other_event, [RESULTS, ["2.02", "9.01"]]])
+        json!([listing_event, other_event, [RESULTS, ["2.02", "9.01"]]])
     );
     assert_eq!(
         at("2024-11-27T21:00:00Z")["press"],
@@ -356,6 +387,7 @@ async fn bots_see_index_membership_profiles_earnings_and_8k_events_as_of_their_c
     assert_eq!(
         at("2024-12-02T21:00:00Z")["filings"],
         json!([
+            listing_event,
             other_event,
             [RESULTS, ["2.02", "9.01"]],
             ["0009999001-24-000051", ["2.02", "9.01"]]
@@ -403,6 +435,15 @@ async fn bots_see_index_membership_profiles_earnings_and_8k_events_as_of_their_c
         .into_iter()
         .partition(|warning| warning.contains("macro series"));
     assert_eq!(unpublished.len(), 1, "{unpublished:?}");
+    let (produced, warnings): (Vec<String>, Vec<String>) = warnings
+        .into_iter()
+        .partition(|warning| warning.contains("listing_notice"));
+    assert!(
+        matches!(produced.as_slice(), [warning] if warning.starts_with(
+            "the bot read listing_notice version 1, whose facts were produced after their filings were public"
+        )),
+        "a backtest reads facts produced long after the fact, and says so: {produced:?}"
+    );
     assert!(
         unpublished[0].contains("sp500_forward_pe"),
         "{unpublished:?}"

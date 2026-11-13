@@ -3,19 +3,19 @@ use std::str::FromStr;
 
 use buizz_core::api::ContractState;
 use buizz_core::market::{
-    Adjustment, Borrow, CorporateAction, CorporateActionKind, DataSource, Dataset, Feed, Filing,
-    FomcAnnouncement, FundamentalMetric, FundamentalPoint, InsiderOwner, InsiderTrade,
-    InsiderTransaction, MacroPoint, MacroSeries, NewsArticle, PeriodType, PressRelease, Session,
-    ShortInterest, ShortVolume, Symbol, Timeframe,
+    Adjustment, Borrow, CorporateAction, CorporateActionKind, DataSource, Dataset, FactStatus,
+    Feed, Filing, FomcAnnouncement, FundamentalMetric, FundamentalPoint, InsiderOwner,
+    InsiderTrade, InsiderTransaction, MacroPoint, MacroSeries, NewsArticle, PeriodType,
+    PressRelease, Session, ShortInterest, ShortVolume, Symbol, Timeframe,
 };
 use buizz_core::order::{
     Fill, OrderId, OrderRequest, OrderSize, OrderStatus, OrderType, OrderUpdate, Side, TimeInForce,
     Trail,
 };
 use buizz_core::protocol::{
-    Ack, BarBuffer, BarRow, BotMessage, Data, DataResult, End, EndReason, ErrorCode, Hello,
-    Holdings, LogLine, PROTOCOL_VERSION, PositionSnapshot, ProtocolError, Query, QueryRequest,
-    Ready, SeriesCompleteness, SpineMessage, Step, StepEvent, WorkingOrder, encode,
+    Ack, BarBuffer, BarRow, BotMessage, Data, DataResult, End, EndReason, ErrorCode, FactRow,
+    Hello, Holdings, LogLine, PROTOCOL_VERSION, PositionSnapshot, ProtocolError, Query,
+    QueryRequest, Ready, SeriesCompleteness, SpineMessage, Step, StepEvent, WorkingOrder, encode,
 };
 use buizz_core::run::{LogLevel, Mode, RunId, UniverseSpec, Wake};
 use buizz_core::time::Timestamp;
@@ -61,11 +61,15 @@ fn bars(rows: &[BarRow]) -> BarBuffer {
     BarBuffer::from_rows(rows).expect("small buffer")
 }
 
-fn params() -> Map<String, Value> {
-    match json!({ "weight": 0.25 }) {
+fn fields(value: Value) -> Map<String, Value> {
+    match value {
         Value::Object(map) => map,
         _ => unreachable!(),
     }
+}
+
+fn params() -> Map<String, Value> {
+    fields(json!({ "weight": 0.25 }))
 }
 
 fn render(value: &rmpv::Value) -> Value {
@@ -749,6 +753,49 @@ fn main() {
                     complete_through: Some(date("2020-10-31")),
                     state: ContractState::Filling,
                 }],
+            },
+        }),
+    );
+
+    write(
+        &dir,
+        "query_facts",
+        &BotMessage::Query(Query {
+            id: 16,
+            request: QueryRequest::Facts {
+                recipe: "listing_notice".to_owned(),
+                symbols: vec![bbb.clone()],
+                since: date("2024-10-01"),
+            },
+        }),
+    );
+
+    write(
+        &dir,
+        "data_facts",
+        &SpineMessage::Data(Data {
+            id: 16,
+            result: DataResult::Facts {
+                facts: vec![
+                    FactRow {
+                        symbol: bbb.clone(),
+                        accession: "0009999001-24-000044".to_owned(),
+                        status: FactStatus::Ok,
+                        available_at: at("2024-10-17T13:30:00Z"),
+                        evidence: Some(
+                            "it no longer complies with Nasdaq Listing Rule 5550(a)(2)".to_owned(),
+                        ),
+                        fields: fields(json!({"exchange": "nasdaq", "rule": "5550(a)(2)"})),
+                    },
+                    FactRow {
+                        symbol: bbb.clone(),
+                        accession: "0009999001-24-000046".to_owned(),
+                        status: FactStatus::NotStated,
+                        available_at: at("2024-11-05T14:30:00Z"),
+                        evidence: None,
+                        fields: Map::new(),
+                    },
+                ],
             },
         }),
     );

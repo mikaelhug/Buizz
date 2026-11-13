@@ -1,0 +1,1 @@
+ALTER TABLE run ADD COLUMN recipe_versions TEXT NOT NULL DEFAULT '[]';

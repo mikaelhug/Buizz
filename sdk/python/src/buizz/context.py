@@ -11,6 +11,7 @@ import numpy as np
 import numpy.typing as npt
 
 from buizz.errors import ProtocolError, StateTooLarge, UsageError
+from buizz.facts import RECIPES, Fact, FactQueries
 from buizz.wire import (
     STATE_LIMIT,
     Ack,
@@ -27,6 +28,8 @@ from buizz.wire import (
     EarningsRequest,
     EarningsResult,
     Event,
+    FactsRequest,
+    FactsResult,
     FilingsRequest,
     FilingsResult,
     FomcRequest,
@@ -454,7 +457,7 @@ def split_history(buffer: BarBuffer, requested: list[str]) -> dict[str, History]
     return history
 
 
-class Context:
+class Context(FactQueries):
     def __init__(self, ready: Ready, query: QueryFn) -> None:
         self._query = query
         self._timeframe: Timeframe = ready.timeframe
@@ -710,6 +713,29 @@ class Context:
         if not isinstance(result, CompletenessResult):
             raise ProtocolError(f"completeness query answered with {type(result).__name__}")
         return [Completeness(c.dataset, c.source, c.complete, c.complete_through, c.state) for c in result.series]
+
+    def _facts(self, recipe: str, symbols: list[str], since: date) -> list[Fact]:
+        self._current("ctx.facts")
+        typed = RECIPES.get(text("recipe", recipe))
+        if typed is None:
+            raise UsageError(f"recipe must be one of {sorted(RECIPES)}, got {recipe!r}")
+        result = self._query(FactsRequest(recipe, texts("symbols", symbols), day("since", since)))
+        if not isinstance(result, FactsResult):
+            raise ProtocolError(f"facts query answered with {type(result).__name__}")
+        return [
+            msgspec.convert(
+                {
+                    **f.fields,
+                    "symbol": f.symbol,
+                    "accession": f.accession,
+                    "status": f.status,
+                    "available_at": from_ns(f.available_at),
+                    "evidence": f.evidence,
+                },
+                typed,
+            )
+            for f in result.facts
+        ]
 
     def calendar(self, start: date, end: date) -> list[Session]:
         self._current("ctx.calendar")

@@ -68,7 +68,7 @@ Also on `Context`: `history(symbols, tf, bars, adjust)`, `fundamentals(symbols, 
 | Tiingo | Daily history before 2016 | Gated by the overlap check; raw close + split/dividend factors, never `adjClose` |
 | Wikipedia | Point-in-time S&P 500 membership | Rebuilt from the constituents and change-log articles (CC BY-SA) |
 | Interactive Brokers | Short availability, recorded daily | Public FTP file; not used by runs yet |
-| SEC EDGAR | Point-in-time fundamentals, SIC codes, earnings-release times | Raw XBRL facts plus canonical metrics; submissions |
+| SEC EDGAR | Point-in-time fundamentals, SIC codes, earnings-release times, 8-K texts and the typed facts recipes read from them (`ctx.facts`) | Raw XBRL facts plus canonical metrics; submissions; one version per recipe serves bots, and each run records the versions it read |
 | US Treasury | Risk-free rate for Sharpe and bots | |
 | FRED | Macro series for bots (T-bill, 10-year, Moody's Aaa/Baa, CPI-U, unemployment, real-time Sahm rule, daily 10-year and spreads, weekly jobless claims, industrial production, building permits, advance retail sales) with every ALFRED vintage | Free API key |
 | CBOE | Daily VIX (from its 2003 methodology) and VIX3M closes for bots | Free history files |
@@ -120,7 +120,7 @@ In v1:
 4. Overfitting guard: the last 12 months are a locked holdout; running on it is explicit and counted per bot.
 5. Bad-data gate: refuse runs with coverage gaps; flag >40% overnight moves with no corporate action.
 6. Survivorship honesty: delisted positions liquidate at last close; runs carry a "survivorship-biased universe" badge.
-7. Reproducibility record: bot content hash, engine version, config, seed, data watermark.
+7. Reproducibility record: bot content hash, engine version, config, seed, data watermark, recipe versions read.
 8. Headless loop: `buizz backtest bots/x --from --to` prints metrics (the feedback loop for writing bots).
 9. Crash recovery: checkpoint with each step; live runs catch up after a restart.
 

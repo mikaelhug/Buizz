@@ -10,7 +10,7 @@ use serde_json::{Map, Value};
 use crate::api::ContractState;
 use crate::ledger::Portfolio;
 use crate::market::{
-    Adjustment, Borrow, CorporateAction, DataSource, Dataset, EarningsRelease, Filing,
+    Adjustment, Borrow, CorporateAction, DataSource, Dataset, EarningsRelease, FactStatus, Filing,
     FomcAnnouncement, FundamentalMetric, FundamentalPoint, InsiderTrade, InstrumentProfile,
     MacroPoint, MacroSeries, NewsArticle, PressRelease, Session, ShortInterest, ShortVolume,
     Symbol, Timeframe,
@@ -166,6 +166,11 @@ pub enum QueryRequest {
         from: NaiveDate,
         to: NaiveDate,
     },
+    Facts {
+        recipe: String,
+        symbols: Vec<Symbol>,
+        since: NaiveDate,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -227,6 +232,19 @@ pub enum DataResult {
     Completeness {
         series: Vec<SeriesCompleteness>,
     },
+    Facts {
+        facts: Vec<FactRow>,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct FactRow {
+    pub symbol: Symbol,
+    pub accession: String,
+    pub status: FactStatus,
+    pub available_at: Timestamp,
+    pub evidence: Option<String>,
+    pub fields: Map<String, Value>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

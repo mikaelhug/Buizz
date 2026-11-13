@@ -465,6 +465,19 @@ class CompletenessResult(msgspec.Struct, frozen=True, tag_field="kind", tag="com
     series: list[CompletenessFrame]
 
 
+class FactFrame(msgspec.Struct, frozen=True):
+    symbol: str
+    accession: str
+    status: Literal["ok", "not_stated"]
+    available_at: int
+    evidence: str | None
+    fields: dict[str, Any]
+
+
+class FactsResult(msgspec.Struct, frozen=True, tag_field="kind", tag="facts"):
+    facts: list[FactFrame]
+
+
 type Result = (
     HistoryResult
     | FundamentalsResult
@@ -482,6 +495,7 @@ type Result = (
     | ShortVolumeResult
     | BorrowResult
     | CompletenessResult
+    | FactsResult
 )
 
 
@@ -590,6 +604,12 @@ class CompletenessRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="co
     end: date = msgspec.field(name="to")
 
 
+class FactsRequest(msgspec.Struct, frozen=True, tag_field="kind", tag="facts"):
+    recipe: str
+    symbols: list[str]
+    since: date
+
+
 type Request = (
     HistoryRequest
     | FundamentalsRequest
@@ -607,6 +627,7 @@ type Request = (
     | ShortVolumeRequest
     | BorrowRequest
     | CompletenessRequest
+    | FactsRequest
 )
 
 

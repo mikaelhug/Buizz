@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { api, must, type Schemas } from "../api/client";
 import { useSpineEvents } from "../api/stream";
 import { fmt } from "../lib/format";
@@ -248,6 +248,9 @@ function Documents({ file, onBack, onRead }: { file: TextFile; onBack: () => voi
 function Reader({ document, onClose }: { document: TextDocument; onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
   const text = useResource(() => must(api.GET("/api/data/text/document", { params: { query: { id: document.doc_id } } })), [document.doc_id]);
+  const markRefs = useRef(new Map<string, HTMLElement>());
+  const chars = useMemo(() => Array.from(text.data?.text ?? ""), [text.data?.text]);
+  const marks = useMemo(() => evidenceMarks(chars, text.data?.facts ?? [], text.data?.sections ?? []), [chars, text.data?.facts, text.data?.sections]);
   useEffect(() => {
     const dialog = ref.current;
     dialog?.showModal();
@@ -284,9 +287,9 @@ function Reader({ document, onClose }: { document: TextDocument; onClose: () => 
       </header>
       <div className="reader-body">
         {text.error && <p className="muted">{text.error}</p>}
-        {text.data && text.data.facts.length > 0 && <Facts facts={text.data.facts} />}
+        {text.data && text.data.facts.length > 0 && <Facts facts={text.data.facts} marks={marks} onShow={(key) => markRefs.current.get(key)?.scrollIntoView({ block: "center" })} />}
         {text.data?.split_failure && <p className="muted">Not split into items: {text.data.split_failure}.</p>}
-        {text.data && (text.data.text ? <SectionedText text={text.data.text} sections={text.data.sections} /> : <p className="muted">This document has no text: it is kept as filed only.</p>)}
+        {text.data && (text.data.text ? <SectionedText chars={chars} sections={text.data.sections} marks={marks} markRefs={markRefs.current} /> : <p className="muted">This document has no text: it is kept as filed only.</p>)}
         {text.data?.truncated && <p className="muted">Showing the first {fmt.integer(text.data.text?.length ?? 0)} of {fmt.integer(text.data.chars)} characters.</p>}
         {!text.data && !text.error && <p className="muted">Loading…</p>}
       </div>
@@ -296,16 +299,55 @@ function Reader({ document, onClose }: { document: TextDocument; onClose: () => 
 
 const SHARED_FACT_COLUMNS = new Set(["recipe", "version", "doc_id", "section_key", "ordinal", "accession", "cik", "status", "evidence", "evidence_start", "reason", "published_at", "produced_at"]);
 
-function Facts({ facts }: { facts: Record<string, unknown>[] }) {
+type Mark = { key: string; start: number; end: number };
+
+const factKey = (fact: Record<string, unknown>) => `${String(fact.recipe)}:${String(fact.section_key)}:${String(fact.ordinal)}`;
+
+function collapsed(chars: string[]): { text: string; origins: number[] } {
+  let text = "";
+  const origins: number[] = [];
+  chars.forEach((char, index) => {
+    const space = /\s/u.test(char);
+    if (space && (text === "" || text.endsWith(" "))) return;
+    text += space ? " " : char;
+    origins.push(index);
+  });
+  return { text, origins };
+}
+
+function evidenceMarks(chars: string[], facts: Record<string, unknown>[], sections: Section[]): Mark[] {
+  const document = collapsed(chars);
+  return facts.flatMap((fact) => {
+    if (typeof fact.evidence !== "string") return [];
+    const quote = collapsed(Array.from(fact.evidence.trim())).text;
+    const offset = sections.find((section) => section.key === fact.section_key)?.start ?? 0;
+    const target = offset + (typeof fact.evidence_start === "number" ? fact.evidence_start : 0);
+    let best: number | undefined;
+    for (let at = document.text.indexOf(quote); quote && at >= 0; at = document.text.indexOf(quote, at + 1)) {
+      if (best === undefined || Math.abs((document.origins[at] ?? 0) - target) < Math.abs((document.origins[best] ?? 0) - target)) best = at;
+    }
+    const start = best === undefined ? undefined : document.origins[best];
+    const last = best === undefined ? undefined : document.origins[best + quote.length - 1];
+    return start === undefined || last === undefined ? [] : [{ key: factKey(fact), start, end: last + 1 }];
+  });
+}
+
+function Facts({ facts, marks, onShow }: { facts: Record<string, unknown>[]; marks: Mark[]; onShow: (key: string) => void }) {
   return (
     <ul className="reader-facts" aria-label="Facts">
       {facts.map((fact) => {
         const fields = Object.entries(fact).filter(([name, value]) => !SHARED_FACT_COLUMNS.has(name) && value !== null);
+        const key = factKey(fact);
         return (
-          <li key={`${String(fact.recipe)}:${String(fact.section_key)}:${String(fact.ordinal)}`}>
+          <li key={key}>
             <strong>{String(fact.recipe).replaceAll("_", " ")}</strong> v{String(fact.version)} · {String(fact.section_key)} · {String(fact.status).replace("_", " ")}
             {fields.length > 0 && ` · ${fields.map(([name, value]) => `${name.replaceAll("_", " ")} ${typeof value === "string" ? value : JSON.stringify(value)}`).join(", ")}`}
             {typeof fact.reason === "string" && <span className="muted"> · {fact.reason}</span>}
+            {marks.some((mark) => mark.key === key) && (
+              <button type="button" className="btn btn-sm reader-fact-show" onClick={() => onShow(key)}>
+                Show in text
+              </button>
+            )}
             {typeof fact.evidence === "string" && <blockquote className="muted">{fact.evidence}</blockquote>}
           </li>
         );
@@ -314,11 +356,40 @@ function Facts({ facts }: { facts: Record<string, unknown>[] }) {
   );
 }
 
-function SectionedText({ text, sections }: { text: string; sections: Section[] }) {
+function Marked({ chars, from, to, marks, markRefs }: { chars: string[]; from: number; to: number; marks: Mark[]; markRefs: Map<string, HTMLElement> }) {
+  const pieces: ReactNode[] = [];
+  let at = from;
+  for (const mark of marks.filter((mark) => mark.end > from && mark.start < to).toSorted((a, b) => a.start - b.start)) {
+    const start = Math.max(mark.start, at);
+    const end = Math.min(mark.end, to);
+    if (start >= end) continue;
+    pieces.push(chars.slice(at, start).join(""));
+    pieces.push(
+      <mark
+        key={`${mark.key}:${start}`}
+        className="reader-evidence"
+        ref={(element) => {
+          if (element && start === mark.start) markRefs.set(mark.key, element);
+        }}
+      >
+        {chars.slice(start, end).join("")}
+      </mark>,
+    );
+    at = end;
+  }
+  pieces.push(chars.slice(at, to).join(""));
+  return <>{pieces}</>;
+}
+
+function SectionedText({ chars, sections, marks, markRefs }: { chars: string[]; sections: Section[]; marks: Mark[]; markRefs: Map<string, HTMLElement> }) {
   const anchors = useRef(new Map<number, HTMLElement>());
   const first = sections[0];
-  if (!first) return <pre className="reader-text">{text}</pre>;
-  const chars = Array.from(text);
+  if (!first)
+    return (
+      <pre className="reader-text">
+        <Marked chars={chars} from={0} to={chars.length} marks={marks} markRefs={markRefs} />
+      </pre>
+    );
   const starts = [...new Set(sections.map((section) => section.start))];
   const tail = Math.max(...sections.map((section) => section.end));
   return (
@@ -338,7 +409,7 @@ function SectionedText({ text, sections }: { text: string; sections: Section[] }
         ))}
       </nav>
       <pre className="reader-text">
-        {chars.slice(0, first.start).join("")}
+        <Marked chars={chars} from={0} to={first.start} marks={marks} markRefs={markRefs} />
         {starts.map((start, index) => (
           <span
             key={start}
@@ -346,10 +417,10 @@ function SectionedText({ text, sections }: { text: string; sections: Section[] }
               if (element) anchors.current.set(start, element);
             }}
           >
-            {chars.slice(start, starts[index + 1] ?? tail).join("")}
+            <Marked chars={chars} from={start} to={starts[index + 1] ?? tail} marks={marks} markRefs={markRefs} />
           </span>
         ))}
-        {chars.slice(tail).join("")}
+        <Marked chars={chars} from={tail} to={chars.length} marks={marks} markRefs={markRefs} />
       </pre>
     </>
   );

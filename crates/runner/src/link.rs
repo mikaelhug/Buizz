@@ -2,17 +2,20 @@ use std::time::Duration;
 
 use axum::extract::ws::{Message, WebSocket};
 use buizz_core::api::CoverageContract;
-use buizz_core::market::{Dataset, FundamentalMetric, HISTORY_START, MacroSeries, Symbol};
+use buizz_core::market::{
+    Dataset, FundamentalMetric, HISTORY_START, MacroSeries, RecipeState, Symbol,
+};
 use buizz_core::protocol::{
     self, Ack, BarBuffer, BotMessage, Data, DataResult, End, EndReason, ErrorCode, Hello,
     PROTOCOL_VERSION, ProtocolError, Query, QueryRequest, Ready, SeriesCompleteness, SpineMessage,
     Step,
 };
-use buizz_core::run::{UNIVERSE_SESSIONS, UniverseSpec};
+use buizz_core::run::{Mode, RecipeRead, UNIVERSE_SESSIONS, UniverseSpec};
 use buizz_core::time::Timestamp;
 use buizz_core::visibility::calendar_known_through;
 use buizz_core::wire;
-use buizz_market::{HistoryRequest, MarketStore};
+use buizz_ingest::recipe::RECIPES;
+use buizz_market::{FactsRequest, HistoryRequest, MarketStore};
 use chrono::NaiveDate;
 
 const MAX_HISTORY_BARS: u32 = 10_000;
@@ -32,6 +35,72 @@ pub(crate) struct SessionUniverse<'a> {
     pub spec: &'a UniverseSpec,
     pub date: Option<NaiveDate>,
     pub symbols: &'a [Symbol],
+}
+
+pub(crate) struct RecipeReads {
+    mode: Mode,
+    read: Vec<RecipeRead>,
+    changed: bool,
+}
+
+impl RecipeReads {
+    pub(crate) fn new(mode: Mode, read: Vec<RecipeRead>) -> Self {
+        Self {
+            mode,
+            read,
+            changed: false,
+        }
+    }
+
+    pub(crate) fn take_changed(&mut self) -> Option<Vec<RecipeRead>> {
+        std::mem::take(&mut self.changed).then(|| self.read.clone())
+    }
+
+    async fn version(&mut self, market: &MarketStore, recipe: &str) -> Result<u32, String> {
+        if self.mode == Mode::Backtest
+            && let Some(pinned) = self.read.iter().find(|read| read.recipe == recipe)
+        {
+            return Ok(pinned.version);
+        }
+        let versions = market
+            .recipe_versions()
+            .await
+            .map_err(|error| error.to_string())?;
+        let own: Vec<_> = versions
+            .iter()
+            .filter(|version| version.recipe == recipe)
+            .collect();
+        if own.is_empty() {
+            let known: Vec<&str> = RECIPES.iter().map(|known| known.name).collect();
+            return Err(format!(
+                "{recipe} is not a recipe; the recipes are {}",
+                known.join(", ")
+            ));
+        }
+        let Some(current) = own
+            .iter()
+            .find(|version| version.state == RecipeState::Current)
+        else {
+            let states: Vec<String> = own
+                .iter()
+                .map(|version| format!("version {} {}", version.version, name(&version.state)))
+                .collect();
+            return Err(format!(
+                "{recipe} has no current version yet ({}); ctx.completeness tells how far it is filled",
+                states.join(", ")
+            ));
+        };
+        let read = RecipeRead {
+            recipe: recipe.to_owned(),
+            version: current.version,
+        };
+        if !self.read.contains(&read) {
+            self.read.push(read);
+            self.read.sort();
+            self.changed = true;
+        }
+        Ok(current.version)
+    }
 }
 
 pub(crate) struct BotLink {
@@ -77,6 +146,7 @@ impl BotLink {
         market: &MarketStore,
         contracts: &[CoverageContract],
         session: SessionUniverse<'_>,
+        reads: &mut RecipeReads,
     ) -> Result<Ack, LinkError> {
         let (seq, clock) = (step.seq, step.clock);
         self.send(&SpineMessage::Step(Box::new(step))).await?;
@@ -85,7 +155,17 @@ impl BotLink {
                 BotMessage::Query(Query { id, request }) => {
                     let asked = Asked::of(&request);
                     let read = read_from(&request, clock.exchange_date());
-                    let answer = match answer(market, contracts, request, clock, &session).await {
+                    let answer = match answer(
+                        market,
+                        contracts,
+                        request,
+                        clock,
+                        &session,
+                        reads,
+                        &mut self.unbacked,
+                    )
+                    .await
+                    {
                         Ok(result) => {
                             if let Some(asked) = asked {
                                 let unbacked = asked.unbacked(market, &result, clock).await;
@@ -258,6 +338,10 @@ fn read_from(request: &QueryRequest, today: NaiveDate) -> Option<(Dataset, Naive
         QueryRequest::ShortInterest { since, .. } => Some((Dataset::ShortInterest, *since)),
         QueryRequest::ShortVolume { since, .. } => Some((Dataset::ShortVolume, *since)),
         QueryRequest::Borrow { since, .. } => Some((Dataset::Borrow, *since)),
+        QueryRequest::Facts { recipe, since, .. } => RECIPES
+            .iter()
+            .find(|known| known.name == recipe)
+            .map(|known| (known.dataset, *since)),
         _ => None,
     }
 }
@@ -320,6 +404,8 @@ async fn answer(
     request: QueryRequest,
     clock: Timestamp,
     session: &SessionUniverse<'_>,
+    reads: &mut RecipeReads,
+    unbacked: &mut Vec<(String, String)>,
 ) -> Result<DataResult, String> {
     match request {
         QueryRequest::History {
@@ -501,6 +587,41 @@ async fn answer(
             let to = to.min(clock.exchange_date());
             Ok(DataResult::Completeness {
                 series: completeness(contracts, &datasets, from, to),
+            })
+        }
+        QueryRequest::Facts {
+            recipe,
+            symbols,
+            since,
+        } => {
+            let version = reads.version(market, &recipe).await?;
+            let facts = market
+                .facts(FactsRequest {
+                    recipe: recipe.clone(),
+                    version,
+                    symbols,
+                    since,
+                    as_of: clock,
+                    live: reads.mode == Mode::Live,
+                })
+                .await
+                .map_err(|error| error.to_string())?;
+            if let Some(first) = facts
+                .iter()
+                .filter(|fact| fact.produced_at > fact.row.available_at)
+                .map(|fact| fact.produced_at)
+                .min()
+            {
+                unbacked.push((
+                    format!("facts {recipe} {version}"),
+                    format!(
+                        "the bot read {recipe} version {version}, whose facts were produced after their filings were public (the first on {}); a live run sees each fact only from when it was produced",
+                        first.exchange_date()
+                    ),
+                ));
+            }
+            Ok(DataResult::Facts {
+                facts: facts.into_iter().map(|fact| fact.row).collect(),
             })
         }
     }

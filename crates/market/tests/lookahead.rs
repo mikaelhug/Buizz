@@ -1,15 +1,17 @@
 use std::path::{Path, PathBuf};
 
 use buizz_core::market::{
-    Adjustment, AssetClass, Bar, CorporateAction, CorporateActionKind, DataSource, Feed,
-    FundamentalFact, FundamentalMetric, IndexHistory, IndexMember, InsiderFiling, InsiderOwner,
-    InsiderTransaction, Instrument, NewsArticle, PeriodType, Session, StockIndex, Symbol,
-    Timeframe,
+    Adjustment, AssetClass, Bar, CorporateAction, CorporateActionKind, DataSource, Dataset, Fact,
+    FactStatus, Feed, Filing, FundamentalFact, FundamentalMetric, IndexHistory, IndexMember,
+    InsiderFiling, InsiderOwner, InsiderTransaction, Instrument, NewsArticle, PeriodType,
+    RecipeScope, RecipeState, RecipeVersion, Session, StockIndex, Symbol, Timeframe,
 };
 use buizz_core::protocol::BarRow;
 use buizz_core::run::UniverseSpec;
 use buizz_core::time::Timestamp;
-use buizz_market::{ActionWindow, ChartBars, ChartRequest, FILE_NAME, HistoryRequest, MarketStore};
+use buizz_market::{
+    ActionWindow, ChartBars, ChartRequest, FILE_NAME, FactsRequest, HistoryRequest, MarketStore,
+};
 use chrono::{Datelike, NaiveDate, TimeDelta};
 use rust_decimal::Decimal;
 use serde_json::Value;
@@ -1048,4 +1050,121 @@ async fn reading_a_filing_again_replaces_the_facts_the_store_held_from_it() {
         .map(|point| (point.period_end, point.value))
         .collect();
     assert_eq!(held, vec![(quarter, Decimal::from(498_143_219))]);
+}
+
+#[tokio::test]
+async fn a_live_run_sees_a_fact_once_produced_and_a_backtest_from_its_filing() {
+    let (_dir, store) = november_2026().await;
+    let accepted_at: Timestamp = "2026-11-05T23:30:00Z".parse().unwrap();
+    let accession = "0000320193-26-000101".to_owned();
+    store
+        .append_current_reports(
+            DataSource::Edgar,
+            vec![Filing {
+                symbol: Symbol::new("AAPL"),
+                cik: 320193,
+                accession: accession.clone(),
+                form: "8-K".to_owned(),
+                filed: accepted_at.exchange_date(),
+                report_date: None,
+                items: vec!["3.01".to_owned()],
+                accepted_at,
+                available_at: accepted_at,
+            }],
+        )
+        .await
+        .unwrap();
+    let version = RecipeVersion {
+        recipe: "listing_notice".to_owned(),
+        version: 1,
+        schema: r#"{"type": "object", "properties": {"exchange": {"type": "string"}}}"#.to_owned(),
+        producer: "code".to_owned(),
+        prompt_hash: None,
+        scope: RecipeScope {
+            items: vec!["3.01".to_owned()],
+            exhibits: Vec::new(),
+            from: "2026-11-01".parse().unwrap(),
+        },
+        state: RecipeState::Filling,
+        gold: None,
+    };
+    store
+        .register_recipe(Dataset::ListingNotices, version)
+        .await
+        .unwrap();
+    for state in [RecipeState::Complete, RecipeState::Current] {
+        store
+            .advance_recipe(
+                Dataset::ListingNotices,
+                "listing_notice".to_owned(),
+                1,
+                state,
+                None,
+            )
+            .await
+            .unwrap();
+    }
+    store
+        .append_facts(
+            Dataset::ListingNotices,
+            vec![Fact {
+                recipe: "listing_notice".to_owned(),
+                version: 1,
+                doc_id: format!("edgar:{accession}:1"),
+                section_key: "8-K:3.01".to_owned(),
+                ordinal: 0,
+                accession: Some(accession),
+                cik: Some(320193),
+                status: FactStatus::Ok,
+                fields: Some(r#"{"exchange": "nasdaq"}"#.to_owned()),
+                evidence: Some("Nasdaq".to_owned()),
+                evidence_start: Some(0),
+                reason: None,
+                published_at: accepted_at,
+                produced_at: "2026-11-09T15:00:00Z".parse().unwrap(),
+                input_hash: "hash".to_owned(),
+            }],
+        )
+        .await
+        .unwrap();
+    let seen = |clock: &str, live: bool| {
+        let store = store.clone();
+        let as_of: Timestamp = clock.parse().unwrap();
+        async move {
+            store
+                .facts(FactsRequest {
+                    recipe: "listing_notice".to_owned(),
+                    version: 1,
+                    symbols: vec![Symbol::new("AAPL")],
+                    since: "2026-11-01".parse().unwrap(),
+                    as_of,
+                    live,
+                })
+                .await
+                .unwrap()
+                .into_iter()
+                .map(|fact| {
+                    (
+                        fact.row.available_at.to_string(),
+                        fact.row.fields["exchange"].clone(),
+                    )
+                })
+                .collect::<Vec<_>>()
+        }
+    };
+
+    assert!(seen("2026-11-06T14:29:59Z", false).await.is_empty());
+    assert_eq!(
+        seen("2026-11-06T14:30:00Z", false).await,
+        [("2026-11-06T14:30:00Z".to_owned(), Value::from("nasdaq"))],
+        "a backtest reads the fact from when its filing was public"
+    );
+    assert!(
+        seen("2026-11-09T14:59:59Z", true).await.is_empty(),
+        "a live run cannot see a fact before it was produced"
+    );
+    assert_eq!(
+        seen("2026-11-09T15:00:00Z", true).await,
+        [("2026-11-09T15:00:00Z".to_owned(), Value::from("nasdaq"))]
+    );
 }

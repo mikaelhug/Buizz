@@ -7,8 +7,8 @@ use serde_json::{Map, Value};
 use utoipa::{IntoParams, ToSchema};
 
 use crate::market::{
-    Coverage, DataDomain, DataSource, Dataset, Market, Section, Session, Symbol, Timeframe,
-    Watermarks,
+    Coverage, DataDomain, DataSource, Dataset, Market, RecipeState, Section, Session, Symbol,
+    Timeframe, Watermarks,
 };
 use crate::ops::{DataWarning, JobOutcome};
 use crate::order::{Fill, Order, OrderId, OrderUpdate};
@@ -410,6 +410,20 @@ pub struct CoverageContract {
     pub per_day: Option<f64>,
     pub eta: Option<NaiveDate>,
     pub reason: Option<String>,
+    pub recipe: Option<RecipeContract>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct RecipeContract {
+    pub recipe: String,
+    pub versions: Vec<RecipeVersionView>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct RecipeVersionView {
+    pub version: u32,
+    pub state: RecipeState,
+    pub producer: String,
 }
 
 impl CoverageContract {

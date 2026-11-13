@@ -18,6 +18,16 @@ class Reference(Bot):
             "earnings": [release.accession for release in ctx.earnings(symbols)],
             "filings": [[filing.accession, filing.items] for filing in ctx.filings(symbols, date(2024, 11, 1))],
             "press": [[release.accession, release.text] for release in ctx.press_releases(symbols, date(2024, 11, 1))],
+            "listing_notices": [
+                [
+                    notice.accession,
+                    notice.status,
+                    notice.exchange,
+                    notice.rule,
+                    f"{notice.available_at:%Y-%m-%dT%H:%M:%SZ}",
+                ]
+                for notice in ctx.facts("listing_notice", symbols, date(2024, 11, 1))
+            ],
             "forward_pe": [
                 [str(point.date), str(point.value), str(point.published), f"{point.available_at:%Y-%m-%dT%H:%M:%SZ}"]
                 for point in ctx.macro(["sp500_forward_pe"], date(2024, 1, 1), ctx.session.date)

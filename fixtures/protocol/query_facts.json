@@ -1,0 +1,12 @@
+{
+  "id": 16,
+  "request": {
+    "kind": "facts",
+    "recipe": "listing_notice",
+    "since": "2024-10-01",
+    "symbols": [
+      "BBB"
+    ]
+  },
+  "type": "query"
+}

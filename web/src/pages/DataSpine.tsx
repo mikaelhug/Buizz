@@ -770,6 +770,12 @@ function Detail({ id, entry, jobs, start }: { id: string; entry: DatasetSpine; j
                       <span className="contract-scope">
                         {contract.kind.replace("_", " ")}: {contract.scope}, {contract.from} → {contract.to}
                       </span>
+                      {contract.recipe && (
+                        <span className="contract-scope">
+                          bots read <code>ctx.facts("{contract.recipe.recipe}", …)</code>:{" "}
+                          {contract.recipe.versions.map((version) => `version ${version.version} ${version.state} (${version.producer})`).join(", ")}
+                        </span>
+                      )}
                     </th>
                     <td className="num">
                       {fmt.integer(contract.expected)} {UNITS[contract.unit]}

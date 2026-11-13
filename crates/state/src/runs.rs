@@ -25,7 +25,7 @@ const LIVE_RUN_CONFLICT: &str = "UNIQUE constraint failed: run.bot, run.variant"
 const RUN_COLUMNS: &str = "id, bot, mode, status, desired, config, created_at, started_at, \
     finished_at, clock, equity, metrics, result_hash, badges, bot_hash, engine_version, seed, \
     data_watermark, message, live_stats, bot_processes, bot_seconds, bot_peak_memory, source_run, \
-    behaviour_hash";
+    behaviour_hash, recipe_versions";
 
 fn tag_of<T: Serialize>(value: &T) -> Result<String> {
     match serde_json::to_value(value)?.get("type") {
@@ -59,6 +59,7 @@ fn run_summary(row: &Row) -> rusqlite::Result<RunSummary> {
             engine_version: row.get(15)?,
             seed: read_u64(row, 16)?,
             data_watermark: read_optional(row, 17, read_timestamp)?,
+            recipe_versions: read_json(row, 25)?,
         }),
         message: row.get(18)?,
         usage: BotUsage {
@@ -382,9 +383,11 @@ pub fn commit_step(connection: &Connection, commit: &StepCommit) -> Result<()> {
     upsert_orders(connection, commit.run_id, &commit.orders)?;
     insert_equity(connection, commit.run_id, &commit.equity_points)?;
     insert_events(connection, commit.run_id, &commit.events)?;
+    let recipe_versions = commit.recipe_versions.as_ref().map(json_text).transpose()?;
     connection.execute(
         "UPDATE run SET step_seq = ?, clock = ?, equity = ?, checkpoint = ?, \
-         bot_state = COALESCE(?, bot_state), undelivered = ? WHERE id = ?",
+         bot_state = COALESCE(?, bot_state), undelivered = ?, \
+         recipe_versions = COALESCE(?, recipe_versions) WHERE id = ?",
         params![
             int(commit.step_seq)?,
             commit.clock.nanos(),
@@ -392,6 +395,7 @@ pub fn commit_step(connection: &Connection, commit: &StepCommit) -> Result<()> {
             commit.engine_checkpoint,
             commit.bot_state,
             commit.undelivered,
+            recipe_versions,
             commit.run_id.0,
         ],
     )?;

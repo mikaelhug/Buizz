@@ -22,6 +22,7 @@ gen:
     cp -R "$out/protocol" fixtures/protocol
     cp "$out/openapi.json" openapi.json
     cp "$out/schema.d.ts" web/src/api/schema.d.ts
+    cp "$out/facts.py" sdk/python/src/buizz/facts.py
 
 drift:
     #!/usr/bin/env bash
@@ -32,11 +33,13 @@ drift:
     diff -r "$out/protocol" fixtures/protocol
     diff "$out/openapi.json" openapi.json
     diff "$out/schema.d.ts" web/src/api/schema.d.ts
+    diff "$out/facts.py" sdk/python/src/buizz/facts.py
 
 _generate out:
     cargo run --quiet --locked -p buizz-core --example golden_frames -- "{{out}}/protocol"
     cargo run --quiet --locked -p buizz-api --bin openapi > "{{out}}/openapi.json"
     cd web && npx --no-install openapi-typescript "{{out}}/openapi.json" --output "{{out}}/schema.d.ts" --silent
+    cargo run --quiet --locked -p buizz-ingest --example sdk_facts | (cd sdk/python && uv run --frozen ruff format --quiet --stdin-filename src/buizz/facts.py -) > "{{out}}/facts.py"
 
 test:
     cargo test --workspace --locked --exclude buizz-e2e

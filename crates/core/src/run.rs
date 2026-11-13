@@ -715,6 +715,13 @@ pub struct Reproducibility {
     pub engine_version: String,
     pub seed: u64,
     pub data_watermark: Option<Timestamp>,
+    pub recipe_versions: Vec<RecipeRead>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, ToSchema)]
+pub struct RecipeRead {
+    pub recipe: String,
+    pub version: u32,
 }
 
 impl Reproducibility {

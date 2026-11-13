@@ -235,6 +235,7 @@ function reproRows(run: Run, botHash: string, behaviourHash: string): Row[] {
     ["Engine", repro.engine_version],
     ["Seed", String(repro.seed)],
     ["Data through", fmt.market(repro.data_watermark)],
+    ["Facts read", repro.recipe_versions.length > 0 ? repro.recipe_versions.map((read) => `${read.recipe} version ${read.version}`).join(", ") : "none"],
     ["Result", run.result_hash ? <Hash value={run.result_hash} /> : "once the run finishes"],
   ];
 }
@@ -290,7 +291,7 @@ function RunBar({ run, name, tab, botHash, behaviourHash, recent, liveParams, ga
         <Info label="Reproducibility">
           {repro.length > 0 ? (
             <>
-              <p className="popover-text">The same bot code, engine, seed and data give the same result hash.</p>
+              <p className="popover-text">The same bot code, engine, seed, data and recipe versions give the same result hash.</p>
               <KeyValues rows={repro} />
             </>
           ) : (

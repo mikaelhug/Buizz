@@ -127,6 +127,7 @@ fn step(run_id: buizz_core::run::RunId, n: u64, orders: Vec<Order>) -> StepCommi
         engine_checkpoint: vec![n as u8; 4],
         bot_state: Some(vec![9, n as u8]),
         undelivered: Some(vec![7, n as u8]),
+        recipe_versions: None,
     }
 }
 

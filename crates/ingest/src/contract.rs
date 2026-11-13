@@ -1,6 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use buizz_core::api::{ContractState, CoverageContract, JobView, ScopeKind, ScopeUnit, SpineEvent};
+use buizz_core::api::{
+    ContractState, CoverageContract, JobView, RecipeContract, RecipeVersionView, ScopeKind,
+    ScopeUnit, SpineEvent,
+};
 use buizz_core::market::{
     ALPACA_HISTORY_START, AssetClass, Calendar, Coverage, DataSource, Dataset, MacroSeries,
     RecipeState, Symbol,
@@ -92,6 +95,7 @@ impl Scope {
             done,
             failed,
             through: complete.then_some(to),
+            recipe: None,
         }
     }
 
@@ -118,6 +122,7 @@ impl Scope {
             failed: 0,
             through: reached,
             scope: self,
+            recipe: None,
         }
     }
 }
@@ -136,6 +141,7 @@ struct Measure {
     done: u64,
     failed: u64,
     through: Option<NaiveDate>,
+    recipe: Option<RecipeContract>,
 }
 
 impl Ingest {
@@ -192,6 +198,7 @@ impl Ingest {
             done,
             failed,
             through,
+            recipe,
         } = measure;
         let pending = expected.saturating_sub(done + failed);
         let per_day = history.and_then(|history| {
@@ -264,6 +271,7 @@ impl Ingest {
             per_day,
             eta,
             reason: stalled,
+            recipe,
         }
     }
 
@@ -602,23 +610,34 @@ impl Ingest {
                 else {
                     continue;
                 };
-                measures.push(
-                    Scope {
-                        dataset: recipe.dataset,
-                        source: DataSource::Edgar,
-                        kind: ScopeKind::Derived,
-                        unit: ScopeUnit::Sections,
-                        scope: format!(
-                            "every 8-K Item {} section, read by {} version {}",
-                            version.scope.items.join(", "),
-                            version.recipe,
-                            version.version
-                        ),
-                        from: version.scope.from.max(start),
-                        to: today,
-                    }
-                    .accessions(self.market.recipe_progress(version.clone()).await?),
-                );
+                let mut measure = Scope {
+                    dataset: recipe.dataset,
+                    source: DataSource::Edgar,
+                    kind: ScopeKind::Derived,
+                    unit: ScopeUnit::Sections,
+                    scope: format!(
+                        "every 8-K Item {} section, read by {} version {}",
+                        version.scope.items.join(", "),
+                        version.recipe,
+                        version.version
+                    ),
+                    from: version.scope.from.max(start),
+                    to: today,
+                }
+                .accessions(self.market.recipe_progress(version.clone()).await?);
+                measure.recipe = Some(RecipeContract {
+                    recipe: recipe.name.to_owned(),
+                    versions: versions
+                        .iter()
+                        .filter(|known| known.recipe == recipe.name)
+                        .map(|known| RecipeVersionView {
+                            version: known.version,
+                            state: known.state,
+                            producer: known.producer.clone(),
+                        })
+                        .collect(),
+                });
+                measures.push(measure);
             }
         }
 

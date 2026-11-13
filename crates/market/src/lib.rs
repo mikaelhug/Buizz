@@ -46,6 +46,7 @@ mod write;
 
 pub use text::{FILL_LIMIT, Space, TextVolume, TextVolumes};
 
+pub use recipe::ReadFact;
 pub use restore::Restored;
 
 pub(crate) const SCHEMA: &str = include_str!("../schema.sql");
@@ -113,6 +114,16 @@ pub struct HistoryRequest {
     pub bars: u32,
     pub adjust: Adjustment,
     pub as_of: Timestamp,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FactsRequest {
+    pub recipe: String,
+    pub version: u32,
+    pub symbols: Vec<Symbol>,
+    pub since: NaiveDate,
+    pub as_of: Timestamp,
+    pub live: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -831,6 +842,33 @@ impl MarketStore {
                     published_at: location.published_at,
                 })
                 .collect())
+            })
+            .await
+    }
+
+    pub async fn facts(&self, request: FactsRequest) -> Result<Vec<ReadFact>> {
+        let (calendar, listings) = (self.shared.calendar(), self.shared.listings());
+        self.readers
+            .run(move |connection| {
+                let resolved = read::resolve(
+                    &listings,
+                    &request.symbols,
+                    read::listed_on(&calendar, request.as_of),
+                );
+                let keys = read::keys(&resolved);
+                let facts = recipe::read_facts(
+                    connection,
+                    &calendar,
+                    &recipe::FactQuery {
+                        recipe: &request.recipe,
+                        version: request.version,
+                        symbols: &keys,
+                        since: request.since,
+                        as_of: request.as_of,
+                        live: request.live,
+                    },
+                )?;
+                Ok(read::relabel(&resolved, facts, |fact| &mut fact.row.symbol))
             })
             .await
     }

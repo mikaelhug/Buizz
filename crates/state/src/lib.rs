@@ -17,8 +17,8 @@ use buizz_core::ops::{FetchStatus, JobOutcome, JobRun, SourceFetch};
 use buizz_core::order::{Fill, Order, OrderId};
 use buizz_core::performance::{LiveStats, Metrics};
 use buizz_core::run::{
-    BotCode, DesiredState, EquityPoint, Mode, RunBadge, RunConfig, RunEvent, RunEventType, RunId,
-    RunStatus,
+    BotCode, DesiredState, EquityPoint, Mode, RecipeRead, RunBadge, RunConfig, RunEvent,
+    RunEventType, RunId, RunStatus,
 };
 use buizz_core::time::Timestamp;
 use chrono::TimeDelta;
@@ -109,6 +109,7 @@ pub struct StepCommit {
     pub engine_checkpoint: Vec<u8>,
     pub bot_state: Option<Vec<u8>>,
     pub undelivered: Option<Vec<u8>>,
+    pub recipe_versions: Option<Vec<RecipeRead>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

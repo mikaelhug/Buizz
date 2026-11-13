@@ -778,6 +778,7 @@ export interface components {
             /** Format: date */
             eta?: string | null;
             reason?: string | null;
+            recipe?: components["schemas"]["RecipeContract"] | null;
         };
         CoverageGap: {
             symbol: components["schemas"]["Symbol"];
@@ -1262,6 +1263,23 @@ export interface components {
             /** Format: int32 */
             live: number;
         };
+        RecipeContract: {
+            recipe: string;
+            versions: components["schemas"]["RecipeVersionView"][];
+        };
+        RecipeRead: {
+            recipe: string;
+            /** Format: int32 */
+            version: number;
+        };
+        /** @enum {string} */
+        RecipeState: "evaluating" | "filling" | "complete" | "current" | "retired";
+        RecipeVersionView: {
+            /** Format: int32 */
+            version: number;
+            state: components["schemas"]["RecipeState"];
+            producer: string;
+        };
         /** @enum {string} */
         RejectReason: "unknown_symbol" | "duplicate_client_id" | "zero_quantity" | "invalid_limit_price" | "no_price" | "not_shortable" | "max_position_weight" | "max_gross_exposure" | "invalid_size" | "no_stream_slot" | "invalid_stop_price" | "auction_closed" | "auction_unavailable";
         Reproducibility: {
@@ -1271,6 +1289,7 @@ export interface components {
             /** Format: int64 */
             seed: number;
             data_watermark?: components["schemas"]["Timestamp"] | null;
+            recipe_versions: components["schemas"]["RecipeRead"][];
         };
         Research: {
             trials: components["schemas"]["Trials"];

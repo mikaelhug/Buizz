@@ -240,6 +240,16 @@
   list-style: none;
 }
 
+.reader-fact-show {
+  margin-left: var(--sp-2);
+}
+
+.reader-evidence {
+  background: var(--accent-soft);
+  color: inherit;
+  border-bottom: 2px solid var(--accent);
+}
+
 .reader-facts blockquote {
   margin: var(--sp-1) 0 0;
   padding-left: var(--sp-2);

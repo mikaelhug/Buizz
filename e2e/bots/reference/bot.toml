@@ -1,4 +1,4 @@
-description = "Reports the S&P 500 universe, instrument profiles, earnings releases, 8-K filings with their items, earnings press release texts and S&P 500 forward P/E it sees on each daily step, and hedges half its equity in SPY, which is outside that universe"
+description = "Reports the S&P 500 universe, instrument profiles, earnings releases, 8-K filings with their items, earnings press release texts, 8-K Item 3.01 listing notices and S&P 500 forward P/E it sees on each daily step, and hedges half its equity in SPY, which is outside that universe"
 command = ["uv", "run", "--frozen", "--quiet", "--project", "../../../sdk/python", "python", "bot.py"]
 timeframe = "1d"
 universe = { index = "sp500" }

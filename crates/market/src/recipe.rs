@@ -1,9 +1,18 @@
-use buizz_core::market::{DataSource, Dataset, Fact, RecipeScope, RecipeState, RecipeVersion};
-use buizz_core::time::Timestamp;
-use duckdb::{Connection, Transaction, params};
-use serde_json::{Map, Value};
+use std::str::FromStr;
 
-use crate::codec::{Ts, Wire, text_list, wire_name};
+use buizz_core::market::{
+    Calendar, DataSource, Dataset, Fact, FactStatus, RecipeScope, RecipeState, RecipeVersion,
+    Symbol,
+};
+use buizz_core::protocol::FactRow;
+use buizz_core::time::Timestamp;
+use buizz_core::visibility::filing_visible_at;
+use chrono::{NaiveDate, NaiveTime};
+use duckdb::{Connection, Transaction, params, params_from_iter};
+use rust_decimal::Decimal;
+use serde_json::{Map, Number, Value};
+
+use crate::codec::{IN_SYMBOLS, Params, Sym, Ts, Wire, symbol_list, text_list, wire_name};
 use crate::write::{Coverage, cover, write_batch};
 use crate::{AccessionProgress, MarketError, Result, WriteSummary};
 
@@ -479,4 +488,136 @@ pub(crate) fn document_facts(
         }
     }
     Ok(rows)
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ReadFact {
+    pub row: FactRow,
+    pub produced_at: Timestamp,
+}
+
+pub(crate) struct FactQuery<'a> {
+    pub(crate) recipe: &'a str,
+    pub(crate) version: u32,
+    pub(crate) symbols: &'a [Symbol],
+    pub(crate) since: NaiveDate,
+    pub(crate) as_of: Timestamp,
+    pub(crate) live: bool,
+}
+
+pub(crate) fn read_facts(
+    connection: &Connection,
+    calendar: &Calendar,
+    query: &FactQuery<'_>,
+) -> Result<Vec<ReadFact>> {
+    let sessions = calendar.sessions();
+    let opened = sessions.partition_point(|session| session.open <= query.as_of);
+    let Some(last_open) = opened.checked_sub(1).map(|index| sessions[index].open) else {
+        return Ok(Vec::new());
+    };
+    if query.symbols.is_empty() {
+        return Ok(Vec::new());
+    }
+    let version = stored(connection, query.recipe, query.version)?.ok_or_else(|| {
+        MarketError::Recipe(format!(
+            "{} version {} is not registered",
+            query.recipe, query.version
+        ))
+    })?;
+    let decimals = decimal_fields(&version.schema)?;
+    let since = Timestamp::at_exchange_time(query.since, NaiveTime::MIN).unwrap_or(Timestamp::MIN);
+    let sql = format!(
+        "SELECT r.symbol, f.accession, f.status, f.fields, f.evidence, f.published_at, \
+         f.produced_at FROM fact f JOIN (SELECT DISTINCT symbol, accession FROM current_report) r \
+         ON r.accession = f.accession WHERE f.recipe = ? AND f.version = ? \
+         AND f.status IN ('ok', 'not_stated') AND r.symbol {IN_SYMBOLS} \
+         AND f.published_at >= ? AND f.published_at < ? AND (NOT ? OR f.produced_at <= ?) \
+         ORDER BY r.symbol, f.published_at, f.accession, f.section_key, f.ordinal"
+    );
+    let params: Params = vec![
+        Box::new(query.recipe.to_owned()),
+        Box::new(query.version),
+        symbol_list(query.symbols),
+        Box::new(Ts(since)),
+        Box::new(Ts(last_open)),
+        Box::new(query.live),
+        Box::new(Ts(query.as_of)),
+    ];
+    let mut statement = connection.prepare_cached(&sql)?;
+    let rows = statement
+        .query_map(params_from_iter(params.iter()), |row| {
+            Ok((
+                row.get::<_, Sym>(0)?.0,
+                row.get::<_, String>(1)?,
+                row.get::<_, Wire<FactStatus>>(2)?.0,
+                row.get::<_, Option<String>>(3)?,
+                row.get::<_, Option<String>>(4)?,
+                row.get::<_, Ts>(5)?.0,
+                row.get::<_, Ts>(6)?.0,
+            ))
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    rows.into_iter()
+        .map(
+            |(symbol, accession, status, fields, evidence, published_at, produced_at)| {
+                let public = filing_visible_at(published_at, calendar).unwrap_or(last_open);
+                let available_at = if query.live {
+                    public.max(produced_at)
+                } else {
+                    public
+                };
+                Ok(ReadFact {
+                    row: FactRow {
+                        symbol,
+                        accession,
+                        status,
+                        available_at,
+                        evidence,
+                        fields: typed_fields(fields.as_deref(), &decimals)?,
+                    },
+                    produced_at,
+                })
+            },
+        )
+        .collect()
+}
+
+fn decimal_fields(schema: &str) -> Result<Vec<String>> {
+    let schema: Value = serde_json::from_str(schema)
+        .map_err(|error| MarketError::Recipe(format!("the schema is not JSON: {error}")))?;
+    Ok(schema
+        .get("properties")
+        .and_then(Value::as_object)
+        .into_iter()
+        .flatten()
+        .filter(|(_, property)| match property.get("type") {
+            Some(Value::String(kind)) => kind == "number",
+            Some(Value::Array(kinds)) => kinds.iter().any(|kind| kind == "number"),
+            _ => false,
+        })
+        .map(|(name, _)| name.clone())
+        .collect())
+}
+
+fn typed_fields(fields: Option<&str>, decimals: &[String]) -> Result<Map<String, Value>> {
+    let Some(fields) = fields else {
+        return Ok(Map::new());
+    };
+    let unreadable = |reason: String| MarketError::Recipe(format!("fact fields: {reason}"));
+    let mut fields: Map<String, Value> =
+        serde_json::from_str(fields).map_err(|error| unreadable(error.to_string()))?;
+    for name in decimals {
+        if let Some(Value::Number(number)) = fields.get(name) {
+            let exact = exact(number).ok_or_else(|| unreadable(format!("{name} is {number}")))?;
+            fields.insert(name.clone(), Value::String(exact.normalize().to_string()));
+        }
+    }
+    Ok(fields)
+}
+
+fn exact(number: &Number) -> Option<Decimal> {
+    let written = number.to_string();
+    Decimal::from_str(&written)
+        .or_else(|_| Decimal::from_scientific(&written))
+        .ok()
 }
