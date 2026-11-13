@@ -52,6 +52,7 @@ async fn an_empty_spine_backfills_backs_off_rejects_a_bad_tiingo_tail_and_restar
             ("bars_1m", Some(JobOutcome::Noop)),
             ("corporate_actions", Some(JobOutcome::Backoff)),
             ("sec_index", Some(JobOutcome::Waiting)),
+            ("delistings", Some(JobOutcome::Noop)),
             ("fundamentals", ok),
             ("filings", ok),
             ("insider_trades", ok),

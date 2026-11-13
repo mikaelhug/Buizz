@@ -108,6 +108,10 @@ impl FakeProviders {
             .route("/api/xbrl/companyfacts/{file}", get(company_facts))
             .route("/submissions/{file}", get(submissions))
             .route("/Archives/edgar/data/{*path}", get(archive))
+            .route(
+                "/Archives/edgar/full-index/{year}/{quarter}/master.idx",
+                get(|| async { "CIK|Company Name|Form Type|Date Filed|File Name\n---\n" }),
+            )
             .route("/w/api.php", get(wikipedia))
             .route(
                 "/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv/{year}/all",
