@@ -15,7 +15,7 @@ use crate::order::{Fill, Order, OrderId, OrderUpdate};
 use crate::performance::{LivePoint, LiveStats, Metrics, RoundTrip};
 use crate::run::{
     BotManifest, CostModel, DesiredState, EquityPoint, Mode, Period, PeriodPreset, Reproducibility,
-    RiskLimits, RunBadge, RunConfig, RunEvent, RunEventType, RunId, RunStatus,
+    RiskLimits, RunBadge, RunConfig, RunEvent, RunEventType, RunId, RunOrigin, RunStatus,
 };
 use crate::time::Timestamp;
 
@@ -52,6 +52,7 @@ pub struct BotSummary {
     pub backtest: Option<BacktestGlance>,
     pub live: Vec<LiveSummary>,
     pub last_run_at: Option<Timestamp>,
+    pub unscreened: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -218,6 +219,7 @@ pub struct RunSummary {
     pub message: Option<String>,
     pub usage: BotUsage,
     pub source_run: Option<RunId>,
+    pub origin: RunOrigin,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -650,6 +652,10 @@ pub enum SpineEvent {
         run_id: RunId,
         usage: BotUsage,
     },
+    Unscreened {
+        bot: String,
+        reason: Option<String>,
+    },
 }
 
 impl SpineEvent {
@@ -665,6 +671,7 @@ impl SpineEvent {
             Self::Feed { .. } => "feed",
             Self::Contracts { .. } => "contracts",
             Self::Usage { .. } => "usage",
+            Self::Unscreened { .. } => "unscreened",
         }
     }
 }

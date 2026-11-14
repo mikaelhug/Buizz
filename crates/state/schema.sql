@@ -30,7 +30,8 @@ CREATE TABLE IF NOT EXISTS run (
     bot_peak_memory INTEGER NOT NULL DEFAULT 0,
     variant TEXT GENERATED ALWAYS AS (json_extract(config, '$.params')) VIRTUAL,
     source_run INTEGER REFERENCES run (id),
-    recipe_versions TEXT NOT NULL DEFAULT '[]'
+    recipe_versions TEXT NOT NULL DEFAULT '[]',
+    origin TEXT NOT NULL DEFAULT 'request' CHECK (origin IN ('request', 'screening'))
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS run_by_bot ON run (bot, created_at);

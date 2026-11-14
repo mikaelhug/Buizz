@@ -15,6 +15,7 @@ const EVENT_TYPES: Record<SpineEvent["type"], true> = {
   feed: true,
   contracts: true,
   usage: true,
+  unscreened: true,
 };
 
 const RETRY_MS = 3000;

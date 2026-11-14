@@ -671,6 +671,7 @@ export interface components {
             risk?: components["schemas"]["RiskLimits"];
             /** Format: int32 */
             step_timeout?: number;
+            auto_screen?: boolean;
         };
         BotProcesses: {
             slots: components["schemas"]["ProcessSlots"];
@@ -691,6 +692,7 @@ export interface components {
             backtest?: components["schemas"]["BacktestGlance"] | null;
             live: components["schemas"]["LiveSummary"][];
             last_run_at?: components["schemas"]["Timestamp"] | null;
+            unscreened?: string | null;
         };
         BotUsage: {
             /** Format: int32 */
@@ -1462,6 +1464,8 @@ export interface components {
         /** Format: int64 */
         RunId: number;
         /** @enum {string} */
+        RunOrigin: "request" | "screening";
+        /** @enum {string} */
         RunStatus: "queued" | "starting" | "running" | "paused" | "completed" | "failed" | "cancelled";
         RunSummary: {
             id: components["schemas"]["RunId"];
@@ -1483,6 +1487,7 @@ export interface components {
             message?: string | null;
             usage: components["schemas"]["BotUsage"];
             source_run?: components["schemas"]["RunId"] | null;
+            origin: components["schemas"]["RunOrigin"];
         };
         /** @enum {string} */
         ScopeKind: "indexed" | "recorder" | "derived" | "on_demand";
@@ -1589,6 +1594,11 @@ export interface components {
             usage: components["schemas"]["BotUsage"];
             /** @enum {string} */
             type: "usage";
+        } | {
+            bot: string;
+            reason?: string | null;
+            /** @enum {string} */
+            type: "unscreened";
         };
         StartBacktest: {
             preset?: components["schemas"]["PeriodPreset"] | null;

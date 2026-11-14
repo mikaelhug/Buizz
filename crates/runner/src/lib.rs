@@ -3,6 +3,7 @@ mod commit;
 mod drive;
 mod holdings;
 mod link;
+mod queue;
 mod report;
 mod research;
 mod study;
@@ -21,8 +22,9 @@ use buizz_core::money::CASH_DECIMALS;
 use buizz_core::ops::{ActionVerdict, CoverageGap, DataWarning};
 use buizz_core::performance::{Behaviour, Metrics};
 use buizz_core::run::{
-    DesiredState, MAX_SWEEP_VARIANTS, Mode, PeriodPreset, RunBadge, RunConfig, RunEvent,
-    RunEventKind, RunId, RunStatus, UNIVERSE_SESSIONS, UniverseSpec, coerce_param,
+    DesiredState, LogLevel, MAX_SWEEP_VARIANTS, Mode, Period, PeriodPreset, RunBadge, RunConfig,
+    RunEvent, RunEventKind, RunId, RunOrigin, RunStatus, UNIVERSE_SESSIONS, UniverseSpec,
+    coerce_param,
 };
 use buizz_core::time::Timestamp;
 use buizz_engine::ENGINE_VERSION;
@@ -78,6 +80,7 @@ pub enum RunnerError {
 pub struct RunnerConfig {
     pub bots_dir: PathBuf,
     pub start_cash: Decimal,
+    pub auto_screen: bool,
 }
 
 pub struct RunnerDeps {
@@ -106,6 +109,9 @@ pub(crate) struct Inner {
     runs: Mutex<HashMap<RunId, RunHandle>>,
     live_stats: tokio::sync::Mutex<()>,
     benchmarks: Mutex<Option<Arc<research::Benchmarks>>>,
+    queue: queue::BacktestQueue,
+    queueing: tokio::sync::Mutex<()>,
+    unscreened: Mutex<BTreeMap<String, String>>,
 }
 
 impl Inner {
@@ -186,6 +192,9 @@ impl Runner {
                 runs: Mutex::default(),
                 live_stats: tokio::sync::Mutex::default(),
                 benchmarks: Mutex::default(),
+                queue: queue::BacktestQueue::default(),
+                queueing: tokio::sync::Mutex::default(),
+                unscreened: Mutex::default(),
             }),
         }
     }
@@ -237,37 +246,17 @@ impl Runner {
         today: NaiveDate,
     ) -> Result<RunSummary, RunnerError> {
         let spec = self.inner.bot(bot).await?;
-        let period = match (request.period, request.preset) {
-            (Some(period), _) => period,
-            (None, Some(preset)) => preset.resolve(today),
-            (None, None) => {
-                return Err(RunnerError::InvalidRequest(
-                    "choose a period or a preset".to_owned(),
-                ));
-            }
-        };
-        if period.from > period.to {
-            return Err(RunnerError::InvalidRequest(format!(
-                "the period starts on {} after it ends on {}",
-                period.from, period.to
-            )));
-        }
-        let holdout = period.touches_holdout(today);
-        let explicit = request.allow_holdout || request.preset == Some(PeriodPreset::Holdout);
-        if holdout && !explicit {
-            return Err(RunnerError::HoldoutLocked);
-        }
-        let config = self.run_config(
-            &spec,
-            Mode::Backtest,
-            period.from,
-            Some(period.to),
-            holdout,
-            request,
-        )?;
+        let config = self.backtest_config(&spec, request, today)?;
         let warnings = self.covered(&config).await?;
         let mut runs = self
-            .create(vec![config], &spec, RunStatus::Queued, warnings, None)
+            .create(
+                vec![config],
+                &spec,
+                RunStatus::Queued,
+                RunOrigin::Request,
+                warnings,
+                None,
+            )
             .await?;
         let run = runs.remove(0);
         self.spawn(run.clone(), spec, None);
@@ -281,6 +270,17 @@ impl Runner {
         today: NaiveDate,
     ) -> Result<SweepStarted, RunnerError> {
         let spec = self.inner.bot(bot).await?;
+        self.sweep_as(&spec, request, today, RunOrigin::Request)
+            .await
+    }
+
+    async fn sweep_as(
+        &self,
+        spec: &BotSpec,
+        request: StartSweep,
+        today: NaiveDate,
+        origin: RunOrigin,
+    ) -> Result<SweepStarted, RunnerError> {
         if request.preset == PeriodPreset::Holdout {
             return Err(RunnerError::InvalidRequest(
                 "sweeps never run on the locked holdout".to_owned(),
@@ -291,7 +291,7 @@ impl Runner {
         let mut configs: Vec<RunConfig> = Vec::new();
         for params in grid_variants(request.grid)? {
             let config = self.run_config(
-                &spec,
+                spec,
                 Mode::Backtest,
                 period.from,
                 Some(period.to),
@@ -307,38 +307,16 @@ impl Runner {
                 configs.push(config);
             }
         }
-        let already: Vec<Map<String, Value>> = self
-            .inner
-            .state
-            .runs(RunFilter {
-                bot: Some(spec.name.clone()),
-                code: Some(spec.code()),
-                mode: Some(Mode::Backtest),
-                statuses: vec![
-                    RunStatus::Queued,
-                    RunStatus::Starting,
-                    RunStatus::Running,
-                    RunStatus::Completed,
-                ],
-                ..RunFilter::default()
-            })
-            .await?
-            .into_iter()
-            .filter(|run| {
-                run.config.start == period.from
-                    && run.config.end == Some(period.to)
-                    && self.inner.standard(&run.config, &spec)
-            })
-            .map(|run| run.config.params)
-            .collect();
+        let _queueing = self.inner.queueing.lock().await;
+        let tried = self.tried(spec).await?;
         let total = configs.len();
-        configs.retain(|config| !already.contains(&config.params));
+        configs.retain(|config| !tried.iter().any(|run| same_trial(&run.config, config)));
         let skipped = u32::try_from(total - configs.len()).unwrap_or(u32::MAX);
         let mut queued = Vec::new();
         if let Some(first) = configs.first() {
             let warnings = self.covered(first).await?;
             for run in self
-                .create(configs, &spec, RunStatus::Queued, warnings, None)
+                .create(configs, spec, RunStatus::Queued, origin, warnings, None)
                 .await?
             {
                 queued.push(run.id);
@@ -351,6 +329,249 @@ impl Runner {
             skipped,
             trials: self.inner.state.trials(&spec.name).await?,
         })
+    }
+
+    pub async fn screen(&self, today: NaiveDate) {
+        if !self.inner.config.auto_screen {
+            return;
+        }
+        let runner = self.clone();
+        let scan = tokio::task::spawn_blocking(move || runner.bots())
+            .await
+            .expect("scanning the bots does not panic");
+        let paces = self
+            .inner
+            .state
+            .backtest_paces()
+            .await
+            .unwrap_or_else(|error| {
+                tracing::warn!(%error, "cannot read the bots' backtest paces");
+                BTreeMap::new()
+            });
+        let typical = median(paces.values().copied());
+        let pace = |spec: &BotSpec| paces.get(&spec.name).copied().unwrap_or(typical);
+        let mut bots: Vec<BotSpec> = scan
+            .bots
+            .into_iter()
+            .filter(|spec| spec.manifest.auto_screen)
+            .collect();
+        bots.sort_by(|left, right| pace(left).total_cmp(&pace(right)));
+        for spec in bots {
+            let reason = self.screen_bot(&spec, today).await.err();
+            if let Some(reason) = &reason {
+                tracing::info!(bot = %spec.name, %reason, "not screened");
+            }
+            let mut unscreened = self
+                .inner
+                .unscreened
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            let before = match &reason {
+                Some(reason) => unscreened.insert(spec.name.clone(), reason.clone()),
+                None => unscreened.remove(&spec.name),
+            };
+            drop(unscreened);
+            if before != reason {
+                self.inner.broadcast(SpineEvent::Unscreened {
+                    bot: spec.name,
+                    reason,
+                });
+            }
+        }
+    }
+
+    pub fn unscreened(&self, bot: &str) -> Option<String> {
+        self.inner
+            .unscreened
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(bot)
+            .cloned()
+    }
+
+    async fn screen_bot(&self, spec: &BotSpec, today: NaiveDate) -> Result<(), String> {
+        let preset = PeriodPreset::TenYears;
+        let config = self
+            .backtest_config(
+                spec,
+                StartBacktest {
+                    preset: Some(preset),
+                    ..StartBacktest::default()
+                },
+                today,
+            )
+            .map_err(|error| error.to_string())?;
+        let end = config.end.unwrap_or(config.start);
+        let daily = self.inner.market.watermarks().borrow().get(Timeframe::Day);
+        if daily.is_none_or(|through| through.exchange_date() < end) {
+            return Err(format!(
+                "the store's daily bars do not reach {end}, the end of the 10y preset, yet"
+            ));
+        }
+        if config.needs_minute_bars() {
+            let market = &self.inner.market;
+            let symbols = gate_symbols(market, &config)
+                .await
+                .map_err(|error| error.to_string())?;
+            let gaps = market
+                .coverage_gaps(symbols, Timeframe::Minute, config.start, end)
+                .await
+                .map_err(|error| error.to_string())?;
+            if let Some(gap) = gaps.first() {
+                return Err(format!(
+                    "the store lacks the 1m bars it needs on the 10y preset ({} gaps, the first \
+                     {} from {} to {}); a backtest started by hand fetches them",
+                    gaps.len(),
+                    gap.symbol,
+                    gap.from,
+                    gap.to
+                ));
+            }
+        }
+        let request = StartSweep {
+            preset,
+            grid: BTreeMap::new(),
+        };
+        match self
+            .sweep_as(spec, request, today, RunOrigin::Screening)
+            .await
+        {
+            Ok(_) => Ok(()),
+            Err(RunnerError::CoverageGaps(gaps)) => Err(match gaps.first() {
+                Some(gap) => format!(
+                    "market data has {} gaps on the 10y preset, the first {} from {} to {}",
+                    gaps.len(),
+                    gap.symbol,
+                    gap.from,
+                    gap.to
+                ),
+                None => "market data has gaps on the 10y preset".to_owned(),
+            }),
+            Err(error) => Err(error.to_string()),
+        }
+    }
+
+    pub(crate) async fn requeue(
+        &self,
+        run_id: RunId,
+        why: String,
+        started: bool,
+    ) -> Result<(), RunnerError> {
+        let _queueing = self.inner.queueing.lock().await;
+        let run = self.summary(run_id).await?;
+        let replaced = self.replacement(&run, &why).await;
+        let message = match &replaced {
+            Ok(Replacement::Queued(queued)) => {
+                format!(
+                    "{why}; queued again on the current code as run {}",
+                    queued.0.id
+                )
+            }
+            Ok(Replacement::Running(existing)) => {
+                format!("{why}; run {existing} already runs it on the current code")
+            }
+            Err(error) => format!("{why}; it cannot be queued again: {error}"),
+        };
+        let status = if started {
+            RunStatus::Failed
+        } else {
+            RunStatus::Cancelled
+        };
+        self.conclude(run_id, status, Some(message)).await?;
+        if let Ok(Replacement::Queued(queued)) = replaced {
+            let (new, spec) = *queued;
+            self.spawn(new, spec, None);
+        }
+        Ok(())
+    }
+
+    async fn replacement(&self, run: &RunSummary, why: &str) -> Result<Replacement, RunnerError> {
+        let spec = self.inner.bot(&run.bot).await?;
+        let old = &run.config;
+        let period = Period {
+            from: old.start,
+            to: old.end.unwrap_or(old.start),
+        };
+        let preset = PeriodPreset::of(period, run.created_at.exchange_date());
+        let request = StartBacktest {
+            preset,
+            period: preset.is_none().then_some(period),
+            params: Some(
+                old.params
+                    .iter()
+                    .filter(|(name, _)| spec.manifest.params.contains_key(*name))
+                    .map(|(name, value)| (name.clone(), value.clone()))
+                    .collect(),
+            ),
+            start_cash: Some(old.start_cash),
+            cost: Some(old.cost.clone()),
+            risk: Some(old.risk),
+            seed: Some(old.seed),
+            allow_holdout: old.holdout,
+        };
+        let config = self.backtest_config(&spec, request, Timestamp::now().exchange_date())?;
+        if let Some(existing) = self
+            .tried(&spec)
+            .await?
+            .into_iter()
+            .find(|tried| same_trial(&tried.config, &config))
+        {
+            return Ok(Replacement::Running(existing.id));
+        }
+        let warnings = self.covered(&config).await?;
+        let new = self
+            .create(
+                vec![config],
+                &spec,
+                RunStatus::Queued,
+                run.origin,
+                warnings,
+                None,
+            )
+            .await?
+            .remove(0);
+        let seq = drive::last_event_seq(&self.inner, new.id).await? + 1;
+        self.inner
+            .state
+            .append_events(
+                new.id,
+                vec![RunEvent {
+                    seq,
+                    at: Timestamp::now(),
+                    clock: None,
+                    kind: RunEventKind::Log {
+                        level: LogLevel::Info,
+                        message: format!("queued again from run {}: {why}", run.id),
+                    },
+                }],
+            )
+            .await?;
+        Ok(Replacement::Queued(Box::new((new, spec))))
+    }
+
+    async fn tried(&self, spec: &BotSpec) -> Result<Vec<RunSummary>, RunnerError> {
+        Ok(self
+            .inner
+            .state
+            .runs(RunFilter {
+                bot: Some(spec.name.clone()),
+                code: Some(spec.code()),
+                mode: Some(Mode::Backtest),
+                statuses: vec![
+                    RunStatus::Queued,
+                    RunStatus::Starting,
+                    RunStatus::Running,
+                    RunStatus::Completed,
+                    RunStatus::Failed,
+                ],
+                ..RunFilter::default()
+            })
+            .await?
+            .into_iter()
+            .filter(|run| {
+                run.status != RunStatus::Failed || run.badges.contains(&RunBadge::DrawdownStop)
+            })
+            .collect())
     }
 
     pub async fn cancel_queued(&self, bot: &str) -> Result<u32, RunnerError> {
@@ -414,6 +635,7 @@ impl Runner {
                 vec![config],
                 &spec,
                 RunStatus::Starting,
+                RunOrigin::Request,
                 Vec::new(),
                 from_run,
             )
@@ -566,6 +788,42 @@ impl Runner {
         }
     }
 
+    fn backtest_config(
+        &self,
+        spec: &BotSpec,
+        request: StartBacktest,
+        today: NaiveDate,
+    ) -> Result<RunConfig, RunnerError> {
+        let period = match (request.period, request.preset) {
+            (Some(period), _) => period,
+            (None, Some(preset)) => preset.resolve(today),
+            (None, None) => {
+                return Err(RunnerError::InvalidRequest(
+                    "choose a period or a preset".to_owned(),
+                ));
+            }
+        };
+        if period.from > period.to {
+            return Err(RunnerError::InvalidRequest(format!(
+                "the period starts on {} after it ends on {}",
+                period.from, period.to
+            )));
+        }
+        let holdout = period.touches_holdout(today);
+        let explicit = request.allow_holdout || request.preset == Some(PeriodPreset::Holdout);
+        if holdout && !explicit {
+            return Err(RunnerError::HoldoutLocked);
+        }
+        self.run_config(
+            spec,
+            Mode::Backtest,
+            period.from,
+            Some(period.to),
+            holdout,
+            request,
+        )
+    }
+
     fn run_config(
         &self,
         spec: &BotSpec,
@@ -679,6 +937,7 @@ impl Runner {
         configs: Vec<RunConfig>,
         spec: &BotSpec,
         status: RunStatus,
+        origin: RunOrigin,
         mut warnings: Vec<DataWarning>,
         source_run: Option<RunId>,
     ) -> Result<Vec<RunSummary>, RunnerError> {
@@ -744,6 +1003,7 @@ impl Runner {
                 badges: badges.clone(),
                 created_at,
                 source_run,
+                origin,
                 events: events.clone(),
             })
             .collect();
@@ -841,6 +1101,24 @@ pub(crate) async fn gate_symbols(
     symbols.sort();
     symbols.dedup();
     Ok(symbols)
+}
+
+enum Replacement {
+    Queued(Box<(RunSummary, BotSpec)>),
+    Running(RunId),
+}
+
+fn same_trial(left: &RunConfig, right: &RunConfig) -> bool {
+    RunConfig {
+        seed: right.seed,
+        ..left.clone()
+    } == *right
+}
+
+fn median(values: impl Iterator<Item = f64>) -> f64 {
+    let mut values: Vec<f64> = values.collect();
+    values.sort_by(f64::total_cmp);
+    values.get(values.len() / 2).copied().unwrap_or(0.0)
 }
 
 fn grid_variants(

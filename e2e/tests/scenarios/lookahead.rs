@@ -119,6 +119,7 @@ async fn a_probe_asking_for_everything_never_sees_past_the_clock() {
         Options {
             bots: &["probe", "probe_bar", "probe_30m", "probe_1h", "probe_1555"],
             tiingo: false,
+            screening: false,
         },
     )
     .await;

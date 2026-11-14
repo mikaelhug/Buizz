@@ -15,6 +15,7 @@ async fn a_daily_bot_trades_the_official_close_and_open_on_margin_and_a_stop_fil
         Options {
             bots: &["auction", "auction_late"],
             tiingo: false,
+            screening: false,
         },
     )
     .await;

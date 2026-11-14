@@ -24,6 +24,7 @@ async fn a_half_hourly_minute_bot_fills_limits_on_touch_expires_day_orders_at_th
         Options {
             bots: &["intraday"],
             tiingo: false,
+            screening: false,
         },
     )
     .await;

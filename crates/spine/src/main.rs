@@ -185,6 +185,7 @@ async fn serve() -> Result<()> {
         RunnerConfig {
             bots_dir: config.bots_dir.clone(),
             start_cash: START_CASH,
+            auto_screen: config.auto_screen,
         },
         RunnerDeps {
             market: market.clone(),
@@ -195,6 +196,10 @@ async fn serve() -> Result<()> {
         },
     );
     runner.recover().await?;
+    let screening = tokio::spawn({
+        let runner = runner.clone();
+        async move { runner.screen(Timestamp::now().exchange_date()).await }
+    });
 
     let feed_task = feed.spawn();
     let ingest_task = ingest.spawn();
@@ -228,6 +233,7 @@ async fn serve() -> Result<()> {
     for task in [ingest_task, news_task].into_iter().flatten() {
         task.abort();
     }
+    screening.abort();
     runner.shutdown().await;
     feed_task.abort();
     market.checkpoint().await?;

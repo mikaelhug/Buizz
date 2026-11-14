@@ -18,7 +18,7 @@ use buizz_core::run::{
 };
 use buizz_core::time::Timestamp;
 use buizz_core::visibility::{close_auction_session, open_auction_session, order_session};
-use buizz_engine::{Cycle, Decision, DrawdownStop, Engine, EngineError, Outbox};
+use buizz_engine::{Cycle, Decision, DrawdownStop, ENGINE_VERSION, Engine, EngineError, Outbox};
 use buizz_feed::{FeedLease, LATE_BAR_GRACE};
 use buizz_ingest::IngestError;
 use buizz_market::MarketError;
@@ -34,6 +34,7 @@ use tokio::sync::{OwnedSemaphorePermit, mpsc, watch};
 
 use crate::commit::Committer;
 use crate::link::{BotLink, LinkError, RecipeReads, SessionUniverse};
+use crate::queue::Place;
 use crate::timeline::{Point, Timeline};
 use crate::{Inner, describe, gate_symbols, report};
 
@@ -68,6 +69,7 @@ enum Exit {
     Shutdown,
     Failed(String),
     DrawdownStopped,
+    Outdated { message: String, started: bool },
 }
 
 type Flow<T> = Result<T, Exit>;
@@ -211,8 +213,13 @@ pub(crate) async fn run(mut launch: Launch) {
             }
         }
     };
+    let outdated = match &exit {
+        Exit::Outdated { message, started } => Some((message.clone(), *started)),
+        _ => None,
+    };
     let (status, message, reason) = match exit {
         Exit::Shutdown => (None, None, EndReason::Stopped),
+        Exit::Outdated { message, .. } => (None, Some(message), EndReason::Failed),
         Exit::Completed => (Some(RunStatus::Completed), None, EndReason::Completed),
         Exit::Cancelled => (Some(RunStatus::Cancelled), None, EndReason::Stopped),
         Exit::Failed(message) => (Some(RunStatus::Failed), Some(message), EndReason::Failed),
@@ -231,6 +238,14 @@ pub(crate) async fn run(mut launch: Launch) {
         && let Err(error) = conclude(&inner, run_id, status, message, result_hash, badge).await
     {
         tracing::error!(run = %run_id, %error, "cannot record the end of a run");
+    }
+    if let Some((message, started)) = outdated {
+        let runner = crate::Runner {
+            inner: Arc::clone(&inner),
+        };
+        if let Err(error) = runner.requeue(run_id, message, started).await {
+            tracing::error!(run = %run_id, %error, "cannot queue an outdated run again");
+        }
     }
     inner.forget(run_id, &token);
 }
@@ -252,8 +267,15 @@ async fn prepare(
         backfill_minutes(inner, config, &symbols, config.start, control).await?;
         minutes.extend(symbols);
     }
+    let paces = inner.state.backtest_paces().await?;
+    let expected = paces
+        .get(&run.bot)
+        .copied()
+        .unwrap_or_else(|| crate::median(paces.values().copied()))
+        * (run.config.end.unwrap_or(run.config.start) - run.config.start).num_days() as f64;
+    let place = Place::new(run.origin, expected, run.id);
     tokio::select! {
-        slot = inner.supervisor.backtest_slot() => Ok((Some(slot), minutes)),
+        slot = inner.queue.slot(place, &inner.supervisor) => Ok((Some(slot), minutes)),
         exit = interrupted(control) => Err(exit),
     }
 }
@@ -468,7 +490,7 @@ async fn client_ids(inner: &Inner, run_id: RunId) -> Result<BTreeSet<String>, St
     }
 }
 
-async fn last_event_seq(inner: &Inner, run_id: RunId) -> Result<u64, StateError> {
+pub(crate) async fn last_event_seq(inner: &Inner, run_id: RunId) -> Result<u64, StateError> {
     let mut last = 0;
     loop {
         let page = inner
@@ -539,11 +561,20 @@ impl Driver {
         let (engine, after, clock, last_step, bot_state, frame) = match checkpoint {
             Some(checkpoint) => (
                 {
-                    let mut engine = Engine::restore(
+                    let restored = Engine::restore(
                         config,
                         &checkpoint.engine_checkpoint,
                         client_ids(&inner, run.id).await?,
-                    )?;
+                    );
+                    let mut engine = match restored {
+                        Err(error @ EngineError::Version(_)) if run.mode == Mode::Backtest => {
+                            return Err(Exit::Outdated {
+                                message: error.to_string(),
+                                started: true,
+                            });
+                        }
+                        restored => restored?,
+                    };
                     if engine
                         .portfolio()
                         .open_positions()
@@ -767,10 +798,24 @@ impl Driver {
     }
 
     fn outdated_message(&self) -> String {
-        format!(
-            "the code of bot {} changed since this run started; stop the run and start a new one",
-            self.run.bot
-        )
+        match (self.run.mode, self.clock) {
+            (Mode::Live, _) => format!(
+                "the code of bot {} changed since this run started; stop the run and start a new one",
+                self.run.bot
+            ),
+            (Mode::Backtest, Some(_)) => {
+                format!(
+                    "the code of bot {} changed since this run started",
+                    self.run.bot
+                )
+            }
+            (Mode::Backtest, None) => {
+                format!(
+                    "the code of bot {} changed while this run was queued",
+                    self.run.bot
+                )
+            }
+        }
     }
 
     async fn outdated(&mut self) -> Flow<Option<String>> {
@@ -783,7 +828,32 @@ impl Driver {
             .reproducibility
             .as_ref()
             .map_or_else(|| self.spec.code(), Reproducibility::code);
-        Ok((!recorded.same_as(&current.code())).then(|| self.outdated_message()))
+        if !recorded.same_as(&current.code()) {
+            return Ok(Some(self.outdated_message()));
+        }
+        if self.run.mode == Mode::Backtest && self.clock.is_none() {
+            self.record_code(current).await?;
+        }
+        Ok(None)
+    }
+
+    async fn record_code(&mut self, current: BotSpec) -> Flow<()> {
+        let engine_version = ENGINE_VERSION.to_string();
+        self.inner
+            .state
+            .record_code(
+                self.run.id,
+                current.content_hash.clone(),
+                current.behaviour_hash.clone(),
+                engine_version.clone(),
+            )
+            .await?;
+        if let Some(record) = self.run.reproducibility.as_mut() {
+            record.bot_hash = current.content_hash;
+            record.behaviour_hash = Some(current.behaviour_hash);
+            record.engine_version = engine_version;
+        }
+        Ok(())
     }
 
     async fn enter_next_session(&mut self) -> Flow<()> {
@@ -930,7 +1000,10 @@ impl Driver {
             return Ok(false);
         };
         match self.run.mode {
-            Mode::Backtest => Err(Exit::Failed(message)),
+            Mode::Backtest => Err(Exit::Outdated {
+                message,
+                started: self.clock.is_some(),
+            }),
             Mode::Live => {
                 self.pause(EndReason::Failed, Some(message)).await?;
                 Ok(true)

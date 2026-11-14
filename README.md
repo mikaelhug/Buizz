@@ -92,6 +92,7 @@ The spine (`cargo run -p buizz-spine`) reads these environment variables. Empty 
 | `BUIZZ_DUCKDB_THREADS` | `2` | Threads the market store uses |
 | `BUIZZ_TEXT_DIRS` | unset | Comma-separated directories, usually one per disk, where filings are kept as filed and as text (see `docs/architecture.md`, Where state lives); unset, documents are not harvested |
 | `BUIZZ_TEXT_FILL_LIMIT` | `0.9` | Share of a text volume's disk above which it takes no new files; the e2e spines set 1, since their volumes share the developer's disk |
+| `BUIZZ_AUTO_SCREEN` | `true` | At every start, queue a 10-year backtest of each bot's default params whose current code has none queued, running or completed, cheapest bots first; `false` queues only what is asked for |
 | `BUIZZ_LIVE_SLOTS` | `2` | Live bot processes that may start and take their first step of a session at once; backtests run on one fewer than the CPUs |
 | `RUST_LOG` | `info,html5ever=error` | Log filter (the HTML parser's warnings about malformed filings stay quiet) |
 

@@ -6,6 +6,7 @@ use buizz_core::market::{
     AssetClass, Bar, CorporateAction, Feed, FundamentalFact, Instrument, MacroObservation,
     MacroSeries, RiskFreeRate, Session, Symbol, Timeframe,
 };
+use buizz_core::run::PRESET_FLOOR;
 use buizz_core::time::Timestamp;
 use buizz_market::MarketStore;
 use buizz_sources::cboe::parse_history_csv;
@@ -216,6 +217,11 @@ impl World {
 
     pub fn screening(now: Timestamp) -> Self {
         Self::live_opened(now, LIVE_OPENED_MINUTES_AGO, SCREENING_HISTORY_SESSIONS)
+    }
+
+    pub fn decade(now: Timestamp) -> Self {
+        let history = (now.exchange_date() - PRESET_FLOOR).num_days() + 1;
+        Self::live_opened(now, LIVE_OPENED_MINUTES_AGO, history)
     }
 
     pub fn live_closing(now: Timestamp) -> Self {

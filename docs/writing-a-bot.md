@@ -68,6 +68,7 @@ if __name__ == "__main__":
 | `benchmark` | no, default `"SPY"` | Symbol the equity curve is compared with, as a total-return buy and hold: dividends reinvested at the ex-date open, splits followed |
 | `hedge_benchmark` | no | A second symbol, e.g. `"IWM"`, the run's residual return is also measured against, built the same way: `hedge_alpha`, `hedge_beta`, `hedge_residual_volatility`, `hedge_appraisal_ratio` and `hedge_alpha_t`. Name it when the bot's book leans on a factor the main benchmark does not hold, such as small caps against SPY. It only adds metrics: the gate and the charts still use `benchmark` |
 | `[risk]` | no | Risk limits for live runs and the default for backtests, see [Risk limits](#risk-limits) |
+| `auto_screen` | no, default `true` | `false` keeps the spine from queueing the bot's 10-year screening backtest by itself at start-up; it is left out of the behaviour hash |
 | `step_timeout` | no, default `60` | Seconds the spine waits for the bot to connect and for each of its frames, up to `3600`: raise it for a bot that trains a model inside one step. A bot that stays silent longer fails its backtest or pauses its live run |
 
 The spine starts `command` with `BUIZZ_SPINE_URL`, `BUIZZ_RUN_ID` and `BUIZZ_RUN_TOKEN` set. Of the spine's own environment the bot only inherits `PATH`, `HOME`, `LANG`, `TZ`, `TMPDIR` and the `UV_*` and `PYTHON*` variables, so API keys and the admin password never reach it. Output on stdout and stderr is captured to `logs/<run_id>.log` under the spine's data directory (`BUIZZ_DATA_DIR`, default `data`).

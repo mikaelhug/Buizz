@@ -60,6 +60,7 @@ pub struct Config {
     pub duckdb_memory: String,
     pub duckdb_threads: usize,
     pub live_slots: usize,
+    pub auto_screen: bool,
 }
 
 const MIN_ADMIN_PASSWORD_CHARS: usize = 12;
@@ -257,6 +258,7 @@ impl Config {
             live_slots: var_or("BUIZZ_LIVE_SLOTS", "2")
                 .parse()
                 .context("BUIZZ_LIVE_SLOTS must be a whole number")?,
+            auto_screen: flag("BUIZZ_AUTO_SCREEN", true)?,
         })
     }
 

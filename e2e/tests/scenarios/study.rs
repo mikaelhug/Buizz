@@ -56,6 +56,7 @@ async fn an_event_study_matches_the_hand_computation_and_counts_each_distinct_st
         Options {
             bots: &[],
             tiingo: false,
+            screening: false,
         },
     )
     .await;

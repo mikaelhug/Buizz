@@ -68,10 +68,23 @@ function RunBadge({ badge, universe }: { badge: Schemas["RunBadge"]; universe: S
 export function RunBadges({ run }: { run: Schemas["RunSummary"] }) {
   return (
     <>
+      {run.origin === "screening" && (
+        <Explain label="Automatic screening" className="badge badge-button" trigger="Automatic screening">
+          The spine queued this backtest of the bot's default params on the 10-year preset by itself, at start-up, because the bot's current code had none queued, running or completed.
+        </Explain>
+      )}
       {run.badges.map((badge) => (
         <RunBadge key={badge} badge={badge} universe={run.config.universe} />
       ))}
     </>
+  );
+}
+
+export function UnscreenedBadge({ reason }: { reason: string }) {
+  return (
+    <Explain label="Not screened" className="badge badge-button badge-stale" trigger="Not screened">
+      Automatic screening queued no 10-year backtest of this bot: {reason}.
+    </Explain>
   );
 }
 

@@ -37,6 +37,7 @@ async fn an_empty_spine_backfills_backs_off_rejects_a_bad_tiingo_tail_and_restar
         Options {
             bots: &[],
             tiingo: true,
+            screening: false,
         },
     )
     .await;
@@ -232,6 +233,7 @@ async fn stored_insider_trades(world: World) -> Vec<InsiderTrade> {
         Options {
             bots: &[],
             tiingo: false,
+            screening: false,
         },
     )
     .await;

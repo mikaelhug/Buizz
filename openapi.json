@@ -1709,6 +1709,9 @@
             "type": "integer",
             "format": "int32",
             "minimum": 0
+          },
+          "auto_screen": {
+            "type": "boolean"
           }
         }
       },
@@ -1813,6 +1816,12 @@
               {
                 "type": "null"
               }
+            ]
+          },
+          "unscreened": {
+            "type": [
+              "string",
+              "null"
             ]
           }
         }
@@ -4920,6 +4929,13 @@
         "type": "integer",
         "format": "int64"
       },
+      "RunOrigin": {
+        "type": "string",
+        "enum": [
+          "request",
+          "screening"
+        ]
+      },
       "RunStatus": {
         "type": "string",
         "enum": [
@@ -4943,7 +4959,8 @@
           "config",
           "created_at",
           "badges",
-          "usage"
+          "usage",
+          "origin"
         ],
         "properties": {
           "id": {
@@ -5063,6 +5080,9 @@
                 "type": "null"
               }
             ]
+          },
+          "origin": {
+            "$ref": "#/components/schemas/RunOrigin"
           }
         }
       },
@@ -5479,6 +5499,30 @@
                 "type": "string",
                 "enum": [
                   "usage"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "bot",
+              "type"
+            ],
+            "properties": {
+              "bot": {
+                "type": "string"
+              },
+              "reason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "unscreened"
                 ]
               }
             }

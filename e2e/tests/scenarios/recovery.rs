@@ -49,6 +49,7 @@ async fn a_live_run_survives_kill_9_of_its_bot_and_of_the_spine() {
         Options {
             bots: &["tape"],
             tiingo: false,
+            screening: false,
         },
     )
     .await;
@@ -123,6 +124,7 @@ async fn a_crashed_live_bot_whose_code_changed_is_not_started_again() {
         Options {
             bots: &[],
             tiingo: false,
+            screening: false,
         },
     )
     .await;

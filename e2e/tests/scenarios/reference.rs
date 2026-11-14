@@ -243,6 +243,7 @@ async fn bots_see_index_membership_profiles_earnings_and_8k_events_as_of_their_c
         Options {
             bots: &["reference", "reference_stocks"],
             tiingo: false,
+            screening: false,
         },
     )
     .await;

@@ -18,7 +18,7 @@ use buizz_core::order::{Fill, Order, OrderId};
 use buizz_core::performance::{LiveStats, Metrics};
 use buizz_core::run::{
     BotCode, DesiredState, EquityPoint, Mode, RecipeRead, RunBadge, RunConfig, RunEvent,
-    RunEventType, RunId, RunStatus,
+    RunEventType, RunId, RunOrigin, RunStatus,
 };
 use buizz_core::time::Timestamp;
 use chrono::TimeDelta;
@@ -82,6 +82,7 @@ pub struct NewRun {
     pub badges: Vec<RunBadge>,
     pub created_at: Timestamp,
     pub source_run: Option<RunId>,
+    pub origin: RunOrigin,
     pub events: Vec<RunEvent>,
 }
 
@@ -185,6 +186,26 @@ impl StateStore {
             .await
     }
 
+    pub async fn record_code(
+        &self,
+        run_id: RunId,
+        bot_hash: String,
+        behaviour_hash: String,
+        engine_version: String,
+    ) -> Result<()> {
+        self.db
+            .transaction(move |transaction| {
+                runs::record_code(
+                    transaction,
+                    run_id,
+                    &bot_hash,
+                    &behaviour_hash,
+                    &engine_version,
+                )
+            })
+            .await
+    }
+
     pub async fn stop(&self, run_id: RunId, reason: Option<String>) -> Result<()> {
         self.db
             .transaction(move |transaction| runs::stop(transaction, run_id, reason.as_deref()))
@@ -220,6 +241,10 @@ impl StateStore {
                 runs::add_usage(transaction, run_id, seconds, peak_memory)
             })
             .await
+    }
+
+    pub async fn backtest_paces(&self) -> Result<BTreeMap<String, f64>> {
+        self.db.read(runs::backtest_paces).await
     }
 
     pub async fn footprints(&self) -> Result<Vec<BotFootprint>> {

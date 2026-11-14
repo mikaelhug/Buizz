@@ -90,6 +90,7 @@ async fn summarize(
         backtest: screened.backtest,
         live: summaries,
         last_run_at: runs.first().map(|run| run.created_at),
+        unscreened: app.runner.unscreened(&bot.name),
     })
 }
 

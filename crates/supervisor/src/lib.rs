@@ -159,6 +159,7 @@ pub fn behaviour_hash(dir: &Path, manifest: &BotManifest) -> Result<String, Supe
     let mut hasher = blake3::Hasher::new();
     let behaviour = BotManifest {
         description: String::new(),
+        auto_screen: true,
         ..manifest.clone()
     };
     let encoded = serde_json::to_vec(&behaviour).map_err(SupervisorError::Encode)?;

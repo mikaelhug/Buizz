@@ -22,6 +22,7 @@ async fn a_full_stream_refuses_a_run_an_oversized_order_is_rejected_and_a_drawdo
         Options {
             bots: &["tape", "wide", "limits"],
             tiingo: false,
+            screening: false,
         },
     )
     .await;
@@ -129,6 +130,7 @@ async fn a_second_stream_account_admits_a_31st_symbol_and_a_before_close_bot_dec
         Options {
             bots: &["tape", "wide", "auction"],
             tiingo: false,
+            screening: false,
         },
         SETUP_ALLOWANCE,
     )

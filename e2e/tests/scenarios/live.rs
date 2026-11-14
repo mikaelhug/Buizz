@@ -112,6 +112,7 @@ async fn live_pause_resume_and_stop_in_the_browser_while_an_unpaused_twin_matche
         Options {
             bots: &["tape", "tape_twin"],
             tiingo: false,
+            screening: false,
         },
     )
     .await;
@@ -184,6 +185,7 @@ async fn a_daily_live_bot_is_one_process_per_session_and_keeps_its_state_and_res
         Options {
             bots: &["overnight"],
             tiingo: false,
+            screening: false,
         },
     )
     .await;

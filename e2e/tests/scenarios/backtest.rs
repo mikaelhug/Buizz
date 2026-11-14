@@ -243,6 +243,7 @@ async fn red_green_backtest_matches_the_hand_computation_from_the_cli_the_api_an
         Options {
             bots: &["red_green"],
             tiingo: false,
+            screening: false,
         },
     )
     .await;

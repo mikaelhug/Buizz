@@ -94,6 +94,7 @@ async fn spine() -> Spine {
         RunnerConfig {
             bots_dir: data.path().join("bots"),
             start_cash: Decimal::from(100_000),
+            auto_screen: false,
         },
         RunnerDeps {
             market: market.clone(),

@@ -52,6 +52,7 @@ pub async fn eventually<T, F: Future<Output = Option<T>>>(
 pub struct Options {
     pub bots: &'static [&'static str],
     pub tiingo: bool,
+    pub screening: bool,
 }
 
 pub struct Spine {
@@ -156,6 +157,7 @@ impl Spine {
             .env("BUIZZ_ADMIN_USERNAME", USERNAME)
             .env("BUIZZ_ADMIN_PASSWORD", &self.password)
             .env("BUIZZ_SECURE_COOKIES", "false")
+            .env("BUIZZ_AUTO_SCREEN", self.options.screening.to_string())
             .env("BUIZZ_WEB_DIR", repository().join("web/dist"))
             .env("ALPACA_KEY_ID", "e2e-key")
             .env("ALPACA_SECRET_KEY", "e2e-secret")

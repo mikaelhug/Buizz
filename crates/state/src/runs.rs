@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::ops::RangeInclusive;
 
 use buizz_core::api::{BotFootprint, BotUsage, RunSummary, Trials};
@@ -25,7 +26,7 @@ const LIVE_RUN_CONFLICT: &str = "UNIQUE constraint failed: run.bot, run.variant"
 const RUN_COLUMNS: &str = "id, bot, mode, status, desired, config, created_at, started_at, \
     finished_at, clock, equity, metrics, result_hash, badges, bot_hash, engine_version, seed, \
     data_watermark, message, live_stats, bot_processes, bot_seconds, bot_peak_memory, source_run, \
-    behaviour_hash, recipe_versions";
+    behaviour_hash, recipe_versions, origin";
 
 fn tag_of<T: Serialize>(value: &T) -> Result<String> {
     match serde_json::to_value(value)?.get("type") {
@@ -68,14 +69,15 @@ fn run_summary(row: &Row) -> rusqlite::Result<RunSummary> {
             peak_memory: read_u64(row, 22)?,
         },
         source_run: row.get::<_, Option<i64>>(23)?.map(RunId),
+        origin: read_enum(row, 26)?,
     })
 }
 
 pub fn create(connection: &Connection, run: &NewRun) -> Result<RunId> {
     let inserted = connection.execute(
         "INSERT INTO run (bot, mode, status, desired, config, holdout, bot_hash, \
-         behaviour_hash, engine_version, seed, data_watermark, created_at, badges, source_run) \
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+         behaviour_hash, engine_version, seed, data_watermark, created_at, badges, source_run, \
+         origin) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         params![
             run.config.bot,
             enum_text(&run.config.mode)?,
@@ -91,6 +93,7 @@ pub fn create(connection: &Connection, run: &NewRun) -> Result<RunId> {
             run.created_at.nanos(),
             json_text(&run.badges)?,
             run.source_run.map(|run_id| run_id.0),
+            enum_text(&run.origin)?,
         ],
     );
     match inserted {
@@ -216,6 +219,20 @@ pub fn set_desired(connection: &Connection, run_id: RunId, desired: DesiredState
     require_changed(changed, run_id)
 }
 
+pub fn record_code(
+    connection: &Connection,
+    run_id: RunId,
+    bot_hash: &str,
+    behaviour_hash: &str,
+    engine_version: &str,
+) -> Result<()> {
+    let changed = connection.execute(
+        "UPDATE run SET bot_hash = ?, behaviour_hash = ?, engine_version = ? WHERE id = ?",
+        params![bot_hash, behaviour_hash, engine_version, run_id.0],
+    )?;
+    require_changed(changed, run_id)
+}
+
 pub fn stop(connection: &Connection, run_id: RunId, reason: Option<&str>) -> Result<()> {
     let changed = connection.execute(
         "UPDATE run SET desired = 'stopped', message = ? WHERE id = ?",
@@ -243,6 +260,18 @@ pub fn add_usage(
             })
         },
     )?)
+}
+
+pub fn backtest_paces(connection: &Connection) -> Result<BTreeMap<String, f64>> {
+    let mut statement = connection.prepare(
+        "SELECT bot, SUM(bot_seconds) / SUM(julianday(json_extract(config, '$.end')) \
+         - julianday(json_extract(config, '$.start')) + 1) FROM run \
+         WHERE mode = 'backtest' AND status = 'completed' AND bot_processes > 0 GROUP BY bot",
+    )?;
+    let paces = statement
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+        .collect::<rusqlite::Result<_>>()?;
+    Ok(paces)
 }
 
 pub fn footprints(connection: &Connection) -> Result<Vec<BotFootprint>> {

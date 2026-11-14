@@ -479,6 +479,27 @@ impl RunStatus {
     }
 }
 
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    ToSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum RunOrigin {
+    #[default]
+    Request,
+    Screening,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum DesiredState {
@@ -779,6 +800,11 @@ pub struct BotManifest {
     pub risk: RiskLimits,
     #[serde(default = "BotManifest::default_step_timeout")]
     pub step_timeout: u32,
+    #[serde(
+        default = "BotManifest::screened",
+        skip_serializing_if = "BotManifest::is_screened"
+    )]
+    pub auto_screen: bool,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -800,6 +826,14 @@ impl BotManifest {
 
     fn default_step_timeout() -> u32 {
         60
+    }
+
+    fn screened() -> bool {
+        true
+    }
+
+    fn is_screened(auto_screen: &bool) -> bool {
+        *auto_screen
     }
 
     pub fn step_timeout(&self) -> Duration {

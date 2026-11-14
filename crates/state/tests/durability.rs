@@ -4,7 +4,7 @@ use buizz_core::ops::JobOutcome;
 use buizz_core::order::{Order, OrderId, OrderSize, OrderStatus, OrderType, Side, TimeInForce};
 use buizz_core::run::{
     CostModel, DesiredState, EquityPoint, Mode, RiskLimits, RunConfig, RunEvent, RunEventKind,
-    RunId, RunStatus, UniverseSpec, Wake,
+    RunId, RunOrigin, RunStatus, UniverseSpec, Wake,
 };
 use buizz_core::time::Timestamp;
 use buizz_state::{FILE_NAME, NewRun, RunOutcome, StateError, StateStore, StepCommit};
@@ -49,6 +49,7 @@ fn new_run(mode: Mode) -> NewRun {
         badges: vec![],
         created_at: at(1),
         source_run: None,
+        origin: RunOrigin::Request,
         events: vec![],
     }
 }

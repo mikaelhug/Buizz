@@ -11,7 +11,7 @@ import { BulkBar, CompareButton, SelectAll, SelectBox, useSelection } from "../u
 import { confirmDialog } from "../ui/Dialog";
 import { Failure, LoadMore, Loading, StaleFailure } from "../ui/Feedback";
 import { MetricValue } from "../ui/Metrics";
-import { HoldoutBadge, RunBadges, StatusPill } from "../ui/Status";
+import { HoldoutBadge, RunBadges, StatusPill, UnscreenedBadge } from "../ui/Status";
 import { Ago, matches, moveBetweenRows, openRow, SortHeader, type SortColumns, TableFilter, useFlash, useSort } from "../ui/Table";
 import { notify } from "../ui/Toaster";
 import { BotActions } from "./BotActions";
@@ -31,7 +31,7 @@ export function BotDetail({ name, view }: Props) {
   const reloadOnce = useFrameBatch<unknown>(() => detail.reload());
 
   useSpineEvents((event) => {
-    if (event.type === "run_status" && event.bot === name) {
+    if ((event.type === "run_status" || event.type === "unscreened") && event.bot === name) {
       reloadOnce(event);
     }
   });
@@ -69,6 +69,7 @@ export function BotDetail({ name, view }: Props) {
           <span className="tf">{summary.timeframe}</span>
           <StatusPill status={summary.status} />
           {holdoutRuns > 0 && <HoldoutBadge runs={holdoutRuns} />}
+          {summary.unscreened && <UnscreenedBadge reason={summary.unscreened} />}
         </div>
         <div className="detail-actions">
           {(shownLive || !promotable) && <BotActions name={name} live={shownLive} onChanged={showRun} />}

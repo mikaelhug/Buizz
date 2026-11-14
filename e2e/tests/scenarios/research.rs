@@ -1,5 +1,5 @@
-use buizz_core::api::{ApiError, Research, RunSummary, SweepStarted};
-use buizz_core::run::{DesiredState, RunStatus};
+use buizz_core::api::{ApiError, BotDetail, Research, RunSummary, SweepStarted};
+use buizz_core::run::{DesiredState, Period, PeriodPreset, RunOrigin, RunStatus};
 use reqwest::{Method, StatusCode};
 use serde_json::json;
 use tokio::process::Command;
@@ -47,6 +47,7 @@ async fn a_swept_grid_runs_once_and_two_of_its_variants_go_live_side_by_side() {
         Options {
             bots: &["sma_cross"],
             tiingo: false,
+            screening: false,
         },
     )
     .await;
@@ -182,4 +183,74 @@ async fn a_swept_grid_runs_once_and_two_of_its_variants_go_live_side_by_side() {
     );
     let defaults: RunSummary = spine.post("/api/bots/sma_cross/live", json!({})).await;
     assert_eq!(defaults.source_run, None);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_spine_screens_its_bots_by_itself_and_a_deploy_moves_a_cut_off_screen_to_the_new_code()
+{
+    let fake = FakeProviders::serve(World::decade(now())).await;
+    let mut spine = Spine::start(
+        fake,
+        Options {
+            bots: &["tape"],
+            tiingo: false,
+            screening: true,
+        },
+    )
+    .await;
+    let bot = spine.copy_bot("overnight");
+    spine.ingested().await;
+    spine.stop().await;
+    spine.restart().await;
+
+    let screen = eventually("the screening backtest to start", || async {
+        let runs: Vec<RunSummary> = spine.get("/api/runs?bot=overnight").await;
+        runs.into_iter().find(|run| run.clock.is_some())
+    })
+    .await;
+    assert_eq!(screen.origin, RunOrigin::Screening);
+    let period = Period {
+        from: screen.config.start,
+        to: screen.config.end.expect("a backtest ends"),
+    };
+    assert_eq!(
+        PeriodPreset::of(period, screen.created_at.exchange_date()),
+        Some(PeriodPreset::TenYears)
+    );
+    let tape: BotDetail = spine.get("/api/bots/tape").await;
+    assert!(tape.runs.is_empty(), "{:?}", tape.runs);
+    assert!(
+        tape.summary
+            .unscreened
+            .as_deref()
+            .is_some_and(|reason| reason.starts_with("the store lacks the 1m bars")),
+        "{:?}",
+        tape.summary.unscreened
+    );
+
+    spine.kill().await;
+    let script = bot.join("bot.py");
+    let edited = std::fs::read_to_string(&script).expect("the bot script") + "\n";
+    std::fs::write(&script, edited).expect("the edited bot script");
+    spine.restart().await;
+
+    let cut_off = spine.ended(screen.id).await;
+    assert_eq!(cut_off.status, RunStatus::Failed);
+    let runs: Vec<RunSummary> = spine.get("/api/runs?bot=overnight").await;
+    let [current] = runs
+        .iter()
+        .filter(|run| run.id != screen.id)
+        .collect::<Vec<_>>()[..]
+    else {
+        panic!("one backtest on the new code: {runs:?}");
+    };
+    let message = cut_off.message.as_deref().unwrap_or_default();
+    assert!(
+        message.starts_with("the code of bot overnight changed since this run started; ")
+            && message.contains(&format!("run {}", current.id)),
+        "{message}"
+    );
+    let rescreened = spine.finished(current.id).await;
+    assert_eq!(rescreened.origin, RunOrigin::Screening);
+    assert_eq!(rescreened.config.params, screen.config.params);
 }
