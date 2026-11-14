@@ -10,10 +10,10 @@ use buizz_core::market::{
     FailToDeliver, Filing, FomcAnnouncement, FomcMeeting, FundamentalMetric, FundamentalPoint,
     HISTORY_FLOORS, HISTORY_START, IndexHistory, IndexMember, InsiderOwner, InsiderPlan,
     InsiderReport, InsiderTrade, InsiderTransaction, Instrument, InstrumentProfile, Liquidity,
-    MacroObservation, MacroPoint, MacroSeries, NewsArticle, OptionQuote, PageViews,
-    PendingDelisting, PressCandidate, PressRelease, RiskFreeRate, SIP_DELAY, SecFiling, Section,
-    Session, ShortInterest, ShortInterestRecord, ShortVolume, StockIndex, Symbol, TextCandidate,
-    Timeframe, TradingHalt, TradingHaltRecord,
+    MacroObservation, MacroPoint, MacroSeries, NewsArticle, NordicBar, NordicListing, NordicSplit,
+    OptionQuote, PageViews, PendingDelisting, PressCandidate, PressRelease, RiskFreeRate,
+    SIP_DELAY, SecFiling, Section, Session, ShortInterest, ShortInterestRecord, ShortVolume,
+    StockIndex, StoredNordicBar, Symbol, TextCandidate, Timeframe, TradingHalt, TradingHaltRecord,
 };
 use buizz_core::ops::{ActionDisagreement, CoverageGap, DataWarning, UNEXPLAINED_MOVE_THRESHOLD};
 use buizz_core::protocol::BarRow;
@@ -3448,4 +3448,100 @@ pub(crate) fn unexplained_moves(
             })
         })
         .collect())
+}
+
+pub(crate) fn nordic_listed(
+    connection: &Connection,
+    source: DataSource,
+) -> Result<Vec<NordicListing>> {
+    let mut statement = connection.prepare_cached(
+        "SELECT l.listing, l.mic, l.isin, l.symbol, l.name, l.currency, l.sector \
+         FROM nordic_listing l JOIN nordic_listing_seen s USING (source, listing) \
+         WHERE l.source = $1 \
+         AND s.date = (SELECT max(date) FROM nordic_listing_seen WHERE source = $1) \
+         QUALIFY row_number() OVER (PARTITION BY l.listing ORDER BY l.recorded_at DESC, l.batch_id DESC) = 1 \
+         ORDER BY l.listing",
+    )?;
+    let listings = statement
+        .query_map([wire_name(&source)], |row| {
+            Ok(NordicListing {
+                listing: row.get::<_, Sym>(0)?.0,
+                mic: row.get(1)?,
+                isin: row.get(2)?,
+                symbol: row.get(3)?,
+                name: row.get(4)?,
+                currency: row.get(5)?,
+                sector: row.get(6)?,
+            })
+        })?
+        .collect::<duckdb::Result<_>>()?;
+    Ok(listings)
+}
+
+pub(crate) fn nordic_bar_dates(
+    connection: &Connection,
+    source: DataSource,
+) -> Result<BTreeMap<Symbol, NaiveDate>> {
+    let mut statement = connection.prepare_cached(
+        "SELECT listing, max(date) FROM nordic_bar_1d WHERE source = ? GROUP BY listing",
+    )?;
+    let dates = statement
+        .query_map([wire_name(&source)], |row| {
+            Ok((row.get::<_, Sym>(0)?.0, row.get(1)?))
+        })?
+        .collect::<duckdb::Result<_>>()?;
+    Ok(dates)
+}
+
+pub(crate) fn nordic_history(
+    connection: &Connection,
+    source: DataSource,
+    listing: &Symbol,
+    since: NaiveDate,
+) -> Result<(Vec<StoredNordicBar>, Vec<NordicSplit>)> {
+    let source = wire_name(&source);
+    let mut statement = connection.prepare_cached(
+        "SELECT date, open, high, low, close, volume, recorded_at FROM nordic_bar_1d \
+         WHERE source = ? AND listing = ? AND date >= ? \
+         QUALIFY row_number() OVER (PARTITION BY date ORDER BY recorded_at DESC, batch_id DESC) = 1 \
+         ORDER BY date",
+    )?;
+    let bars = statement
+        .query_map(params![source, listing.as_str(), since], |row| {
+            Ok(StoredNordicBar {
+                bar: NordicBar {
+                    date: row.get(0)?,
+                    open: row.get::<_, Dec>(1)?.0,
+                    high: row.get::<_, Dec>(2)?.0,
+                    low: row.get::<_, Dec>(3)?.0,
+                    close: row.get::<_, Dec>(4)?.0,
+                    volume: row.get(5)?,
+                },
+                recorded_at: row.get::<_, Ts>(6)?.0,
+            })
+        })?
+        .collect::<duckdb::Result<_>>()?;
+    let mut statement = connection.prepare_cached(
+        "SELECT date, ratio, detected_at FROM nordic_split \
+         WHERE source = ? AND listing = ? ORDER BY detected_at, date",
+    )?;
+    let splits = statement
+        .query_map(params![source, listing.as_str()], |row| {
+            Ok(NordicSplit {
+                date: row.get(0)?,
+                ratio: row.get::<_, Dec>(1)?.0,
+                detected_at: row.get::<_, Ts>(2)?.0,
+            })
+        })?
+        .collect::<duckdb::Result<_>>()?;
+    Ok((bars, splits))
+}
+
+pub(crate) fn fx_rate_dates(connection: &Connection) -> Result<BTreeMap<String, NaiveDate>> {
+    let mut statement =
+        connection.prepare_cached("SELECT currency, max(date) FROM fx_rate GROUP BY currency")?;
+    let dates = statement
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+        .collect::<duckdb::Result<_>>()?;
+    Ok(dates)
 }

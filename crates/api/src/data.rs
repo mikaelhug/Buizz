@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use axum::Json;
 use axum::extract::{Path, Query, State};
@@ -214,8 +214,7 @@ pub(crate) async fn data_spine(State(app): State<AppState>) -> Result<Json<DataS
     let coverage = app.market.coverage().await?;
     let contracts = app.ingest.contracts().await?;
     let today = Timestamp::now().exchange_date();
-    let market = Market::Us;
-    let datasets = Dataset::ALL
+    let datasets: Vec<DatasetSpine> = Dataset::ALL
         .into_iter()
         .map(|dataset| {
             let rows: Vec<&Coverage> = coverage
@@ -230,12 +229,18 @@ pub(crate) async fn data_spine(State(app): State<AppState>) -> Result<Json<DataS
             DatasetSpine {
                 dataset,
                 domain: dataset.domain(),
-                markets: vec![market_coverage(market, &rows, own, today)],
+                markets: vec![market_coverage(dataset.market(), &rows, own, today)],
             }
         })
         .collect();
+    let markets = datasets
+        .iter()
+        .map(|entry| entry.dataset.market())
+        .collect::<BTreeSet<Market>>()
+        .into_iter()
+        .collect();
     Ok(Json(DataSpine {
-        markets: vec![market],
+        markets,
         datasets,
         watermarks,
         ingest_enabled: app.ingest.enabled(),

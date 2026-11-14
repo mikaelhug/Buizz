@@ -1,0 +1,6 @@
+﻿Name;ISIN;Symbol;Market;Currency;"Open Price";"High Price";"low Price";"last Price";"last Trade MIC Time";"Time Zone";Volume;Turnover;"Closing Price";"Closing Price DateTime"
+"European Equities"
+"14 Nov 2026"
+"All datapoints provided as of end of last active trading day."
+"ABG SUNDAL COLLIER";NO0003021909;ABG;"Oslo Børs";NOK;7.15;7.21;7.13;7.18;" 16:25";CET;120631;865758.92;7.18;
+"KONGSBERG GRUPPEN";NO0013536151;KOG;"Oslo Børs";NOK;343.00;344.10;338.00;339.60;" 16:28";CET;812453;276279177.40;339.60;

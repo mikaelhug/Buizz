@@ -13,6 +13,7 @@ use buizz_core::time::Timestamp;
 use buizz_core::visibility::short_interest_published;
 use buizz_market::AccessionProgress;
 use buizz_sources::alpaca::NEWS_HISTORY_START;
+use buizz_sources::ecb::{CURRENCIES, FIRST_RATE};
 use buizz_sources::edgar::{SPLITTER_VERSION, fails_file_settlements, published_fails_files};
 use buizz_sources::finra::{FIRST_SETTLEMENT, FIRST_SHORT_VOLUME};
 use buizz_sources::wikipedia::FIRST_PAGE_VIEWS;
@@ -24,6 +25,7 @@ use crate::fetch::read;
 use crate::finra::settlement_dates;
 use crate::insiders::insider_quarters_due;
 use crate::macros::series_key;
+use crate::nordic::history_start;
 use crate::recipe::RECIPES;
 use crate::schedule::JOBS;
 use crate::views::company_articles;
@@ -436,6 +438,16 @@ impl Ingest {
                 DataSource::Factset,
                 "Earnings Insight and its archive",
             ),
+            (
+                Dataset::NordicListings,
+                DataSource::NasdaqNordic,
+                "Nasdaq Nordic's share lists: Stockholm, Helsinki, Copenhagen and Iceland, main market and First North",
+            ),
+            (
+                Dataset::NordicListings,
+                DataSource::Euronext,
+                "Euronext's Oslo share list: Oslo Børs, Euronext Expand and Euronext Growth",
+            ),
         ] {
             let from = series(dataset, source).map_or(start, |row| row.first);
             let state =
@@ -808,6 +820,68 @@ impl Ingest {
                 );
             }
         }
+
+        for (source, scope) in [
+            (
+                DataSource::NasdaqNordic,
+                "every listed Nasdaq Nordic share, from the 10 years Nasdaq still serves",
+            ),
+            (
+                DataSource::Euronext,
+                "every listed Oslo share, from the 2 years Euronext still serves",
+            ),
+        ] {
+            let bars = covered(Dataset::NordicBars1d, source);
+            let fetched = self
+                .state
+                .symbol_fetches(source, Dataset::NordicBars1d)
+                .await?;
+            let listed = self.market.nordic_listed(source).await?;
+            measures.push(
+                Scope {
+                    dataset: Dataset::NordicBars1d,
+                    source,
+                    kind: ScopeKind::Indexed,
+                    unit: ScopeUnit::Listings,
+                    scope: scope.into(),
+                    from: history_start(source, today),
+                    to: today,
+                }
+                .items(
+                    listed
+                        .iter()
+                        .filter(|listing| self.nordic_wanted(listing))
+                        .map(|listing| {
+                            if bars.contains_key(&listing.listing) {
+                                Item::Done
+                            } else {
+                                Item::backfilled(fetched.get(&listing.listing))
+                            }
+                        }),
+                ),
+            );
+        }
+        let fetched = self
+            .state
+            .symbol_fetches(DataSource::Ecb, Dataset::FxRates)
+            .await?;
+        measures.push(
+            Scope {
+                dataset: Dataset::FxRates,
+                source: DataSource::Ecb,
+                kind: ScopeKind::Indexed,
+                unit: ScopeUnit::Series,
+                scope: "the ECB's euro reference rates for SEK, NOK, DKK, ISK and USD, current"
+                    .into(),
+                from: FIRST_RATE,
+                to: today,
+            }
+            .items(
+                CURRENCIES
+                    .iter()
+                    .map(|currency| Item::current(fetched.get(&Symbol::new(currency)))),
+            ),
+        );
 
         let settlements = self.market.short_interest_settlements().await?;
         let horizon = self

@@ -8,13 +8,16 @@ use buizz_sources::alpaca::{self, AlpacaConfig};
 use buizz_sources::alpaca_stream::{self, STREAM_KEYS_ENV, StreamConfig, stream_keys};
 use buizz_sources::anthropic::{self, AnthropicConfig};
 use buizz_sources::cboe::{self, CboeConfig};
+use buizz_sources::ecb::{self, EcbConfig};
 use buizz_sources::edgar::{self, EdgarConfig};
+use buizz_sources::euronext::{self, EuronextConfig};
 use buizz_sources::factset::{self, FactsetConfig};
 use buizz_sources::fed::{self, FedConfig};
 use buizz_sources::finra::{self, FinraConfig};
 use buizz_sources::fred::{self, FredConfig};
 use buizz_sources::ibkr::{self, IbkrConfig};
 use buizz_sources::nasdaq::{self, NasdaqConfig};
+use buizz_sources::nasdaq_nordic::{self, NasdaqNordicConfig};
 use buizz_sources::ssga::{self, SsgaConfig};
 use buizz_sources::tiingo::{self, TiingoConfig};
 use buizz_sources::treasury::{self, TreasuryConfig};
@@ -49,6 +52,9 @@ pub struct Config {
     pub factset: Option<FactsetConfig>,
     pub finra: FinraConfig,
     pub ssga: SsgaConfig,
+    pub nasdaq_nordic: NasdaqNordicConfig,
+    pub euronext: EuronextConfig,
+    pub ecb: EcbConfig,
     pub anthropic: Option<AnthropicConfig>,
     pub ingest_symbols: Option<BTreeSet<Symbol>>,
     pub duckdb_memory: String,
@@ -212,6 +218,15 @@ impl Config {
             },
             ssga: SsgaConfig {
                 base_url: var_or(ssga::URL_ENV, ssga::BASE_URL),
+            },
+            nasdaq_nordic: NasdaqNordicConfig {
+                base_url: var_or(nasdaq_nordic::URL_ENV, nasdaq_nordic::BASE_URL),
+            },
+            euronext: EuronextConfig {
+                base_url: var_or(euronext::URL_ENV, euronext::BASE_URL),
+            },
+            ecb: EcbConfig {
+                base_url: var_or(ecb::URL_ENV, ecb::BASE_URL),
             },
             finra: FinraConfig {
                 api_url: var_or(finra::API_URL_ENV, finra::API_URL),

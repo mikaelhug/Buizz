@@ -12,7 +12,7 @@ use buizz_core::market::{AssetClass, Bar, CorporateActionKind, MacroSeries, Symb
 use buizz_core::time::Timestamp;
 use buizz_sources::alpaca_stream::SYMBOL_CAP;
 use buizz_sources::edgar::{self, INSIDER_QUARTERS_PAGE};
-use buizz_sources::{finra, nasdaq, ssga};
+use buizz_sources::{ecb, euronext, finra, nasdaq, nasdaq_nordic, ssga};
 use chrono::{Datelike, NaiveDate, NaiveTime, TimeDelta};
 use serde_json::{Number, Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -30,6 +30,18 @@ const OPTION_SNAPSHOTS: &str =
     include_str!("../../../crates/sources/fixtures/alpaca/option_snapshots.json");
 const TRADE_HALTS: &str = include_str!("../../../crates/sources/fixtures/nasdaq/tradehalts.xml");
 const OPTIONED: &str = "SPY";
+const NORDIC_SHARES: &str =
+    include_str!("../../../crates/sources/fixtures/nasdaq_nordic/shares_sto_main.json");
+const NORDIC_CHART: &str =
+    include_str!("../../../crates/sources/fixtures/nasdaq_nordic/chart_tx69.json");
+const NORDIC_CHARTED: &str = "TX69";
+const NO_NORDIC_CHART: &str = r#"{"data":{"chartData":{},"CP":null},"messages":{"code":"NO_DATA_FOR_THIS_PERIOD"},"status":{"rCode":200,"bCodeMessage":null}}"#;
+const NO_NORDIC_SHARES: &str = r#"{"data":{"instrumentListing":{"rows":[]}},"messages":null,"status":{"rCode":200,"bCodeMessage":null}}"#;
+const OSLO_STOCKS: &str = include_str!("../../../crates/sources/fixtures/euronext/oslo_stocks.csv");
+const OSLO_HISTORY: &str =
+    include_str!("../../../crates/sources/fixtures/euronext/abg_history.csv");
+const OSLO_HISTORIED: &str = "NO0003021909-XOSL";
+const ECB_RATES: &str = include_str!("../../../crates/sources/fixtures/ecb/exr.csv");
 const FINRA_SCHEDULE: &str =
     include_str!("../../../crates/sources/fixtures/finra/short-interest.htm");
 const RETRY_AFTER_SECONDS: &str = "3600";
@@ -127,6 +139,17 @@ impl FakeProviders {
                 get(option_snapshots),
             )
             .route(&format!("{}/{{file}}", ssga::FUND_DATA_PATH), get(ssga_workbook))
+            .route(nasdaq_nordic::SHARES_PATH, get(nordic_shares))
+            .route(
+                &format!("{}/{{listing}}/chart", nasdaq_nordic::INSTRUMENTS_PATH),
+                get(nordic_chart),
+            )
+            .route(euronext::STOCKS_PATH, post(|| async { OSLO_STOCKS }))
+            .route(
+                &format!("{}/{{listing}}", euronext::HISTORY_PATH),
+                get(oslo_history),
+            )
+            .route(&format!("{}/{{key}}", ecb::EXR_PATH), get(|| async { ECB_RATES }))
             .route("/api/xbrl/companyfacts/{file}", get(company_facts))
             .route("/submissions/{file}", get(submissions))
             .route(edgar::SUBMISSIONS_ARCHIVE_PATH, get(submissions_archive))
@@ -1229,6 +1252,37 @@ async fn option_snapshots(Path(underlying): Path<String>) -> Response {
         json_body(OPTION_SNAPSHOTS)
     } else {
         json_body(r#"{"snapshots":{},"next_page_token":null}"#)
+    }
+}
+
+async fn nordic_shares(Query(params): Query<Params>) -> Response {
+    let stockholm_main =
+        param(&params, "market") == "STO" && param(&params, "category") == "MAIN_MARKET";
+    json_body(if stockholm_main {
+        NORDIC_SHARES
+    } else {
+        NO_NORDIC_SHARES
+    })
+}
+
+async fn nordic_chart(Path(listing): Path<String>) -> Response {
+    json_body(if listing == NORDIC_CHARTED {
+        NORDIC_CHART
+    } else {
+        NO_NORDIC_CHART
+    })
+}
+
+async fn oslo_history(Path(listing): Path<String>) -> Response {
+    if listing == OSLO_HISTORIED {
+        OSLO_HISTORY.into_response()
+    } else {
+        OSLO_HISTORY
+            .lines()
+            .take(4)
+            .collect::<Vec<_>>()
+            .join("\n")
+            .into_response()
     }
 }
 

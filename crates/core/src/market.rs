@@ -1051,6 +1051,53 @@ pub struct TradingHaltRecord {
     pub trading_resumes_at: Option<Timestamp>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NordicListing {
+    pub listing: Symbol,
+    pub mic: String,
+    pub isin: String,
+    pub symbol: String,
+    pub name: String,
+    pub currency: String,
+    pub sector: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NordicBar {
+    pub date: NaiveDate,
+    pub open: Decimal,
+    pub high: Decimal,
+    pub low: Decimal,
+    pub close: Decimal,
+    pub volume: u64,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct NordicBars {
+    pub bars: Vec<NordicBar>,
+    pub skipped: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StoredNordicBar {
+    pub bar: NordicBar,
+    pub recorded_at: Timestamp,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NordicSplit {
+    pub date: NaiveDate,
+    pub ratio: Decimal,
+    pub detected_at: Timestamp,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FxRate {
+    pub currency: String,
+    pub date: NaiveDate,
+    pub per_euro: Decimal,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TradingHalt {
     pub symbol: Symbol,
@@ -1539,6 +1586,9 @@ pub enum DataSource {
     Factset,
     Finra,
     StateStreet,
+    NasdaqNordic,
+    Euronext,
+    Ecb,
     Curated,
 }
 
@@ -1580,18 +1630,23 @@ pub enum Dataset {
     EtfHoldings,
     FailsToDeliver,
     PageViews,
+    NordicListings,
+    NordicBars1d,
+    FxRates,
 }
 
 impl Dataset {
-    pub const ALL: [Self; 33] = [
+    pub const ALL: [Self; 36] = [
         Self::Bars1d,
         Self::Bars1m,
         Self::CorporateActions,
         Self::OptionChains,
+        Self::NordicBars1d,
         Self::Instruments,
         Self::Calendar,
         Self::IndexMembership,
         Self::EtfHoldings,
+        Self::NordicListings,
         Self::Delistings,
         Self::Companies,
         Self::Fundamentals,
@@ -1610,6 +1665,7 @@ impl Dataset {
         Self::Rates,
         Self::Macro,
         Self::Fomc,
+        Self::FxRates,
         Self::News,
         Self::Borrow,
         Self::ShortInterest,
@@ -1621,10 +1677,13 @@ impl Dataset {
 
     pub fn domain(self) -> DataDomain {
         match self {
-            Self::Bars1d | Self::Bars1m | Self::CorporateActions | Self::OptionChains => {
-                DataDomain::Prices
-            }
+            Self::Bars1d
+            | Self::Bars1m
+            | Self::CorporateActions
+            | Self::OptionChains
+            | Self::NordicBars1d => DataDomain::Prices,
             Self::Instruments
+            | Self::NordicListings
             | Self::Calendar
             | Self::IndexMembership
             | Self::Delistings
@@ -1643,7 +1702,7 @@ impl Dataset {
             | Self::InsiderTrades
             | Self::InsiderDataSets
             | Self::Estimates => DataDomain::Filings,
-            Self::Rates | Self::Macro | Self::Fomc => DataDomain::Macro,
+            Self::Rates | Self::Macro | Self::Fomc | Self::FxRates => DataDomain::Macro,
             Self::News
             | Self::Borrow
             | Self::ShortInterest
@@ -1651,6 +1710,13 @@ impl Dataset {
             | Self::TradingHalts
             | Self::FailsToDeliver
             | Self::PageViews => DataDomain::Alternative,
+        }
+    }
+
+    pub fn market(self) -> Market {
+        match self {
+            Self::NordicListings | Self::NordicBars1d | Self::FxRates => Market::Nordic,
+            _ => Market::Us,
         }
     }
 }
@@ -1673,6 +1739,7 @@ pub enum DataDomain {
 #[serde(rename_all = "snake_case")]
 pub enum Market {
     Us,
+    Nordic,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]

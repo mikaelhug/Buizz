@@ -844,7 +844,7 @@ export interface components {
             ingest_enabled: boolean;
         };
         /** @enum {string} */
-        DataSource: "alpaca" | "alpaca_stream" | "tiingo" | "edgar" | "treasury" | "fred" | "fixture" | "wikipedia" | "interactive_brokers" | "nasdaq" | "cboe" | "federal_reserve" | "factset" | "finra" | "state_street" | "curated";
+        DataSource: "alpaca" | "alpaca_stream" | "tiingo" | "edgar" | "treasury" | "fred" | "fixture" | "wikipedia" | "interactive_brokers" | "nasdaq" | "cboe" | "federal_reserve" | "factset" | "finra" | "state_street" | "nasdaq_nordic" | "euronext" | "ecb" | "curated";
         DataSpine: {
             markets: components["schemas"]["Market"][];
             datasets: components["schemas"]["DatasetSpine"][];
@@ -888,7 +888,7 @@ export interface components {
             type: "survivorship_gap";
         };
         /** @enum {string} */
-        Dataset: "instruments" | "calendar" | "bars1d" | "bars1m" | "corporate_actions" | "fundamentals" | "rates" | "companies" | "earnings_releases" | "sec_filings" | "index_membership" | "borrow" | "macro" | "insider_trades" | "insider_data_sets" | "news" | "fomc" | "estimates" | "current_reports" | "periodic_reports" | "press_releases" | "filing_documents" | "filing_sections" | "short_interest" | "short_volume" | "delistings" | "listing_notices" | "earnings_guidance" | "option_chains" | "trading_halts" | "etf_holdings" | "fails_to_deliver" | "page_views";
+        Dataset: "instruments" | "calendar" | "bars1d" | "bars1m" | "corporate_actions" | "fundamentals" | "rates" | "companies" | "earnings_releases" | "sec_filings" | "index_membership" | "borrow" | "macro" | "insider_trades" | "insider_data_sets" | "news" | "fomc" | "estimates" | "current_reports" | "periodic_reports" | "press_releases" | "filing_documents" | "filing_sections" | "short_interest" | "short_volume" | "delistings" | "listing_notices" | "earnings_guidance" | "option_chains" | "trading_halts" | "etf_holdings" | "fails_to_deliver" | "page_views" | "nordic_listings" | "nordic_bars1d" | "fx_rates";
         DatasetSpine: {
             dataset: components["schemas"]["Dataset"];
             domain: components["schemas"]["DataDomain"];
@@ -1139,7 +1139,7 @@ export interface components {
             password: string;
         };
         /** @enum {string} */
-        Market: "us";
+        Market: "us" | "nordic";
         MarketCoverage: {
             market: components["schemas"]["Market"];
             sources: components["schemas"]["SourceCoverage"][];
@@ -1487,7 +1487,7 @@ export interface components {
         /** @enum {string} */
         ScopeKind: "indexed" | "recorder" | "derived" | "on_demand";
         /** @enum {string} */
-        ScopeUnit: "symbols" | "series" | "lists" | "days" | "sessions" | "settlements" | "files" | "articles" | "filings" | "sections" | "quarters";
+        ScopeUnit: "symbols" | "listings" | "series" | "lists" | "days" | "sessions" | "settlements" | "files" | "articles" | "filings" | "sections" | "quarters";
         Screening: {
             preset: components["schemas"]["PeriodPreset"];
             /** Format: int32 */

@@ -66,6 +66,9 @@ async fn an_empty_spine_backfills_backs_off_rejects_a_bad_tiingo_tail_and_restar
             ("option_chains", Some(JobOutcome::Noop)),
             ("trading_halts", ok),
             ("etf_holdings", ok),
+            ("nasdaq_nordic", ok),
+            ("euronext_oslo", ok),
+            ("fx_rates", ok),
             ("short_interest", Some(JobOutcome::Noop)),
             ("short_volume", Some(JobOutcome::Noop)),
             ("fails_to_deliver", ok),
@@ -129,6 +132,16 @@ async fn an_empty_spine_backfills_backs_off_rejects_a_bad_tiingo_tail_and_restar
         "ETF holdings: 60 rows",
         "two holdings and two days of shares outstanding for each of the 15 SPDR ETFs"
     );
+    assert_eq!(
+        message(&jobs, "nasdaq_nordic"),
+        "Nasdaq Nordic: 4 rows; 2 listed, 2 new or changed, 1 skipped without a full price",
+        "Ericsson's five recorded days less the one without an open; Investor has none"
+    );
+    assert_eq!(
+        message(&jobs, "euronext_oslo"),
+        "Euronext Oslo: 5 rows; 2 listed, 2 new or changed"
+    );
+    assert_eq!(message(&jobs, "fx_rates"), "fx rates: 35 rows");
     let rejected = message(&jobs, "tiingo_history");
     assert!(
         rejected.contains("AAPL") && rejected.contains("rejected"),

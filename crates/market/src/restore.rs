@@ -89,6 +89,7 @@ pub(crate) fn restore(connection: &mut Connection, parts: &[PathBuf]) -> Result<
         )?;
     }
     cover_recorders(&transaction)?;
+    cover_archive(&transaction)?;
     transaction.commit()?;
     Ok(Restored {
         parts: parts.len(),
@@ -126,6 +127,39 @@ fn cover_recorders(connection: &Connection) -> Result<()> {
                 params![dataset, source, first, last, Ts(Timestamp::now())],
             )?;
         }
+    }
+    Ok(())
+}
+
+const ARCHIVED: [(Dataset, &str); 4] = [
+    (
+        Dataset::NordicListings,
+        "SELECT source, '', min(date), max(date) FROM nordic_listing_seen GROUP BY source",
+    ),
+    (
+        Dataset::NordicBars1d,
+        "SELECT source, '', min(date), max(date) FROM nordic_bar_1d GROUP BY source",
+    ),
+    (
+        Dataset::NordicBars1d,
+        "SELECT source, listing, min(date), max(date) FROM nordic_bar_1d GROUP BY source, listing",
+    ),
+    (
+        Dataset::FxRates,
+        "SELECT b.source, r.currency, min(r.date), max(r.date) FROM fx_rate r \
+         JOIN ingest_batch b ON b.id = r.batch_id GROUP BY b.source, r.currency",
+    ),
+];
+
+fn cover_archive(connection: &Connection) -> Result<()> {
+    for (dataset, query) in ARCHIVED {
+        connection.execute(
+            &format!(
+                "INSERT OR REPLACE INTO coverage SELECT ?, symbol, source, first, last, ? \
+                 FROM ({query}) ranges(source, symbol, first, last)"
+            ),
+            params![wire_name(&dataset), Ts(Timestamp::now())],
+        )?;
     }
     Ok(())
 }

@@ -20,6 +20,7 @@ mod insiders;
 mod macros;
 mod minute;
 mod news;
+mod nordic;
 mod options;
 mod press;
 pub mod recipe;
@@ -360,6 +361,9 @@ impl Ingest {
             schedule::OPTION_CHAINS => self.option_chains(now).await,
             schedule::TRADING_HALTS => self.trading_halts(now).await,
             schedule::ETF_HOLDINGS => self.etf_holdings(now).await,
+            schedule::NASDAQ_NORDIC => self.nasdaq_nordic(now).await,
+            schedule::EURONEXT_OSLO => self.euronext_oslo(now).await,
+            schedule::FX_RATES => self.fx_rates(now).await,
             schedule::SHORT_INTEREST => self.short_interest(now).await,
             schedule::SHORT_VOLUME => self.short_volume(now).await,
             schedule::FAILS_TO_DELIVER => self.fails_to_deliver(now).await,

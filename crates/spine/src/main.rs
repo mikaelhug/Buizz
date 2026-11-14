@@ -17,13 +17,16 @@ use buizz_sources::alpaca::AlpacaClient;
 use buizz_sources::alpaca_stream::SYMBOL_CAP;
 use buizz_sources::anthropic::AnthropicClient;
 use buizz_sources::cboe::CboeClient;
+use buizz_sources::ecb::EcbClient;
 use buizz_sources::edgar::EdgarClient;
+use buizz_sources::euronext::EuronextClient;
 use buizz_sources::factset::FactsetClient;
 use buizz_sources::fed::FedClient;
 use buizz_sources::finra::FinraClient;
 use buizz_sources::fred::FredClient;
 use buizz_sources::ibkr::IbkrClient;
 use buizz_sources::nasdaq::NasdaqClient;
+use buizz_sources::nasdaq_nordic::NasdaqNordicClient;
 use buizz_sources::ssga::SsgaClient;
 use buizz_sources::tiingo::TiingoClient;
 use buizz_sources::treasury::TreasuryClient;
@@ -139,6 +142,9 @@ async fn serve() -> Result<()> {
         factset: config.factset.clone().map(FactsetClient::new).transpose()?,
         finra: Some(FinraClient::new(config.finra.clone())?),
         ssga: Some(SsgaClient::new(config.ssga.clone())?),
+        nasdaq_nordic: Some(NasdaqNordicClient::new(config.nasdaq_nordic.clone())?),
+        euronext: Some(EuronextClient::new(config.euronext.clone())?),
+        ecb: Some(EcbClient::new(config.ecb.clone())?),
         anthropic: config
             .anthropic
             .clone()

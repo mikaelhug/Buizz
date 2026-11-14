@@ -29,6 +29,9 @@ pub(crate) const BORROW: &str = "borrow";
 pub(crate) const OPTION_CHAINS: &str = "option_chains";
 pub(crate) const TRADING_HALTS: &str = "trading_halts";
 pub(crate) const ETF_HOLDINGS: &str = "etf_holdings";
+pub(crate) const NASDAQ_NORDIC: &str = "nasdaq_nordic";
+pub(crate) const EURONEXT_OSLO: &str = "euronext_oslo";
+pub(crate) const FX_RATES: &str = "fx_rates";
 pub(crate) const SHORT_INTEREST: &str = "short_interest";
 pub(crate) const SHORT_VOLUME: &str = "short_volume";
 pub(crate) const FAILS_TO_DELIVER: &str = "fails_to_deliver";
@@ -53,7 +56,7 @@ const SHORT_RETRY: Duration = HOUR;
 const FIRST_FAILURE_RETRY: Duration = Duration::from_secs(5 * 60);
 const STALE_AFTER_INTERVALS: i32 = 3;
 
-pub(crate) const JOBS: [JobSpec; 34] = [
+pub(crate) const JOBS: [JobSpec; 37] = [
     JobSpec {
         name: CALENDAR,
         source: Some(DataSource::Alpaca),
@@ -177,6 +180,24 @@ pub(crate) const JOBS: [JobSpec; 34] = [
         name: ETF_HOLDINGS,
         source: Some(DataSource::StateStreet),
         datasets: &[Dataset::EtfHoldings],
+        every: DAY,
+    },
+    JobSpec {
+        name: NASDAQ_NORDIC,
+        source: Some(DataSource::NasdaqNordic),
+        datasets: &[Dataset::NordicListings, Dataset::NordicBars1d],
+        every: DAY,
+    },
+    JobSpec {
+        name: EURONEXT_OSLO,
+        source: Some(DataSource::Euronext),
+        datasets: &[Dataset::NordicListings, Dataset::NordicBars1d],
+        every: DAY,
+    },
+    JobSpec {
+        name: FX_RATES,
+        source: Some(DataSource::Ecb),
+        datasets: &[Dataset::FxRates],
         every: DAY,
     },
     JobSpec {

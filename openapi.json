@@ -2330,6 +2330,9 @@
           "factset",
           "finra",
           "state_street",
+          "nasdaq_nordic",
+          "euronext",
+          "ecb",
           "curated"
         ]
       },
@@ -2543,7 +2546,10 @@
           "trading_halts",
           "etf_holdings",
           "fails_to_deliver",
-          "page_views"
+          "page_views",
+          "nordic_listings",
+          "nordic_bars1d",
+          "fx_rates"
         ]
       },
       "DatasetSpine": {
@@ -3580,7 +3586,8 @@
       "Market": {
         "type": "string",
         "enum": [
-          "us"
+          "us",
+          "nordic"
         ]
       },
       "MarketCoverage": {
@@ -5072,6 +5079,7 @@
         "type": "string",
         "enum": [
           "symbols",
+          "listings",
           "series",
           "lists",
           "days",

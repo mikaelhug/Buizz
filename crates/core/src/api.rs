@@ -375,6 +375,7 @@ pub enum ScopeKind {
 #[serde(rename_all = "snake_case")]
 pub enum ScopeUnit {
     Symbols,
+    Listings,
     Series,
     Lists,
     Days,

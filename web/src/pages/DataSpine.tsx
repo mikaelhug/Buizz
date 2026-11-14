@@ -38,10 +38,12 @@ export const DATASETS: Record<Dataset, { name: string; caption: string }> = {
   bars1m: { name: "Minute prices", caption: "intraday bars for the symbols bots use, kept current" },
   corporate_actions: { name: "Splits, dividends & mergers", caption: "corporate actions, cross-checked between sources" },
   option_chains: { name: "Option chains", caption: "every contract's quote, implied volatility, greeks and open interest, recorded before each close" },
+  nordic_bars1d: { name: "Nordic daily prices", caption: "unadjusted open, high, low, close and volume per share on Nasdaq Nordic and Oslo, archived after each close with the splits the sources revealed" },
   instruments: { name: "Listed securities", caption: "every stock and ETF with its listing dates" },
   calendar: { name: "Trading calendar", caption: "sessions, half days and closing times" },
   index_membership: { name: "S&P 500 membership", caption: "who was in the index on each day" },
   etf_holdings: { name: "ETF holdings", caption: "SPDR ETFs' daily holdings and shares outstanding, recorded daily" },
+  nordic_listings: { name: "Nordic listed shares", caption: "every share on the Nasdaq Nordic and Oslo lists, with the days each was seen listed" },
   delistings: { name: "Delistings", caption: "SEC Form 25 notices, each priced as an ended listing where Alpaca has its bars" },
   companies: { name: "Company profiles", caption: "industry codes and listing exchange per company" },
   fundamentals: { name: "Financial statements", caption: "XBRL facts from 10-K and 10-Q filings, as filed" },
@@ -60,6 +62,7 @@ export const DATASETS: Record<Dataset, { name: string; caption: string }> = {
   rates: { name: "Treasury rates", caption: "the daily yield curve and the T-bill rate cash earns" },
   macro: { name: "Macro series", caption: "FRED series with vintages, the CBOE volatility indices and put/call ratios" },
   fomc: { name: "FOMC meetings", caption: "decisions and the time each statement was released" },
+  fx_rates: { name: "Exchange rates", caption: "the ECB's daily euro rates for the Nordic currencies and the dollar" },
   news: { name: "News", caption: "headlines per symbol with their publish time" },
   borrow: { name: "Short borrow", caption: "borrow fee and shares available, recorded daily" },
   short_interest: { name: "Short interest", caption: "shares held short twice a month, as FINRA published them" },
@@ -85,11 +88,15 @@ export const SOURCES: Record<Source, { name: string; caption: string }> = {
   factset: { name: "FactSet", caption: "S&P 500 earnings insight" },
   finra: { name: "FINRA", caption: "short interest and short sale volume" },
   state_street: { name: "State Street", caption: "SPDR ETF holdings and shares outstanding" },
+  nasdaq_nordic: { name: "Nasdaq Nordic", caption: "Stockholm, Helsinki, Copenhagen and Iceland share lists and daily prices" },
+  euronext: { name: "Euronext", caption: "Oslo share list and daily prices" },
+  ecb: { name: "ECB", caption: "euro reference exchange rates" },
   curated: { name: "Curated", caption: "ticker links and actions checked by hand" },
 };
 
 const MARKETS: Record<Market, { name: string; short: string }> = {
   us: { name: "United States", short: "US" },
+  nordic: { name: "Nordic", short: "Nordic" },
 };
 
 type Health = "running" | "failing" | "limited" | "late" | "healthy" | "paused" | "empty";
@@ -172,6 +179,7 @@ const CONTRACT_RANK: ContractState[] = ["stalled", "filling", "paused", "complet
 
 const UNITS: Record<Unit, string> = {
   symbols: "symbols",
+  listings: "listings",
   series: "series",
   lists: "lists",
   days: "days",

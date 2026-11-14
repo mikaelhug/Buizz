@@ -5,19 +5,21 @@ use buizz_core::market::{
     Bar, BorrowAvailability, Company, CorporateAction, CorporateActionKind, DataSource, Dataset,
     DelistingCheck, DocumentSections, EarningsInsight, EarningsRelease, EstimateFact,
     EtfHoldingsFile, EtfSharesRecord, FailToDeliverRecord, Filing, FilingDocument, FilingText,
-    FomcMeeting, FundamentalFact, IndexHistory, InsiderFiling, InsiderPlan, InsiderReport,
-    Instrument, MacroObservation, NewsArticle, OptionQuoteRecord, PressExhibit, RiskFreeRate,
-    SecFiling, Section, Session, ShortInterestRecord, ShortVolumeRecord, Symbol, TitleViews,
-    TradingHaltRecord, split_rates,
+    FomcMeeting, FundamentalFact, FxRate, IndexHistory, InsiderFiling, InsiderPlan, InsiderReport,
+    Instrument, MacroObservation, NewsArticle, NordicListing, OptionQuoteRecord, PressExhibit,
+    RiskFreeRate, SecFiling, Section, Session, ShortInterestRecord, ShortVolumeRecord, Symbol,
+    TitleViews, TradingHaltRecord, split_rates,
 };
 use buizz_core::ops::ActionDisagreement;
 use buizz_core::time::Timestamp;
 use chrono::NaiveDate;
 use duckdb::{Appender, Connection, Transaction, params, params_from_iter};
 
-use crate::codec::{ActionColumns, Dec, IN_SYMBOLS, Params, Ts, feed_name, symbol_list, wire_name};
+use crate::codec::{
+    ActionColumns, Dec, IN_SYMBOLS, Params, Sym, Ts, feed_name, symbol_list, wire_name,
+};
 use crate::text::TextVolumes;
-use crate::{ActionWindow, MarketError, Result, WriteSummary};
+use crate::{ActionWindow, MarketError, NordicWrite, Result, WriteSummary};
 
 const STAGED: [&str; 12] = [
     "instrument",
@@ -2165,6 +2167,146 @@ pub(crate) fn news_articles(
                 ])? as u64;
             }
             Ok(rows)
+        },
+    )
+}
+
+pub(crate) fn nordic_listings(
+    connection: &mut Connection,
+    source: DataSource,
+    date: NaiveDate,
+    at: Timestamp,
+    changed: Vec<NordicListing>,
+    seen: Vec<Symbol>,
+) -> Result<WriteSummary> {
+    let mut coverage = Coverage::new();
+    cover(&mut coverage, None, date);
+    let source_name = wire_name(&source);
+    write_batch(
+        connection,
+        source,
+        Dataset::NordicListings,
+        coverage,
+        |transaction, batch_id| {
+            let mut appender = transaction.appender("nordic_listing")?;
+            for listing in &changed {
+                appender.append_row(params![
+                    source_name,
+                    listing.listing.as_str(),
+                    listing.mic,
+                    listing.isin,
+                    listing.symbol,
+                    listing.name,
+                    listing.currency,
+                    listing.sector,
+                    Ts(at),
+                    batch_id,
+                ])?;
+            }
+            appender.flush()?;
+            let already: BTreeSet<Symbol> = transaction
+                .prepare_cached(
+                    "SELECT listing FROM nordic_listing_seen WHERE source = ? AND date = ?",
+                )?
+                .query_map(params![source_name, date], |row| {
+                    Ok(row.get::<_, Sym>(0)?.0)
+                })?
+                .collect::<duckdb::Result<_>>()?;
+            let mut appender = transaction.appender("nordic_listing_seen")?;
+            let mut sightings = 0;
+            for listing in seen.iter().filter(|listing| !already.contains(*listing)) {
+                appender.append_row(params![source_name, listing.as_str(), date, batch_id])?;
+                sightings += 1;
+            }
+            appender.flush()?;
+            Ok(changed.len() as u64 + sightings)
+        },
+    )
+}
+
+pub(crate) fn nordic_bars(connection: &mut Connection, write: NordicWrite) -> Result<WriteSummary> {
+    let NordicWrite {
+        source,
+        listing,
+        currency,
+        at,
+        bars,
+        split,
+    } = write;
+    let mut coverage = Coverage::new();
+    for bar in &bars {
+        cover(&mut coverage, Some(&listing), bar.date);
+    }
+    let source_name = wire_name(&source);
+    write_batch(
+        connection,
+        source,
+        Dataset::NordicBars1d,
+        coverage,
+        |transaction, batch_id| {
+            let mut appender = transaction.appender("nordic_bar_1d")?;
+            for bar in &bars {
+                appender.append_row(params![
+                    source_name,
+                    listing.as_str(),
+                    bar.date,
+                    currency,
+                    Dec(bar.open),
+                    Dec(bar.high),
+                    Dec(bar.low),
+                    Dec(bar.close),
+                    bar.volume,
+                    Ts(at),
+                    batch_id,
+                ])?;
+            }
+            appender.flush()?;
+            if let Some(split) = split {
+                transaction.execute(
+                    "INSERT INTO nordic_split VALUES (?, ?, ?, ?, ?, ?)",
+                    params![
+                        source_name,
+                        listing.as_str(),
+                        split.date,
+                        Dec(split.ratio),
+                        Ts(split.detected_at),
+                        batch_id
+                    ],
+                )?;
+            }
+            Ok(bars.len() as u64 + u64::from(split.is_some()))
+        },
+    )
+}
+
+pub(crate) fn fx_rates(
+    connection: &mut Connection,
+    source: DataSource,
+    at: Timestamp,
+    rates: Vec<FxRate>,
+) -> Result<WriteSummary> {
+    let mut coverage = Coverage::new();
+    for rate in &rates {
+        cover(&mut coverage, Some(&Symbol::new(&rate.currency)), rate.date);
+    }
+    write_batch(
+        connection,
+        source,
+        Dataset::FxRates,
+        coverage,
+        |transaction, batch_id| {
+            let mut appender = transaction.appender("fx_rate")?;
+            for rate in &rates {
+                appender.append_row(params![
+                    rate.currency,
+                    rate.date,
+                    Dec(rate.per_euro),
+                    Ts(at),
+                    batch_id,
+                ])?;
+            }
+            appender.flush()?;
+            Ok(rates.len() as u64)
         },
     )
 }

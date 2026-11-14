@@ -59,7 +59,7 @@ The spine (`cargo run -p buizz-spine`) reads these environment variables. Empty 
 | `BUIZZ_FIXTURE_DIR` | unset | Load the CSV fixture data set in this folder into the market store at start and advance the data watermarks to it |
 | `BUIZZ_SECURE_COOKIES` | `true` | Mark the session cookie `Secure`; set `false` for plain HTTP |
 | `BUIZZ_INGEST` | `true` | Run the scheduled data jobs; `false` for fixture-only work |
-| `BUIZZ_INGEST_SYMBOLS` | unset | A comma-separated list that limits prices, corporate actions, fundamentals, filings and Tiingo history to these symbols, for a quick real-data spine on a laptop; calendar, instruments, membership, rates, macro and borrow stay complete |
+| `BUIZZ_INGEST_SYMBOLS` | unset | A comma-separated list that limits prices, corporate actions, fundamentals, filings, Tiingo history and the Nordic archive's prices (by ticker such as `ERIC B` or by listing id) to these symbols, for a quick real-data spine on a laptop; calendar, instruments, membership, rates, macro, borrow and the Nordic share lists stay complete |
 | `BUIZZ_CLOCK_OFFSET_SECONDS` | `0` | Shifts the spine's clock by this many seconds, positive or negative; the end-to-end scenarios use it to run at noon New York time whatever the hour |
 | `ALPACA_KEY_ID`, `ALPACA_SECRET_KEY` | unset | Alpaca market data credentials; both are needed to enable Alpaca, the live feed, minute-bar backtests and the `option_chains` recorder (the free indicative options feed) |
 | `ALPACA_DATA_URL` | `https://data.alpaca.markets` | Alpaca data endpoint |
@@ -76,6 +76,9 @@ The spine (`cargo run -p buizz-spine`) reads these environment variables. Empty 
 | `WIKIMEDIA_URL` | `https://wikimedia.org` | Wikimedia REST endpoint for daily page views |
 | `NASDAQ_TRADER_URL` | `https://www.nasdaqtrader.com` | NASDAQ Trader's symbol directory, read daily to tell ETFs from stocks, and its trade halt feed, read every 5 minutes by the `trading_halts` job |
 | `SSGA_URL` | `https://www.ssga.com` | State Street's SPDR fund files, read daily by the `etf_holdings` job for holdings and shares outstanding; free, no key |
+| `NASDAQ_NORDIC_URL` | `https://api.nasdaq.com` | Nasdaq Nordic's share lists and daily prices for Stockholm, Helsinki, Copenhagen and Iceland, archived after 18:00 Stockholm time by the `nasdaq_nordic` job; the last 10 years only, split-adjusted as of each read, no dividends, no delisted companies; free, no key |
+| `EURONEXT_URL` | `https://live.euronext.com` | Euronext's Oslo share list and unadjusted daily prices, archived the same way by the `euronext_oslo` job; the last 2 years only; free, no key |
+| `ECB_URL` | `https://data-api.ecb.europa.eu` | The ECB's daily euro rates of SEK, NOK, DKK, ISK and USD since 1999, read daily by the `fx_rates` job; free, no key |
 | `IBKR_FTP_ADDRESS` | `ftp2.interactivebrokers.com:21` | Interactive Brokers' public short stock FTP server, read daily by the `borrow` job |
 | `FRED_API_KEY` | unset | Enables the FRED macro series for bots (`ctx.macro`); a free key from fred.stlouisfed.org. Without it the `macro` job reports that FRED is not configured |
 | `FRED_URL` | `https://api.stlouisfed.org` | FRED endpoint |

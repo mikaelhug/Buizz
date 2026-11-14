@@ -12,14 +12,15 @@ use buizz_core::market::{
     Company, CorporateAction, CorporateActionKind, Coverage, DataSource, Dataset, DelistingCheck,
     DocumentSections, EarningsInsight, EarningsRelease, EstimateFact, EtfHolding, EtfHoldingsFile,
     EtfShares, EtfSharesRecord, Fact, FailToDeliver, FailToDeliverRecord, Filing, FilingText,
-    FomcAnnouncement, FomcMeeting, FundamentalFact, FundamentalMetric, FundamentalPoint,
+    FomcAnnouncement, FomcMeeting, FundamentalFact, FundamentalMetric, FundamentalPoint, FxRate,
     IndexHistory, InsiderFiling, InsiderPlan, InsiderReport, InsiderTrade, Instrument,
     InstrumentProfile, Liquidity, MacroObservation, MacroPoint, MacroSeries, ModelBatch,
-    ModelRequest, ModelSpend, NewsArticle, OptionQuote, OptionQuoteRecord, PageViews,
-    PendingDelisting, PressCandidate, PressExhibit, PressRelease, RecipeSection, RecipeState,
-    RecipeVersion, RiskFreeRate, SecFiling, Session, ShortInterest, ShortInterestRecord,
-    ShortVolume, ShortVolumeRecord, StockIndex, Symbol, TextCandidate, Timeframe, TitleViews,
-    TradingHalt, TradingHaltRecord, UnsplitDocument, Watermarks,
+    ModelRequest, ModelSpend, NewsArticle, NordicBar, NordicListing, NordicSplit, OptionQuote,
+    OptionQuoteRecord, PageViews, PendingDelisting, PressCandidate, PressExhibit, PressRelease,
+    RecipeSection, RecipeState, RecipeVersion, RiskFreeRate, SecFiling, Session, ShortInterest,
+    ShortInterestRecord, ShortVolume, ShortVolumeRecord, StockIndex, StoredNordicBar, Symbol,
+    TextCandidate, Timeframe, TitleViews, TradingHalt, TradingHaltRecord, UnsplitDocument,
+    Watermarks,
 };
 use buizz_core::ops::{
     ActionDisagreement, CoverageGap, DataWarning, UNPRICED_DELISTINGS_TOLERATED,
@@ -60,7 +61,7 @@ pub struct EtfDates {
 
 pub(crate) const SCHEMA: &str = include_str!("../schema.sql");
 pub const FILE_NAME: &str = "market.duckdb";
-const APPENDED: [(&str, &str); 31] = [
+const APPENDED: [(&str, &str); 36] = [
     ("ingest_batch", "id"),
     ("borrow_availability", "batch_id"),
     ("option_quote", "batch_id"),
@@ -90,6 +91,11 @@ const APPENDED: [(&str, &str); 31] = [
     ("model_request", "batch_id"),
     ("model_spend", "batch_id"),
     ("fails_to_deliver", "batch_id"),
+    ("nordic_listing", "batch_id"),
+    ("nordic_listing_seen", "batch_id"),
+    ("nordic_bar_1d", "batch_id"),
+    ("nordic_split", "batch_id"),
+    ("fx_rate", "batch_id"),
     ("article_title", "batch_id"),
     ("page_views", "batch_id"),
 ];
@@ -190,6 +196,16 @@ pub struct AccessionProgress {
     pub expected: u64,
     pub done: u64,
     pub failed: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NordicWrite {
+    pub source: DataSource,
+    pub listing: Symbol,
+    pub currency: String,
+    pub at: Timestamp,
+    pub bars: Vec<NordicBar>,
+    pub split: Option<NordicSplit>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1902,6 +1918,70 @@ impl MarketStore {
     ) -> Result<WriteSummary> {
         self.writer
             .run(move |connection| write::seen(connection, source, dataset, day))
+            .await
+    }
+
+    pub async fn append_nordic_listings(
+        &self,
+        source: DataSource,
+        date: NaiveDate,
+        at: Timestamp,
+        changed: Vec<NordicListing>,
+        seen: Vec<Symbol>,
+    ) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| {
+                write::nordic_listings(connection, source, date, at, changed, seen)
+            })
+            .await
+    }
+
+    pub async fn nordic_listed(&self, source: DataSource) -> Result<Vec<NordicListing>> {
+        self.readers
+            .run(move |connection| read::nordic_listed(connection, source))
+            .await
+    }
+
+    pub async fn nordic_bar_dates(
+        &self,
+        source: DataSource,
+    ) -> Result<BTreeMap<Symbol, NaiveDate>> {
+        self.readers
+            .run(move |connection| read::nordic_bar_dates(connection, source))
+            .await
+    }
+
+    pub async fn nordic_history(
+        &self,
+        source: DataSource,
+        listing: Symbol,
+        since: NaiveDate,
+    ) -> Result<(Vec<StoredNordicBar>, Vec<NordicSplit>)> {
+        self.readers
+            .run(move |connection| read::nordic_history(connection, source, &listing, since))
+            .await
+    }
+
+    pub async fn append_nordic_bars(&self, write: NordicWrite) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| write::nordic_bars(connection, write))
+            .await
+    }
+
+    pub async fn fx_rate_dates(&self) -> Result<BTreeMap<String, NaiveDate>> {
+        self.readers
+            .run(|connection| read::fx_rate_dates(connection))
+            .await
+    }
+
+    pub async fn append_fx_rates(
+        &self,
+        source: DataSource,
+        at: Timestamp,
+        rates: Vec<FxRate>,
+    ) -> Result<WriteSummary> {
+        self.writer
+            .run(move |connection| write::fx_rates(connection, source, at, rates))
             .await
     }
 

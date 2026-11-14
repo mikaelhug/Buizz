@@ -13,6 +13,7 @@ buizz-sources.workspace = true
 buizz-state.workspace = true
 blake3.workspace = true
 chrono.workspace = true
+chrono-tz.workspace = true
 futures.workspace = true
 jsonschema.workspace = true
 regex.workspace = true
