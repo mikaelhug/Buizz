@@ -388,7 +388,7 @@ pub(crate) fn ended_quiet_sessions(
     )
 }
 
-const SCATTERED_ROW_GROUPS_TOLERATED: i64 = 1;
+const SCATTERED_ROW_GROUPS_TOLERATED: i64 = 8;
 
 pub(crate) fn scattered_daily_row_groups(connection: &Connection) -> Result<i64> {
     Ok(connection.query_row(
@@ -2461,10 +2461,10 @@ mod tests {
                 .collect::<duckdb::Result<_>>()
                 .unwrap()
         };
-        let bars = |first: NaiveDate, close: i64| -> Vec<Bar> {
+        let bars = |first: NaiveDate, days: usize, close: i64| -> Vec<Bar> {
             first
                 .iter_days()
-                .take(300)
+                .take(days)
                 .flat_map(|date| {
                     (0..20).map(move |index| Bar {
                         symbol: Symbol::new(&format!("S{index:02}")),
@@ -2487,21 +2487,28 @@ mod tests {
         daily_bars(
             &mut connection,
             source,
-            bars(NaiveDate::from_ymd_opt(2016, 1, 4).unwrap(), 2),
+            bars(NaiveDate::from_ymd_opt(2016, 1, 4).unwrap(), 300, 2),
         )
         .unwrap();
         let recent = rows_read(&reader);
         daily_bars(
             &mut connection,
             source,
-            bars(NaiveDate::from_ymd_opt(2000, 1, 3).unwrap(), 1),
+            bars(NaiveDate::from_ymd_opt(2000, 1, 3).unwrap(), 200, 1),
+        )
+        .unwrap();
+        assert_eq!(order_daily_bars(&mut connection).unwrap(), None);
+        daily_bars(
+            &mut connection,
+            source,
+            bars(NaiveDate::from_ymd_opt(2003, 1, 3).unwrap(), 600, 1),
         )
         .unwrap();
         let all = rows_read(&reader);
-        assert_eq!((recent.len(), all.len()), (6_000, 12_000));
+        assert_eq!((recent.len(), all.len()), (6_000, 22_000));
         assert!(scattered_daily_row_groups(&connection).unwrap() > SCATTERED_ROW_GROUPS_TOLERATED);
 
-        assert_eq!(order_daily_bars(&mut connection).unwrap(), Some(12_000));
+        assert_eq!(order_daily_bars(&mut connection).unwrap(), Some(22_000));
         assert_eq!(scattered_daily_row_groups(&connection).unwrap(), 0);
         assert_eq!(order_daily_bars(&mut connection).unwrap(), None);
         assert_eq!(rows_read(&reader), all);
@@ -2509,10 +2516,10 @@ mod tests {
         let revised = daily_bars(
             &mut connection,
             source,
-            bars(NaiveDate::from_ymd_opt(2016, 1, 4).unwrap(), 3),
+            bars(NaiveDate::from_ymd_opt(2016, 1, 4).unwrap(), 300, 3),
         )
         .unwrap();
         assert_eq!(revised.rows, 6_000);
-        assert_eq!(rows_read(&reader).len(), 12_000);
+        assert_eq!(rows_read(&reader).len(), 22_000);
     }
 }

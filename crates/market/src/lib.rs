@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::RangeInclusive;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, PoisonError, RwLock};
 
 use buizz_core::api::{
@@ -219,6 +220,7 @@ struct Shared {
     listings: RwLock<Arc<Listings>>,
     actions: RwLock<Arc<Actions>>,
     watermarks: watch::Sender<Watermarks>,
+    daily_bars_written: AtomicBool,
 }
 
 impl Shared {
@@ -293,6 +295,7 @@ impl MarketStore {
                 listings: RwLock::new(Arc::new(listings)),
                 actions: RwLock::new(Arc::new(actions)),
                 watermarks: watch::Sender::new(Watermarks { day, minute: None }),
+                daily_bars_written: AtomicBool::new(true),
             }),
             text: Arc::new(TextVolumes::default()),
         })
@@ -387,6 +390,7 @@ impl MarketStore {
                 let restored = restore::restore(connection, &parts)?;
                 shared.refresh_listings(connection)?;
                 shared.refresh_actions(connection)?;
+                shared.daily_bars_written.store(true, Ordering::SeqCst);
                 Ok(restored)
             })
             .await
@@ -527,9 +531,16 @@ impl MarketStore {
         timeframe: Timeframe,
         bars: Vec<Bar>,
     ) -> Result<WriteSummary> {
+        let shared = Arc::clone(&self.shared);
         self.writer
             .run(move |connection| match timeframe {
-                Timeframe::Day => write::daily_bars(connection, source, bars),
+                Timeframe::Day => {
+                    let summary = write::daily_bars(connection, source, bars)?;
+                    if summary.rows > 0 {
+                        shared.daily_bars_written.store(true, Ordering::SeqCst);
+                    }
+                    Ok(summary)
+                }
                 Timeframe::Minute => write::minute_bars(connection, source, bars),
             })
             .await
@@ -560,7 +571,14 @@ impl MarketStore {
     }
 
     pub async fn order_daily_bars(&self) -> Result<()> {
-        self.writer.run(keep_daily_bars_ordered).await
+        if !self.shared.daily_bars_written.swap(false, Ordering::SeqCst) {
+            return Ok(());
+        }
+        let ordered = self.writer.run(keep_daily_bars_ordered).await;
+        if ordered.is_err() {
+            self.shared.daily_bars_written.store(true, Ordering::SeqCst);
+        }
+        ordered
     }
 
     pub async fn replace_corporate_actions(
