@@ -55,6 +55,7 @@ ANNUAL_METRICS: list[Metric] = [
     "long_term_debt",
     "long_term_debt_noncurrent",
     "total_liabilities",
+    "total_equity",
     "minority_interest",
     "retained_earnings",
 ]
@@ -136,6 +137,9 @@ def total_liabilities(annual: Annual, symbol: str, end: date) -> float | None:
     if reported is not None:
         return reported
     assets = amount(annual, symbol, "total_assets", end)
+    total_equity = amount(annual, symbol, "total_equity", end)
+    if assets is not None and total_equity is not None:
+        return assets - total_equity
     equity = amount(annual, symbol, "equity", end)
     if assets is None or equity is None:
         return None

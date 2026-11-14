@@ -466,6 +466,7 @@ pub enum FundamentalMetric {
     Buildings,
     PpeGross,
     Advertising,
+    TotalEquity,
 }
 
 #[derive(

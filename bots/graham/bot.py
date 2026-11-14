@@ -13,6 +13,7 @@ NET_NET_METRICS: list[Metric] = [
     "total_liabilities",
     "total_assets",
     "equity",
+    "total_equity",
     "minority_interest",
     "preferred_stock",
     "shares_outstanding",
@@ -59,6 +60,9 @@ def total_liabilities(facts: Facts, day: date) -> float | None:
     if reported is not None:
         return reported
     assets = instants(facts, "total_assets").get(day)
+    total_equity = instants(facts, "total_equity").get(day)
+    if assets is not None and total_equity is not None:
+        return assets - total_equity
     equity = instants(facts, "equity").get(day)
     if assets is None or equity is None:
         return None

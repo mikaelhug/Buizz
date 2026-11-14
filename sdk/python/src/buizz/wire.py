@@ -112,6 +112,7 @@ type Metric = Literal[
     "buildings",
     "ppe_gross",
     "advertising",
+    "total_equity",
 ]
 
 

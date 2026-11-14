@@ -71,6 +71,11 @@ pub const US_GAAP_PRIMARY: &[Entry] = &[
     ("InventoryNet", M::Inventory, Currency),
     ("AccountsReceivableNetCurrent", M::Receivables, Currency),
     ("PropertyPlantAndEquipmentNet", M::PpeNet, Currency),
+    (
+        "PropertyPlantAndEquipmentAndFinanceLeaseRightOfUseAssetAfterAccumulatedDepreciationAndAmortization",
+        M::PpeNet,
+        Currency,
+    ),
     ("Goodwill", M::Goodwill, Currency),
     ("LiabilitiesCurrent", M::CurrentLiabilities, Currency),
     ("LongTermDebtNoncurrent", M::LongTermDebt, Currency),
@@ -80,6 +85,11 @@ pub const US_GAAP_PRIMARY: &[Entry] = &[
     (
         "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
         M::Equity,
+        Currency,
+    ),
+    (
+        "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
+        M::TotalEquity,
         Currency,
     ),
     (
@@ -113,6 +123,7 @@ pub const US_GAAP_PRIMARY: &[Entry] = &[
         M::Capex,
         Currency,
     ),
+    ("PaymentsToAcquireProductiveAssets", M::Capex, Currency),
     (
         "NetCashProvidedByUsedInInvestingActivities",
         M::InvestingCashFlow,
@@ -195,6 +206,11 @@ pub const US_GAAP_PRIMARY: &[Entry] = &[
     ("LandAndLandImprovements", M::Land, Currency),
     ("BuildingsAndImprovementsGross", M::Buildings, Currency),
     ("PropertyPlantAndEquipmentGross", M::PpeGross, Currency),
+    (
+        "PropertyPlantAndEquipmentAndFinanceLeaseRightOfUseAssetBeforeAccumulatedDepreciationAndAmortization",
+        M::PpeGross,
+        Currency,
+    ),
     ("AdvertisingExpense", M::Advertising, Currency),
 ];
 
@@ -241,6 +257,7 @@ pub const IFRS_PRIMARY: &[Entry] = &[
     ("CurrentLiabilities", M::CurrentLiabilities, Currency),
     ("EquityAttributableToOwnersOfParent", M::Equity, Currency),
     ("Equity", M::Equity, Currency),
+    ("Equity", M::TotalEquity, Currency),
     ("CashAndCashEquivalents", M::CashAndEquivalents, Currency),
     ("Goodwill", M::Goodwill, Currency),
     ("Inventories", M::Inventory, Currency),
