@@ -203,6 +203,7 @@ struct Restored {
 pub(crate) async fn run(mut launch: Launch) {
     let inner = Arc::clone(&launch.inner);
     let run_id = launch.run.id;
+    let (bot, mode) = (launch.run.bot.clone(), launch.run.mode);
     let token = inner.issue_token(run_id);
     let (exit, closing) = match prepare(&inner, &launch.run, &mut launch.receiver).await {
         Err(exit) => (exit, None),
@@ -240,15 +241,18 @@ pub(crate) async fn run(mut launch: Launch) {
     {
         tracing::error!(run = %run_id, %error, "cannot record the end of a run");
     }
-    if let Some((message, started)) = outdated {
-        let runner = crate::Runner {
-            inner: Arc::clone(&inner),
-        };
-        if let Err(error) = runner.requeue(run_id, message, started).await {
-            tracing::error!(run = %run_id, %error, "cannot queue an outdated run again");
-        }
+    let runner = crate::Runner {
+        inner: Arc::clone(&inner),
+    };
+    if let Some((message, started)) = outdated
+        && let Err(error) = runner.requeue(run_id, message, started).await
+    {
+        tracing::error!(run = %run_id, %error, "cannot queue an outdated run again");
     }
     inner.forget(run_id, &token);
+    if mode == Mode::Backtest && status.is_some() {
+        runner.auto_live_after(bot);
+    }
 }
 
 type Prepared = (Option<BacktestSlot>, BTreeSet<Symbol>);

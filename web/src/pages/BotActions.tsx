@@ -155,7 +155,7 @@ export function ScreenedLiveButton({ onStarted }: { onStarted: (bots: string[]) 
         <Modal title="Go live with every screened variant?" confirmLabel="Go live" busy={busy} onConfirm={() => void start()} onCancel={() => setAsking(false)}>
           <p className="dialog-message">
             Every variant that passes the screening gate on its bot's gate period starts a live paper run from its backtest, the plateau first, up to three live variants per bot. Variants already live are left as
-            they are.
+            they are, and runs the gate started on a bot's older code end to make room. The spine also does this by itself whenever a bot's backtests finish.
           </p>
         </Modal>
       )}

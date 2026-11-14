@@ -9,7 +9,7 @@ mod research;
 mod study;
 mod timeline;
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, PoisonError};
 
@@ -84,6 +84,7 @@ pub struct RunnerConfig {
     pub bots_dir: PathBuf,
     pub start_cash: Decimal,
     pub auto_screen: bool,
+    pub auto_live: bool,
 }
 
 pub struct RunnerDeps {
@@ -114,6 +115,7 @@ pub(crate) struct Inner {
     benchmarks: Mutex<Option<Arc<research::Benchmarks>>>,
     queue: queue::BacktestQueue,
     queueing: tokio::sync::Mutex<()>,
+    going_live: tokio::sync::Mutex<()>,
     unscreened: Mutex<BTreeMap<String, String>>,
     instruments: Arc<timeline::Instruments>,
 }
@@ -213,6 +215,7 @@ impl Runner {
                 benchmarks: Mutex::default(),
                 queue: queue::BacktestQueue::default(),
                 queueing: tokio::sync::Mutex::default(),
+                going_live: tokio::sync::Mutex::default(),
                 unscreened: Mutex::default(),
                 instruments: Arc::default(),
             }),
@@ -550,21 +553,7 @@ impl Runner {
             )
             .await?
             .remove(0);
-        let seq = drive::last_event_seq(&self.inner, new.id).await? + 1;
-        self.inner
-            .state
-            .append_events(
-                new.id,
-                vec![RunEvent {
-                    seq,
-                    at: Timestamp::now(),
-                    clock: None,
-                    kind: RunEventKind::Log {
-                        level: LogLevel::Info,
-                        message: format!("queued again from run {}: {why}", run.id),
-                    },
-                }],
-            )
+        self.log(new.id, format!("queued again from run {}: {why}", run.id))
             .await?;
         Ok(Replacement::Queued(Box::new((new, spec))))
     }
@@ -616,6 +605,16 @@ impl Runner {
         bot: &str,
         from_run: Option<RunId>,
         origin: RunOrigin,
+    ) -> Result<RunSummary, RunnerError> {
+        self.start_live(bot, from_run, origin, None).await
+    }
+
+    async fn start_live(
+        &self,
+        bot: &str,
+        from_run: Option<RunId>,
+        origin: RunOrigin,
+        why: Option<String>,
     ) -> Result<RunSummary, RunnerError> {
         let spec = self.inner.bot(bot).await?;
         let today = Timestamp::now().exchange_date();
@@ -670,6 +669,11 @@ impl Runner {
             }
             created => created?.remove(0),
         };
+        if let Some(why) = why
+            && let Err(error) = self.log(run.id, why).await
+        {
+            tracing::warn!(run = %run.id, %error, "cannot log why the run went live");
+        }
         let lease =
             streamed.and_then(|universe| self.inner.feed.acquire(run.id, &run.bot, universe).ok());
         self.spawn(run.clone(), spec, lease);
@@ -678,64 +682,210 @@ impl Runner {
 
     pub async fn go_live_screened(&self) -> Result<ScreenedLive, RunnerError> {
         let benchmarks = self.benchmarks();
+        let mut outcome = ScreenedLive::default();
+        for spec in self.bots().bots {
+            self.live_screened(&spec, &benchmarks, false, &mut outcome)
+                .await?;
+        }
+        Ok(outcome)
+    }
+
+    pub async fn auto_live(&self) {
+        if !self.inner.config.auto_live {
+            return;
+        }
+        let benchmarks = self.benchmarks();
+        for spec in self.bots().bots {
+            self.auto_live_bot(&spec, &benchmarks).await;
+        }
+    }
+
+    pub(crate) fn auto_live_after(&self, bot: String) {
+        if !self.inner.config.auto_live {
+            return;
+        }
+        let runner = self.clone();
+        tokio::spawn(async move {
+            match runner.inner.bot(&bot).await {
+                Ok(spec) => runner.auto_live_bot(&spec, &runner.benchmarks()).await,
+                Err(error) => tracing::warn!(%bot, %error, "cannot load the bot to go live"),
+            }
+        });
+    }
+
+    async fn auto_live_bot(&self, spec: &BotSpec, benchmarks: &Benchmarks) {
+        let mut outcome = ScreenedLive::default();
+        let went = match self.backtesting(spec).await {
+            Ok(true) => return,
+            Ok(false) => {
+                self.live_screened(spec, benchmarks, true, &mut outcome)
+                    .await
+            }
+            Err(error) => Err(error),
+        };
+        if let Err(error) = went {
+            tracing::warn!(bot = %spec.name, %error, "cannot put the screened variants live");
+        }
+        for variant in &outcome.started {
+            tracing::info!(bot = %spec.name, run = ?variant.run_id, from = ?variant.from_run, "went live automatically");
+        }
+    }
+
+    async fn backtesting(&self, spec: &BotSpec) -> Result<bool, RunnerError> {
+        let pending = self
+            .inner
+            .state
+            .runs(RunFilter {
+                bot: Some(spec.name.clone()),
+                code: Some(spec.code()),
+                mode: Some(Mode::Backtest),
+                statuses: vec![RunStatus::Queued, RunStatus::Starting, RunStatus::Running],
+                limit: Some(1),
+                ..RunFilter::default()
+            })
+            .await?;
+        Ok(!pending.is_empty())
+    }
+
+    async fn live_screened(
+        &self,
+        spec: &BotSpec,
+        benchmarks: &Benchmarks,
+        automatic: bool,
+        outcome: &mut ScreenedLive,
+    ) -> Result<(), RunnerError> {
+        let _going_live = self.inner.going_live.lock().await;
+        let passing = self.passing_variants(spec, benchmarks).await?;
+        if passing.is_empty() {
+            outcome.skipped.push(ScreenedVariant {
+                bot: spec.name.clone(),
+                from_run: None,
+                params: None,
+                run_id: None,
+                reason: Some("no variant passes the screening gate".to_owned()),
+            });
+            return Ok(());
+        }
         let live = self
             .inner
             .state
             .runs(RunFilter {
+                bot: Some(spec.name.clone()),
                 mode: Some(Mode::Live),
                 statuses: RunStatus::ACTIVE.to_vec(),
                 ..RunFilter::default()
             })
             .await?;
-        let mut outcome = ScreenedLive::default();
-        for spec in self.bots().bots {
-            let mut variants: Vec<&Map<String, Value>> = live
-                .iter()
-                .filter(|run| run.bot == spec.name)
-                .map(|run| &run.config.params)
-                .collect();
-            let passing = self.passing_variants(&spec, &benchmarks).await?;
-            if passing.is_empty() {
-                outcome.skipped.push(ScreenedVariant {
-                    bot: spec.name.clone(),
-                    from_run: None,
-                    params: None,
-                    run_id: None,
-                    reason: Some("no variant passes the screening gate".to_owned()),
-                });
-            }
-            for source in &passing {
-                let skip = if variants.contains(&&source.config.params) {
-                    Some("already live".to_owned())
-                } else if variants.len() >= MAX_LIVE_VARIANTS as usize {
-                    Some(format!("the bot has {MAX_LIVE_VARIANTS} live variants"))
-                } else {
-                    None
-                };
-                let started = match skip {
-                    Some(reason) => Err(reason),
-                    None => self
-                        .go_live(&spec.name, Some(source.id), RunOrigin::Screening)
-                        .await
-                        .map_err(|error| error.to_string()),
-                };
-                let variant = ScreenedVariant {
-                    bot: spec.name.clone(),
-                    from_run: Some(source.id),
-                    params: Some(source.config.params.clone()),
-                    run_id: started.as_ref().ok().map(|run| run.id),
-                    reason: started.as_ref().err().cloned(),
-                };
-                match started {
-                    Ok(_) => {
-                        variants.push(&source.config.params);
-                        outcome.started.push(variant);
-                    }
-                    Err(_) => outcome.skipped.push(variant),
-                }
+        let code = spec.code();
+        let holdings: Vec<Holding<'_>> = live
+            .iter()
+            .map(|run| Holding {
+                run_id: run.id,
+                params: &run.config.params,
+                gate_started: run.origin == RunOrigin::Screening,
+                outdated: run
+                    .reproducibility
+                    .as_ref()
+                    .is_some_and(|record| !record.code().same_as(&code)),
+            })
+            .collect();
+        let wanted: Vec<&Map<String, Value>> = passing
+            .iter()
+            .map(|variant| &variant.run.config.params)
+            .collect();
+        let plan = live_plan(&holdings, &wanted);
+        self.retire(
+            &plan.retired,
+            format!(
+                "the new code of bot {} passes the screening gate, so this run of its older code \
+                 made room for it",
+                spec.name
+            ),
+        )
+        .await?;
+        for (variant, refusal) in passing.iter().zip(plan.refusals) {
+            let source = variant.run.id;
+            let why = if automatic {
+                format!(
+                    "went live automatically from backtest #{source}: {}",
+                    variant.gate()
+                )
+            } else {
+                format!(
+                    "went live on request from backtest #{source}: {}",
+                    variant.gate()
+                )
+            };
+            let started = match refusal {
+                Some(reason) => Err(reason),
+                None => self
+                    .start_live(&spec.name, Some(source), RunOrigin::Screening, Some(why))
+                    .await
+                    .map_err(|error| error.to_string()),
+            };
+            let screened = ScreenedVariant {
+                bot: spec.name.clone(),
+                from_run: Some(source),
+                params: Some(variant.run.config.params.clone()),
+                run_id: started.as_ref().ok().map(|run| run.id),
+                reason: started.as_ref().err().cloned(),
+            };
+            match started {
+                Ok(_) => outcome.started.push(screened),
+                Err(_) => outcome.skipped.push(screened),
             }
         }
-        Ok(outcome)
+        Ok(())
+    }
+
+    async fn retire(&self, run_ids: &[RunId], reason: String) -> Result<(), RunnerError> {
+        let mut events = self.inner.events.subscribe();
+        let mut ending = BTreeSet::new();
+        for &run_id in run_ids {
+            if !self
+                .cancel(run_id, Some(reason.clone()))
+                .await?
+                .status
+                .is_finished()
+            {
+                ending.insert(run_id);
+            }
+        }
+        while !ending.is_empty() {
+            match events.recv().await {
+                Ok(SpineEvent::RunStatus { run_id, status, .. }) if status.is_finished() => {
+                    ending.remove(&run_id);
+                }
+                Ok(_) => {}
+                Err(broadcast::error::RecvError::Lagged(_)) => {
+                    for run_id in ending.clone() {
+                        if self.summary(run_id).await?.status.is_finished() {
+                            ending.remove(&run_id);
+                        }
+                    }
+                }
+                Err(broadcast::error::RecvError::Closed) => break,
+            }
+        }
+        Ok(())
+    }
+
+    async fn log(&self, run_id: RunId, message: String) -> Result<(), RunnerError> {
+        let event = RunEvent {
+            seq: drive::last_event_seq(&self.inner, run_id).await? + 1,
+            at: Timestamp::now(),
+            clock: None,
+            kind: RunEventKind::Log {
+                level: LogLevel::Info,
+                message,
+            },
+        };
+        self.inner
+            .state
+            .append_events(run_id, vec![event.clone()])
+            .await?;
+        self.inner.broadcast(SpineEvent::Log { run_id, event });
+        Ok(())
     }
 
     pub async fn pause(&self, run_id: RunId) -> Result<RunSummary, RunnerError> {
@@ -1198,6 +1348,57 @@ fn same_trial(left: &RunConfig, right: &RunConfig) -> bool {
     } == *right
 }
 
+struct Holding<'a> {
+    run_id: RunId,
+    params: &'a Map<String, Value>,
+    gate_started: bool,
+    outdated: bool,
+}
+
+struct LivePlan {
+    retired: Vec<RunId>,
+    refusals: Vec<Option<String>>,
+}
+
+fn live_plan(live: &[Holding<'_>], passing: &[&Map<String, Value>]) -> LivePlan {
+    let replaced =
+        |holding: &Holding<'_>| !passing.is_empty() && holding.gate_started && holding.outdated;
+    let mut held: Vec<(Option<&Holding<'_>>, &Map<String, Value>)> = live
+        .iter()
+        .filter(|holding| !replaced(holding))
+        .map(|holding| (Some(holding), holding.params))
+        .collect();
+    let refusals = passing
+        .iter()
+        .map(|&params| {
+            let refusal = match held.iter().find(|(_, live)| *live == params) {
+                Some((Some(holding), _)) if holding.outdated => Some(format!(
+                    "run {} holds this variant on the bot's older code; stop it to put the new \
+                     code live",
+                    holding.run_id
+                )),
+                Some(_) => Some("already live".to_owned()),
+                None if held.len() >= MAX_LIVE_VARIANTS as usize => {
+                    Some(format!("the bot has {MAX_LIVE_VARIANTS} live variants"))
+                }
+                None => None,
+            };
+            if refusal.is_none() {
+                held.push((None, params));
+            }
+            refusal
+        })
+        .collect();
+    LivePlan {
+        retired: live
+            .iter()
+            .filter(|holding| replaced(holding))
+            .map(|holding| holding.run_id)
+            .collect(),
+        refusals,
+    }
+}
+
 fn median(values: impl Iterator<Item = f64>) -> f64 {
     let mut values: Vec<f64> = values.collect();
     values.sort_by(f64::total_cmp);
@@ -1347,5 +1548,57 @@ pub(crate) fn describe(warning: &DataWarning) -> String {
                 value(&disagreement.tiingo),
             )
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn new_code_that_passes_the_gate_replaces_only_the_gates_own_runs_of_older_code() {
+        let params: Vec<Map<String, Value>> = (1..=5)
+            .map(|a| match json!({ "a": a }) {
+                Value::Object(params) => params,
+                _ => unreachable!(),
+            })
+            .collect();
+        let holding = |run_id: usize, gate_started: bool, outdated: bool| Holding {
+            run_id: RunId(i64::try_from(run_id).expect("a small run id")),
+            params: &params[run_id - 1],
+            gate_started,
+            outdated,
+        };
+        let live = [
+            holding(1, false, true),
+            holding(2, true, true),
+            holding(3, true, false),
+        ];
+        let passing: Vec<&Map<String, Value>> = params.iter().collect();
+
+        let plan = live_plan(&live, &passing);
+
+        assert_eq!(plan.retired, [RunId(2)]);
+        let limit = Some("the bot has 3 live variants".to_owned());
+        assert_eq!(
+            plan.refusals,
+            [
+                Some(
+                    "run 1 holds this variant on the bot's older code; stop it to put the new \
+                     code live"
+                        .to_owned()
+                ),
+                None,
+                Some("already live".to_owned()),
+                limit.clone(),
+                limit,
+            ]
+        );
+        assert!(
+            live_plan(&live, &[]).retired.is_empty(),
+            "a run of older code stays paused until the new code passes the gate"
+        );
     }
 }

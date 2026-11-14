@@ -187,6 +187,7 @@ async fn serve() -> Result<()> {
             bots_dir: config.bots_dir.clone(),
             start_cash: START_CASH,
             auto_screen: config.auto_screen,
+            auto_live: config.auto_live,
         },
         RunnerDeps {
             market: market.clone(),
@@ -199,7 +200,10 @@ async fn serve() -> Result<()> {
     runner.recover().await?;
     let screening = tokio::spawn({
         let runner = runner.clone();
-        async move { runner.screen(Timestamp::now().exchange_date()).await }
+        async move {
+            runner.screen(Timestamp::now().exchange_date()).await;
+            runner.auto_live().await;
+        }
     });
 
     let feed_task = feed.spawn();

@@ -484,28 +484,74 @@ impl Runner {
         &self,
         spec: &BotSpec,
         benchmarks: &Benchmarks,
-    ) -> Result<Vec<RunSummary>, RunnerError> {
+    ) -> Result<Vec<Passing>, RunnerError> {
         let mut presets = self.screened_runs(spec).await?;
-        let Some(runs) = gate_preset(&presets).and_then(|preset| presets.remove(&preset)) else {
+        let Some(preset) = gate_preset(&presets) else {
             return Ok(Vec::new());
         };
+        let runs = presets.remove(&preset).unwrap_or_default();
         let gated = gated(&runs, benchmarks).await?;
-        let mut passing: Vec<(bool, f64, RunSummary)> = runs
+        let mut passing: Vec<Passing> = runs
             .into_iter()
             .zip(&gated.judged)
             .zip(&gated.neighbourhood)
             .filter(|((run, judged), _)| {
                 run.status == RunStatus::Completed && judged.screen.failed_checks.is_empty()
             })
-            .map(|((run, _), neighbourhood)| {
-                let sharpe = neighbourhood
-                    .or_else(|| run.metrics.as_ref().and_then(|metrics| metrics.sharpe))
-                    .unwrap_or(f64::NEG_INFINITY);
-                (gated.plateau == Some(run.id), sharpe, run)
+            .map(|((run, _), neighbourhood)| Passing {
+                preset,
+                plateau: gated.plateau == Some(run.id),
+                neighbourhood_sharpe: *neighbourhood,
+                run,
             })
             .collect();
-        passing.sort_by(|left, right| right.0.cmp(&left.0).then(right.1.total_cmp(&left.1)));
-        Ok(passing.into_iter().map(|(.., run)| run).collect())
+        let rank = |variant: &Passing| {
+            variant
+                .neighbourhood_sharpe
+                .or_else(|| variant.sharpe())
+                .unwrap_or(f64::NEG_INFINITY)
+        };
+        passing.sort_by(|left, right| {
+            right
+                .plateau
+                .cmp(&left.plateau)
+                .then(rank(right).total_cmp(&rank(left)))
+        });
+        Ok(passing)
+    }
+}
+
+pub(crate) struct Passing {
+    pub(crate) run: RunSummary,
+    pub(crate) preset: PeriodPreset,
+    pub(crate) plateau: bool,
+    pub(crate) neighbourhood_sharpe: Option<f64>,
+}
+
+impl Passing {
+    fn sharpe(&self) -> Option<f64> {
+        self.run.metrics.as_ref().and_then(|metrics| metrics.sharpe)
+    }
+
+    pub(crate) fn gate(&self) -> String {
+        let figures: Vec<String> = [
+            self.sharpe().map(|sharpe| format!("Sharpe {sharpe:.2}")),
+            self.neighbourhood_sharpe
+                .map(|sharpe| format!("neighbourhood median Sharpe {sharpe:.2}")),
+            self.plateau.then(|| "the plateau".to_owned()),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
+        let gate = format!(
+            "it passes every check of the screening gate on the {} preset",
+            self.preset
+        );
+        if figures.is_empty() {
+            gate
+        } else {
+            format!("{gate} ({})", figures.join(", "))
+        }
     }
 }
 

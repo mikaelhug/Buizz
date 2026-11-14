@@ -61,6 +61,7 @@ pub struct Config {
     pub duckdb_threads: usize,
     pub live_slots: usize,
     pub auto_screen: bool,
+    pub auto_live: bool,
     pub bot_memory: Option<u64>,
 }
 
@@ -310,6 +311,7 @@ impl Config {
                 None => std::thread::available_parallelism().map_or(1, usize::from),
             },
             auto_screen: flag("BUIZZ_AUTO_SCREEN", true)?,
+            auto_live: flag("BUIZZ_AUTO_LIVE", true)?,
         })
     }
 

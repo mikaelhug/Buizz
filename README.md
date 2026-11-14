@@ -38,7 +38,7 @@ The other bots in `bots/` need real data: set the provider keys below and start 
 | `just gen` | Regenerate the golden protocol frames, `openapi.json` and the web API types |
 | `just drift` | Fail if the generated files differ from the code |
 | `buizz bots` | List bots with stage, timeframe and live variants |
-| `buizz live-screened` | Put every variant that passes the screening gate live from its backtest, plateau first, up to three live variants per bot, and list what started and why the rest did not (the Bots page's Go live with screened does the same) |
+| `buizz live-screened` | Put every variant that passes the screening gate live from its backtest, plateau first, up to three live variants per bot, and list what started and why the rest did not (the Bots page's Go live with screened does the same, and `BUIZZ_AUTO_LIVE` does it by itself) |
 | `buizz backtest bots/<name> --from YYYY-MM-DD --to YYYY-MM-DD [--param key=value]...` | Backtest a bot, wait, print metrics and an order summary |
 | `buizz sweep bots/<name> [--preset 10y] --grid key=v1,v2,...` | Queue a backtest for every combination of param values; variants already run are skipped |
 | `buizz event-study <events.csv\|.jsonl> [--label name] [--benchmark SYM] [--cost field=value]...` | Measure net and gross abnormal returns 1, 5, 21 and 63 sessions after dated events (`symbol`, `at`), with clustering-robust t-statistics and the luck line over every study run (see [Event studies](docs/writing-a-bot.md#event-studies)) |
@@ -94,6 +94,7 @@ The spine (`cargo run -p buizz-spine`) reads these environment variables. Empty 
 | `BUIZZ_TEXT_DIRS` | unset | Comma-separated directories, usually one per disk, where filings are kept as filed and as text (see `docs/architecture.md`, Where state lives); unset, documents are not harvested |
 | `BUIZZ_TEXT_FILL_LIMIT` | `0.9` | Share of a text volume's disk above which it takes no new files; the e2e spines set 1, since their volumes share the developer's disk |
 | `BUIZZ_AUTO_SCREEN` | `true` | At every start, queue a 10-year backtest of each bot's default params whose current code has none queued, running or completed, cheapest bots first; `false` queues only what is asked for |
+| `BUIZZ_AUTO_LIVE` | `true` | Put a bot's gate-passing variants live as paper runs by themselves, as `buizz live-screened` does, once its last queued or running backtest finishes and once at every start; `false` leaves it to that command or the Bots page's button |
 | `BUIZZ_LIVE_SLOTS` | `2` | Live bot processes that may start and take their first step of a session at once; backtests run on one fewer than the CPUs |
 | `RUST_LOG` | `info,html5ever=error` | Log filter (the HTML parser's warnings about malformed filings stay quiet) |
 

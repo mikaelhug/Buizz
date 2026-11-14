@@ -588,6 +588,18 @@ impl Period {
     }
 }
 
+impl fmt::Display for PeriodPreset {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::OneYear => "1y",
+            Self::ThreeYears => "3y",
+            Self::FiveYears => "5y",
+            Self::TenYears => "10y",
+            Self::Holdout => "holdout",
+        })
+    }
+}
+
 impl PeriodPreset {
     pub const SCREENING: [Self; 4] = [
         Self::TenYears,

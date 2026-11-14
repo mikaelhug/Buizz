@@ -68,13 +68,17 @@ function RunBadge({ badge, universe }: { badge: Schemas["RunBadge"]; universe: S
 export function RunBadges({ run }: { run: Schemas["RunSummary"] }) {
   return (
     <>
-      {run.origin === "screening" && (
-        <Explain label="Automatic screening" className="badge badge-button" trigger="Automatic screening">
-          {run.mode === "live"
-            ? "This variant went live with every screened variant at once, from its backtest that passes the screening gate."
-            : "The spine queued this backtest of the bot's default params on the 10-year preset by itself, at start-up, because the bot's current code had none queued, running or completed."}
-        </Explain>
-      )}
+      {run.origin === "screening" &&
+        (run.mode === "live" ? (
+          <Explain label="Automatic live" className="badge badge-button" trigger="Automatic live">
+            The spine put this variant live from backtest #{run.source_run} because it passes the screening gate: by itself as soon as the backtest finished or at start-up, or when Go live with screened was
+            pressed. The first line of its log says which, with the gate result.
+          </Explain>
+        ) : (
+          <Explain label="Automatic screening" className="badge badge-button" trigger="Automatic screening">
+            The spine queued this backtest of the bot's default params on the 10-year preset by itself, at start-up, because the bot's current code had none queued, running or completed.
+          </Explain>
+        ))}
       {run.badges.map((badge) => (
         <RunBadge key={badge} badge={badge} universe={run.config.universe} />
       ))}
