@@ -195,7 +195,9 @@ pub(crate) fn register(
                 version.recipe, version.version
             )));
         }
-        sync_views(connection)?;
+        let transaction = connection.transaction()?;
+        sync_views(&transaction)?;
+        transaction.commit()?;
         return Ok(known);
     }
     write_batch(
@@ -203,9 +205,12 @@ pub(crate) fn register(
         source,
         dataset,
         Coverage::new(),
-        |transaction, batch_id| append(transaction, &version, batch_id),
+        |transaction, batch_id| {
+            let rows = append(transaction, &version, batch_id)?;
+            sync_views(transaction)?;
+            Ok(rows)
+        },
     )?;
-    sync_views(connection)?;
     Ok(version)
 }
 
@@ -283,10 +288,11 @@ pub(crate) fn advance(
                     batch_id,
                 )?;
             }
+            sync_views(transaction)?;
             Ok(rows)
         },
     )?;
-    sync_views(connection)
+    Ok(())
 }
 
 pub(crate) fn typed_columns(schema: &str) -> std::result::Result<Vec<(String, String)>, String> {

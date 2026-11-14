@@ -1072,17 +1072,17 @@ impl MarketStore {
         let volumes = Arc::clone(&self.text);
         self.readers
             .run(move |connection| {
-                let Some((volume, path, hash)) = read::text_location(connection, &doc_id)? else {
+                let snapshot = connection.transaction()?;
+                let Some((volume, path, hash)) = read::text_location(&snapshot, &doc_id)? else {
                     return Ok(None);
                 };
                 let root = volumes.root(&volume).ok_or_else(|| {
                     MarketError::Text(format!("volume {volume} holding {doc_id} is not mounted"))
                 })?;
-                let text = read::parquet_text(connection, &root.join(&path), &doc_id, &hash)?;
+                let text = read::parquet_text(&snapshot, &root.join(&path), &doc_id, &hash)?;
                 let chars = text.as_ref().map_or(0, |text| text.chars().count());
-                let (sections, split_failure) =
-                    read::document_sections(connection, &doc_id, &hash)?;
-                let facts = recipe::document_facts(connection, &doc_id)?;
+                let (sections, split_failure) = read::document_sections(&snapshot, &doc_id, &hash)?;
+                let facts = recipe::document_facts(&snapshot, &doc_id)?;
                 Ok(Some(TextDocumentText {
                     facts,
                     sections,
