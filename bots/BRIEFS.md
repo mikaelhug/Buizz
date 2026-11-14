@@ -115,7 +115,7 @@ Execution rule: papers that rebalance monthly or less often trade at the signal'
 
 | Bot | Idea | Gaps |
 |---|---|---|
-| `buffett` | Frazzini–Kabiller–Pedersen systematic Buffett: beta 0.68 plus factor tilts in Berkshire's proportions, scaled to its volatility | G1, G2, G4, G10, G11, G13, G15, G16, G17 |
+| `buffett` | Variant `owner` (implemented): about 12 concentrated businesses with long owner-earnings records, bought at an owner-earnings yield, added to on drops, sold only on a broken thesis. Remaining: variant `systematic`'s long/short Frazzini–Kabiller–Pedersen book, beta 0.68 plus factor tilts in Berkshire's proportions, scaled to its volatility | G1, G2, G4, G10, G11, G13, G15, G16, G17 |
 | `munger` | At most four Gray–Carlisle franchise-power compounders at a fair price, cash in BIL until then or until a panic, added to on weakness, sold only on a thesis break | G2, G3, G16 |
 | `graham` | Graham-Newman's general portfolio: net-nets, then 1976-rule passers, 30 slots of a 25% to 75% stock share set by market temperature, the rest in IEF; sold at +50%, after two calendar years or on a dividend cut; the defensive criteria remain | G14 (defensive variant) |
 | `singleton` | Companies shrinking their shares by buying back below 15 times earnings with insiders not selling, held for years and sold on the company's own behaviour; the monthly purchase prices and self-tenders remain | G24 (strong variant) |

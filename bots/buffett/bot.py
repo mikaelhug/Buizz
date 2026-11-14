@@ -1,666 +1,548 @@
-import math
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
 from datetime import date, timedelta
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 import numpy as np
-import numpy.typing as npt
-from buizz_bots.beta import HISTORY_BARS, bab_weights, frazzini_pedersen_beta
-from buizz_bots.drift import rebalance_within_band
 from buizz_bots.fundamentals import (
-    DOMESTIC_ANNUAL_FORMS,
-    DOMESTIC_FORMS,
-    MAX_STALENESS_DAYS,
     Annual,
-    adjusted_shares,
     amount,
     amount_or_zero,
-    by_symbol,
-    current_debt,
+    consecutive_fiscal_ends,
     domestic_annual,
-    gross_profit,
-    in_dollars,
-    latest_filing,
-    latest_shares,
+    histories_since,
     total_debt,
     traded_today,
-    with_fourth_quarters,
     year_end_shares,
 )
-from buizz_bots.monthly import momentum
-from buizz_bots.ranks import MIN_CROSS_SECTION, rank_z
-from buizz_bots.sessions import last_session_of_month
+from buizz_bots.macro import latest_monthly
+from buizz_bots.persona import (
+    Buy,
+    Ladder,
+    Sell,
+    candidates,
+    ladder_weight,
+    new_filings,
+    restated,
+    stock_weights,
+    trade,
+)
+from buizz_bots.ranks import percentiles
+from buizz_bots.sessions import week_ends
+from systematic import AnnualCache, rebalance
 
-from buizz import Bot, Context, FundamentalPoint, History, MacroPoint, Metric, run
+from buizz import Bot, Context, InsiderTrade, MacroPoint, Metric, run, split_ratio
 
-QUARTERLY_METRICS: list[Metric] = ["net_income", "equity", "preferred_stock", "shares_outstanding"]
-ANNUAL_METRICS: list[Metric] = [
-    "revenue",
-    "cost_of_revenue",
-    "gross_profit",
+VARIANTS = ("owner", "systematic")
+METRICS: list[Metric] = [
     "operating_income",
-    "pretax_income",
+    "net_income",
     "depreciation_amortization",
     "capex",
-    "total_assets",
-    "current_assets",
-    "cash_and_equivalents",
-    "short_term_investments",
-    "current_liabilities",
+    "equity",
+    "pretax_income",
+    "dividends_paid",
+    "share_repurchases",
+    "shares_outstanding",
     "short_term_debt",
     "short_term_borrowings",
     "current_long_term_debt",
-    "income_taxes_payable",
     "long_term_debt",
     "long_term_debt_noncurrent",
-    "total_liabilities",
-    "total_equity",
-    "minority_interest",
-    "retained_earnings",
 ]
-FACTORS = ("mkt", "smb", "hml", "umd", "bab", "qmj")
-PROFITABILITY = ("gpoa", "roe", "roa", "cfoa", "gmar", "acc")
-GROWTH = ("growth_gpoa", "growth_roe", "growth_roa", "growth_cfoa", "growth_gmar")
-SAFETY = ("bab", "lev", "ohlson", "altman", "evol")
-MARKET = "VTI"
+FINANCIALS = range(6000, 7000)
 CHUNK = 200
-DOLLAR_VOLUME_SESSIONS = 20
-YEAR_TOLERANCE_DAYS = 45
-EVOL_QUARTERS = 60
-EVOL_MIN_QUARTERS = 12
-GROWTH_YEARS = 5
-YEAR_LAGS = (0, 1, GROWTH_YEARS, GROWTH_YEARS + 1)
-BREAKPOINTS = (0.3, 0.7)
+CPI_BASE_YEAR = 2014
+RATE_LOOKBACK_DAYS = 14
+RESTATEMENT_YEARS = 5
+INSIDER_DAYS = 365
+DAYS_PER_YEAR = 365.25
+DAYS_PER_MONTH = DAYS_PER_YEAR / 12
+PARK_ABOVE = 0.02
+RATIO_DIGITS = 4
 
-Quarterly = dict[date, float]
-AnnualCache = dict[str, tuple[date | None, Annual]]
+
+class Rules(NamedTuple):
+    record_years: int
+    min_roe: float
+    max_debt_cover: float
+    max_capex_share: float
+    min_pretax: float
+    min_yield: float
+    max_insider_sale: float
 
 
 class Year(NamedTuple):
     end: date
-    shares: float | None
-    assets: float
-    book: float | None
-    gross_profit: float | None
-    income: float | None
-    sales: float | None
-    working_capital: float | None
-    depreciation: float | None
-    capex: float | None
+    operating_income: float
+    net_income: float
+    cash_earnings: float
+    capex: float
+    equity: float
+    debt: float
+    retained: float
+
+    @property
+    def owner_earnings(self) -> float:
+        return self.cash_earnings - self.capex
 
 
-class RateHistory(NamedTuple):
-    days: npt.NDArray[np.datetime64]
-    cumulative: npt.NDArray[np.float64]
+class Record(NamedTuple):
+    fiscal_end: str
+    owner_earnings: float
+    shares: float
+    shares_filed: str
+    roe: float
+    debt_cover: float
+    capex_share: float
+    retained_return: float | None
+    roc_cv: float
 
 
-class Firm(NamedTuple):
-    symbol: str
-    identity: tuple[date, date, str]
-    market_equity: float
-    dollar_volume: float
-    book: float | None
-    momentum: float | None
-    beta: float | None
-    measures: dict[str, float]
+class Assessment(NamedTuple):
+    roc_cv: float | None
+    outcome: Record | str
 
 
-class Holding(NamedTuple):
-    symbol: str
-    active: float
-    contributions: dict[str, float]
+class Review(NamedTuple):
+    records: dict[str, Record]
+    failures: dict[str, str]
+    restated: set[str]
 
 
-def years_back(end: date, years: int) -> date:
-    return end - timedelta(days=round(365.25 * years))
+class Prices(NamedTuple):
+    yields: dict[str, float]
+    hurdle: float
+    hurdle_why: str
+    rate: float | None
 
 
-def nearest_end(ends: Iterable[date], target: date) -> date | None:
-    close = [end for end in ends if abs((end - target).days) <= YEAR_TOLERANCE_DAYS]
-    return min(close, key=lambda end: abs((end - target).days)) if close else None
+@dataclass
+class Book:
+    held: list[str]
+    remaining: list[str]
+    weights: dict[str, float]
+    ladder: Ladder
+    free: float
 
 
-def shareholders_equity(annual: Annual, symbol: str, end: date) -> float | None:
-    reported = amount(annual, symbol, "equity", end)
-    if reported is not None:
-        return reported
-    assets = amount(annual, symbol, "total_assets", end)
-    liabilities = amount(annual, symbol, "total_liabilities", end)
-    if assets is None or liabilities is None:
-        return None
-    return assets - liabilities - amount_or_zero(annual, symbol, "minority_interest", end)
-
-
-def total_liabilities(annual: Annual, symbol: str, end: date) -> float | None:
-    reported = amount(annual, symbol, "total_liabilities", end)
-    if reported is not None:
-        return reported
-    assets = amount(annual, symbol, "total_assets", end)
-    total_equity = amount(annual, symbol, "total_equity", end)
-    if assets is not None and total_equity is not None:
-        return assets - total_equity
-    equity = amount(annual, symbol, "equity", end)
-    if assets is None or equity is None:
-        return None
-    return assets - equity - amount_or_zero(annual, symbol, "minority_interest", end)
-
-
-def book_equity(annual: Annual, symbol: str, end: date) -> float | None:
-    equity = shareholders_equity(annual, symbol, end)
-    if equity is None:
-        return None
-    return equity - amount_or_zero(annual, symbol, "preferred_stock", end)
-
-
-def working_capital(annual: Annual, symbol: str, end: date) -> float | None:
-    current_assets = amount(annual, symbol, "current_assets", end)
-    current_liabilities = amount(annual, symbol, "current_liabilities", end)
-    if current_assets is None or current_liabilities is None:
-        return None
-    return (
-        current_assets
-        - current_liabilities
-        - amount_or_zero(annual, symbol, "cash_and_equivalents", end)
-        - amount_or_zero(annual, symbol, "short_term_investments", end)
-        + current_debt(annual, symbol, end)
-        + amount_or_zero(annual, symbol, "income_taxes_payable", end)
+def rules_of(params: Mapping[str, Any]) -> Rules:
+    return Rules(
+        int(params["record_years"]),
+        float(params["min_roe"]),
+        float(params["max_debt_cover"]),
+        float(params["max_capex_share"]),
+        float(params["min_pretax_2014"]),
+        float(params["min_yield"]),
+        float(params["max_insider_sale"]),
     )
 
 
-def fiscal_year(annual: Annual, symbol: str, end: date, shares: float | None) -> Year | None:
-    assets = amount(annual, symbol, "total_assets", end)
-    if assets is None or assets <= 0:
+def money(value: float) -> str:
+    return f"${value / 1e6:,.0f}M"
+
+
+def latest_value(points: Iterable[MacroPoint]) -> float | None:
+    newest = max(points, key=lambda point: (point.date, point.published), default=None)
+    return None if newest is None else float(newest.value)
+
+
+def treasury_10y(ctx: Context) -> float | None:
+    today = ctx.session.date
+    found = latest_value(ctx.macro(["dgs10"], today - timedelta(days=RATE_LOOKBACK_DAYS), today))
+    return None if found is None else found / 100
+
+
+def price_level(ctx: Context) -> float:
+    months: dict[date, MacroPoint] = {}
+    base_year = ctx.macro(["cpiaucns"], date(CPI_BASE_YEAR, 1, 1), date(CPI_BASE_YEAR, 12, 31))
+    for point in sorted(base_year, key=lambda point: point.published):
+        months[point.date] = point
+    latest = latest_value(latest_monthly(ctx, "cpiaucns", 1))
+    if latest is None or not months:
+        return 1.0
+    return latest / float(np.mean([float(point.value) for point in months.values()]))
+
+
+def year_of(annual: Annual, symbol: str, end: date) -> Year | None:
+    found = [
+        amount(annual, symbol, metric, end)
+        for metric in ("operating_income", "net_income", "depreciation_amortization", "capex", "equity")
+    ]
+    values = [value for value in found if value is not None]
+    if len(values) < len(found):
         return None
-    return Year(
-        end,
-        shares,
-        assets,
-        book_equity(annual, symbol, end),
-        gross_profit(annual, symbol, end),
-        amount(annual, symbol, "net_income", end),
-        amount(annual, symbol, "revenue", end),
-        working_capital(annual, symbol, end),
-        amount(annual, symbol, "depreciation_amortization", end),
-        amount(annual, symbol, "capex", end),
+    ebit, income, depreciation, capex, equity = values
+    paid_out = abs(amount_or_zero(annual, symbol, "dividends_paid", end)) + abs(
+        amount_or_zero(annual, symbol, "share_repurchases", end)
     )
-
-
-def cash_flow(year: Year, prior: Year | None) -> float | None:
-    if (
-        prior is None
-        or year.income is None
-        or year.depreciation is None
-        or year.capex is None
-        or year.working_capital is None
-        or prior.working_capital is None
-    ):
-        return None
-    return year.income + year.depreciation - (year.working_capital - prior.working_capital) - year.capex
-
-
-def ratio(numerator: float | None, denominator: float | None) -> float | None:
-    if numerator is None or denominator is None or denominator <= 0:
-        return None
-    return numerator / denominator
-
-
-def per_share(value: float | None, year: Year | None) -> float | None:
-    return None if year is None else ratio(value, year.shares)
-
-
-def residual(measure: float | None, charge_base: float | None, rate: float | None) -> float | None:
-    if measure is None or charge_base is None or rate is None:
-        return None
-    return measure - rate * charge_base
-
-
-def change(now: float | None, old: float | None, scale: float | None) -> float | None:
-    if now is None or old is None:
-        return None
-    return ratio(now - old, scale)
-
-
-def growth_measures(years: dict[int, Year | None], rates: RateHistory) -> dict[str, float]:
-    now, prior, old, older = (years[0], years[1], years[GROWTH_YEARS], years[GROWTH_YEARS + 1])
-    if now is None or old is None:
-        return {}
-    rate_now, rate_old = annual_rate(rates, now.end), annual_rate(rates, old.end)
-    assets_prior = per_share(prior.assets if prior else None, prior)
-    assets_older = per_share(older.assets if older else None, older)
-    assets_old = per_share(old.assets, old)
-
-    def growth(
-        measure_now: float | None,
-        measure_old: float | None,
-        base_prior: float | None,
-        base_older: float | None,
-        scale: float | None,
-    ) -> float | None:
-        return change(
-            residual(per_share(measure_now, now), base_prior, rate_now),
-            residual(per_share(measure_old, old), base_older, rate_old),
-            scale,
-        )
-
-    candidates = {
-        "growth_gpoa": growth(now.gross_profit, old.gross_profit, assets_prior, assets_older, assets_old),
-        "growth_roe": growth(
-            now.income,
-            old.income,
-            per_share(prior.book if prior else None, prior),
-            per_share(older.book if older else None, older),
-            per_share(old.book, old),
-        ),
-        "growth_roa": growth(now.income, old.income, assets_prior, assets_older, assets_old),
-        "growth_cfoa": growth(cash_flow(now, prior), cash_flow(old, older), assets_prior, assets_older, assets_old),
-        "growth_gmar": change(
-            per_share(now.gross_profit, now), per_share(old.gross_profit, old), per_share(old.sales, old)
-        ),
-    }
-    return {name: value for name, value in candidates.items() if value is not None}
-
-
-def profitability_measures(now: Year, prior: Year | None) -> dict[str, float]:
-    accruals = None
-    if (
-        prior is not None
-        and now.working_capital is not None
-        and prior.working_capital is not None
-        and now.depreciation is not None
-    ):
-        accruals = -((now.working_capital - prior.working_capital) - now.depreciation) / now.assets
-    candidates = {
-        "gpoa": ratio(now.gross_profit, now.assets),
-        "roe": ratio(now.income, now.book),
-        "roa": ratio(now.income, now.assets),
-        "cfoa": ratio(cash_flow(now, prior), now.assets),
-        "gmar": ratio(now.gross_profit, now.sales),
-        "acc": accruals,
-    }
-    return {name: value for name, value in candidates.items() if value is not None}
-
-
-def ohlson(annual: Annual, symbol: str, now: Year, prior: Year | None, market_equity: float) -> float | None:
-    end = now.end
-    current_assets = amount(annual, symbol, "current_assets", end)
-    current_liabilities = amount(annual, symbol, "current_liabilities", end)
-    liabilities = total_liabilities(annual, symbol, end)
-    pretax = amount(annual, symbol, "pretax_income", end)
-    if (
-        now.book is None
-        or now.income is None
-        or prior is None
-        or prior.income is None
-        or current_assets is None
-        or current_assets <= 0
-        or current_liabilities is None
-        or liabilities is None
-        or liabilities <= 0
-        or pretax is None
-    ):
-        return None
-    adjusted_assets = now.assets + 0.1 * (market_equity - now.book)
-    if adjusted_assets <= 0:
-        return None
     debt = total_debt(annual, symbol, end)
-    income_swing = abs(now.income) + abs(prior.income)
-    income_change = 0.0 if income_swing == 0 else (now.income - prior.income) / income_swing
-    score = (
-        -1.32
-        - 0.407 * math.log(adjusted_assets)
-        + 6.03 * debt / adjusted_assets
-        - 1.43 * (current_assets - current_liabilities) / adjusted_assets
-        + 0.076 * current_liabilities / current_assets
-        - 1.72 * float(liabilities > now.assets)
-        - 2.37 * now.income / now.assets
-        - 1.83 * pretax / liabilities
-        + 0.285 * float(max(now.income, prior.income) < 0)
-        - 0.521 * income_change
-    )
-    return -score
+    return Year(end, ebit, income, income + depreciation, abs(capex), equity, debt, income - paid_out)
 
 
-def altman(annual: Annual, symbol: str, now: Year, market_equity: float) -> float | None:
-    current_assets = amount(annual, symbol, "current_assets", now.end)
-    current_liabilities = amount(annual, symbol, "current_liabilities", now.end)
-    retained = amount(annual, symbol, "retained_earnings", now.end)
-    operating = amount(annual, symbol, "operating_income", now.end)
-    if (
-        current_assets is None
-        or current_liabilities is None
-        or retained is None
-        or operating is None
-        or now.sales is None
-    ):
+def return_on_retained(record: list[Year]) -> float | None:
+    retained = sum(year.retained for year in record[1:])
+    if retained <= 0:
         return None
-    working_capital = current_assets - current_liabilities
-    return (1.2 * working_capital + 1.4 * retained + 3.3 * operating + 0.6 * market_equity + now.sales) / now.assets
+    return (record[-1].owner_earnings - record[0].owner_earnings) / retained
 
 
-def leverage(annual: Annual, symbol: str, now: Year) -> float:
-    end = now.end
-    debt = (
-        total_debt(annual, symbol, end)
-        + amount_or_zero(annual, symbol, "minority_interest", end)
-        + amount_or_zero(annual, symbol, "preferred_stock", end)
-    )
-    return -debt / now.assets
+def mean_roe(record: list[Year]) -> float:
+    return float(np.mean([year.net_income / year.equity for year in record]))
 
 
-def quarterly_income(points: list[FundamentalPoint]) -> Quarterly:
-    durations = [
-        point
-        for point in points
-        if point.metric == "net_income"
-        and point.form in DOMESTIC_FORMS
-        and in_dollars(point)
-        and point.period_start is not None
-    ]
-    return with_fourth_quarters(
-        {point.period_end: float(point.value) for point in durations if point.period_type == "Q"},
-        [
-            (point.period_start, point.period_end, float(point.value))
-            for point in durations
-            if point.period_type == "FY" and point.period_start is not None
-        ],
-    )
+def capex_share(record: list[Year]) -> float:
+    return sum(year.capex for year in record) / sum(year.cash_earnings for year in record)
 
 
-def quarter_end_books(points: list[FundamentalPoint]) -> dict[date, float]:
-    equity: dict[date, float] = {}
-    preferred: dict[date, float] = {}
-    for point in sorted(points, key=lambda point: point.filed):
-        if point.form not in DOMESTIC_FORMS or point.period_start is not None or not in_dollars(point):
-            continue
-        if point.metric == "equity":
-            equity[point.period_end] = float(point.value)
-        elif point.metric == "preferred_stock":
-            preferred[point.period_end] = float(point.value)
-    return {end: value - preferred.get(end, 0.0) for end, value in equity.items()}
-
-
-def earnings_volatility(points: list[FundamentalPoint], today: date) -> float | None:
-    books = quarter_end_books(points)
-    returns = [
-        income / books[end]
-        for end, income in sorted(quarterly_income(points).items())
-        if end <= today and books.get(end, 0.0) > 0
-    ][-EVOL_QUARTERS:]
-    if len(returns) < EVOL_MIN_QUARTERS:
-        return None
-    return float(np.std(returns, ddof=1))
-
-
-def rate_history(points: list[MacroPoint]) -> RateHistory:
-    ordered = sorted(points, key=lambda point: point.date)
-    days = np.array([point.date for point in ordered], dtype="datetime64[D]")
-    cumulative = np.concatenate(([0.0], np.cumsum([float(point.value) for point in ordered])))
-    return RateHistory(days, cumulative)
-
-
-def annual_rate(rates: RateHistory, end: date) -> float | None:
-    upper = int(np.searchsorted(rates.days, np.datetime64(end), side="right"))
-    lower = int(np.searchsorted(rates.days, np.datetime64(end - timedelta(days=365)), side="right"))
-    if upper == lower:
-        return None
-    return float(rates.cumulative[upper] - rates.cumulative[lower]) / (upper - lower) / 100
-
-
-def fiscal_year_ends(annual: Annual, symbol: str, today: date) -> dict[int, date]:
-    ends = [end for end in annual.get((symbol, "total_assets"), {}) if end <= today]
-    recent = max(ends, default=None)
-    if recent is None or (today - recent).days > MAX_STALENESS_DAYS:
-        return {}
-    found = {lag: nearest_end(ends, years_back(recent, lag)) for lag in YEAR_LAGS}
-    return {lag: end for lag, end in found.items() if end is not None}
-
-
-def oldest_filed(by_symbol: dict[str, list[FundamentalPoint]], annual: Annual, today: date) -> dict[str, date]:
-    oldest: dict[str, date] = {}
-    for symbol, own in by_symbol.items():
-        latest = latest_shares(own, today)
-        if latest is None:
-            continue
-        counts = [year_end_shares(annual, symbol, end) for end in fiscal_year_ends(annual, symbol, today).values()]
-        oldest[symbol] = min([latest.filed, *(count.filed for count in counts if count is not None)])
-    return oldest
-
-
-def year_at(annual: Annual, symbol: str, end: date | None, raw: History, split: History) -> Year | None:
-    if end is None:
-        return None
-    count = year_end_shares(annual, symbol, end)
-    shares = None if count is None else adjusted_shares(count, raw, split)
-    return fiscal_year(annual, symbol, end, shares)
-
-
-def firm_of(
-    ctx: Context,
-    symbol: str,
-    own: list[FundamentalPoint],
-    annual: Annual,
-    raw: History,
-    split: History,
-    total_return: History,
-    market: History,
-    rates: RateHistory,
-) -> Firm | None:
-    today = ctx.session.date
-    latest = latest_shares(own, today)
-    if latest is None or not traded_today(ctx, raw):
-        return None
-    shares = adjusted_shares(latest, raw, split)
-    if shares is None:
-        return None
-    market_equity = shares * float(raw.close[-1])
-    dollar_volume = float(np.mean(raw.close[-DOLLAR_VOLUME_SESSIONS:] * raw.volume[-DOLLAR_VOLUME_SESSIONS:]))
-    beta = frazzini_pedersen_beta(total_return, market)
-    measures: dict[str, float] = {}
-    if beta is not None:
-        measures["bab"] = -beta
-    volatility = earnings_volatility(own, today)
-    if volatility is not None:
-        measures["evol"] = -volatility
-    ends = fiscal_year_ends(annual, symbol, today)
-    years = {lag: year_at(annual, symbol, ends.get(lag), raw, split) for lag in YEAR_LAGS}
-    now = years[0]
-    identity = (latest.period_end, latest.filed, str(latest.value))
-    if now is not None:
-        assets = annual[symbol, "total_assets"][now.end]
-        identity = (now.end, assets.filed, str(assets.value))
-        measures |= profitability_measures(now, years[1])
-        measures |= growth_measures(years, rates)
-        measures["lev"] = leverage(annual, symbol, now)
-        o_score = ohlson(annual, symbol, now, years[1], market_equity)
-        if o_score is not None:
-            measures["ohlson"] = o_score
-        z_score = altman(annual, symbol, now, market_equity)
-        if z_score is not None:
-            measures["altman"] = z_score
-    return Firm(
-        symbol,
-        identity,
-        market_equity,
-        dollar_volume,
-        None if now is None else now.book,
-        momentum(total_return, today),
-        beta,
-        measures,
-    )
-
-
-def composite(parts: list[dict[str, float]]) -> dict[str, float]:
-    collected: dict[str, list[float]] = defaultdict(list)
-    for part in parts:
-        for symbol, score in part.items():
-            collected[symbol].append(score)
-    return rank_z({symbol: sum(scores) / len(scores) for symbol, scores in collected.items()})
-
-
-def quality_scores(firms: list[Firm]) -> dict[str, float]:
-    def measure_z(name: str) -> dict[str, float]:
-        return rank_z({firm.symbol: firm.measures[name] for firm in firms if name in firm.measures})
-
-    components = [composite([measure_z(name) for name in group]) for group in (PROFITABILITY, GROWTH, SAFETY)]
-    return composite(components)
-
-
-Buckets = dict[tuple[bool, int], list[str]]
-
-
-def conditional_sort(values: dict[str, float], big: set[str], nyse: set[str]) -> Buckets:
-    buckets: Buckets = defaultdict(list)
-    for is_big in (False, True):
-        members = sorted(symbol for symbol in values if (symbol in big) == is_big)
-        reference = [values[symbol] for symbol in members if symbol in nyse]
-        if not reference:
-            continue
-        low, high = np.quantile(reference, BREAKPOINTS)
-        for symbol in members:
-            value = values[symbol]
-            buckets[is_big, 0 if value <= low else 2 if value >= high else 1].append(symbol)
-    return buckets
-
-
-def value_weighted(symbols: list[str], market_equity: dict[str, float], scale: float) -> dict[str, float]:
-    size = sum(market_equity[symbol] for symbol in symbols)
-    return {symbol: scale * market_equity[symbol] / size for symbol in symbols} if size > 0 else {}
-
-
-def combine(parts: Iterable[dict[str, float]]) -> dict[str, float]:
-    combined: dict[str, float] = defaultdict(float)
-    for part in parts:
-        for symbol, weight in part.items():
-            combined[symbol] += weight
-    return dict(combined)
-
-
-def high_minus_low(buckets: Buckets, market_equity: dict[str, float]) -> dict[str, float]:
-    return combine(
-        value_weighted(buckets.get((is_big, tercile), []), market_equity, sign / 2)
-        for is_big in (False, True)
-        for tercile, sign in ((2, 1.0), (0, -1.0))
-    )
-
-
-def small_minus_big(buckets: Buckets, market_equity: dict[str, float]) -> dict[str, float]:
-    return combine(
-        value_weighted(buckets.get((is_big, tercile), []), market_equity, (-1.0 if is_big else 1.0) / 3)
-        for is_big in (False, True)
-        for tercile in (0, 1, 2)
-    )
-
-
-def factor_weights(firms: list[Firm], nyse: set[str]) -> dict[str, dict[str, float]]:
-    market_equity = {firm.symbol: firm.market_equity for firm in firms}
-    nyse_sizes = [firm.market_equity for firm in firms if firm.symbol in nyse]
-    median = float(np.median(nyse_sizes))
-    big = {firm.symbol for firm in firms if firm.market_equity > median}
-    book_to_market = conditional_sort(
-        {firm.symbol: firm.book / firm.market_equity for firm in firms if firm.book is not None and firm.book > 0},
-        big,
-        nyse,
-    )
-    winners = conditional_sort({firm.symbol: firm.momentum for firm in firms if firm.momentum is not None}, big, nyse)
-    quality = conditional_sort(quality_scores(firms), big, nyse)
-    return {
-        "mkt": value_weighted(sorted(market_equity), market_equity, 1.0),
-        "smb": small_minus_big(book_to_market, market_equity),
-        "hml": high_minus_low(book_to_market, market_equity),
-        "umd": high_minus_low(winners, market_equity),
-        "bab": bab_weights({firm.symbol: firm.beta for firm in firms if firm.beta is not None}),
-        "qmj": high_minus_low(quality, market_equity),
-    }
-
-
-def one_line_per_company(firms: list[Firm]) -> list[Firm]:
-    lines: dict[tuple[date, date, str], Firm] = {}
-    for firm in firms:
-        kept = lines.get(firm.identity)
-        if kept is None or (firm.dollar_volume, firm.symbol) > (kept.dollar_volume, kept.symbol):
-            lines[firm.identity] = firm
-    return sorted(lines.values(), key=lambda firm: firm.symbol)
-
-
-def years_in_use(fresh: Annual, symbol: str, today: date) -> Annual:
-    ends = set(fiscal_year_ends(fresh, symbol, today).values())
-    return {
-        (symbol, metric): {end: point for end, point in fresh[symbol, metric].items() if end in ends}
-        for metric in ANNUAL_METRICS
-        if (symbol, metric) in fresh
-    }
-
-
-def annual_of(
-    ctx: Context, points: list[FundamentalPoint], filed: dict[str, date | None], cache: AnnualCache
-) -> Annual:
-    today = ctx.session.date
-    stale = sorted(symbol for symbol, latest in filed.items() if symbol not in cache or cache[symbol][0] != latest)
-    if stale:
-        fresh = domestic_annual(ctx.fundamentals(stale, ANNUAL_METRICS))
-        cache.update({symbol: (filed[symbol], years_in_use(fresh, symbol, today)) for symbol in stale})
-    annual = domestic_annual(points)
-    for symbol in filed:
-        annual.update(cache[symbol][1])
-    return annual
-
-
-def firms_of(ctx: Context, cache: AnnualCache) -> list[Firm]:
-    today = ctx.session.date
-    market = ctx.history([MARKET], "1d", HISTORY_BARS, "all")[MARKET]
-    rates = rate_history(ctx.macro(["treasury_3m"], years_back(today, GROWTH_YEARS + 3), today))
-    firms: list[Firm] = []
-    universe = sorted(ctx.universe)
-    for offset in range(0, len(universe), CHUNK):
-        chunk = universe[offset : offset + CHUNK]
-        points = ctx.fundamentals(chunk, QUARTERLY_METRICS)
-        own = by_symbol(points)
-        annual = annual_of(
-            ctx, points, {symbol: latest_filing(own[symbol], DOMESTIC_ANNUAL_FORMS) for symbol in chunk}, cache
+def record_of(annual: Annual, symbol: str, today: date, years: int) -> list[Year] | str:
+    ends = consecutive_fiscal_ends(annual.get((symbol, "operating_income"), {}), today, years)
+    if ends is None:
+        return f"no {years} consecutive fiscal years of 10-K operating income"
+    found = {end: year_of(annual, symbol, end) for end in reversed(ends)}
+    record = [year for year in found.values() if year is not None]
+    if len(record) < len(found):
+        missing = min(end for end, year in found.items() if year is None)
+        return f"FY ending {missing} lacks net income, D&A, capex or equity"
+    weak = next((year for year in record if year.operating_income <= 0 or year.owner_earnings <= 0), None)
+    if weak is not None:
+        return (
+            f"FY ending {weak.end}: operating income {money(weak.operating_income)}, "
+            f"owner earnings {money(weak.owner_earnings)}"
         )
-        oldest = oldest_filed(own, annual, today)
-        if not oldest:
+    thin = next((year for year in record if year.equity <= 0), None)
+    if thin is not None:
+        return f"shareholders' equity {money(thin.equity)} in FY ending {thin.end}"
+    return record
+
+
+def weakness(record: list[Year], pretax: float | None, rules: Rules, pretax_floor: float) -> str | None:
+    latest = record[-1]
+    roe = mean_roe(record)
+    if roe < rules.min_roe:
+        return f"{len(record)}y mean return on equity {roe:.1%}, below {rules.min_roe:.0%}"
+    debt_cover = latest.debt / latest.owner_earnings
+    if debt_cover > rules.max_debt_cover:
+        return f"debt {money(latest.debt)} is {debt_cover:.1f}x owner earnings, above {rules.max_debt_cover:g}x"
+    reinvested = capex_share(record)
+    if reinvested > rules.max_capex_share:
+        return f"capex took {reinvested:.0%} of net income plus D&A, above {rules.max_capex_share:.0%}"
+    if pretax is None or pretax < pretax_floor:
+        return f"pre-tax income {'not reported' if pretax is None else money(pretax)}, below {money(pretax_floor)}"
+    retained_return = return_on_retained(record)
+    if retained_return is not None and retained_return < rules.min_yield:
+        return (
+            f"a retained dollar added {retained_return:.1%} to owner earnings since FY {record[0].end.year}, "
+            f"below {rules.min_yield:.0%}"
+        )
+    return None
+
+
+def assessment_of(annual: Annual, symbol: str, today: date, rules: Rules, pretax_floor: float) -> Assessment:
+    record = record_of(annual, symbol, today, rules.record_years)
+    if isinstance(record, str):
+        return Assessment(None, record)
+    returns = np.array([year.operating_income / (year.equity + year.debt) for year in record])
+    roc_cv = round(float(returns.std() / returns.mean()), RATIO_DIGITS)
+    latest = record[-1]
+    failure = weakness(record, amount(annual, symbol, "pretax_income", latest.end), rules, pretax_floor)
+    if failure is not None:
+        return Assessment(roc_cv, failure)
+    shares = year_end_shares(annual, symbol, latest.end)
+    if shares is None or shares.value <= 0:
+        return Assessment(roc_cv, f"no share count after FY ending {latest.end}")
+    retained_return = return_on_retained(record)
+    return Assessment(
+        roc_cv,
+        Record(
+            latest.end.isoformat(),
+            latest.owner_earnings,
+            float(shares.value),
+            shares.filed.isoformat(),
+            round(mean_roe(record), RATIO_DIGITS),
+            round(latest.debt / latest.owner_earnings, RATIO_DIGITS),
+            round(capex_share(record), RATIO_DIGITS),
+            None if retained_return is None else round(retained_return, RATIO_DIGITS),
+            roc_cv,
+        ),
+    )
+
+
+def assess(ctx: Context, symbols: list[str], rules: Rules) -> dict[str, Assessment]:
+    today = ctx.session.date
+    profiles = ctx.instruments(symbols)
+    floor = rules.min_pretax * price_level(ctx)
+    found: dict[str, Assessment] = {}
+    operating: list[str] = []
+    for symbol in symbols:
+        sic = profiles[symbol].sic if symbol in profiles else None
+        if sic is not None and sic in FINANCIALS:
+            found[symbol] = Assessment(None, f"a financial (SIC {sic}), which owner earnings do not describe")
+        else:
+            operating.append(symbol)
+    for offset in range(0, len(operating), CHUNK):
+        chunk = operating[offset : offset + CHUNK]
+        annual = domestic_annual(ctx.fundamentals(chunk, METRICS))
+        found |= {symbol: assessment_of(annual, symbol, today, rules, floor) for symbol in chunk}
+    return found
+
+
+def insider_net_sale(trades: Iterable[InsiderTrade]) -> float:
+    bought = sold = 0.0
+    stakes: dict[tuple[frozenset[int], str, bool], tuple[date, float]] = {}
+    for line in trades:
+        if line.shares is None or not any(owner.officer or owner.director for owner in line.owners):
             continue
-        bars = max(len(ctx.calendar(min(oldest.values()), today)) + 1, DOLLAR_VOLUME_SESSIONS)
-        listed = sorted(oldest)
-        raw = ctx.history(listed, "1d", bars, "raw")
-        split = ctx.history(listed, "1d", bars, "split")
-        total_return = ctx.history(listed, "1d", HISTORY_BARS, "all")
-        for symbol in listed:
-            firm = firm_of(
-                ctx,
-                symbol,
-                own[symbol],
-                annual,
-                raw[symbol],
-                split[symbol],
-                total_return[symbol],
-                market,
-                rates,
+        if line.code == "P" and line.acquired:
+            bought += float(line.shares)
+        elif line.code == "S" and not line.acquired and line.plan_10b5_1 is not True:
+            sold += float(line.shares)
+        if line.shares_after is not None:
+            key = (frozenset(owner.cik for owner in line.owners), line.security, line.direct)
+            if key not in stakes or line.date >= stakes[key][0]:
+                stakes[key] = (line.date, float(line.shares_after))
+    net = sold - bought
+    return net / (net + sum(stake for _, stake in stakes.values())) if net > 0 else 0.0
+
+
+def qualify(ctx: Context, symbols: list[str], spreads: dict[str, float], rules: Rules) -> dict[str, Record | str]:
+    today = ctx.session.date
+    assessed = assess(ctx, symbols, rules)
+    for symbol, seen in assessed.items():
+        if seen.roc_cv is None:
+            spreads.pop(symbol, None)
+        else:
+            spreads[symbol] = seen.roc_cv
+    median = float(np.median(list(spreads.values()))) if spreads else 0.0
+    outcomes: dict[str, Record | str] = {}
+    for symbol, seen in assessed.items():
+        outcome = seen.outcome
+        if isinstance(outcome, Record) and outcome.roc_cv > median:
+            outcome = (
+                f"return on capital varies {outcome.roc_cv:.2f} (std/mean), outside the steadier half "
+                f"of {len(spreads)} records (median {median:.2f})"
             )
-            if firm is not None:
-                firms.append(firm)
-    return one_line_per_company(firms)
+        outcomes[symbol] = outcome
+    passed = sorted(symbol for symbol, outcome in outcomes.items() if isinstance(outcome, Record))
+    if not passed:
+        return outcomes
+    for symbol in restated(ctx, passed, today - timedelta(days=round(RESTATEMENT_YEARS * DAYS_PER_YEAR))):
+        outcomes[symbol] = f"8-K Item 4.02 restatement within {RESTATEMENT_YEARS} years"
+    aligned = [symbol for symbol in passed if isinstance(outcomes[symbol], Record)]
+    trades: dict[str, list[InsiderTrade]] = defaultdict(list)
+    for line in ctx.insider_trades(aligned, today - timedelta(days=INSIDER_DAYS)) if aligned else []:
+        trades[line.symbol].append(line)
+    for symbol in aligned:
+        sale = insider_net_sale(trades[symbol])
+        if sale > rules.max_insider_sale:
+            outcomes[symbol] = (
+                f"officers and directors sold {sale:.0%} of their stake, net, in {INSIDER_DAYS} days "
+                f"outside 10b5-1 plans, above {rules.max_insider_sale:.0%}"
+            )
+    return outcomes
 
 
-def active_book(firms: list[Firm], nyse: set[str], loadings: dict[str, float]) -> list[Holding]:
-    weights = factor_weights(firms, nyse)
-    holdings = [
-        Holding(
-            firm.symbol,
-            sum(loadings[factor] * weights[factor].get(firm.symbol, 0.0) for factor in FACTORS),
-            {factor: loadings[factor] * weights[factor].get(firm.symbol, 0.0) for factor in FACTORS},
+def owner_yields(ctx: Context, records: Mapping[str, Record]) -> dict[str, float]:
+    if not records:
+        return {}
+    since = min(date.fromisoformat(record.shares_filed) for record in records.values())
+    raw, split = histories_since(ctx, sorted(records), since)
+    yields: dict[str, float] = {}
+    for symbol, record in records.items():
+        history = raw.get(symbol)
+        if history is None or not traded_today(ctx, history):
+            continue
+        ratio = split_ratio(history, split[symbol], date.fromisoformat(record.shares_filed))
+        if ratio is None:
+            continue
+        market_cap = record.shares * ratio * float(history.close[-1])
+        if market_cap > 0:
+            yields[symbol] = record.owner_earnings / market_cap
+    return yields
+
+
+def qualification(record: Record, years: int) -> str:
+    retained = "" if record.retained_return is None else f", {record.retained_return:.0%} on retained earnings"
+    return (
+        f"{years}y record: ROE {record.roe:.0%}, owner earnings {money(record.owner_earnings)} "
+        f"(FY ending {record.fiscal_end}), debt {record.debt_cover:.1f}x owner earnings, "
+        f"capex {record.capex_share:.0%} of cash earnings, ROC std/mean {record.roc_cv:.2f}{retained}"
+    )
+
+
+def months_held(ctx: Context, symbol: str) -> str:
+    opened = ctx.position(symbol).opened_at
+    if opened is None:
+        return ""
+    return f", held {(ctx.session.date - opened.date()).days / DAYS_PER_MONTH:.0f} months"
+
+
+def renamed(ctx: Context, kept: dict[str, Any]) -> dict[str, Any]:
+    return {ctx.renames.get(symbol, symbol): value for symbol, value in kept.items()}
+
+
+def held_stocks(ctx: Context, cash_symbol: str) -> list[str]:
+    return sorted(
+        symbol for symbol, position in ctx.portfolio.positions.items() if position.qty > 0 and symbol != cash_symbol
+    )
+
+
+def requalified(ctx: Context, held: list[str], rules: Rules) -> Review:
+    today = ctx.session.date
+    seen: dict[str, str] = renamed(ctx, ctx.state.get("seen", {}))
+    spreads: dict[str, float] = renamed(ctx, ctx.state.get("roc_cv", {}))
+    records = {symbol: Record(*fields) for symbol, fields in renamed(ctx, ctx.state.get("records", {})).items()}
+    watched = set(held)
+    if "seen" not in ctx.state or week_ends(ctx):
+        members = set(ctx.universe_at(today, int(ctx.params["owner_universe"]), asset_class="stock"))
+        watched |= members
+        seen = {symbol: filed for symbol, filed in seen.items() if symbol in watched}
+        spreads = {symbol: spread for symbol, spread in spreads.items() if symbol in members}
+        records = {symbol: record for symbol, record in records.items() if symbol in watched}
+    fresh = set(new_filings(ctx, watched, seen, "operating_income")) | {
+        symbol for symbol in held if symbol not in records
+    }
+    outcomes = qualify(ctx, sorted(fresh), spreads, rules) if fresh else {}
+    for symbol, outcome in outcomes.items():
+        if isinstance(outcome, Record):
+            records[symbol] = outcome
+        else:
+            records.pop(symbol, None)
+    if outcomes:
+        passed = sorted(symbol for symbol, outcome in outcomes.items() if isinstance(outcome, Record))
+        ctx.log(f"{len(outcomes)} names requalified on new filings, {len(passed)} pass: {', '.join(passed[:20])}")
+    since = today - timedelta(days=round(RESTATEMENT_YEARS * DAYS_PER_YEAR))
+    flagged = restated(ctx, sorted(records), since)
+    for symbol in flagged:
+        records.pop(symbol, None)
+    ctx.state["seen"] = seen
+    ctx.state["roc_cv"] = spreads
+    ctx.state["records"] = {symbol: list(record) for symbol, record in records.items()}
+    failures = {symbol: outcome for symbol, outcome in outcomes.items() if isinstance(outcome, str)}
+    return Review(records, failures, flagged)
+
+
+def prices_of(ctx: Context, records: Mapping[str, Record], min_yield: float) -> Prices:
+    yields = owner_yields(ctx, records)
+    rate = treasury_10y(ctx)
+    if rate is None:
+        return Prices(yields, min_yield, f"the hurdle {min_yield:.1%}", None)
+    hurdle = max(min_yield, rate + float(ctx.params["yield_spread"]))
+    return Prices(yields, hurdle, f"the hurdle {hurdle:.1%} (10-year Treasury {rate:.1%})", rate)
+
+
+def thesis_sells(ctx: Context, held: list[str], review: Review, prices: Prices) -> list[Sell]:
+    absurd = float(ctx.params["absurd_ratio"])
+    sells: list[Sell] = []
+    for symbol in held:
+        found = prices.yields.get(symbol)
+        if symbol in review.failures:
+            sells.append(Sell(symbol, "thesis", f"{review.failures[symbol]}{months_held(ctx, symbol)}"))
+        elif symbol in review.restated:
+            why = f"8-K Item 4.02 restatement: earlier statements unreliable{months_held(ctx, symbol)}"
+            sells.append(Sell(symbol, "thesis", why))
+        elif prices.rate is not None and found is not None and found < prices.rate * absurd:
+            why = (
+                f"owner-earnings yield {found:.1%}, below {absurd:g}x the 10-year Treasury's {prices.rate:.1%}"
+                f"{months_held(ctx, symbol)}"
+            )
+            sells.append(Sell(symbol, "valuation", why))
+    return sells
+
+
+def adds(ctx: Context, book: Book, records: Mapping[str, Record], prices: Prices) -> list[Buy]:
+    buys: list[Buy] = []
+    for symbol in book.remaining:
+        found = prices.yields.get(symbol)
+        weight = book.weights.get(symbol)
+        if symbol not in records or weight is None or found is None or found < prices.hurdle:
+            continue
+        target = ladder_weight(ctx, book.ladder, symbol, weight)
+        if target is None or target - weight > book.free:
+            continue
+        book.free -= target - weight
+        cost = float(ctx.position(symbol).avg_cost)
+        why = (
+            f"add on weakness: close {ctx.bars[symbol].close / cost - 1:.0%} from the average cost {cost:.2f}, "
+            f"still qualifies, owner-earnings yield {found:.1%} at or above {prices.hurdle_why}"
         )
-        for firm in firms
-    ]
-    return sorted(holdings, key=lambda holding: (-holding.active, holding.symbol))
+        buys.append(Buy(symbol, target, why))
+    return buys
 
 
-def reason_for(holding: Holding, rank: int, ranked: int) -> str:
-    parts = sorted(holding.contributions.items(), key=lambda item: -abs(item[1]))
-    tilts = ", ".join(f"{factor} {weight * 1e4:+.2f}" for factor, weight in parts)
-    return f"active Buffett tilt {holding.active * 1e4:+.2f} bp ranks {rank} of {ranked}: {tilts} bp"
+def swap_out(ctx: Context, book: Book, yields: Mapping[str, float], symbol: str, busy: set[str]) -> Sell | None:
+    ratio = float(ctx.params["swap_ratio"])
+    weakest = min(
+        (held for held in book.remaining if held in yields and held in book.weights and held not in busy),
+        key=lambda held: (yields[held], held),
+        default=None,
+    )
+    if weakest is None or yields[weakest] * ratio > yields[symbol]:
+        return None
+    if book.ladder.start > book.free + book.weights[weakest]:
+        return None
+    why = (
+        f"{symbol} yields {yields[symbol]:.1%} in owner earnings, at least {ratio:g}x this holding's "
+        f"{yields[weakest]:.1%}{months_held(ctx, weakest)}"
+    )
+    return Sell(weakest, "swap", why)
+
+
+def new_names(
+    ctx: Context, book: Book, records: Mapping[str, Record], prices: Prices, busy: set[str]
+) -> tuple[list[Sell], list[Buy]]:
+    quality = percentiles({symbol: record.roe for symbol, record in records.items()})
+
+    def gate(symbol: str) -> float | None:
+        found = prices.yields.get(symbol)
+        return None if found is None or found < prices.hurdle else found * quality[symbol]
+
+    owned = {(records[held].fiscal_end, records[held].owner_earnings) for held in book.remaining if held in records}
+    slots = int(ctx.params["max_names"]) - len(book.remaining)
+    ranked = candidates([symbol for symbol in records if symbol not in book.held], gate)
+    buys: list[Buy] = []
+    for rank, (symbol, _) in enumerate(ranked, 1):
+        record = records[symbol]
+        if (record.fiscal_end, record.owner_earnings) in owned:
+            continue
+        why = (
+            f"{qualification(record, int(ctx.params['record_years']))}; owner-earnings yield "
+            f"{prices.yields[symbol]:.1%} at or above {prices.hurdle_why}, rank {rank} of {len(ranked)} "
+            "by yield x ROE percentile"
+        )
+        if slots > 0 and book.ladder.start <= book.free:
+            buys.append(Buy(symbol, book.ladder.start, why))
+            owned.add((record.fiscal_end, record.owner_earnings))
+            slots -= 1
+            book.free -= book.ladder.start
+            continue
+        swapped = swap_out(ctx, book, prices.yields, symbol, busy)
+        if swapped is None:
+            return [], buys
+        return [swapped], [*buys, Buy(symbol, book.ladder.start, f"{why}, in place of {swapped.symbol}")]
+    return [], buys
+
+
+def owner(ctx: Context) -> None:
+    params = ctx.params
+    cash_symbol = str(params["cash_symbol"])
+    rules = rules_of(params)
+    held = held_stocks(ctx, cash_symbol)
+    review = requalified(ctx, held, rules)
+    prices = prices_of(ctx, review.records, rules.min_yield)
+    sells = thesis_sells(ctx, held, review, prices)
+    sold = {sell.symbol for sell in sells}
+    remaining = [symbol for symbol in held if symbol not in sold]
+    weights = stock_weights(ctx, cash_symbol)
+    ladder = Ladder(
+        float(params["start_weight"]), float(params["add_weight"]), float(params["add_on_drop"]), float(params["cap"])
+    )
+    book = Book(held, remaining, weights, ladder, 1 - sum(weights.get(symbol, 0.0) for symbol in remaining))
+    buys = adds(ctx, book, review.records, prices)
+    swaps, entries = new_names(ctx, book, review.records, prices, {buy.symbol for buy in buys})
+    if sells or swaps or buys or entries or float(ctx.portfolio.cash) > PARK_ABOVE * float(ctx.portfolio.equity):
+        trade(ctx, [*sells, *swaps], [*buys, *entries], cash_symbol)
 
 
 class Buffett(Bot):
@@ -669,30 +551,14 @@ class Buffett(Bot):
 
     def on_start(self, ctx: Context) -> None:
         variant = ctx.params["variant"]
-        if variant != "long_only":
-            raise ValueError(f"variant {variant!r} is not available: the long/short book needs per-name borrow (G10)")
+        if variant not in VARIANTS:
+            raise ValueError(f"variant must be one of {VARIANTS}, got {variant!r}")
 
     def on_step(self, ctx: Context) -> None:
-        if not last_session_of_month(ctx):
-            return
-        universe = set(ctx.universe)
-        self.cache = {symbol: cached for symbol, cached in self.cache.items() if symbol in universe}
-        firms = firms_of(ctx, self.cache)
-        profiles = ctx.instruments([firm.symbol for firm in firms])
-        nyse = {symbol for symbol, profile in profiles.items() if profile.exchange == "NYSE"}
-        if len([firm for firm in firms if firm.symbol in nyse]) < MIN_CROSS_SECTION:
-            ctx.log(f"{len(firms)} stocks with market equity, too few on the NYSE for breakpoints", level="warn")
-            return
-        loadings = {factor: float(ctx.params["loadings"][factor]) for factor in FACTORS}
-        ranked = active_book(firms, nyse, loadings)
-        top = ranked[: int(ctx.params["holdings"])]
-        rebalance_within_band(
-            ctx,
-            dict.fromkeys((holding.symbol for holding in top), 1 / len(top)),
-            float(ctx.params["drift_band"]),
-            reason={holding.symbol: reason_for(holding, rank, len(ranked)) for rank, holding in enumerate(top, 1)},
-            exit_reason=f"outside the top {len(top)} of {len(ranked)} by active Buffett tilt",
-        )
+        if ctx.params["variant"] == "systematic":
+            rebalance(ctx, self.cache)
+        else:
+            owner(ctx)
 
 
 if __name__ == "__main__":
