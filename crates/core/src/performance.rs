@@ -158,7 +158,16 @@ pub struct Fingerprint {
     pub buys_into_weakness: Option<f64>,
     pub sells_on_price: Option<f64>,
     pub drawdowns: Vec<DrawdownResponse>,
+    pub characteristics: Characteristics,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct Characteristics {
     pub beta: Option<f64>,
+    pub book_to_market: Option<f64>,
+    pub roe: Option<f64>,
+    pub market_cap: Option<f64>,
+    pub debt_to_equity: Option<f64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]

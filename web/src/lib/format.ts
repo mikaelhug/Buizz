@@ -15,6 +15,7 @@ const signedPercent = new Intl.NumberFormat("en-US", {
   signDisplay: "exceptZero",
 });
 const integer = new Intl.NumberFormat("en-US");
+const dollars = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 1 });
 const EXCHANGE_ZONE = "America/New_York";
 const minutes = { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" } as const;
 const localTime = new Intl.DateTimeFormat("sv-SE", minutes);
@@ -65,6 +66,7 @@ export const fmt = {
   percent: (value: Maybe<string | number>) => present(value, (v) => percent.format(Number(v))),
   change: (value: Maybe<number>) => present(value, (v) => signedPercent.format(v)),
   integer: (value: Maybe<number>) => present(value, (v) => integer.format(v)),
+  dollars: (value: Maybe<number>) => present(value, (v) => dollars.format(v)),
   local: (value: Maybe<string>) => present(value, (v) => localTime.format(new Date(v))),
   date: (value: Maybe<string>) => present(value, (v) => localDate.format(new Date(v))),
   market: (value: Maybe<string>) => present(value, (v) => `${exchangeTime.format(new Date(v))} ET`),

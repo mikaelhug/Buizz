@@ -2,9 +2,9 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use buizz_core::api::RunSummary;
 use buizz_core::ledger::{LedgerKind, Portfolio};
-use buizz_core::market::{Adjustment, AdjustmentFactor, AssetClass, Symbol, Timeframe};
+use buizz_core::market::{Adjustment, AdjustmentFactor, AssetClass, Calendar, Symbol, Timeframe};
 use buizz_core::order::OrderId;
-use buizz_core::performance::{Behaviour, Cadence, ReferenceFingerprint};
+use buizz_core::performance::{Behaviour, Cadence, Characteristics, ReferenceFingerprint};
 use buizz_core::time::Timestamp;
 use buizz_market::MarketStore;
 use buizz_metrics::{
@@ -17,6 +17,7 @@ use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
 
 use crate::RunnerError;
+use crate::holdings::Fundamentals;
 
 const BERKSHIRE_13F: &str = include_str!("../reference/berkshire_13f.csv");
 const BERKSHIRE_NAME: &str = "Berkshire Hathaway 13F";
@@ -130,6 +131,18 @@ impl Prices {
         (breached || (stock.is_some() && market.is_some())).then_some(breached)
     }
 
+    fn weak_share(&self, symbol: &Symbol, after: NaiveDate, through: NaiveDate) -> Option<f64> {
+        let sessions = self.adjusted.get(&self.market)?;
+        let (first, _) = sessions.range(..=after).next_back()?;
+        let (last, _) = sessions.range(..=through).next_back()?;
+        let judged: Vec<bool> = sessions
+            .range(*first..*last)
+            .filter_map(|(known, _)| self.weak(symbol, *known))
+            .collect();
+        let weak = judged.iter().filter(|weak| **weak).count();
+        (!judged.is_empty()).then(|| weak as f64 / judged.len() as f64)
+    }
+
     fn beta(&self, symbol: &Symbol, date: NaiveDate) -> Option<f64> {
         let market: BTreeMap<NaiveDate, f64> =
             self.year_to(&self.market, date).into_iter().collect();
@@ -147,14 +160,41 @@ impl Prices {
             .flatten()
     }
 
-    fn book_beta(&self, stocks: &BTreeMap<Symbol, f64>, date: NaiveDate) -> Option<f64> {
-        let (weighted, weight) = stocks
-            .iter()
-            .filter_map(|(symbol, value)| Some((self.beta(symbol, date)?, *value)))
-            .fold((0.0, 0.0), |(sum, total), (beta, value)| {
-                (sum + beta * value, total + value)
-            });
-        (weight > 0.0).then(|| weighted / weight)
+    fn market_cap(
+        &self,
+        symbol: &Symbol,
+        date: NaiveDate,
+        shares: (f64, NaiveDate),
+    ) -> Option<f64> {
+        let (count, filed) = shares;
+        Some(count * self.share_multiplier(symbol, filed, date) * self.close(symbol, date)?)
+    }
+
+    fn characteristics(
+        &self,
+        fundamentals: &Fundamentals,
+        stocks: &BTreeMap<Symbol, f64>,
+        date: NaiveDate,
+    ) -> Characteristics {
+        let weighted = |measure: &dyn Fn(&Symbol) -> Option<f64>| {
+            let (sum, weight) = stocks
+                .iter()
+                .filter_map(|(symbol, value)| Some((measure(symbol)?, *value)))
+                .filter(|(measured, _)| measured.is_finite())
+                .fold((0.0, 0.0), |(sum, weight), (measured, value)| {
+                    (sum + measured * value, weight + value)
+                });
+            (weight > 0.0).then(|| sum / weight)
+        };
+        let company = |symbol: &Symbol| fundamentals.company(date, symbol);
+        let size = |symbol: &Symbol| self.market_cap(symbol, date, company(symbol)?.shares?);
+        Characteristics {
+            beta: weighted(&|symbol| self.beta(symbol, date)),
+            book_to_market: weighted(&|symbol| Some(company(symbol)?.equity? / size(symbol)?)),
+            roe: weighted(&|symbol| company(symbol)?.roe),
+            market_cap: weighted(&size),
+            debt_to_equity: weighted(&|symbol| company(symbol)?.debt_to_equity),
+        }
     }
 
     fn share_multiplier(&self, symbol: &Symbol, after: NaiveDate, through: NaiveDate) -> f64 {
@@ -222,10 +262,15 @@ fn berkshire() -> BTreeMap<NaiveDate, Holdings> {
     quarters
 }
 
+struct Decision {
+    reason: String,
+    decided_at: Timestamp,
+}
+
 struct RunRecord {
     dates: Vec<(NaiveDate, Timestamp, f64)>,
     ledger: Vec<buizz_core::ledger::LedgerEntry>,
-    reasons: HashMap<OrderId, String>,
+    orders: HashMap<OrderId, Decision>,
 }
 
 impl RunRecord {
@@ -236,18 +281,7 @@ impl RunRecord {
             .collect()
     }
 
-    fn fingerprint(
-        &self,
-        prices: &Prices,
-        stocks: &Stocks,
-    ) -> Option<buizz_core::performance::Fingerprint> {
-        let ends = quarter_ends(
-            &self
-                .dates
-                .iter()
-                .map(|(date, ..)| *date)
-                .collect::<Vec<_>>(),
-        );
+    fn books(&self, prices: &Prices, stocks: &Stocks) -> Vec<Book> {
         let mut portfolio = Portfolio::default();
         let mut entries = self.ledger.iter().peekable();
         let mut books = Vec::with_capacity(self.dates.len());
@@ -268,74 +302,79 @@ impl RunRecord {
             books.push(Book {
                 date: *date,
                 equity: Some(*equity),
-                beta: ends
-                    .contains(date)
-                    .then(|| prices.book_beta(&held, *date))
-                    .flatten(),
                 stocks: held,
+                characteristics: Characteristics::default(),
             });
         }
-        let trades: Vec<Trade> = self
-            .ledger
+        books
+    }
+
+    fn trades(&self, prices: &Prices, stocks: &Stocks, calendar: &Calendar) -> Vec<Trade> {
+        self.ledger
             .iter()
             .filter_map(|entry| {
-                let (symbol, qty, price, on_price) = match &entry.kind {
+                let (symbol, qty, price, decision) = match &entry.kind {
                     LedgerKind::Fill {
                         order_id,
                         symbol,
                         qty,
                         price,
                         ..
-                    } => (
-                        symbol,
-                        qty,
-                        price,
-                        self.reasons
-                            .get(order_id)
-                            .map(|reason| reason.starts_with(PRICE_MOVE_REASON)),
-                    ),
-                    LedgerKind::Liquidation { symbol, qty, price } => {
-                        (symbol, qty, price, Some(true))
-                    }
+                    } => (symbol, qty, price, self.orders.get(order_id)),
+                    LedgerKind::Liquidation { symbol, qty, price } => (symbol, qty, price, None),
                     _ => return None,
                 };
-                let date = entry.at.exchange_date();
                 let value = (Decimal::from(*qty) * *price).to_f64()?;
+                let on_price = match entry.kind {
+                    LedgerKind::Liquidation { .. } => Some(true),
+                    _ => decision.map(|decision| decision.reason.starts_with(PRICE_MOVE_REASON)),
+                };
+                let weak = decision
+                    .filter(|_| value > 0.0)
+                    .and_then(|decision| last_close_before(calendar, decision.decided_at))
+                    .and_then(|known| prices.weak(symbol, known))
+                    .map(|weak| f64::from(u8::from(weak)));
+                let date = entry.at.exchange_date();
                 Some(Trade {
                     from: date,
                     to: date,
                     value,
                     stock: stocks.contains(symbol),
-                    weak: (value > 0.0).then(|| prices.weak(symbol, date)).flatten(),
+                    weak,
                     on_price: (value < 0.0).then_some(on_price).flatten(),
                 })
             })
-            .collect();
-        fingerprint(Cadence::Daily, &books, &trades)
+            .collect()
     }
 }
 
-fn reference_fingerprint(
-    quarters: &BTreeMap<NaiveDate, Holdings>,
-    prices: &Prices,
-    stocks: &Stocks,
-) -> Option<buizz_core::performance::Fingerprint> {
-    let books: Vec<Book> = quarters
+fn last_close_before(calendar: &Calendar, at: Timestamp) -> Option<NaiveDate> {
+    let sessions = calendar.sessions();
+    let closed = sessions.partition_point(|session| session.close <= at);
+    closed.checked_sub(1).map(|index| sessions[index].date)
+}
+
+fn reference_books(quarters: &BTreeMap<NaiveDate, Holdings>, stocks: &Stocks) -> Vec<Book> {
+    quarters
         .iter()
-        .map(|(date, holdings)| {
-            let held: BTreeMap<Symbol, f64> = holdings
+        .map(|(date, holdings)| Book {
+            date: *date,
+            equity: None,
+            stocks: holdings
                 .iter()
                 .filter(|(symbol, (shares, _))| *shares > 0.0 && stocks.contains(symbol))
                 .map(|(symbol, (_, value))| (symbol.clone(), *value))
-                .collect();
-            Book {
-                date: *date,
-                equity: None,
-                beta: prices.book_beta(&held, *date),
-                stocks: held,
-            }
+                .collect(),
+            characteristics: Characteristics::default(),
         })
-        .collect();
+        .collect()
+}
+
+fn reference_trades(
+    quarters: &BTreeMap<NaiveDate, Holdings>,
+    prices: &Prices,
+    stocks: &Stocks,
+) -> Vec<Trade> {
     let mut trades = Vec::new();
     for ((before, earlier), (now, later)) in quarters.iter().zip(quarters.iter().skip(1)) {
         let symbols: BTreeSet<&Symbol> = earlier.keys().chain(later.keys()).collect();
@@ -362,12 +401,25 @@ fn reference_fingerprint(
                 to: *now,
                 value,
                 stock: stocks.contains(symbol),
-                weak: (value > 0.0).then(|| prices.weak(symbol, *now)).flatten(),
+                weak: (value > 0.0)
+                    .then(|| prices.weak_share(symbol, *before, *now))
+                    .flatten(),
                 on_price: None,
             });
         }
     }
-    fingerprint(Cadence::Quarterly, &books, &trades)
+    trades
+}
+
+fn observed<'a>(books: impl Iterator<Item = &'a Book>) -> BTreeMap<NaiveDate, BTreeSet<Symbol>> {
+    let mut observed: BTreeMap<NaiveDate, BTreeSet<Symbol>> = BTreeMap::new();
+    for book in books {
+        observed
+            .entry(book.date)
+            .or_default()
+            .extend(book.stocks.keys().cloned());
+    }
+    observed
 }
 
 pub(crate) async fn behaviour(
@@ -388,11 +440,17 @@ pub(crate) async fn behaviour(
     let record = RunRecord {
         dates,
         ledger: state.ledger(run.id).await?,
-        reasons: state
+        orders: state
             .orders(run.id, None, u32::MAX)
             .await?
             .into_iter()
-            .map(|order| (order.id, order.reason))
+            .map(|order| {
+                let decision = Decision {
+                    reason: order.reason,
+                    decided_at: order.decided_at,
+                };
+                (order.id, decision)
+            })
             .collect(),
     };
     let (from, to) = (run.config.start, run.config.end.unwrap_or(today));
@@ -413,15 +471,44 @@ pub(crate) async fn behaviour(
         .collect();
     let stocks = Stocks::load(market).await?;
     let prices = Prices::load(market, symbols, &run.config.benchmark, from, to).await?;
-    let references = reference_fingerprint(&quarters, &prices, &stocks)
-        .filter(|reference| reference.observations > 1)
-        .map(|fingerprint| ReferenceFingerprint {
-            name: BERKSHIRE_NAME.to_owned(),
-            source: BERKSHIRE_SOURCE.to_owned(),
-            fingerprint,
-        });
+    let calendar = market.calendar(from - LOOKBACK, to).await?;
+    let mut run_books = record.books(&prices, &stocks);
+    let ends = quarter_ends(&run_books.iter().map(|book| book.date).collect::<Vec<_>>());
+    let mut held_books = reference_books(&quarters, &stocks);
+    let fundamentals = Fundamentals::load(
+        market,
+        observed(
+            run_books
+                .iter()
+                .filter(|book| ends.contains(&book.date))
+                .chain(&held_books),
+        ),
+    )
+    .await?;
+    for book in run_books
+        .iter_mut()
+        .filter(|book| ends.contains(&book.date))
+        .chain(&mut held_books)
+    {
+        book.characteristics = prices.characteristics(&fundamentals, &book.stocks, book.date);
+    }
+    let reference = fingerprint(
+        Cadence::Quarterly,
+        &held_books,
+        &reference_trades(&quarters, &prices, &stocks),
+    )
+    .filter(|reference| reference.observations > 1)
+    .map(|fingerprint| ReferenceFingerprint {
+        name: BERKSHIRE_NAME.to_owned(),
+        source: BERKSHIRE_SOURCE.to_owned(),
+        fingerprint,
+    });
     Ok(Behaviour {
-        run: record.fingerprint(&prices, &stocks),
-        references: references.into_iter().collect(),
+        run: fingerprint(
+            Cadence::Daily,
+            &run_books,
+            &record.trades(&prices, &stocks, &calendar),
+        ),
+        references: reference.into_iter().collect(),
     })
 }

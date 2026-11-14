@@ -1,6 +1,7 @@
 mod behaviour;
 mod commit;
 mod drive;
+mod holdings;
 mod link;
 mod report;
 mod research;

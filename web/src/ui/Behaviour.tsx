@@ -19,6 +19,8 @@ const range = (fingerprint: Fingerprint) =>
     ? ABSENT
     : `${fmt.integer(fingerprint.positions_median)} (${fmt.integer(fingerprint.positions_min)}–${fmt.integer(fingerprint.positions_max)})`;
 
+const QUARTERS = "Averaged over the quarters.";
+
 const ROWS: Row[] = [
   { name: "Positions", title: "Stocks held at each observation (session close, or quarter end for a 13F reference): median, with the fewest and most. ETFs such as a T-bill fund are not stocks.", value: range },
   { name: "Top-5 share", title: "Weight of the five largest stock positions in the stock book, averaged over the observations.", value: (f) => fmt.percent(f.top_five_share) },
@@ -27,9 +29,13 @@ const ROWS: Row[] = [
   { name: "Stock share", title: "Stock book over equity, averaged; the rest is cash, T-bills or bonds. A 13F shows no cash, so a reference has none.", value: (f) => fmt.percent(f.stock_share) },
   { name: "Idle months", title: "Share of calendar months with no fill at all. A quarterly 13F cannot show months.", value: (f) => fmt.percent(f.idle_months) },
   { name: "Idle quarters", title: "Share of calendar quarters with no fill at all, or for a 13F no change in any holding.", value: (f) => fmt.percent(f.idle_quarters) },
-  { name: "Buys into weakness", title: "Share of stock buy dollars placed when the stock closed at least 20% below its 52-week high, or the benchmark at least 10% below its own.", value: (f) => fmt.percent(f.buys_into_weakness) },
+  { name: "Buys into weakness", title: "Share of stock buy dollars placed when the stock was at least 20% below its 52-week high, or the benchmark at least 10% below its own, on the last close known when the order was decided. A 13F buy has no date, so it counts for the share of the quarter's sessions on which it would have, each judged on the close before.", value: (f) => fmt.percent(f.buys_into_weakness) },
   { name: "Sells on price", title: "Share of stock sell dollars whose order reason starts with “price:”, or that the drawdown stop forced. A 13F carries no reasons.", value: (f) => fmt.percent(f.sells_on_price) },
-  { name: "Beta", title: "Value-weighted beta of the stocks held at each quarter end, each from a year of daily returns against the benchmark, averaged over the quarters.", value: (f) => fmt.ratio(f.beta) },
+  { name: "Beta", title: `Value-weighted beta of the stocks held at each quarter end, each from a year of daily returns against the benchmark. ${QUARTERS}`, value: (f) => fmt.ratio(f.characteristics.beta) },
+  { name: "Book-to-market", title: `Value-weighted book equity over market value of the stocks held at each quarter end, from the latest balance sheet filed by then; negative equity is left out. ${QUARTERS}`, value: (f) => fmt.ratio(f.characteristics.book_to_market) },
+  { name: "ROE", title: `Value-weighted return on equity of the stocks held at each quarter end: the latest fiscal year's net income over its year-end equity, as filed by then. ${QUARTERS}`, value: (f) => fmt.percent(f.characteristics.roe) },
+  { name: "Size", title: `Value-weighted market value of the stocks held at each quarter end: the close times the latest share count filed by then, split-adjusted. ${QUARTERS}`, value: (f) => fmt.dollars(f.characteristics.market_cap) },
+  { name: "Debt/equity", title: `Value-weighted total debt over book equity of the stocks held at each quarter end, from the latest balance sheet filed by then. ${QUARTERS}`, value: (f) => fmt.ratio(f.characteristics.debt_to_equity) },
 ];
 
 export function BehaviourPanel({ run }: { run: Schemas["RunSummary"] }) {

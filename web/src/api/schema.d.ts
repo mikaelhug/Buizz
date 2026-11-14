@@ -709,6 +709,18 @@ export interface components {
             /** Format: int32 */
             cancelled: number;
         };
+        Characteristics: {
+            /** Format: double */
+            beta?: number | null;
+            /** Format: double */
+            book_to_market?: number | null;
+            /** Format: double */
+            roe?: number | null;
+            /** Format: double */
+            market_cap?: number | null;
+            /** Format: double */
+            debt_to_equity?: number | null;
+        };
         ChartFill: {
             order_id: components["schemas"]["OrderId"];
             at: components["schemas"]["Timestamp"];
@@ -1024,8 +1036,7 @@ export interface components {
             /** Format: double */
             sells_on_price?: number | null;
             drawdowns: components["schemas"]["DrawdownResponse"][];
-            /** Format: double */
-            beta?: number | null;
+            characteristics: components["schemas"]["Characteristics"];
         };
         /** @enum {string} */
         GateCheck: "not_completed" | "data_warnings" | "drawdown_stop" | "few_trades" | "no_edge" | "trails_benchmark" | "deeper_drawdown" | "inconsistent_edge";

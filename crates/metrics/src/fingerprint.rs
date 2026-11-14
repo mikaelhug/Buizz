@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use buizz_core::market::Symbol;
-use buizz_core::performance::{Cadence, DrawdownResponse, Fingerprint};
+use buizz_core::performance::{Cadence, Characteristics, DrawdownResponse, Fingerprint};
 use chrono::{Datelike, NaiveDate};
 
 use crate::mean;
@@ -42,7 +42,7 @@ pub struct Book {
     pub date: NaiveDate,
     pub equity: Option<f64>,
     pub stocks: BTreeMap<Symbol, f64>,
-    pub beta: Option<f64>,
+    pub characteristics: Characteristics,
 }
 
 impl Book {
@@ -56,7 +56,7 @@ pub struct Trade {
     pub to: NaiveDate,
     pub value: f64,
     pub stock: bool,
-    pub weak: Option<bool>,
+    pub weak: Option<f64>,
     pub on_price: Option<bool>,
 }
 
@@ -109,7 +109,9 @@ pub fn fingerprint(cadence: Cadence, books: &[Book], trades: &[Trade]) -> Option
             .flatten(),
         idle_quarters: idle_share(cadence, books, trades, MONTHS_PER_QUARTER),
         buys_into_weakness: dollar_share(buys, |trade| trade.weak),
-        sells_on_price: dollar_share(sells, |trade| trade.on_price),
+        sells_on_price: dollar_share(sells, |trade| {
+            trade.on_price.map(|on| f64::from(u8::from(on)))
+        }),
         drawdowns: market_drawdowns()
             .into_iter()
             .map(|window| DrawdownResponse {
@@ -119,8 +121,25 @@ pub fn fingerprint(cadence: Cadence, books: &[Book], trades: &[Trade]) -> Option
                 to: window.to,
             })
             .collect(),
-        beta: average(books.iter().filter_map(|book| book.beta)),
+        characteristics: characteristics(books),
     })
+}
+
+fn characteristics(books: &[Book]) -> Characteristics {
+    let over = |measure: fn(&Characteristics) -> Option<f64>| {
+        average(
+            books
+                .iter()
+                .filter_map(|book| measure(&book.characteristics)),
+        )
+    };
+    Characteristics {
+        beta: over(|held| held.beta),
+        book_to_market: over(|held| held.book_to_market),
+        roe: over(|held| held.roe),
+        market_cap: over(|held| held.market_cap),
+        debt_to_equity: over(|held| held.debt_to_equity),
+    }
 }
 
 fn average(values: impl Iterator<Item = f64>) -> Option<f64> {
@@ -198,12 +217,15 @@ fn idle_share(cadence: Cadence, books: &[Book], trades: &[Trade], months: u32) -
 
 fn dollar_share<'a>(
     trades: impl Iterator<Item = &'a &'a Trade>,
-    flag: impl Fn(&Trade) -> Option<bool>,
+    share: impl Fn(&Trade) -> Option<f64>,
 ) -> Option<f64> {
-    let (flagged, known) = trades.fold((0.0, 0.0), |(flagged, known), trade| match flag(trade) {
-        Some(true) => (flagged + trade.value.abs(), known + trade.value.abs()),
-        Some(false) => (flagged, known + trade.value.abs()),
-        None => (flagged, known),
+    let (flagged, known) = trades.fold((0.0, 0.0), |(flagged, known), trade| {
+        share(trade).map_or((flagged, known), |share| {
+            (
+                flagged + share * trade.value.abs(),
+                known + trade.value.abs(),
+            )
+        })
     });
     (known > 0.0).then(|| flagged / known)
 }
