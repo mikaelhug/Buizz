@@ -1,9 +1,9 @@
-description = "Munger: five Gray-Carlisle franchise-power compounders at median-or-better EBIT/TEV, held for years. Unlike Quantitative Value it ranks quality first (top 10% franchise power) and asks only a median EBIT/TEV instead of the cheapest decile, skips the accrual, manipulation, distress and financial-strength screens, holds five names, and instead of a yearly rebalance sells only when a new 10-K breaks quality or makes the price absurd, filling empty slots within the month"
+description = "Munger: at most four Gray-Carlisle franchise-power compounders (top 10% on an 8-year record), each opened at 20% of equity only at a fair price (EBIT/TEV at or above the universe median, the 25th percentile in a panic), only when the market is not hot and only without an 8-K 4.02 restatement in five years; 5% more for every 20% fall below cost while quality holds, up to 40%; sold in full only when a new filing breaks the thesis, an 8-K 4.02 arrives or the price becomes absurd, never on a price fall; the rest waits in BIL and is spent when the S&P 500 is 20% below its high or the market temperature is cold"
 command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
 timeframe = "1d"
 wake = "bar"
 universe = { top_dollar_volume = 1000, asset_class = "stock" }
-params = { holdings = 5, record_years = 8, quality_top = 0.10, value_floor = 0.50, sell_quality_floor = 0.30, sell_value_floor = 0.10 }
+params = { max_names = 4, start = 0.20, add_step = 0.05, add_on_drop = 0.20, cap = 0.40, record_years = 8, quality_top = 0.10, value_floor = 0.50, panic_value_floor = 0.25, panic_drawdown = 0.20, hot = 0.80, cold = 0.20, restatement_years = 5, sell_quality_floor = 0.30, sell_value_floor = 0.10, cash_symbol = "BIL" }
 
 [risk]
 max_gross_exposure = 1.0

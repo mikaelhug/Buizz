@@ -13,10 +13,10 @@ from buizz_bots.fundamentals import (
     histories_since,
     in_dollars,
     latest_shares,
-    total_debt,
     with_fourth_quarters,
 )
 from buizz_bots.ranks import highest_first, percentiles
+from buizz_bots.value import NET_DEBT_METRICS, excess_cash, net_debt, operating_companies
 
 from buizz import Bot, Context, FundamentalPoint, Metric, run
 
@@ -24,19 +24,10 @@ METRICS: list[Metric] = [
     "operating_income",
     "current_assets",
     "current_liabilities",
-    "cash_and_equivalents",
-    "short_term_investments",
     "ppe_net",
-    "short_term_debt",
-    "short_term_borrowings",
-    "current_long_term_debt",
-    "long_term_debt",
-    "long_term_debt_noncurrent",
-    "preferred_stock",
     "shares_outstanding",
+    *NET_DEBT_METRICS,
 ]
-FINANCIALS = range(6000, 7000)
-UTILITIES = range(4900, 4950)
 CHUNK = 200
 LOOKBACK_DAYS = 730
 MAX_QUARTER_AGE_DAYS = 200
@@ -98,28 +89,12 @@ def accounts_of(symbol: str, points: list[FundamentalPoint], today: date) -> Acc
     end = max(dated & set(sheet.get((symbol, "ppe_net"), {})), default=None)
     if ebit is None or shares is None or end is None or (today - end).days > MAX_QUARTER_AGE_DAYS:
         return None
-    cash = amount_or_zero(sheet, symbol, "cash_and_equivalents", end) + amount_or_zero(
-        sheet, symbol, "short_term_investments", end
-    )
-    current_assets = amount_or_zero(sheet, symbol, "current_assets", end) - cash
+    current_assets = amount_or_zero(sheet, symbol, "current_assets", end) - excess_cash(sheet, symbol, end)
     current_liabilities = amount_or_zero(sheet, symbol, "current_liabilities", end) - current_debt(sheet, symbol, end)
     capital = current_assets - current_liabilities + amount_or_zero(sheet, symbol, "ppe_net", end)
     if capital <= 0:
         return None
-    net_debt = total_debt(sheet, symbol, end) + amount_or_zero(sheet, symbol, "preferred_stock", end) - cash
-    return Accounts(ebit, capital, net_debt, shares)
-
-
-def operating_companies(ctx: Context, symbols: list[str]) -> list[str]:
-    profiles = ctx.instruments(symbols)
-    return [
-        symbol
-        for symbol in symbols
-        if symbol in profiles
-        and (sic := profiles[symbol].sic) is not None
-        and sic not in FINANCIALS
-        and sic not in UTILITIES
-    ]
+    return Accounts(ebit, capital, net_debt(sheet, symbol, end), shares)
 
 
 def scores_of(ctx: Context, symbols: list[str]) -> dict[str, Score]:

@@ -1,5 +1,5 @@
 import math
-from datetime import date
+from datetime import date, timedelta
 from typing import NamedTuple
 
 import numpy as np
@@ -8,20 +8,32 @@ from buizz_bots.fundamentals import (
     Annual,
     adjusted_shares,
     amount,
-    amount_or_zero,
     consecutive_fiscal_ends,
     domestic_annual,
     gross_margin,
     histories_since,
-    total_debt,
     traded_today,
     year_end_shares,
 )
+from buizz_bots.persona import (
+    DAYS_PER_YEAR,
+    Buy,
+    Ladder,
+    Sell,
+    Temperature,
+    candidates,
+    ladder_weight,
+    new_filings,
+    restated,
+    stock_weights,
+    temperature,
+    trade,
+)
+from buizz_bots.value import EBIT_METRICS, NET_DEBT_METRICS, ebit, net_debt, operating_companies
 
 from buizz import Bot, Context, Metric, run
 
 RECORD_METRICS: list[Metric] = [
-    "operating_income",
     "net_income",
     "total_assets",
     "current_assets",
@@ -31,20 +43,9 @@ RECORD_METRICS: list[Metric] = [
     "capex",
 ]
 MARGIN_METRICS: list[Metric] = ["revenue", "gross_profit", "cost_of_revenue"]
-PRICE_METRICS: list[Metric] = [
-    "shares_outstanding",
-    "cash_and_equivalents",
-    "short_term_investments",
-    "long_term_debt",
-    "long_term_debt_noncurrent",
-    "short_term_debt",
-    "short_term_borrowings",
-    "current_long_term_debt",
-    "preferred_stock",
-]
-METRICS = RECORD_METRICS + MARGIN_METRICS + PRICE_METRICS
-FINANCIALS = range(6000, 7000)
-UTILITIES = range(4900, 4950)
+METRICS = EBIT_METRICS + RECORD_METRICS + MARGIN_METRICS + ["shares_outstanding", *NET_DEBT_METRICS]
+FILING_METRIC: Metric = "total_assets"
+IDLE_CASH = 0.01
 
 Floats = npt.NDArray[np.float64]
 
@@ -78,17 +79,24 @@ class Board(NamedTuple):
     yields: Floats
 
 
+class Mood(NamedTuple):
+    panic: bool
+    hot: bool
+    why: str
+
+
 def year_of(annual: Annual, symbol: str, end: date) -> Year | None:
     found = [amount(annual, symbol, metric, end) for metric in RECORD_METRICS]
+    earnings = ebit(annual, symbol, end)
     margin = gross_margin(annual, symbol, end)
     values = [value for value in found if value is not None]
-    if margin is None or len(values) < len(found):
+    if earnings is None or margin is None or len(values) < len(found):
         return None
-    ebit, net_income, assets, current_assets, current_liabilities, ppe, operating_cash_flow, capex = values
+    (net_income, assets, current_assets, current_liabilities, ppe, operating_cash_flow, capex) = values
     capital = ppe + current_assets - current_liabilities
     if capital <= 0 or assets <= 0:
         return None
-    return Year(net_income / assets, ebit / capital, operating_cash_flow - capex, margin, assets)
+    return Year(net_income / assets, earnings / capital, operating_cash_flow - capex, margin, assets)
 
 
 def geometric_mean(returns: list[float]) -> float | None:
@@ -110,27 +118,8 @@ def franchise_of(record: list[Year]) -> Franchise | None:
     return Franchise(roa, roc, cfoa, float(growth), stability)
 
 
-def enterprise_extras(annual: Annual, symbol: str, end: date) -> float:
-    cash = amount_or_zero(annual, symbol, "cash_and_equivalents", end) + amount_or_zero(
-        annual, symbol, "short_term_investments", end
-    )
-    return total_debt(annual, symbol, end) + amount_or_zero(annual, symbol, "preferred_stock", end) - cash
-
-
 def percentile(reference: Floats, value: float) -> float:
     return float(np.searchsorted(reference, value, side="right")) / len(reference)
-
-
-def eligible(ctx: Context, symbols: list[str]) -> list[str]:
-    profiles = ctx.instruments(symbols)
-    return [
-        symbol
-        for symbol in symbols
-        if symbol in profiles
-        and (sic := profiles[symbol].sic) is not None
-        and sic not in FINANCIALS
-        and sic not in UTILITIES
-    ]
 
 
 def assess(ctx: Context, symbols: list[str]) -> dict[str, Assessment]:
@@ -139,7 +128,7 @@ def assess(ctx: Context, symbols: list[str]) -> dict[str, Assessment]:
     annual = domestic_annual(ctx.fundamentals(symbols, METRICS))
     found: dict[str, Assessment] = {}
     for symbol in symbols:
-        reported = annual.get((symbol, "operating_income"), {})
+        reported = set(annual.get((symbol, "operating_income"), {})) | set(annual.get((symbol, "pretax_income"), {}))
         latest = consecutive_fiscal_ends(reported, today, 1)
         if latest is None:
             continue
@@ -160,15 +149,15 @@ def assess(ctx: Context, symbols: list[str]) -> dict[str, Assessment]:
     raw, adjusted = histories_since(ctx, sorted(shares), min(point.filed for point in shares.values()))
     for symbol, point in shares.items():
         end = found[symbol].fiscal_end
-        ebit = amount(annual, symbol, "operating_income", end)
-        if symbol not in raw or ebit is None or not traded_today(ctx, raw[symbol]):
+        earnings = ebit(annual, symbol, end)
+        if symbol not in raw or earnings is None or not traded_today(ctx, raw[symbol]):
             continue
         count = adjusted_shares(point, raw[symbol], adjusted[symbol])
         if count is None:
             continue
-        tev = count * float(raw[symbol].close[-1]) + enterprise_extras(annual, symbol, end)
+        tev = count * float(raw[symbol].close[-1]) + net_debt(annual, symbol, end)
         if tev > 0:
-            found[symbol] = found[symbol]._replace(ebit_tev=ebit / tev)
+            found[symbol] = found[symbol]._replace(ebit_tev=earnings / tev)
     return found
 
 
@@ -191,7 +180,7 @@ def franchise_power(assessments: dict[str, Assessment], universe: set[str]) -> d
 
 
 def board_of(ctx: Context, held: list[str]) -> Board:
-    universe = eligible(ctx, sorted(set(ctx.universe)))
+    universe = operating_companies(ctx, sorted(set(ctx.universe)))
     symbols = sorted(set(universe) | set(held))
     assessments = assess(ctx, symbols)
     members = set(universe)
@@ -203,91 +192,150 @@ def board_of(ctx: Context, held: list[str]) -> Board:
     return Board(assessments, franchise_power(assessments, members), yields)
 
 
-def latest_reports(ctx: Context, symbols: list[str]) -> dict[str, str]:
-    annual = domestic_annual(ctx.fundamentals(symbols, ["operating_income"]))
-    return {symbol: max(points).isoformat() for (symbol, _), points in annual.items() if points}
-
-
-def sell_reason(ctx: Context, board: Board, symbol: str) -> str | None:
+def thesis_break(ctx: Context, board: Board, symbol: str) -> str | None:
     seen = board.assessments.get(symbol)
     if seen is None:
         return None
     quality_floor = 1 - float(ctx.params["sell_quality_floor"])
     power = board.power.get(symbol)
     if seen.latest_roc is not None and seen.latest_roc < 0:
-        return f"quality broke: return on capital {seen.latest_roc:.1%} in FY ending {seen.fiscal_end}"
+        return f"return on capital {seen.latest_roc:.1%} in FY ending {seen.fiscal_end}"
     if power is not None and power < quality_floor:
-        return f"quality broke: franchise power pct {power:.0%}, below the top {1 - quality_floor:.0%}"
-    if seen.ebit_tev is not None and len(board.yields):
-        bottom = float(ctx.params["sell_value_floor"])
-        cut = float(np.quantile(board.yields, bottom))
-        if seen.ebit_tev < cut:
-            return (
-                f"price absurd: EBIT/TEV {seen.ebit_tev:.1%}, in the universe's bottom {bottom:.0%} (below {cut:.1%})"
-            )
+        return f"franchise power pct {power:.0%}, below the top {1 - quality_floor:.0%}"
     return None
 
 
-def buy(ctx: Context, board: Board, held: list[str], sold: list[str]) -> None:
-    holdings = int(ctx.params["holdings"])
-    open_slots = holdings - len(held) + len(sold)
-    if open_slots <= 0 or not len(board.yields):
-        return
-    floor = float(np.quantile(board.yields, float(ctx.params["value_floor"])))
+def absurd_price(ctx: Context, board: Board, symbol: str) -> str | None:
+    seen = board.assessments.get(symbol)
+    if seen is None or seen.ebit_tev is None or not len(board.yields):
+        return None
+    bottom = float(ctx.params["sell_value_floor"])
+    cut = float(np.quantile(board.yields, bottom))
+    if seen.ebit_tev >= cut:
+        return None
+    return f"EBIT/TEV {seen.ebit_tev:.1%}, in the universe's bottom {bottom:.0%} (below {cut:.1%})"
+
+
+def sell_of(ctx: Context, board: Board, symbol: str) -> Sell | None:
+    broken = thesis_break(ctx, board, symbol)
+    if broken is not None:
+        return Sell(symbol, "thesis", broken)
+    absurd = absurd_price(ctx, board, symbol)
+    return None if absurd is None else Sell(symbol, "valuation", absurd)
+
+
+def mood_of(ctx: Context, heat: Temperature | None) -> Mood:
+    if heat is None:
+        return Mood(False, False, "market temperature unknown")
+    fall = heat.drawdown or 0.0
+    panic = fall >= float(ctx.params["panic_drawdown"]) or heat.heat <= float(ctx.params["cold"])
+    hot = not panic and heat.heat >= float(ctx.params["hot"])
+    return Mood(panic, hot, f"{heat.why}, S&P 500 {fall:.0%} below its high")
+
+
+def ladder_of(ctx: Context) -> Ladder:
+    return Ladder(*(float(ctx.params[name]) for name in Ladder._fields))
+
+
+def adds(ctx: Context, board: Board, ladder: Ladder, weights: dict[str, float]) -> list[Buy]:
+    found: list[Buy] = []
+    for symbol, weight in sorted(weights.items()):
+        target = ladder_weight(ctx, ladder, symbol, weight)
+        power = board.power.get(symbol)
+        if target is None or power is None or thesis_break(ctx, board, symbol) is not None:
+            continue
+        fall = 1 - ctx.bars[symbol].close / float(ctx.position(symbol).avg_cost)
+        found.append(
+            Buy(
+                symbol,
+                target,
+                f"add on weakness: {fall:.0%} below average cost while franchise power pct is still {power:.0%}, "
+                f"{weight:.1%} to {target:.1%} of equity",
+            )
+        )
+    return found
+
+
+def opens(ctx: Context, board: Board, mood: Mood, ladder: Ladder, slots: int, skip: set[str]) -> list[Buy]:
+    if slots <= 0 or not len(board.yields):
+        return []
+    level = float(ctx.params["panic_value_floor" if mood.panic else "value_floor"])
+    floor = float(np.quantile(board.yields, level))
     quality_floor = 1 - float(ctx.params["quality_top"])
     universe = set(ctx.universe)
-    candidates = sorted(
-        (
-            (ebit_tev, symbol, power, franchise.roc)
-            for symbol, power in board.power.items()
-            if symbol in universe
-            and symbol not in held
-            and power > quality_floor
-            and (franchise := board.assessments[symbol].franchise) is not None
-            and (ebit_tev := board.assessments[symbol].ebit_tev) is not None
-            and ebit_tev >= floor
-        ),
-        reverse=True,
-    )
-    chosen = candidates[:open_slots]
-    proceeds = sum(ctx.position(symbol).qty * ctx.bars[symbol].close for symbol in sold if symbol in ctx.bars)
-    free = (float(ctx.portfolio.cash) + proceeds) / float(ctx.portfolio.equity)
-    if not chosen or free <= 0:
-        return
-    weight = min(1 / holdings, free / len(chosen))
+
+    def gate(symbol: str) -> float | None:
+        seen = board.assessments[symbol]
+        if symbol not in universe or symbol in skip or board.power[symbol] <= quality_floor:
+            return None
+        if seen.franchise is None or seen.ebit_tev is None or seen.ebit_tev < floor:
+            return None
+        return seen.ebit_tev
+
+    passed = candidates(board.power, gate)
+    since = ctx.session.date - timedelta(days=round(float(ctx.params["restatement_years"]) * DAYS_PER_YEAR))
+    unreliable = restated(ctx, [symbol for symbol, _ in passed], since)
     years = int(ctx.params["record_years"])
-    for ebit_tev, symbol, power, roc in chosen:
-        ctx.order_target_weight(
+    price = "panic price" if mood.panic else "fair price"
+    return [
+        Buy(
             symbol,
-            weight,
-            reason=(
-                f"franchise power pct {power:.0%} (top {1 - quality_floor:.0%}), {years}y ROC {roc:.1%}, "
-                f"EBIT/TEV {ebit_tev:.1%} at or above the universe median {floor:.1%}, {weight:.1%} of equity"
-            ),
+            ladder.start,
+            f"{price}: franchise power pct {board.power[symbol]:.0%} (top {1 - quality_floor:.0%}), "
+            f"{years}y ROC {franchise.roc:.1%}, EBIT/TEV {ebit_tev:.1%} at or above the universe's "
+            f"{level * 100:.0f}th percentile {floor:.1%}; {mood.why}",
         )
+        for symbol, ebit_tev in [pair for pair in passed if pair[0] not in unreliable][:slots]
+        if (franchise := board.assessments[symbol].franchise) is not None
+    ]
 
 
 class Munger(Bot):
     def on_step(self, ctx: Context) -> None:
+        today = ctx.session.date
+        cash_symbol = str(ctx.params["cash_symbol"])
+        held = sorted(
+            symbol for symbol, position in ctx.portfolio.positions.items() if position.qty > 0 and symbol != cash_symbol
+        )
+        renamed = {ctx.renames.get(symbol, symbol): filed for symbol, filed in ctx.state.get("filings", {}).items()}
+        seen = {symbol: renamed[symbol] for symbol in held if symbol in renamed}
+        fresh = new_filings(ctx, held, seen, FILING_METRIC)
+        broken = restated(ctx, held, date.fromisoformat(ctx.state.get("checked", today.isoformat())))
+        ctx.state["checked"] = today.isoformat()
+        sells = [
+            Sell(symbol, "thesis", "8-K Item 4.02, past financial statements no longer to be relied on")
+            for symbol in sorted(broken)
+        ]
+        board = board_of(ctx, held) if fresh else None
+        if board is not None:
+            sells += [sell for symbol in fresh if symbol not in broken and (sell := sell_of(ctx, board, symbol))]
+        sold = {sell.symbol for sell in sells}
+        weights = {symbol: weight for symbol, weight in stock_weights(ctx, cash_symbol).items() if symbol not in sold}
+        buys = self.buys(ctx, board, weights, sold)
+        if sells or buys or float(ctx.portfolio.cash) > IDLE_CASH * float(ctx.portfolio.equity):
+            trade(ctx, sells, buys, cash_symbol)
+        new_filings(ctx, [buy.symbol for buy in buys if buy.symbol not in seen], seen, FILING_METRIC)
+        ctx.state["filings"] = seen
+
+    def buys(self, ctx: Context, board: Board | None, weights: dict[str, float], sold: set[str]) -> list[Buy]:
+        ladder = ladder_of(ctx)
+        slots = int(ctx.params["max_names"]) - len(weights)
+        opening = slots > 0 and 1 - sum(weights.values()) >= ladder.start
+        adding = any(ladder_weight(ctx, ladder, symbol, weight) is not None for symbol, weight in weights.items())
+        if not opening and not adding:
+            return []
+        mood = mood_of(ctx, temperature(ctx))
         month = f"{ctx.session.date:%Y-%m}"
-        held = sorted(symbol for symbol, position in ctx.portfolio.positions.items() if position.qty > 0)
-        known = {ctx.renames.get(symbol, symbol): report for symbol, report in ctx.state.get("reports", {}).items()}
-        reports = latest_reports(ctx, held) if held else {}
-        fresh = [symbol for symbol in held if symbol in known and reports.get(symbol, known[symbol]) != known[symbol]]
-        ctx.state["reports"] = {symbol: reports.get(symbol, known.get(symbol, "")) for symbol in held}
-        short = len(held) < int(ctx.params["holdings"]) and ctx.state.get("filled") != month
-        if not fresh and not short:
-            return
-        board = board_of(ctx, held)
-        sold: list[str] = []
-        for symbol in fresh:
-            reason = sell_reason(ctx, board, symbol)
-            if reason is not None:
-                ctx.order_target_weight(symbol, 0, reason=reason)
-                sold.append(symbol)
-        if short or sold:
-            ctx.state["filled"] = month
-            buy(ctx, board, held, sold)
+        if not mood.panic and ctx.state.get("scanned") == month:
+            return []
+        ctx.state["scanned"] = month
+        if mood.hot and not adding:
+            return []
+        board = board or board_of(ctx, sorted(weights))
+        found = adds(ctx, board, ladder, weights)
+        if opening and not mood.hot:
+            found += opens(ctx, board, mood, ladder, slots, set(weights) | sold)
+        return found
 
 
 if __name__ == "__main__":

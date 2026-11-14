@@ -115,7 +115,7 @@ Execution rule: papers that rebalance monthly or less often trade at the signal'
 | Bot | Idea | Gaps |
 |---|---|---|
 | `buffett` | Frazzini–Kabiller–Pedersen systematic Buffett: beta 0.68 plus factor tilts in Berkshire's proportions, scaled to its volatility | G1, G2, G4, G10, G11, G13, G15, G16, G17 |
-| `munger` | Five Gray–Carlisle franchise-power compounders at median-or-better EBIT/TEV, no rebalancing | G2, G3, G16 |
+| `munger` | At most four Gray–Carlisle franchise-power compounders at a fair price, cash in BIL until then or until a panic, added to on weakness, sold only on a thesis break | G2, G3, G16 |
 | `graham` | Net-nets below two-thirds of NCAV (primary); defensive criteria and the 1976 rule as variants | G2, G16; G3, G14, G15 (variants) |
 | `singleton` | Value repurchasers: bottom-decile net issuance in the top book-to-market quintile, held 48 months | G2, G16, G10 (variant) |
 | `greenblatt` | The magic formula: return on capital plus EBIT/EV, 28 names bought 7 a quarter, each held a year with the book's tax timing | none |

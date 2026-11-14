@@ -47,6 +47,7 @@ class Buy(NamedTuple):
 class Temperature(NamedTuple):
     heat: float
     parts: dict[str, float]
+    drawdown: float | None
 
     @property
     def why(self) -> str:
@@ -139,6 +140,7 @@ def temperature(ctx: Context, market: str = "SPY", years: int = TEMPERATURE_YEAR
     for point in ctx.macro(["sp500_forward_pe", "sp500_forward_pe_10y_avg", "baa10y", "vix"], since, today):
         series.setdefault(point.series, {})[point.date] = float(point.value)
     parts: dict[str, float] = {}
+    drawdown: float | None = None
     pe, average = series.get("sp500_forward_pe", {}), series.get("sp500_forward_pe_10y_avg", {})
     ratios = [pe[day] / average[day] for day in sorted(pe.keys() & average.keys()) if average[day] > 0]
     if ratios:
@@ -151,10 +153,11 @@ def temperature(ctx: Context, market: str = "SPY", years: int = TEMPERATURE_YEAR
     if closes is not None and len(closes.close) > YEAR_SESSIONS:
         prices = np.asarray(closes.close, dtype=np.float64)
         drawdowns = 1 - prices / np.maximum.accumulate(prices)
-        parts["drawdown"] = 1 - rank_of(drawdowns.tolist(), float(drawdowns[-1]))
+        drawdown = float(drawdowns[-1])
+        parts["drawdown"] = 1 - rank_of(drawdowns.tolist(), drawdown)
     if not parts:
         return None
-    return Temperature(float(np.mean(list(parts.values()))), parts)
+    return Temperature(float(np.mean(list(parts.values()))), parts, drawdown)
 
 
 def stock_share(heat: Temperature, low: float, high: float) -> float:
