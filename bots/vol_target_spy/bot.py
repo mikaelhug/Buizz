@@ -1,32 +1,41 @@
-from buizz_bots.sessions import week_ends
-from buizz_bots.volatility import ewma_sessions, ex_ante_volatility
+import numpy as np
+from buizz_bots.monthly import MAX_SESSIONS_PER_MONTH, session_days
+from buizz_bots.sessions import last_session_of_month
 
 from buizz import Bot, Context, run
+
+MONTHS_PER_YEAR = 12
+MIN_RETURNS = 10
 
 
 class VolTargetSpy(Bot):
     def on_step(self, ctx: Context) -> None:
-        if not week_ends(ctx):
+        if not last_session_of_month(ctx):
             return
         asset: str = ctx.params["asset"]
         cash: str = ctx.params["cash"]
         target_vol = float(ctx.params["target_vol"])
         cap = float(ctx.params["cap"])
         band = float(ctx.params["band"])
-        centre_of_mass = 1 / (2 ** (1 / float(ctx.params["vol_half_life_days"])) - 1)
         if asset not in ctx.bars:
-            ctx.log(f"no {asset} bar at the close, no decision this week", level="warn")
+            ctx.log(f"no {asset} bar at the close, no decision this month", level="warn")
             return
-        sessions = ewma_sessions(centre_of_mass)
-        closes = ctx.history([asset], "1d", sessions + 1, adjust="all")[asset].close
-        if closes.size <= sessions:
-            ctx.log(f"{asset} has {closes.size} of {sessions + 1} closes for its volatility, no decision yet")
+        history = ctx.history([asset], "1d", MAX_SESSIONS_PER_MONTH + 1, adjust="all")[asset]
+        month = session_days(history).astype("datetime64[M]")
+        this_month = month == np.datetime64(ctx.session.date, "M")
+        closes = history.close[max(int(np.argmax(this_month)) - 1, 0) :] if this_month.any() else history.close[:0]
+        returns = closes[1:] / closes[:-1] - 1
+        if returns.size < MIN_RETURNS:
+            ctx.log(f"{asset} has {returns.size} daily returns this month, no decision yet")
             return
-        vol = ex_ante_volatility(closes, centre_of_mass)
-        weight = min(cap, target_vol / vol)
+        variance = MONTHS_PER_YEAR * float(np.sum((returns - returns.mean()) ** 2))
+        weight = min(cap, target_vol**2 / variance)
         rest = max(0.0, 1 - weight)
         held = ctx.position(asset).qty * ctx.bars[asset].close / float(ctx.portfolio.equity)
-        signal = f"EWMA vol {vol:.1%}, {target_vol:.0%}/{vol:.1%} capped at {cap:.2f} = {weight:.2f}"
+        signal = (
+            f"{ctx.session.date:%Y-%m} realized variance of {returns.size} daily returns {variance:.4f} "
+            f"({variance**0.5:.1%} vol), {target_vol:.0%}²/{variance:.4f} capped at {cap:.2f} = {weight:.2f}"
+        )
         if abs(weight - held) <= band:
             ctx.log(f"{signal}; {asset} at {held:.2f} is within {band:.2f} of it, no trade")
             return
