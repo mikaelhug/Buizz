@@ -20,6 +20,7 @@ class Filing:
     insiders: dict[int, str]
     dates: frozenset[date]
     purchases: tuple[tuple[date, Decimal], ...]
+    discretionary_sales: tuple[tuple[date, Decimal], ...]
 
 
 @dataclass(frozen=True)
@@ -50,6 +51,15 @@ def filings(trades: Iterable[InsiderTrade]) -> list[Filing]:
                     for line in lines
                     if line.code == "P" and line.acquired and line.shares is not None and line.price is not None
                 ),
+                discretionary_sales=tuple(
+                    (line.date, line.shares * line.price)
+                    for line in lines
+                    if line.code == "S"
+                    and not line.acquired
+                    and line.plan_10b5_1 is not True
+                    and line.shares is not None
+                    and line.price is not None
+                ),
             )
         )
     return found
@@ -71,6 +81,17 @@ def standing(found: list[Filing]) -> list[Filing]:
                 kept.remove(amended)
         kept.append(filing)
     return kept
+
+
+def net_selling(trades: Iterable[InsiderTrade]) -> dict[str, Decimal]:
+    net: dict[str, Decimal] = {}
+    ordered = sorted(trades, key=lambda trade: (trade.symbol, trade.accession))
+    for symbol, rows in groupby(ordered, key=lambda trade: trade.symbol):
+        insiders = [filing for filing in standing(filings(rows)) if filing.insiders]
+        sold = sum((amount for filing in insiders for _, amount in filing.discretionary_sales), Decimal(0))
+        bought = sum((amount for filing in insiders for _, amount in filing.purchases), Decimal(0))
+        net[symbol] = sold - bought
+    return net
 
 
 def traded_months(trades: Iterable[InsiderTrade]) -> dict[int, set[tuple[int, int]]]:

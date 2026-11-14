@@ -33,6 +33,7 @@ Each gap is its own contract PR, merged before the bots it blocks.
 | G21 News | Headlines and bodies tagged by symbol, point-in-time | Alpaca's Benzinga news API (history since 2015; check the free plan's current terms), keyed by publish time | alpha_lab |
 | G22 Search attention | Google search volume per ticker, as it was known at the time | A daily recorder that snapshots Google Trends for the universe from the day it lands, like the borrow recorder. Earlier history only through the gated Trends API alpha, flagged as revised data | alpha_lab |
 | G23 Sweep harness | Running a declared grid of trials, counting every one, and ranking them against overfitting | `buizz sweep bots/<name>` over a `sweep.toml` grid on the 10y preset: trial ledger in `state.db`, shared feature cache, resume by config hash, deflated Sharpe and PBO, live progress pushed to the website. Reverses PLAN.md's "no sweeps in v1" | alpha_lab |
+| G24 Issuer repurchases and self-tenders | The shares a company bought each month and the average price it paid, and its tender offers for its own stock with their dates, size and premium | A `capital_returns` recipe over the *Issuer Purchases of Equity Securities* table of 10-K Item 5 and 10-Q Part II Item 2 (sections the spine already splits, read by code), and SC TO-I and SC TO-I/A added to the kept EDGAR forms; new data, so an owner decision | singleton (strong variant) |
 
 G11 and G18 are caveats, not blockers (G18's error is under 0.02 bps a side). Every other gap blocks the bots it lists, except where it's marked as a variant.
 
@@ -116,8 +117,8 @@ Execution rule: papers that rebalance monthly or less often trade at the signal'
 |---|---|---|
 | `buffett` | Frazzini–Kabiller–Pedersen systematic Buffett: beta 0.68 plus factor tilts in Berkshire's proportions, scaled to its volatility | G1, G2, G4, G10, G11, G13, G15, G16, G17 |
 | `munger` | At most four Gray–Carlisle franchise-power compounders at a fair price, cash in BIL until then or until a panic, added to on weakness, sold only on a thesis break | G2, G3, G16 |
-| `graham` | Net-nets below two-thirds of NCAV (primary); defensive criteria and the 1976 rule as variants | G2, G16; G3, G14, G15 (variants) |
-| `singleton` | Value repurchasers: bottom-decile net issuance in the top book-to-market quintile, held 48 months | G2, G16, G10 (variant) |
+| `graham` | Graham-Newman's general portfolio: net-nets, then 1976-rule passers, 30 slots of a 25% to 75% stock share set by market temperature, the rest in IEF; sold at +50%, after two calendar years or on a dividend cut; the defensive criteria remain | G14 (defensive variant) |
+| `singleton` | Companies shrinking their shares by buying back below 15 times earnings with insiders not selling, held for years and sold on the company's own behaviour; the monthly purchase prices and self-tenders remain | G24 (strong variant) |
 | `greenblatt` | The magic formula: return on capital plus EBIT/EV, 28 names bought 7 a quarter, each held a year with the book's tax timing | none |
 
 ### Research exercises

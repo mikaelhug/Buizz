@@ -1,154 +1,347 @@
-import math
-from datetime import date
+from datetime import date, timedelta
+from decimal import Decimal
 from typing import NamedTuple
 
 import numpy as np
-from buizz_bots.drift import rebalance_within_band
+import numpy.typing as npt
 from buizz_bots.fundamentals import (
+    DOMESTIC_FORMS,
     Annual,
     adjusted_shares,
     amount,
     amount_or_zero,
+    by_symbol,
     consecutive_fiscal_ends,
     domestic_annual,
     histories_since,
+    in_dollars,
     traded_today,
+    year_end_shares,
 )
+from buizz_bots.insiders import net_selling
+from buizz_bots.monthly import session_days
+from buizz_bots.persona import Buy, Ladder, Sell, ladder_weight, restated, stock_weights, trade
 
-from buizz import Bot, Context, FundamentalPoint, History, Metric, run
+from buizz import Bot, Context, FundamentalPoint, History, MacroSeries, Metric, run
 
-METRICS: list[Metric] = [
-    "shares_outstanding",
-    "equity",
-    "preferred_stock",
-    "share_repurchases",
-    "operating_cash_flow",
-    "capex",
-]
-YEARS_NEEDED = 2
+METRICS: list[Metric] = ["shares_outstanding", "share_repurchases", "net_income", "operating_cash_flow", "capex"]
+FISCAL_YEARS = 3
+DAYS_PER_YEAR = 365.25
+YEAR_AGO_DAYS = range(300, 431)
+MAX_COUNT_AGE_DAYS = 200
+INSIDER_DAYS = 365
+RESTATEMENT_DAYS = 5 * 365
+MACRO_LOOKBACK_DAYS = 30
 
 
-class Candidate(NamedTuple):
+class Year(NamedTuple):
+    start: date
+    end: date
+    repurchases: float
+    net_income: float
+    free_cash_flow: float
+
+
+class Record(NamedTuple):
     symbol: str
-    latest: FundamentalPoint
-    prior: FundamentalPoint
-    book_equity: float
-    buyback_to_fcf: float | None
+    years: tuple[Year, Year]
+    counts: tuple[FundamentalPoint, FundamentalPoint, FundamentalPoint]
+    instants: list[FundamentalPoint]
 
 
-class Signal(NamedTuple):
-    symbol: str
-    issuance: float
-    book_to_market: float
-    buyback_to_fcf: float | None
+class Bonds(NamedTuple):
+    days: npt.NDArray[np.datetime64]
+    yields: npt.NDArray[np.float64]
 
 
-def buyback_to_fcf(annual: Annual, symbol: str, period_end: date) -> float | None:
-    repurchases = amount(annual, symbol, "share_repurchases", period_end)
-    operating = amount(annual, symbol, "operating_cash_flow", period_end)
-    capex = amount(annual, symbol, "capex", period_end)
-    if repurchases is None or operating is None or capex is None or operating - capex <= 0:
+class Measure(NamedTuple):
+    shrink: float
+    paid_yield: float
+    hurdle: float
+    latest_yield: float
+    latest_bond: float
+    earnings_yield: float
+    buyback_yield: float
+    coverage: float
+    issued: float | None
+    market_cap: float
+
+
+def record_of(annual: Annual, symbol: str, instants: list[FundamentalPoint], today: date) -> Record | None:
+    ends = consecutive_fiscal_ends(annual.get((symbol, "net_income"), {}), today, FISCAL_YEARS)
+    if ends is None:
         return None
-    return repurchases / (operating - capex)
-
-
-def candidate(annual: Annual, symbol: str, today: date) -> Candidate | None:
-    shares = annual.get((symbol, "shares_outstanding"), {})
-    equity = annual.get((symbol, "equity"), {})
-    fiscal_ends = consecutive_fiscal_ends(set(shares) & set(equity), today, YEARS_NEEDED)
-    if fiscal_ends is None:
+    latest, prior, earliest = ends
+    counts = [year_end_shares(annual, symbol, end) for end in (earliest, prior, latest)]
+    years: list[Year] = []
+    for start, end in ((earliest, prior), (prior, latest)):
+        income = amount(annual, symbol, "net_income", end)
+        operating = amount(annual, symbol, "operating_cash_flow", end)
+        if income is None or operating is None:
+            return None
+        repurchases = amount_or_zero(annual, symbol, "share_repurchases", end)
+        free_cash_flow = operating - amount_or_zero(annual, symbol, "capex", end)
+        years.append(Year(start, end, repurchases, income, free_cash_flow))
+    first, middle, last = counts
+    if first is None or middle is None or last is None:
         return None
-    latest, prior = fiscal_ends
-    preferred = amount_or_zero(annual, symbol, "preferred_stock", latest)
-    book_equity = float(equity[latest].value) - preferred
-    if book_equity <= 0 or shares[latest].value <= 0 or shares[prior].value <= 0:
+    return Record(symbol, (years[0], years[1]), (first, middle, last), instants)
+
+
+def bought_back(record: Record, coverage: float) -> bool:
+    repurchased = sum(year.repurchases for year in record.years)
+    return (
+        all(year.repurchases > 0 and year.net_income > 0 for year in record.years)
+        and sum(year.free_cash_flow for year in record.years) >= coverage * repurchased
+    )
+
+
+def bond_yields(ctx: Context, since: date) -> Bonds:
+    points = ctx.macro(["dgs10"], since, ctx.session.date)
+    days = np.array([point.date for point in points], dtype="datetime64[D]")
+    return Bonds(days, np.array([float(point.value) / 100 for point in points]))
+
+
+def mean_between(
+    days: npt.NDArray[np.datetime64], values: npt.NDArray[np.float64], start: date, end: date
+) -> float | None:
+    inside = (days > np.datetime64(start)) & (days <= np.datetime64(end))
+    return float(values[inside].mean()) if inside.any() else None
+
+
+def year_ago_growth(record: Record, raw: History, adjusted: History, today: date) -> float | None:
+    counts: dict[date, FundamentalPoint] = {}
+    for point in sorted(record.instants, key=lambda point: point.filed):
+        counts[point.period_end] = point
+    if not counts:
         return None
-    return Candidate(symbol, shares[latest], shares[prior], book_equity, buyback_to_fcf(annual, symbol, latest))
-
-
-def signal(ctx: Context, found: Candidate, raw: History, adjusted: History) -> Signal | None:
-    if not traded_today(ctx, raw):
+    latest = max(counts)
+    if (today - latest).days > MAX_COUNT_AGE_DAYS:
         return None
-    latest = adjusted_shares(found.latest, raw, adjusted)
-    prior = adjusted_shares(found.prior, raw, adjusted)
-    if latest is None or prior is None:
+    earlier = [end for end in counts if (latest - end).days in YEAR_AGO_DAYS]
+    if not earlier:
         return None
-    market_cap = latest * float(raw.close[-1])
-    return Signal(found.symbol, math.log(latest / prior), found.book_equity / market_cap, found.buyback_to_fcf)
+    before = min(earlier, key=lambda end: abs((latest - end).days - DAYS_PER_YEAR))
+    now, then = adjusted_shares(counts[latest], raw, adjusted), adjusted_shares(counts[before], raw, adjusted)
+    return None if now is None or then is None or then <= 0 else now / then - 1
 
 
-def months_between(start: str, end: str) -> int:
-    start_year, start_month = map(int, start.split("-"))
-    end_year, end_month = map(int, end.split("-"))
-    return (end_year - start_year) * 12 + end_month - start_month
+def measure(
+    record: Record, raw: History, adjusted: History, bonds: Bonds, max_pe: float, today: date
+) -> Measure | None:
+    shares = [count for point in record.counts if (count := adjusted_shares(point, raw, adjusted)) is not None]
+    if len(shares) != len(record.counts) or min(shares) <= 0:
+        return None
+    first, middle, last = shares
+    days = session_days(adjusted)
+    yields: list[float] = []
+    hurdles: list[float] = []
+    bonds_paid: list[float] = []
+    for year, (opening, closing) in zip(record.years, ((first, middle), (middle, last)), strict=True):
+        price = mean_between(days, adjusted.close, year.start, year.end)
+        bond = mean_between(bonds.days, bonds.yields, year.start, year.end)
+        if price is None or bond is None:
+            return None
+        yields.append(year.net_income / (price * (opening + closing) / 2))
+        hurdles.append(max(bond, 1 / max_pe))
+        bonds_paid.append(bond)
+    repurchased = sum(year.repurchases for year in record.years)
+    weights = [year.repurchases / repurchased for year in record.years] if repurchased > 0 else [0.5, 0.5]
+    span = (record.years[1].end - record.years[0].start).days / DAYS_PER_YEAR
+    market_cap = float(adjusted.close[-1]) * last
+    latest = record.years[1]
+    return Measure(
+        shrink=(last / first) ** (1 / span) - 1,
+        paid_yield=float(np.dot(weights, yields)),
+        hurdle=float(np.dot(weights, hurdles)),
+        latest_yield=yields[1],
+        latest_bond=bonds_paid[1],
+        earnings_yield=latest.net_income / market_cap,
+        buyback_yield=latest.repurchases / market_cap,
+        coverage=sum(year.free_cash_flow for year in record.years) / repurchased if repurchased > 0 else 0.0,
+        issued=year_ago_growth(record, raw, adjusted, today),
+        market_cap=market_cap,
+    )
 
 
-def qualifiers_of(ctx: Context) -> dict[str, str]:
+def latest_value(ctx: Context, series: MacroSeries) -> float | None:
     today = ctx.session.date
-    annual = domestic_annual(ctx.fundamentals(ctx.universe, METRICS))
-    candidates = [found for symbol in ctx.universe if (found := candidate(annual, symbol, today)) is not None]
-    if not candidates:
-        return {}
-    oldest = min(min(found.latest.filed, found.prior.filed) for found in candidates)
-    raw, adjusted = histories_since(ctx, [found.symbol for found in candidates], oldest)
-    signals = [
-        measured
-        for found in candidates
-        if found.symbol in raw
-        and (measured := signal(ctx, found, raw[found.symbol], adjusted[found.symbol])) is not None
-    ]
-    if not signals:
-        return {}
-    issuance = np.array([measured.issuance for measured in signals])
-    book_to_market = np.array([measured.book_to_market for measured in signals])
-    issuance_cut = float(np.quantile(issuance, float(ctx.params["issuance_bottom"])))
-    value_cut = float(np.quantile(book_to_market, 1 - float(ctx.params["value_top"])))
-    value_percentile = (np.argsort(np.argsort(book_to_market)) + 1) / len(signals) * 100
-    return {
-        measured.symbol: (
-            f"shares {math.expm1(measured.issuance):+.1%}/yr, B/M pct {percentile:.0f}, buyback/FCF "
-            + ("n/a" if measured.buyback_to_fcf is None else f"{measured.buyback_to_fcf:.0%}")
-        )
-        for measured, percentile in zip(signals, value_percentile, strict=True)
-        if measured.issuance < 0 and measured.issuance <= issuance_cut and measured.book_to_market >= value_cut
-    }
+    points = ctx.macro([series], today - timedelta(days=MACRO_LOOKBACK_DAYS), today)
+    return float(points[-1].value) if points else None
 
 
 class Singleton(Bot):
     def on_step(self, ctx: Context) -> None:
-        today = ctx.session.date
-        month = f"{today:%Y-%m}"
-        cohorts: dict[str, list[str]] = ctx.state.setdefault("cohorts", {})
-        for formed, members in cohorts.items():
-            cohorts[formed] = [ctx.renames.get(symbol, symbol) for symbol in members]
+        month = f"{ctx.session.date:%Y-%m}"
         if ctx.state.get("month") == month:
             return
         ctx.state["month"] = month
-        hold_months = int(ctx.params["hold_months"])
-        qualifiers = qualifiers_of(ctx)
-        for formed, members in list(cohorts.items()):
-            kept = [symbol for symbol in members if symbol not in qualifiers]
-            if kept and months_between(formed, month) < hold_months:
-                cohorts[formed] = kept
-            else:
-                del cohorts[formed]
-        if qualifiers:
-            cohorts[month] = sorted(qualifiers)
-        formed_in = {symbol: formed for formed, members in cohorts.items() for symbol in members}
-        latest_bars = ctx.history(sorted(formed_in), "1d", 1, "raw") if formed_in else {}
-        trading = [symbol for symbol, history in latest_bars.items() if traded_today(ctx, history)]
-        weight = 1 / max(len(trading), 1)
-        rebalance_within_band(
-            ctx,
-            dict.fromkeys(trading, weight),
-            float(ctx.params["drift_band"]),
-            reason={
-                symbol: qualifiers.get(symbol)
-                or f"{formed_in[symbol]} cohort, month {months_between(formed_in[symbol], month) + 1} of {hold_months}"
-                for symbol in trading
-            },
-            exit_reason=f"{hold_months}-month holding period since its last qualifying month ended",
+        bills = ctx.params["bills"]
+        held = sorted(
+            symbol for symbol, position in ctx.portfolio.positions.items() if position.qty > 0 and symbol != bills
         )
+        measures = self.measures(ctx, sorted(set(ctx.universe) | set(held)), set(held))
+        cheap = self.cheap(ctx, measures)
+        watched = sorted(set(held) | set(cheap))
+        today = ctx.session.date
+        broken = restated(ctx, watched, today - timedelta(days=RESTATEMENT_DAYS))
+        net_sold = net_selling(ctx.insider_trades(watched, today - timedelta(days=INSIDER_DAYS))) if watched else {}
+        sells = self.exits(ctx, held, measures, broken, net_sold)
+        qualified = {
+            symbol: measured
+            for symbol, measured in cheap.items()
+            if symbol not in broken and net_sold.get(symbol, Decimal(0)) <= 0
+        }
+        share, why = self.stock_share(ctx)
+        buys = self.buys(ctx, held, sells, qualified, share, why)
+        ctx.log(f"qualifiers: {len(qualified)} of {len(measures)} measured, {len(held)} held, stock share {share:.0%}")
+        trade(ctx, sells, buys, bills, share=share)
+
+    def measures(self, ctx: Context, symbols: list[str], held: set[str]) -> dict[str, Measure]:
+        today = ctx.session.date
+        coverage = float(ctx.params["fcf_coverage"])
+        points = [point for point in ctx.fundamentals(symbols, METRICS) if point.form in DOMESTIC_FORMS]
+        annual = domestic_annual(points)
+        instants = by_symbol(
+            point
+            for point in points
+            if point.metric == "shares_outstanding"
+            and point.period_start is None
+            and in_dollars(point)
+            and point.value > 0
+            and (today - point.period_end).days <= MAX_COUNT_AGE_DAYS + YEAR_AGO_DAYS.stop
+        )
+        records = [
+            found
+            for symbol in symbols
+            if (found := record_of(annual, symbol, instants.get(symbol, []), today)) is not None
+            and (symbol in held or bought_back(found, coverage))
+        ]
+        if not records:
+            return {}
+        since = min(min(found.years[0].start, *(point.filed for point in found.instants)) for found in records)
+        raw, adjusted = histories_since(ctx, [found.symbol for found in records], since)
+        bonds = bond_yields(ctx, since)
+        max_pe = float(ctx.params["max_pe"])
+        return {
+            found.symbol: measured
+            for found in records
+            if found.symbol in raw
+            and traded_today(ctx, raw[found.symbol])
+            and (measured := measure(found, raw[found.symbol], adjusted[found.symbol], bonds, max_pe, today))
+            is not None
+        }
+
+    def exits(
+        self,
+        ctx: Context,
+        held: list[str],
+        measures: dict[str, Measure],
+        broken: set[str],
+        net_sold: dict[str, Decimal],
+    ) -> list[Sell]:
+        issuing = float(ctx.params["exit_issuance"])
+        selling = float(ctx.params["exit_insider_selling"])
+        sells: list[Sell] = []
+        for symbol in held:
+            measured = measures.get(symbol)
+            sold = float(net_sold.get(symbol, 0))
+            if symbol in broken:
+                sells.append(Sell(symbol, "thesis", "8-K Item 4.02 non-reliance: the accounts it was bought on"))
+            elif measured is None:
+                continue
+            elif measured.issued is not None and measured.issued >= issuing:
+                sells.append(Sell(symbol, "thesis", f"issuing: shares {measured.issued:+.1%} in a year"))
+            elif measured.latest_yield < measured.latest_bond and measured.buyback_yield > 0:
+                sells.append(
+                    Sell(
+                        symbol,
+                        "thesis",
+                        f"buying back expensive: earnings yield {measured.latest_yield:.1%} at the year's prices "
+                        f"below the 10-year Treasury's {measured.latest_bond:.1%}",
+                    )
+                )
+            elif sold >= selling * measured.market_cap:
+                sells.append(
+                    Sell(
+                        symbol,
+                        "thesis",
+                        f"insiders net sellers of ${sold:,.0f} in 12 months, "
+                        f"{sold / measured.market_cap:.1%} of the company",
+                    )
+                )
+        return sells
+
+    def cheap(self, ctx: Context, measures: dict[str, Measure]) -> dict[str, Measure]:
+        shrink = float(ctx.params["min_shrink"])
+        bond = latest_value(ctx, "dgs10")
+        hurdle_now = max((bond or 0) / 100, 1 / float(ctx.params["max_pe"]))
+        return {
+            symbol: measured
+            for symbol, measured in measures.items()
+            if measured.buyback_yield > 0
+            and measured.shrink <= -shrink
+            and measured.paid_yield >= measured.hurdle
+            and measured.earnings_yield >= hurdle_now
+            and (measured.issued is None or measured.issued <= 0)
+        }
+
+    def stock_share(self, ctx: Context) -> tuple[float, str]:
+        pe, bond = latest_value(ctx, "sp500_forward_pe"), latest_value(ctx, "dgs10")
+        if pe is None or bond is None or pe <= 0:
+            return 1.0, "fully in stocks without a forward P/E or 10-year yield"
+        if 100 / pe >= bond:
+            return 1.0, f"S&P 500 forward earnings yield {100 / pe:.1f}% at least the 10-year's {bond:.1f}%"
+        defensive = float(ctx.params["defensive_share"])
+        return defensive, f"S&P 500 forward earnings yield {100 / pe:.1f}% below the 10-year's {bond:.1f}%"
+
+    def buys(
+        self,
+        ctx: Context,
+        held: list[str],
+        sells: list[Sell],
+        qualified: dict[str, Measure],
+        share: float,
+        why: str,
+    ) -> list[Buy]:
+        ladder = Ladder(
+            float(ctx.params["start"]),
+            float(ctx.params["add_step"]),
+            float(ctx.params["add_on_drop"]),
+            float(ctx.params["cap"]),
+        )
+        weights = stock_weights(ctx, ctx.params["bills"])
+        sold = {sell.symbol for sell in sells}
+        kept = [symbol for symbol in held if symbol not in sold]
+        adds: list[Buy] = []
+        for symbol in kept:
+            if symbol not in qualified:
+                continue
+            weight = ladder_weight(ctx, ladder, symbol, weights.get(symbol, 0))
+            if weight is not None:
+                cost = float(ctx.position(symbol).avg_cost)
+                adds.append(
+                    Buy(
+                        symbol,
+                        weight,
+                        f"add: close {ctx.bars[symbol].close / cost - 1:+.0%} on cost, {describe(qualified[symbol])}",
+                    )
+                )
+        room = max(int(ctx.params["max_names"]) - len(kept), 0)
+        fresh = sorted(
+            (symbol for symbol in qualified if symbol not in kept and symbol not in sold),
+            key=lambda symbol: (-qualified[symbol].buyback_yield * qualified[symbol].earnings_yield, symbol),
+        )[:room]
+        opens = [Buy(symbol, ladder.start, f"{describe(qualified[symbol])}; {why}") for symbol in fresh]
+        return adds + opens
+
+
+def describe(measured: Measure) -> str:
+    return (
+        f"shares {measured.shrink:+.1%}/yr, buybacks at an earnings yield of {measured.paid_yield:.1%} "
+        f"against a {measured.hurdle:.1%} hurdle, buyback yield {measured.buyback_yield:.1%}, "
+        f"earnings yield now {measured.earnings_yield:.1%}, free cash flow {measured.coverage:.0%} of buybacks"
+    )
 
 
 if __name__ == "__main__":
