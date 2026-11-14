@@ -52,6 +52,7 @@ pub struct HttpClient {
     interval: Duration,
     cooldown: Duration,
     next_slot: Arc<Mutex<Instant>>,
+    yields: bool,
 }
 
 impl HttpClient {
@@ -74,7 +75,15 @@ impl HttpClient {
             interval: limit.interval(),
             cooldown: limit.cooldown,
             next_slot: Arc::new(Mutex::new(Instant::now())),
+            yields: false,
         })
+    }
+
+    pub fn yielding(&self) -> Self {
+        Self {
+            yields: true,
+            ..self.clone()
+        }
     }
 
     pub fn client(&self) -> &reqwest::Client {
@@ -144,12 +153,21 @@ impl HttpClient {
     }
 
     async fn wait_for_slot(&self) {
-        let mut next_slot = self.next_slot.lock().await;
-        let now = Instant::now();
-        let slot = (*next_slot).max(now);
-        *next_slot = slot + self.interval;
-        drop(next_slot);
-        tokio::time::sleep_until(slot).await;
+        loop {
+            let mut next_slot = self.next_slot.lock().await;
+            let now = Instant::now();
+            if self.yields && *next_slot > now {
+                let taken_until = *next_slot;
+                drop(next_slot);
+                tokio::time::sleep_until(taken_until).await;
+                continue;
+            }
+            let slot = (*next_slot).max(now);
+            *next_slot = slot + self.interval;
+            drop(next_slot);
+            tokio::time::sleep_until(slot).await;
+            return;
+        }
     }
 }
 

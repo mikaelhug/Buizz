@@ -3,7 +3,8 @@ use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 use std::time::Duration;
 
-use buizz_core::api::{JobView, RunSummary, SpineEvent};
+use buizz_core::api::{DataHealth, JobView, RunSummary, SpineEvent};
+use buizz_core::market::Dataset;
 use buizz_core::run::{RunEvent, RunEventKind, RunId};
 use buizz_core::time::Timestamp;
 use chrono::{NaiveTime, TimeDelta};
@@ -364,9 +365,14 @@ impl Spine {
     pub async fn ingested(&self) -> Vec<JobView> {
         eventually("the first ingest tick", || async {
             let jobs: Vec<JobView> = self.get("/api/data/jobs").await;
-            jobs.iter()
-                .all(|job| job.last_finished.is_some())
-                .then_some(jobs)
+            let health: DataHealth = self.get("/api/data/health").await;
+            let documents_read = health.contracts.iter().all(|contract| {
+                !matches!(
+                    contract.dataset,
+                    Dataset::FilingDocuments | Dataset::FilingSections
+                ) || contract.pending == 0
+            });
+            (documents_read && jobs.iter().all(|job| job.last_finished.is_some())).then_some(jobs)
         })
         .await
     }

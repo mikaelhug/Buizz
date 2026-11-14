@@ -290,19 +290,21 @@ fn delta(duration: Duration) -> TimeDelta {
     TimeDelta::from_std(duration).unwrap_or(TimeDelta::MAX)
 }
 
+pub(crate) const FOLLOWERS: [&str; 3] = [FILING_DOCUMENTS, FILING_SECTIONS, RECIPE_FACTS];
+
 pub(crate) const FOUNDATION: [&str; 4] = [CALENDAR, INSTRUMENTS, INDEX_MEMBERSHIP, BARS_1D];
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Lane {
     Source(Option<DataSource>),
-    Timed(&'static str),
+    Own(&'static str),
 }
 
 fn lane(spec: &JobSpec) -> Lane {
     match spec.name {
         TIINGO_HISTORY => Lane::Source(Some(DataSource::Alpaca)),
-        FILING_SECTIONS | RECIPE_FACTS => Lane::Source(Some(DataSource::Edgar)),
-        OPTION_CHAINS => Lane::Timed(spec.name),
+        FILING_DOCUMENTS | FILING_SECTIONS | RECIPE_FACTS => Lane::Own(FILING_DOCUMENTS),
+        OPTION_CHAINS => Lane::Own(spec.name),
         _ => Lane::Source(spec.source),
     }
 }

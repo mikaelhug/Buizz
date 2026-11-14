@@ -135,6 +135,13 @@ impl EdgarClient {
         })
     }
 
+    pub fn yielding(&self) -> Self {
+        Self {
+            http: self.http.yielding(),
+            ..self.clone()
+        }
+    }
+
     pub async fn ticker_map(&self) -> Result<BTreeMap<Symbol, u32>, SourceError> {
         let url = format!("{}/files/company_tickers.json", self.www_url);
         let body = self.fetch(url).await?;

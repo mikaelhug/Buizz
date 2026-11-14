@@ -22,6 +22,7 @@ impl Ingest {
         if let Some(work) = self.backoff_work(now, DataSource::Edgar).await? {
             return Ok(work);
         }
+        let edgar = &edgar.yielding();
         let candidates = self.market.text_candidates().await?;
         if candidates.is_empty() {
             return Ok(Work::noop("every filing has its documents"));

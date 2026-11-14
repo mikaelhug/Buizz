@@ -528,13 +528,6 @@ async fn bots_see_index_membership_profiles_earnings_and_8k_events_as_of_their_c
                 format!("{:?}", jobs.iter().map(|job| &job.name).collect::<Vec<_>>())
             })
     };
-    let first = recipe_job(&spine.get::<Vec<JobView>>("/api/data/jobs").await);
-    assert!(
-        first.contains("earnings_guidance: its gold report passed on")
-            && first.contains("1 batches open"),
-        "the guidance version earns its fill on the gold test split through Messages, then sends \
-         the 2024 release to a batch: {first}"
-    );
     spine.stop().await;
     spine.restart_later(TimeDelta::hours(7)).await;
     let guidance: Vec<Value> = eventually("the guidance read from the collected batch", || async {
@@ -571,8 +564,9 @@ async fn bots_see_index_membership_profiles_earnings_and_8k_events_as_of_their_c
             1_350_000_000.0,
             OUTLOOK
         ])],
-        "after a restart the stored batch is collected by its id; the answer whose high was not in \
-         its quote is retried once, told what failed, and the corrected fact is served"
+        "the guidance version earns its fill on the gold test split and sends the release to a batch, \
+         collected by its stored id (after a restart when it was still open); the answer whose high \
+         was not in its quote is retried once, told what failed, and the corrected fact is served"
     );
     let second = recipe_job(&spine.get::<Vec<JobView>>("/api/data/jobs").await);
     assert!(

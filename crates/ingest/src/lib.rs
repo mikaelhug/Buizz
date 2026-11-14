@@ -117,6 +117,7 @@ pub struct Ingest {
     sources: Sources,
     events: broadcast::Sender<SpineEvent>,
     ran_since_boot: Arc<Mutex<BTreeSet<&'static str>>>,
+    pending_seen: Arc<Mutex<BTreeMap<&'static str, u64>>>,
     running: Arc<RwLock<()>>,
     stopping: Arc<AtomicBool>,
     booted_at: Timestamp,
@@ -137,6 +138,7 @@ impl Ingest {
             sources,
             events: broadcast::Sender::new(EVENT_CAPACITY),
             ran_since_boot: Arc::default(),
+            pending_seen: Arc::default(),
             running: Arc::default(),
             stopping: Arc::default(),
             booted_at: Timestamp::now(),
@@ -180,7 +182,17 @@ impl Ingest {
                 && previous.is_some_and(|run| {
                     matches!(run.outcome, Some(JobOutcome::Ok | JobOutcome::Noop))
                 });
-            if waiting && !(settled_before_boot && self.unread(spec).await?) {
+            let follows = schedule::FOLLOWERS.contains(&spec.name)
+                && limited.is_none_or(|until| until <= now)
+                && match previous {
+                    Some(run) if matches!(run.outcome, Some(JobOutcome::Ok | JobOutcome::Noop)) => {
+                        let pending = self.pending(spec).await?;
+                        let seen = self.pending_seen.lock().await.get(spec.name).copied();
+                        pending > 0 && seen.is_none_or(|seen| pending > seen)
+                    }
+                    _ => false,
+                };
+            if waiting && !follows && !(settled_before_boot && self.unread(spec).await?) {
                 continue;
             }
             self.ran_since_boot.lock().await.insert(spec.name);
@@ -218,6 +230,10 @@ impl Ingest {
             {
                 tracing::error!(%error, "cannot measure the coverage contracts");
             }
+            if schedule::FOLLOWERS.contains(&spec.name) {
+                let pending = self.pending(spec).await?;
+                self.pending_seen.lock().await.insert(spec.name, pending);
+            }
         }
         Ok(report)
     }
@@ -239,6 +255,16 @@ impl Ingest {
             }
         }
         Ok(false)
+    }
+
+    async fn pending(&self, spec: &JobSpec) -> Result<u64, IngestError> {
+        Ok(self
+            .contracts()
+            .await?
+            .iter()
+            .filter(|contract| spec.datasets.contains(&contract.dataset))
+            .map(|contract| contract.pending)
+            .sum())
     }
 
     pub async fn job_views(&self, now: Timestamp) -> Result<Vec<JobView>, IngestError> {
@@ -326,8 +352,19 @@ impl Ingest {
                 async move {
                     let mut interval = tokio::time::interval(ingest.config.tick);
                     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+                    let follower = lane
+                        .iter()
+                        .any(|spec| schedule::FOLLOWERS.contains(&spec.name));
+                    let mut measured = ingest.contracts.subscribe();
                     loop {
-                        interval.tick().await;
+                        if follower {
+                            tokio::select! {
+                                _ = interval.tick() => {}
+                                _ = measured.changed() => {}
+                            }
+                        } else {
+                            interval.tick().await;
+                        }
                         if let Err(error) = ingest.tick_lane(&lane, Timestamp::now()).await {
                             tracing::error!(%error, "ingest tick failed");
                         }
