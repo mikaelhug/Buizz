@@ -1,6 +1,6 @@
 # Bot backlog
 
-Thirty-seven briefs (36 strategies and one research exercise), one per `bots/<name>/BRIEF.md`, each to be researched and implemented by its own agent. The six example bots (`red_green`, `sma_cross`, `momentum_12_1`, `value_quality`, `cannibal`, `opening_range`) belong to the Wave 2 slice and stay simple SDK demos. `buffett` and `singleton` here are the research-faithful versions of `value_quality` and `cannibal`. Delete this file when the last brief is gone.
+Thirty-eight briefs (37 strategies and one research exercise), one per `bots/<name>/BRIEF.md`, each to be researched and implemented by its own agent. The six example bots (`red_green`, `sma_cross`, `momentum_12_1`, `value_quality`, `cannibal`, `opening_range`) belong to the Wave 2 slice and stay simple SDK demos. `buffett` and `singleton` here are the research-faithful versions of `value_quality` and `cannibal`. Delete this file when the last brief is gone.
 
 **Design rule: the research decides the bot, not the platform.** A brief describes the strategy exactly as its source defines it. Where Buizz cannot express part of it, the brief names a gap below. Nobody ships a reduced version to fit today's contracts.
 
@@ -120,6 +120,7 @@ Execution rule: papers that rebalance monthly or less often trade at the signal'
 | `graham` | Graham-Newman's general portfolio: net-nets, then 1976-rule passers, 30 slots of a 25% to 75% stock share set by market temperature, the rest in IEF; sold at +50%, after two calendar years or on a dividend cut; the defensive criteria remain | G14 (defensive variant) |
 | `singleton` | Companies shrinking their shares by buying back below 15 times earnings with insiders not selling, held for years and sold on the company's own behaviour; the monthly purchase prices and self-tenders remain | G24 (strong variant) |
 | `greenblatt` | The magic formula: return on capital plus EBIT/EV, 28 names bought 7 a quarter, each held a year with the book's tax timing | none |
+| `lynch` | Lynch's six categories from the XBRL record, growers bought at a PEGY of at least 1.5 and the rest at their category's price, insider buying and net cash as pluses, up to 100 names, each sold for its category's reason; the story and scuttlebutt left out | none |
 
 ### Research exercises
 
