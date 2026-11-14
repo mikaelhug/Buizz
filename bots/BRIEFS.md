@@ -1,6 +1,6 @@
 # Bot backlog
 
-Thirty-six briefs (35 strategies and one research exercise), one per `bots/<name>/BRIEF.md`, each to be researched and implemented by its own agent. The six example bots (`red_green`, `sma_cross`, `momentum_12_1`, `value_quality`, `cannibal`, `opening_range`) belong to the Wave 2 slice and stay simple SDK demos. `buffett` and `singleton` here are the research-faithful versions of `value_quality` and `cannibal`. Delete this file when the last brief is gone.
+Thirty-seven briefs (36 strategies and one research exercise), one per `bots/<name>/BRIEF.md`, each to be researched and implemented by its own agent. The six example bots (`red_green`, `sma_cross`, `momentum_12_1`, `value_quality`, `cannibal`, `opening_range`) belong to the Wave 2 slice and stay simple SDK demos. `buffett` and `singleton` here are the research-faithful versions of `value_quality` and `cannibal`. Delete this file when the last brief is gone.
 
 **Design rule: the research decides the bot, not the platform.** A brief describes the strategy exactly as its source defines it. Where Buizz cannot express part of it, the brief names a gap below. Nobody ships a reduced version to fit today's contracts.
 
@@ -118,6 +118,7 @@ Execution rule: papers that rebalance monthly or less often trade at the signal'
 | `munger` | Five Gray–Carlisle franchise-power compounders at median-or-better EBIT/TEV, no rebalancing | G2, G3, G16 |
 | `graham` | Net-nets below two-thirds of NCAV (primary); defensive criteria and the 1976 rule as variants | G2, G16; G3, G14, G15 (variants) |
 | `singleton` | Value repurchasers: bottom-decile net issuance in the top book-to-market quintile, held 48 months | G2, G16, G10 (variant) |
+| `greenblatt` | The magic formula: return on capital plus EBIT/EV, 28 names bought 7 a quarter, each held a year with the book's tax timing | none |
 
 ### Research exercises
 

@@ -1,0 +1,9 @@
+description = "Greenblatt's magic formula: stocks ranked on return on tangible capital plus EBIT/EV, utilities and financials left out, seven bought every three months up to 28, each sold just before a year at a loss or just after a year at a gain and replaced by the current top name"
+command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
+timeframe = "1d"
+wake = "bar"
+universe = { top_dollar_volume = 3000, asset_class = "stock" }
+params = { min_market_cap = 50000000, tranche_size = 7, tranche_months = 3, loser_days = 358, winner_days = 367 }
+
+[risk]
+max_gross_exposure = 1.0
