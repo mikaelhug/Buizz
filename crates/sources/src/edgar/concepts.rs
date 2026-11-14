@@ -80,6 +80,11 @@ pub const US_GAAP_PRIMARY: &[Entry] = &[
     ("LiabilitiesCurrent", M::CurrentLiabilities, Currency),
     ("LongTermDebtNoncurrent", M::LongTermDebt, Currency),
     ("LongTermDebt", M::LongTermDebt, Currency),
+    (
+        "LongTermDebtAndCapitalLeaseObligations",
+        M::LongTermDebt,
+        Currency,
+    ),
     ("Liabilities", M::TotalLiabilities, Currency),
     ("StockholdersEquity", M::Equity, Currency),
     (
@@ -109,6 +114,11 @@ pub const US_GAAP_PRIMARY: &[Entry] = &[
     ),
     (
         "DepreciationAndAmortization",
+        M::DepreciationAmortization,
+        Currency,
+    ),
+    (
+        "DepreciationAmortizationAndAccretionNet",
         M::DepreciationAmortization,
         Currency,
     ),
@@ -167,6 +177,11 @@ pub const US_GAAP_PRIMARY: &[Entry] = &[
     ("LongTermDebtCurrent", M::CurrentLongTermDebt, Currency),
     (
         "LongTermDebtNoncurrent",
+        M::LongTermDebtNoncurrent,
+        Currency,
+    ),
+    (
+        "LongTermDebtAndCapitalLeaseObligations",
         M::LongTermDebtNoncurrent,
         Currency,
     ),
