@@ -69,6 +69,6 @@ dev:
     set -euo pipefail
     export BUIZZ_ADMIN_PASSWORD=buizz-dev-admin BUIZZ_SECURE_COOKIES=false BUIZZ_INGEST=false
     export BUIZZ_BIND=127.0.0.1:8080 BUIZZ_FIXTURE_DIR=fixtures/market
-    cargo run -p buizz-spine &
+    cargo run -p buizz-spine --bin buizz-spine &
     trap 'kill $!' EXIT
     cd web && npm run dev
