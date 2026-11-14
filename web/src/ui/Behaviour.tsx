@@ -43,8 +43,11 @@ export function BehaviourPanel({ run }: { run: Schemas["RunSummary"] }) {
   if (!own) {
     return null;
   }
-  const columns = [{ name: `Run #${run.id}`, fingerprint: own }, ...(behaviour.data?.references ?? []).map((reference) => ({ name: reference.name, fingerprint: reference.fingerprint }))];
-  const windows = own.drawdowns.map((window, index) => ({ window, values: columns.map((column) => column.fingerprint.drawdowns[index]?.net_buying) }));
+  const references = behaviour.data?.references ?? [];
+  const columns = [{ name: `Run #${run.id}`, fingerprint: own }, ...references.map((reference) => ({ name: reference.name, fingerprint: reference.fingerprint }))];
+  const windows = own.drawdowns
+    .map((window, index) => ({ window, values: columns.map((column) => column.fingerprint.drawdowns[index]?.net_buying) }))
+    .filter(({ values }) => values.some((value) => value !== null && value !== undefined));
   return (
     <section className="panel" aria-label="Behaviour">
       <StaleFailure resource={behaviour} />
@@ -52,6 +55,11 @@ export function BehaviourPanel({ run }: { run: Schemas["RunSummary"] }) {
         <h2>Behaviour</h2>
         <span className="muted">How the run held and traded, beside a reference investor's public record over the same years</span>
       </header>
+      {references.length === 0 && (
+        <p className="panel-note">
+          No reference column: no 13F quarter-end falls inside {own.from} → {own.to}, so there is no public record to set beside this run.
+        </p>
+      )}
       <div className="table-wrap">
         <table className="table fin">
           <thead>
@@ -62,8 +70,7 @@ export function BehaviourPanel({ run }: { run: Schemas["RunSummary"] }) {
               {columns.map((column) => (
                 <th key={column.name} scope="col" className="r">
                   {column.name}
-                  <span className="muted">
-                    {" "}
+                  <span className="cell-sub num">
                     {column.fingerprint.from} → {column.fingerprint.to}
                   </span>
                 </th>

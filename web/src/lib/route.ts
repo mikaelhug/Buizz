@@ -81,6 +81,13 @@ export function href(route: Route): string {
   }
 }
 
+export function adoptPath() {
+  const { pathname, search, hash } = window.location;
+  if (pathname !== "/") {
+    history.replaceState(history.state, "", `/${hash || `#${pathname}${search}`}`);
+  }
+}
+
 export function navigate(route: Route) {
   window.location.hash = href(route);
 }
