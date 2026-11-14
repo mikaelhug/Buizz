@@ -227,7 +227,7 @@ async fn serve() -> Result<()> {
         listener,
         app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
     )
-    .with_graceful_shutdown(shutdown_signal(shutting_down))
+    .with_graceful_shutdown(shutdown_signal(shutting_down, market.invalidated()))
     .await?;
 
     ingest.stop(INGEST_STOP_GRACE).await;
@@ -237,16 +237,23 @@ async fn serve() -> Result<()> {
     screening.abort();
     runner.shutdown().await;
     feed_task.abort();
+    if *market.invalidated().borrow() {
+        std::process::exit(1);
+    }
     market.checkpoint().await?;
     Ok(())
 }
 
-async fn shutdown_signal(shutting_down: watch::Sender<bool>) {
+async fn shutdown_signal(
+    shutting_down: watch::Sender<bool>,
+    mut invalidated: watch::Receiver<bool>,
+) {
     let mut interrupt = signal(SignalKind::interrupt()).expect("SIGINT handler installs");
     let mut terminate = signal(SignalKind::terminate()).expect("SIGTERM handler installs");
     tokio::select! {
         _ = interrupt.recv() => {}
         _ = terminate.recv() => {}
+        _ = invalidated.wait_for(|invalid| *invalid) => {}
     }
     tracing::info!("shutting down; a second signal exits at once");
     shutting_down.send_replace(true);

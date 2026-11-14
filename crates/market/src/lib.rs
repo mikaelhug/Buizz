@@ -265,6 +265,7 @@ impl Shared {
 pub struct MarketStore {
     writer: Lane,
     readers: Lane,
+    invalidated: Arc<watch::Sender<bool>>,
     shared: Arc<Shared>,
     text: Arc<TextVolumes>,
 }
@@ -287,9 +288,11 @@ impl MarketStore {
                 Ok::<_, MarketError>((writer, pool, calendar, listings, actions, day))
             })
             .await??;
+        let invalidated = Arc::new(watch::Sender::new(false));
         Ok(Self {
-            writer: Lane::spawn("market-writer", vec![writer])?,
-            readers: Lane::spawn("market-reader", pool)?,
+            writer: Lane::spawn("market-writer", vec![writer], Arc::clone(&invalidated))?,
+            readers: Lane::spawn("market-reader", pool, Arc::clone(&invalidated))?,
+            invalidated,
             shared: Arc::new(Shared {
                 calendar: RwLock::new(Arc::new(calendar)),
                 listings: RwLock::new(Arc::new(listings)),
@@ -1400,6 +1403,10 @@ impl MarketStore {
                 Ok(())
             })
             .await
+    }
+
+    pub fn invalidated(&self) -> watch::Receiver<bool> {
+        self.invalidated.subscribe()
     }
 
     pub fn watermarks(&self) -> watch::Receiver<Watermarks> {

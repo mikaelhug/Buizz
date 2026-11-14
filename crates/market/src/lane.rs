@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::thread;
 
 use duckdb::Connection;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{mpsc, oneshot, watch};
 
 use crate::{MarketError, Result};
 
@@ -13,10 +13,17 @@ type Job = Box<dyn FnOnce(&mut Connection) + Send>;
 const QUEUE_PER_CONNECTION: usize = 16;
 
 #[derive(Clone)]
-pub(crate) struct Lane(mpsc::Sender<Job>);
+pub(crate) struct Lane {
+    jobs: mpsc::Sender<Job>,
+    invalidated: Arc<watch::Sender<bool>>,
+}
 
 impl Lane {
-    pub(crate) fn spawn(name: &str, connections: Vec<Connection>) -> Result<Self> {
+    pub(crate) fn spawn(
+        name: &str,
+        connections: Vec<Connection>,
+        invalidated: Arc<watch::Sender<bool>>,
+    ) -> Result<Self> {
         let (sender, receiver) = mpsc::channel::<Job>(connections.len() * QUEUE_PER_CONNECTION);
         let receiver = Arc::new(Mutex::new(receiver));
         for (index, mut connection) in connections.into_iter().enumerate() {
@@ -34,7 +41,10 @@ impl Lane {
                     }
                 })?;
         }
-        Ok(Self(sender))
+        Ok(Self {
+            jobs: sender,
+            invalidated,
+        })
     }
 
     pub(crate) async fn run<T, F>(&self, work: F) -> Result<T>
@@ -43,7 +53,7 @@ impl Lane {
         F: FnOnce(&mut Connection) -> Result<T> + Send + 'static,
     {
         let (reply, response) = oneshot::channel();
-        self.0
+        self.jobs
             .send(Box::new(move |connection| {
                 let result = catch_unwind(AssertUnwindSafe(|| work(connection)))
                     .unwrap_or_else(|panic| Err(panicked(panic.as_ref())));
@@ -51,8 +61,20 @@ impl Lane {
             }))
             .await
             .map_err(|_| MarketError::Closed)?;
-        response.await.map_err(|_| MarketError::Closed)?
+        let result = response.await.map_err(|_| MarketError::Closed)?;
+        if let Err(MarketError::Db(error)) = &result
+            && invalidates(error)
+            && !self.invalidated.send_replace(true)
+        {
+            tracing::error!(%error, "DuckDB invalidated the market store; the spine must restart");
+        }
+        result
     }
+}
+
+fn invalidates(error: &duckdb::Error) -> bool {
+    let message = error.to_string();
+    message.contains("INTERNAL Error") || message.contains("FATAL Error")
 }
 
 fn panicked(panic: &(dyn Any + Send)) -> MarketError {
@@ -71,7 +93,12 @@ mod tests {
 
     #[tokio::test]
     async fn a_panicking_job_fails_alone_and_the_worker_keeps_serving() {
-        let lane = Lane::spawn("test", vec![Connection::open_in_memory().unwrap()]).unwrap();
+        let lane = Lane::spawn(
+            "test",
+            vec![Connection::open_in_memory().unwrap()],
+            Arc::new(watch::Sender::new(false)),
+        )
+        .unwrap();
         let failed = lane.run(|_| -> Result<()> { panic!("boom") }).await;
         assert!(matches!(failed, Err(MarketError::Panicked(message)) if message == "boom"));
         let answer = lane
