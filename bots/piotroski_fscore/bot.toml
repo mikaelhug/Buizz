@@ -1,0 +1,12 @@
+description = "Piotroski (2000, 'Value Investing: The Use of Historical Financial Statement Information to Separate Winners from Losers', Journal of Accounting Research): within the highest book-to-market quintile, buy firms whose nine-signal F-score is at least long_min and sell short those at most short_max. At the first step and each month's last close, every stock among the 2000 with the highest dollar volume whose 10-K became public since the previous formation (in the last year at the first step) is scored from its last three fiscal years of domestic 10-K facts: ROA (net income over beginning total assets) > 0, CFO (operating cash flow over beginning assets) > 0, ROA up on the year, CFO above ROA, long-term debt over average total assets down, current ratio up, no new equity (split-adjusted year-end shares not up, as Compustat's equity issuance has no XBRL counterpart), gross margin up and asset turnover (revenue over beginning assets) up; a firm missing any input is not scored. Book-to-market is book equity less preferred stock over the current market cap (last close times the latest 10-K or 10-Q share count, split-adjusted), and the quintile breakpoint comes from every scored member at the same formation. Each position is held hold_sessions after its 10-K was filed, or until the next 10-K re-scores it, equal-weighted within its leg at 1/names, capped at max_weight, through a drift band. Shorts pay the cost model's flat borrow rate. Expected behaviour: Piotroski reports a 23% a year high-minus-low spread in 1976-1996 in small, illiquid value stocks; replications (Piotroski and So 2012, and post-2000 samples) find the long leg still beats the value quintile but much more weakly among large caps, and short candidates (F of 0 or 1) are rare in this universe."
+command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
+timeframe = "1d"
+wake = "bar"
+universe = { top_dollar_volume = 2000, asset_class = "stock" }
+params = { bm_quintile = 0.2, long_min = 8, short_max = 1, hold_sessions = 252, max_weight = 0.05, drift_band = 0.25 }
+benchmark = "SPY"
+hedge_benchmark = "IWD"
+step_timeout = 600
+
+[risk]
+max_gross_exposure = 2.2

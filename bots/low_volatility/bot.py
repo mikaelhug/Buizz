@@ -1,21 +1,11 @@
-from datetime import date
-
 import numpy as np
-import numpy.typing as npt
-from buizz_bots.monthly import period_end_closes
 from buizz_bots.sessions import last_session_of_month, week_ends
+from buizz_bots.weekly import completed_week_closes
 
-from buizz import Bot, Context, History, run
+from buizz import Bot, Context, run
 
 SESSIONS_PER_WEEK = 5
 WEEKS_PER_YEAR = 52
-DAYS_FROM_EPOCH_TO_MONDAY = 3
-
-
-def completed_week_closes(history: History, today: date, week_ends_today: bool) -> npt.NDArray[np.float64]:
-    return period_end_closes(
-        history, today, lambda days: (days.astype(np.int64) + DAYS_FROM_EPOCH_TO_MONDAY) // 7, week_ends_today
-    )
 
 
 class LowVolatility(Bot):

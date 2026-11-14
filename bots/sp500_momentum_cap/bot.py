@@ -34,15 +34,15 @@ def rebalance_due(ctx: Context) -> bool:
     return today <= friday and (following is None or following > friday)
 
 
-def risk_adjusted_momentum(history: History, today: date) -> float | None:
+def risk_adjusted_momentum(history: History, today: date, skipped: int) -> float | None:
     days = session_days(history)
     if days.size == 0 or days[-1] != np.datetime64(today):
         return None
     months = days.astype("datetime64[M]")
     ends = np.flatnonzero(np.append(months[1:] != months[:-1], True))
-    if ends.size < MOMENTUM_MONTHS + 1:
+    if ends.size < MOMENTUM_MONTHS + skipped:
         return None
-    closes = history.close[ends[-MOMENTUM_MONTHS - 1] : ends[-2] + 1]
+    closes = history.close[ends[-MOMENTUM_MONTHS - skipped] : ends[-skipped] + 1]
     if closes.size < MOMENTUM_MONTHS or np.any(closes <= 0):
         return None
     volatility = float(np.std(np.diff(closes) / closes[:-1], ddof=1))
@@ -60,6 +60,13 @@ def winsorized_z(values: dict[str, float]) -> dict[str, float]:
 
 def momentum_score(z: float) -> float:
     return 1 + z if z > 0 else 1 / (1 - z)
+
+
+def buffered(ranked: list[str], held: set[str], count: int, buffer: float) -> list[str]:
+    chosen = ranked[: round(count * (1 - buffer))]
+    keep = [symbol for symbol in ranked[len(chosen) : round(count * (1 + buffer))] if symbol in held]
+    chosen += keep[: count - len(chosen)]
+    return chosen + [symbol for symbol in ranked if symbol not in chosen][: count - len(chosen)]
 
 
 def book_weights(ctx: Context, chosen: list[str], caps: dict[str, float], z: dict[str, float]) -> dict[str, float]:
@@ -84,17 +91,19 @@ class Sp500MomentumCap(Bot):
         members = sorted(ctx.universe)
         own = by_symbol(ctx.fundamentals(members, ["shares_outstanding"]))
         counts = {symbol: count for symbol in members if (count := latest_shares(own[symbol], today)) is not None}
-        since = min([*(count.filed for count in counts.values()), first_of_month(today, MOMENTUM_MONTHS)])
+        since = min([*(count.filed for count in counts.values()), first_of_month(today, MOMENTUM_MONTHS + 1)])
         raw, split = histories_since(ctx, sorted(counts), since)
+        skipped = 2 if last_session_of_month(ctx) else 3
         caps = market_caps(ctx, counts, raw, split)
         signals = {
             symbol: value
             for symbol in sorted(caps)
-            if (value := risk_adjusted_momentum(split[symbol], today)) is not None
+            if (value := risk_adjusted_momentum(split[symbol], today, skipped)) is not None
         }
         z = winsorized_z(signals)
         ranked = highest_first(z)
-        chosen = ranked[: int(ctx.params["holdings"])]
+        held = set(ctx.portfolio.positions)
+        chosen = buffered(ranked, held, int(ctx.params["holdings"]), float(ctx.params["buffer"]))
         if not chosen:
             ctx.log(f"no S&P 500 member with a market cap and 13 months of prices on {today}", level="warn")
             return
@@ -115,7 +124,7 @@ class Sp500MomentumCap(Bot):
             targets,
             float(ctx.params["drift_band"]),
             reason=reasons,
-            exit_reason=f"outside the top {len(chosen)} of {len(ranked)} by risk-adjusted momentum",
+            exit_reason=f"not among the {len(chosen)} chosen of {len(ranked)} by risk-adjusted momentum and its buffer",
         )
 
 

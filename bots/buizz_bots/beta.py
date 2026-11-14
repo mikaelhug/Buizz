@@ -49,6 +49,17 @@ def frazzini_pedersen_beta(stock: History, market: History) -> float | None:
     return SHRINK_TO_ONE * time_series_beta + (1 - SHRINK_TO_ONE)
 
 
+def ols_beta(stock: History, market: History, days: int) -> float | None:
+    stock_returns = log_returns_on(market, stock)[-days:]
+    market_returns = np.diff(np.log(market.close))[-days:]
+    valid = np.isfinite(stock_returns)
+    if valid.sum() < VOLATILITY_MIN_DAYS or market_returns.size < days:
+        return None
+    market_valid = market_returns[valid]
+    variance = float(np.var(market_valid, ddof=1))
+    return None if variance == 0 else float(np.cov(stock_returns[valid], market_valid)[0, 1]) / variance
+
+
 def bab_weights(betas: dict[str, float]) -> dict[str, float]:
     symbols = sorted(betas)
     beta = np.array([betas[symbol] for symbol in symbols])
