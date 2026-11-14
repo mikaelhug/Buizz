@@ -326,8 +326,10 @@ pub(crate) fn due_at(
     latest: Option<&JobRun>,
     failures: u32,
     limited_until: Option<Timestamp>,
+    settles: Option<Timestamp>,
 ) -> Option<Timestamp> {
     let run = latest?;
+    let settles = settles.filter(|at| *at > run.started_at);
     let wait = match run.outcome {
         Some(JobOutcome::Backoff) => {
             if let Some(until) = limited_until.filter(|until| *until > run.started_at) {
@@ -342,14 +344,14 @@ pub(crate) fn due_at(
         Some(JobOutcome::Ok | JobOutcome::Noop) => spec.every,
         Some(JobOutcome::Partial) => Duration::ZERO,
     };
-    Some(run.started_at + delta(wait.min(spec.every)))
+    let due = run.started_at + delta(wait.min(spec.every));
+    Some(settles.map_or(due, |at| due.min(at)))
 }
 
 pub(crate) fn view(
     spec: &JobSpec,
     latest: Option<&JobRun>,
-    failures: u32,
-    limited_until: Option<Timestamp>,
+    next_due: Option<Timestamp>,
     success: Option<&JobRun>,
     first_due: Timestamp,
     now: Timestamp,
@@ -371,7 +373,7 @@ pub(crate) fn view(
         last_finished: latest.and_then(|run| run.finished_at),
         last_outcome: latest.and_then(|run| run.outcome),
         last_message: latest.and_then(|run| run.message.clone()),
-        next_due: due_at(spec, latest, failures, limited_until),
+        next_due,
         stale,
     }
 }
@@ -406,9 +408,29 @@ mod tests {
             message: None,
         };
         let bars = JOBS.iter().find(|spec| spec.name == BARS_1D).unwrap();
-        let retry = |failures| due_at(bars, Some(&killed), failures, None).unwrap() - started_at;
+        let retry =
+            |failures| due_at(bars, Some(&killed), failures, None, None).unwrap() - started_at;
         assert_eq!(retry(1), TimeDelta::minutes(5));
         assert_eq!(retry(3), TimeDelta::minutes(20));
+    }
+
+    #[test]
+    fn daily_bars_are_due_when_a_session_settles() {
+        let started_at = Timestamp::from_nanos(1_000_000_000);
+        let settles = started_at + TimeDelta::hours(2);
+        let bars = JOBS.iter().find(|spec| spec.name == BARS_1D).unwrap();
+        let run = |outcome| JobRun {
+            id: 1,
+            job: BARS_1D.to_owned(),
+            started_at,
+            finished_at: Some(started_at),
+            outcome: Some(outcome),
+            rows: 0,
+            message: None,
+        };
+        let due = |outcome| due_at(bars, Some(&run(outcome)), 0, None, Some(settles)).unwrap();
+        assert_eq!(due(JobOutcome::Ok), settles);
+        assert_eq!(due(JobOutcome::Partial), started_at);
     }
 
     #[test]
@@ -428,7 +450,7 @@ mod tests {
             message: None,
         };
         let stale = |latest: Option<&JobRun>, after: TimeDelta| {
-            view(fails, latest, 0, None, None, booted, booted + after).stale
+            view(fails, latest, None, None, booted, booted + after).stale
         };
         assert!(!stale(None, TimeDelta::hours(1)));
         assert!(!stale(Some(&running), TimeDelta::hours(1)));

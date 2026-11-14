@@ -40,7 +40,7 @@ use std::time::Duration;
 
 use buizz_core::api::{CoverageContract, JobView, SpineEvent};
 use buizz_core::market::{Coverage, DataSource, Dataset, Instrument, StockIndex, Symbol};
-use buizz_core::ops::JobOutcome;
+use buizz_core::ops::{JobOutcome, JobRun};
 use buizz_core::time::Timestamp;
 use buizz_market::{MarketError, MarketStore, Restored};
 use buizz_sources::Sources;
@@ -54,6 +54,7 @@ use crate::fetch::Work;
 use crate::schedule::{JOBS, due_at};
 
 const EVENT_CAPACITY: usize = 256;
+const SETTLE_LOOKAHEAD_DAYS: i64 = 10;
 const OTC: &str = "OTC";
 pub(crate) const CORE_ETFS: [&str; 63] = [
     "SPY", "QQQ", "IWM", "DIA", "IVV", "VOO", "VTI", "MDY", "IJR", "EFA", "EEM", "VEU", "VWO",
@@ -177,7 +178,9 @@ impl Ingest {
             let previous = latest.iter().find(|run| run.job == spec.name);
             let streak = failures.get(spec.name).copied().unwrap_or(0);
             let limited = spec.source.and_then(|source| limits.get(&source).copied());
-            let waiting = due_at(spec, previous, streak, limited).is_some_and(|due| due > now);
+            let settles = self.settles(spec, previous).await?;
+            let waiting =
+                due_at(spec, previous, streak, limited, settles).is_some_and(|due| due > now);
             let settled_before_boot = !self.ran_since_boot.lock().await.contains(spec.name)
                 && previous.is_some_and(|run| {
                     matches!(run.outcome, Some(JobOutcome::Ok | JobOutcome::Noop))
@@ -268,6 +271,26 @@ impl Ingest {
         Ok(false)
     }
 
+    async fn settles(
+        &self,
+        spec: &JobSpec,
+        latest: Option<&JobRun>,
+    ) -> Result<Option<Timestamp>, IngestError> {
+        let Some(run) = latest.filter(|_| spec.name == schedule::BARS_1D) else {
+            return Ok(None);
+        };
+        let from = run.started_at.exchange_date();
+        let sessions = self
+            .market
+            .calendar(from, from + TimeDelta::days(SETTLE_LOOKAHEAD_DAYS))
+            .await?;
+        Ok(sessions
+            .sessions()
+            .iter()
+            .map(|session| session.close + bars::settle_delay())
+            .find(|settled| *settled > run.started_at))
+    }
+
     async fn pending(&self, spec: &JobSpec) -> Result<u64, IngestError> {
         Ok(self
             .contracts()
@@ -293,11 +316,11 @@ impl Ingest {
                 .first_job_start(spec.name)
                 .await?
                 .unwrap_or(self.booted_at);
+            let settles = self.settles(&spec, previous).await?;
             let view = schedule::view(
                 &spec,
                 previous,
-                streak,
-                limited,
+                due_at(&spec, previous, streak, limited, settles),
                 success.as_ref(),
                 first_due,
                 now,

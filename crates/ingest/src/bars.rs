@@ -26,6 +26,10 @@ const RECOVERED_PER_RUN: usize = 20;
 const RECOVERY_RETRY: TimeDelta = TimeDelta::days(30);
 pub(crate) const HALT_SESSIONS: i64 = 60;
 
+pub(crate) fn settle_delay() -> TimeDelta {
+    TimeDelta::from_std(SIP_DELAY).expect("the SIP delay fits a time delta") + SETTLE_MARGIN
+}
+
 impl Ingest {
     pub(crate) async fn daily_bars(&self, now: Timestamp) -> Result<Work, IngestError> {
         let Some(alpaca) = &self.sources.alpaca else {
@@ -38,8 +42,7 @@ impl Ingest {
             .market
             .calendar(self.config.history_start, now.exchange_date())
             .await?;
-        let sip_delay = TimeDelta::from_std(SIP_DELAY).expect("the SIP delay fits a time delta");
-        let settled = now - sip_delay - SETTLE_MARGIN;
+        let settled = now - settle_delay();
         let sessions = calendar.sessions();
         let Some(target_index) = sessions
             .iter()
