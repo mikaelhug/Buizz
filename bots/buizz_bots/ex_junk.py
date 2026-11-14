@@ -11,6 +11,7 @@ from buizz_bots.fundamentals import (
     PointCache,
     adjusted_shares,
     amount,
+    amount_or_zero,
     by_symbol,
     consecutive_fiscal_ends,
     domestic_annual,
@@ -20,6 +21,7 @@ from buizz_bots.fundamentals import (
     latest_shares,
     recent,
     refreshed,
+    total_debt,
     year_end_shares,
 )
 from buizz_bots.monthly import momentum, momentum_sessions
@@ -33,9 +35,36 @@ ANNUAL_METRICS: list[Metric] = [
     "total_assets",
     "net_income",
     "operating_cash_flow",
+    "current_assets",
+    "current_liabilities",
+    "total_liabilities",
+    "cash_and_equivalents",
+    "short_term_investments",
+    "equity",
+    "minority_interest",
+    "preferred_stock",
+    "long_term_debt",
+    "long_term_debt_noncurrent",
+    "short_term_debt",
+    "short_term_borrowings",
+    "current_long_term_debt",
+    "ppe_gross",
+    "ppe_net",
+    "inventory",
+    "pretax_income",
+    "depreciation_amortization",
 ]
 SCHEDULES = {"monthly": range(1, 13), "quarterly": (3, 6, 9, 12)}
-FUNDAMENTAL = ("profitability", "accruals", "issuance")
+FUNDAMENTAL = (
+    "profitability",
+    "accruals",
+    "issuance",
+    "roa",
+    "asset_growth",
+    "investment",
+    "net_operating_assets",
+    "o_score",
+)
 MEASURES = (*FUNDAMENTAL, "momentum")
 GROWTH_YEARS = 2
 
@@ -59,6 +88,74 @@ def share_growth(annual: Annual, symbol: str, today: date, raw: History, split: 
     return math.log(now / prior)
 
 
+def property_plant(annual: Annual, symbol: str, now: date, prior: date) -> tuple[float, float] | None:
+    for metric in ("ppe_gross", "ppe_net"):
+        pair = amount(annual, symbol, metric, now), amount(annual, symbol, metric, prior)
+        if pair[0] is not None and pair[1] is not None:
+            return pair[0], pair[1]
+    return None
+
+
+def investment(annual: Annual, symbol: str, now: date, prior: date, lagged_assets: float) -> float | None:
+    if (plant := property_plant(annual, symbol, now, prior)) is None:
+        return None
+    stock = amount_or_zero(annual, symbol, "inventory", now) - amount_or_zero(annual, symbol, "inventory", prior)
+    return (plant[0] - plant[1] + stock) / lagged_assets
+
+
+def net_operating_assets(annual: Annual, symbol: str, end: date, assets: float, lagged_assets: float) -> float | None:
+    cash = amount(annual, symbol, "cash_and_equivalents", end)
+    equity = amount(annual, symbol, "equity", end)
+    if cash is None or equity is None:
+        return None
+    operating_assets = assets - cash - amount_or_zero(annual, symbol, "short_term_investments", end)
+    operating_liabilities = (
+        assets
+        - total_debt(annual, symbol, end)
+        - amount_or_zero(annual, symbol, "minority_interest", end)
+        - amount_or_zero(annual, symbol, "preferred_stock", end)
+        - equity
+    )
+    return (operating_assets - operating_liabilities) / lagged_assets
+
+
+def o_score(annual: Annual, symbol: str, now: date, prior: date, assets: float) -> float | None:
+    def value(metric: Metric, end: date = now) -> float | None:
+        return amount(annual, symbol, metric, end)
+
+    liabilities, current_assets, current_liabilities = (
+        value("total_liabilities"),
+        value("current_assets"),
+        value("current_liabilities"),
+    )
+    income, last_income, pretax = value("net_income"), value("net_income", prior), value("pretax_income")
+    if (
+        liabilities is None
+        or liabilities <= 0
+        or current_assets is None
+        or current_assets <= 0
+        or current_liabilities is None
+        or income is None
+        or last_income is None
+        or pretax is None
+    ):
+        return None
+    funds = pretax + amount_or_zero(annual, symbol, "depreciation_amortization", now)
+    swing = abs(income) + abs(last_income)
+    return (
+        -1.32
+        - 0.407 * math.log(assets)
+        + 6.03 * liabilities / assets
+        - 1.43 * (current_assets - current_liabilities) / assets
+        + 0.0757 * current_liabilities / current_assets
+        - 1.72 * (liabilities > assets)
+        - 2.37 * income / assets
+        - 1.83 * funds / liabilities
+        + 0.285 * (income < 0 and last_income < 0)
+        - 0.521 * ((income - last_income) / swing if swing > 0 else 0.0)
+    )
+
+
 def junk_measures(annual: Annual, symbol: str, today: date, raw: History, split: History) -> dict[str, float]:
     latest = fiscal_ends(annual, symbol, today, 1)
     if latest is None:
@@ -73,11 +170,24 @@ def junk_measures(annual: Annual, symbol: str, today: date, raw: History, split:
         measures["profitability"] = -profit / assets
     income = amount(annual, symbol, "net_income", end)
     cash = amount(annual, symbol, "operating_cash_flow", end)
-    if income is not None and cash is not None:
-        measures["accruals"] = (income - cash) / assets
+    if income is not None:
+        measures["roa"] = -income / assets
+        if cash is not None:
+            measures["accruals"] = (income - cash) / assets
     growth = share_growth(annual, symbol, today, raw, split)
     if growth is not None:
         measures["issuance"] = growth
+    both = fiscal_ends(annual, symbol, today, GROWTH_YEARS)
+    lagged = None if both is None else amount(annual, symbol, "total_assets", both[1])
+    if both is not None and lagged is not None and lagged > 0:
+        prior = both[1]
+        measures["asset_growth"] = assets / lagged - 1
+        if (invested := investment(annual, symbol, end, prior, lagged)) is not None:
+            measures["investment"] = invested
+        if (operating := net_operating_assets(annual, symbol, end, assets, lagged)) is not None:
+            measures["net_operating_assets"] = operating
+        if (distress := o_score(annual, symbol, end, prior, assets)) is not None:
+            measures["o_score"] = distress
     return measures
 
 
