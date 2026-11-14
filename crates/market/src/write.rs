@@ -47,8 +47,7 @@ pub(crate) fn prepare(connection: &Connection) -> Result<()> {
          CREATE TEMP TABLE action_scope (symbol VARCHAR); \
          CREATE TEMP TABLE shadow_span (ticker VARCHAR, lo DATE, hi DATE, listing VARCHAR); \
          CREATE TEMP TABLE report_scope (report VARCHAR); \
-         CREATE TEMP TABLE coverage_stage AS SELECT * FROM main.coverage LIMIT 0; \
-         CREATE TEMP TABLE stage_text_blob (doc_id VARCHAR, content_hash VARCHAR, text VARCHAR, raw BLOB)",
+         CREATE TEMP TABLE coverage_stage AS SELECT * FROM main.coverage LIMIT 0",
     )?;
     Ok(())
 }
@@ -419,10 +418,19 @@ pub(crate) fn order_daily_bars(connection: &mut Connection) -> Result<Option<u64
         })?;
     let transaction = connection.transaction()?;
     transaction.execute_batch(&format!("CREATE TABLE main.ordered_bar_1d{columns}"))?;
-    let rows = transaction.execute(
-        "INSERT INTO main.ordered_bar_1d SELECT * FROM main.bar_1d ORDER BY date, symbol",
-        [],
+    let years = transaction
+        .prepare("SELECT DISTINCT year(date) FROM main.bar_1d ORDER BY 1")?
+        .query_map([], |row| row.get::<_, i32>(0))?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    let mut insert = transaction.prepare(
+        "INSERT INTO main.ordered_bar_1d SELECT * FROM main.bar_1d \
+         WHERE date >= make_date(?, 1, 1) AND date < make_date(?, 1, 1) ORDER BY date, symbol",
     )?;
+    let mut rows = 0;
+    for year in years {
+        rows += insert.execute(params![year, year + 1])?;
+    }
+    drop(insert);
     transaction.execute_batch(
         "DROP TABLE main.bar_1d; ALTER TABLE main.ordered_bar_1d RENAME TO bar_1d",
     )?;
@@ -2039,7 +2047,9 @@ fn write_text_file(
     if documents.is_empty() {
         return Ok(());
     }
-    transaction.execute("DELETE FROM stage_text_blob", [])?;
+    transaction.execute_batch(
+        "CREATE TEMP TABLE stage_text_blob (doc_id VARCHAR, content_hash VARCHAR, text VARCHAR, raw BLOB)",
+    )?;
     let mut appender = transaction.appender_to_catalog_and_db("stage_text_blob", "temp", "main")?;
     let mut hashes = Vec::with_capacity(documents.len());
     for (_, document, id) in &documents {
@@ -2060,6 +2070,7 @@ fn write_text_file(
         ),
         [],
     )?;
+    transaction.execute_batch("DROP TABLE stage_text_blob")?;
     let relative = format!("{source}/{month}/{batch_id}.parquet");
     let bytes = TextVolumes::place(volume, &written, &relative)?;
     let file_id: i64 =
@@ -2521,5 +2532,49 @@ mod tests {
         .unwrap();
         assert_eq!(revised.rows, 6_000);
         assert_eq!(rows_read(&reader).len(), 22_000);
+    }
+
+    #[test]
+    fn stored_filing_documents_leave_no_memory_behind() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut connection = Connection::open_in_memory().unwrap();
+        crate::migrate::migrate(&mut connection).unwrap();
+        prepare(&connection).unwrap();
+        let volumes = TextVolumes::open(&[directory.path().to_owned()], 0.99).unwrap();
+        text_volumes(&connection, &volumes).unwrap();
+        let held = |connection: &Connection| -> i64 {
+            connection
+                .query_row(
+                    "SELECT memory_usage_bytes FROM duckdb_memory() WHERE tag = 'OVERFLOW_STRINGS'",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap()
+        };
+        let document_bytes = 1 << 20;
+        for batch in 0..4 {
+            let accepted_at = Timestamp::at_exchange_time(
+                session(1).date,
+                NaiveTime::from_hms_opt(8, 0, 0).unwrap(),
+            )
+            .unwrap();
+            let filing = FilingText {
+                cik: 320193,
+                accession: format!("0000320193-24-00000{batch}"),
+                form: "10-K".to_owned(),
+                accepted_at,
+                retrieved_at: accepted_at,
+                outcome: Ok(vec![FilingDocument {
+                    sequence: 1,
+                    document: "aapl-10k.htm".to_owned(),
+                    kind: "10-K".to_owned(),
+                    description: None,
+                    raw: vec![b'x'; document_bytes],
+                    text: Some("y".repeat(document_bytes)),
+                }]),
+            };
+            filing_texts(&mut connection, &volumes, DataSource::Edgar, vec![filing]).unwrap();
+        }
+        assert!(held(&connection) < 2 * document_bytes as i64);
     }
 }

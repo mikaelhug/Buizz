@@ -89,7 +89,7 @@ The spine (`cargo run -p buizz-spine`) reads these environment variables. Empty 
 | `ANTHROPIC_MONTHLY_CAP_USD` | `5` | Dollars the `recipe_facts` job may commit to the Anthropic API per calendar month (UTC): what the store's ledger says was spent this month plus the worst case of every open batch and of each request before it is sent. Raise it for the 8-K history fill (about $235 through the Batch API) |
 | `ANTHROPIC_URL` | `https://api.anthropic.com` | Anthropic API endpoint |
 | `FINRA_URL`, `FINRA_API_URL`, `FINRA_CDN_URL` | `https://www.finra.org`, `https://api.finra.org`, `https://cdn.finra.org` | FINRA's site (the short interest publication schedule), its public Query API (short interest) and its file server (daily short sale volume); free, no key or account, so the `short_interest` and `short_volume` jobs always run |
-| `BUIZZ_DUCKDB_MEMORY` | `1GB` | Memory the market store may use for queries and writes before it spills to `market.duckdb.tmp/` in the data directory |
+| `BUIZZ_DUCKDB_MEMORY` | `1GB` | Memory the market store may use for queries and writes; it never spills to disk, so a query that needs more fails with an out-of-memory error |
 | `BUIZZ_DUCKDB_THREADS` | `2` | Threads the market store uses |
 | `BUIZZ_TEXT_DIRS` | unset | Comma-separated directories, usually one per disk, where filings are kept as filed and as text (see `docs/architecture.md`, Where state lives); unset, documents are not harvested |
 | `BUIZZ_TEXT_FILL_LIMIT` | `0.9` | Share of a text volume's disk above which it takes no new files; the e2e spines set 1, since their volumes share the developer's disk |

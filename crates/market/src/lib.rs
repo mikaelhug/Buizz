@@ -31,7 +31,7 @@ use buizz_core::run::UniverseSpec;
 use buizz_core::time::Timestamp;
 use buizz_core::visibility::{bar_visible_at, published_sessions, universe_visible_at};
 use chrono::{NaiveDate, TimeDelta};
-use duckdb::Connection;
+use duckdb::{Config, Connection};
 use rust_decimal::Decimal;
 use tokio::sync::watch;
 
@@ -283,7 +283,17 @@ impl MarketStore {
         let path = path.to_owned();
         let (writer, pool, calendar, listings, actions, day) =
             tokio::task::spawn_blocking(move || {
-                let mut writer = Connection::open(path)?;
+                let mut spill = path.clone().into_os_string();
+                spill.push(".tmp");
+                if let Err(error) = std::fs::remove_dir_all(&spill)
+                    && error.kind() != std::io::ErrorKind::NotFound
+                {
+                    return Err(error.into());
+                }
+                let mut writer = Connection::open_with_flags(
+                    path,
+                    Config::default().with("temp_directory", "")?,
+                )?;
                 migrate::migrate(&mut writer)?;
                 write::prepare(&writer)?;
                 let pool = (0..readers.max(1))

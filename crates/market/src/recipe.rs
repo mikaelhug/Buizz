@@ -40,9 +40,10 @@ const IN_SCOPE: &str = "WITH main_document AS (SELECT d.doc_id, d.content_hash, 
      d.cik, d.published_at, f.volume, f.path FROM text_document d \
      JOIN text_file f ON f.id = d.file_id WHERE d.kind IN ('8-K', '8-K/A') AND d.published_at >= ? \
      QUALIFY row_number() OVER (PARTITION BY d.doc_id ORDER BY d.batch_id DESC) = 1), \
-     reported AS (SELECT DISTINCT accession, unnest(items) AS item FROM current_report), \
+     reported AS (SELECT DISTINCT accession, item FROM (SELECT accession, unnest(items) AS item \
+     FROM current_report) WHERE item IN (SELECT unnest(?::VARCHAR[]))), \
      in_scope AS (SELECT m.*, '8-K:' || r.item AS section_key FROM main_document m \
-     JOIN reported r USING (accession) WHERE r.item IN (SELECT unnest(?::VARCHAR[])))";
+     JOIN reported r USING (accession))";
 
 const LOCATED: &str = "SELECT s.doc_id, s.content_hash, s.section_key, s.accession, s.cik, \
      s.published_at, s.volume, s.path, p.start_char, p.end_char FROM in_scope s \

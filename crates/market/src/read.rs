@@ -1642,9 +1642,8 @@ pub(crate) fn parquet_text(
 
 pub(crate) fn filing_text_progress(connection: &Connection) -> Result<AccessionProgress> {
     Ok(connection.query_row(
-        "SELECT count(DISTINCT a.accession), count(DISTINCT a.accession) \
-         FILTER (WHERE f.accession IS NOT NULL AND f.failure IS NULL), \
-         count(DISTINCT a.accession) FILTER (WHERE f.failure IS NOT NULL) \
+        "SELECT count(*), count(*) FILTER (WHERE f.accession IS NOT NULL AND f.failure IS NULL), \
+         count(*) FILTER (WHERE f.failure IS NOT NULL) \
          FROM (SELECT accession FROM current_report UNION SELECT accession FROM periodic_report) a \
          LEFT JOIN filing_text f ON f.accession = a.accession",
         [],
@@ -1693,14 +1692,16 @@ pub(crate) fn unsplit_documents(
     limit: usize,
 ) -> Result<Vec<UnsplitLocation>> {
     let mut statement = connection.prepare_cached(&format!(
-        "SELECT d.doc_id, d.content_hash, d.kind, \
-         coalesce((SELECT array_to_string(any_value(c.items), ',') FROM current_report c \
-         WHERE c.accession = d.accession), ''), d.published_at, f.volume, f.path \
-         FROM text_document d JOIN text_file f ON f.id = d.file_id \
+        "WITH unsplit AS (SELECT d.doc_id, d.content_hash, d.kind, d.accession, d.published_at, \
+         f.volume, f.path FROM text_document d JOIN text_file f ON f.id = d.file_id \
          WHERE {SPLIT_SCOPE} AND NOT EXISTS (SELECT 1 FROM section s \
          WHERE s.doc_id = d.doc_id AND s.content_hash = d.content_hash \
          AND s.splitter_version = ?) \
-         ORDER BY d.published_at DESC, d.doc_id LIMIT ?"
+         ORDER BY d.published_at DESC, d.doc_id LIMIT ?) \
+         SELECT u.doc_id, u.content_hash, u.kind, \
+         coalesce((SELECT array_to_string(any_value(c.items), ',') FROM current_report c \
+         WHERE c.accession = u.accession), ''), u.published_at, u.volume, u.path \
+         FROM unsplit u ORDER BY u.published_at DESC, u.doc_id"
     ))?;
     let documents = statement
         .query_map(params![splitter_version, limit as u64], |row| {
@@ -1747,14 +1748,14 @@ pub(crate) fn split_progress(
 ) -> Result<AccessionProgress> {
     Ok(connection.query_row(
         &format!(
-            "SELECT count(*), count(*) FILTER (WHERE split), count(*) FILTER (WHERE unsplittable AND NOT split) \
-             FROM (SELECT EXISTS (SELECT 1 FROM section s WHERE s.doc_id = d.doc_id \
-             AND s.content_hash = d.content_hash AND s.splitter_version = ? AND s.failure IS NULL) AS split, \
-             EXISTS (SELECT 1 FROM section s WHERE s.doc_id = d.doc_id \
-             AND s.content_hash = d.content_hash AND s.splitter_version = ? AND s.failure IS NOT NULL) AS unsplittable \
-             FROM text_document d WHERE {SPLIT_SCOPE})"
+            "SELECT count(*), count(*) FILTER (WHERE s.split), \
+             count(*) FILTER (WHERE s.unsplittable AND NOT s.split) FROM text_document d \
+             LEFT JOIN (SELECT doc_id, content_hash, bool_or(failure IS NULL) AS split, \
+             bool_or(failure IS NOT NULL) AS unsplittable FROM section WHERE splitter_version = ? \
+             GROUP BY doc_id, content_hash) s \
+             ON s.doc_id = d.doc_id AND s.content_hash = d.content_hash WHERE {SPLIT_SCOPE}"
         ),
-        [splitter_version, splitter_version],
+        [splitter_version],
         |row| {
             Ok(AccessionProgress {
                 expected: row.get(0)?,
