@@ -82,14 +82,17 @@ def traded_months(trades: Iterable[InsiderTrade]) -> dict[int, set[tuple[int, in
     return months
 
 
-def routine(months: set[tuple[int, int]], day: date, years: int) -> bool:
-    return all((day.year - back, day.month) in months for back in range(1, years + 1))
+def opportunistic(months: set[tuple[int, int]], year: int, years: int) -> bool:
+    prior = range(year - years, year)
+    traded_every_year = all(any((past, month) in months for month in range(1, 13)) for past in prior)
+    routine = any(all((past, month) in months for past in prior) for month in range(1, 13))
+    return traded_every_year and not routine
 
 
 def cluster(
     symbol: str,
     found: list[Filing],
-    months: dict[int, set[tuple[int, int]]],
+    months: dict[int, set[tuple[int, int]]] | None,
     since: date,
     years: int,
     session_open: datetime,
@@ -103,7 +106,9 @@ def cluster(
             if day < since:
                 continue
             buyers = {
-                cik: name for cik, name in filing.insiders.items() if not routine(months.get(cik, set()), day, years)
+                cik: name
+                for cik, name in filing.insiders.items()
+                if months is None or opportunistic(months.get(cik, set()), day.year, years)
             }
             if buyers:
                 insiders |= buyers
@@ -117,17 +122,18 @@ def cluster(
 
 def clusters(
     trades: list[InsiderTrade],
-    history: list[InsiderTrade],
+    history: list[InsiderTrade] | None,
     since: date,
     years: int,
     session_open: datetime,
 ) -> list[Cluster]:
     months: dict[str, dict[int, set[tuple[int, int]]]] = {
-        symbol: traded_months(rows) for symbol, rows in groupby(history, key=lambda trade: trade.symbol)
+        symbol: traded_months(rows) for symbol, rows in groupby(history or [], key=lambda trade: trade.symbol)
     }
     found: list[Cluster] = []
     for symbol, rows in groupby(trades, key=lambda trade: trade.symbol):
-        formed = cluster(symbol, standing(filings(rows)), months.get(symbol, {}), since, years, session_open)
+        own = None if history is None else months.get(symbol, {})
+        formed = cluster(symbol, standing(filings(rows)), own, since, years, session_open)
         if formed is not None:
             found.append(formed)
     return found
@@ -163,10 +169,10 @@ def fresh_clusters(ctx: Context, symbols: list[str], held: set[str], room: int) 
     trades = ctx.insider_trades(symbols, since)
     loose = {
         found.symbol
-        for found in clusters(trades, [], since, years, ctx.session.open)
+        for found in clusters(trades, None, since, years, ctx.session.open)
         if found.symbol not in held and signals_today(found)
     }
-    history = ctx.insider_trades(sorted(loose), date(since.year - years, since.month, 1)) if loose else []
+    history = ctx.insider_trades(sorted(loose), date(since.year - years, 1, 1)) if loose else []
     return sorted(
         (
             found
