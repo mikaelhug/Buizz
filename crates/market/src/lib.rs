@@ -513,13 +513,7 @@ impl MarketStore {
     ) -> Result<WriteSummary> {
         self.writer
             .run(move |connection| match timeframe {
-                Timeframe::Day => {
-                    let summary = write::daily_bars(connection, source, bars)?;
-                    if let Err(error) = keep_daily_bars_ordered(connection) {
-                        tracing::warn!(%error, "cannot put the daily bars back in date order");
-                    }
-                    Ok(summary)
-                }
+                Timeframe::Day => write::daily_bars(connection, source, bars),
                 Timeframe::Minute => write::minute_bars(connection, source, bars),
             })
             .await

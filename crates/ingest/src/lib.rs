@@ -202,6 +202,11 @@ impl Ingest {
                 )
                 .await?;
             drop(running);
+            if work.rows > 0
+                && let Err(error) = self.market.order_daily_bars().await
+            {
+                tracing::warn!(%error, "cannot put the daily bars back in date order");
+            }
             report.ran.push((spec.name, work.outcome));
             let views = self.job_views(finished).await?;
             if let Some(job) = views.into_iter().find(|view| view.name == spec.name) {
