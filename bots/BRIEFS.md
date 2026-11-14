@@ -121,6 +121,7 @@ Execution rule: papers that rebalance monthly or less often trade at the signal'
 | `singleton` | Companies shrinking their shares by buying back below 15 times earnings with insiders not selling, held for years and sold on the company's own behaviour; the monthly purchase prices and self-tenders remain | G24 (strong variant) |
 | `greenblatt` | The magic formula: return on capital plus EBIT/EV, 28 names bought 7 a quarter, each held a year with the book's tax timing | none |
 | `lynch` | Lynch's six categories from the XBRL record, growers bought at a PEGY of at least 1.5 and the rest at their category's price, insider buying and net cash as pluses, up to 100 names, each sold for its category's reason; the story and scuttlebutt left out | none |
+| `templeton` | Maximum pessimism, US buy side: solvent companies 60% below their 3-year high at EV under 8 times five-year mean EBIT, bought only while the market temperature is cold, up to 100 names at 1%, each held four years unless a 50% better bargain replaces it; BIL otherwise; the global search and the lockup-expiry short left out | none |
 
 ### Research exercises
 

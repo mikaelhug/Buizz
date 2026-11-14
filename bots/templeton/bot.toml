@@ -1,0 +1,10 @@
+description = "Templeton's maximum pessimism, US buy side: each month, and each week while the market temperature is cold, it looks for operating companies (no financials or utilities) at least 60% below their 3-year high that are cheap on normal earnings, enterprise value at most 8 times the mean EBIT of the last five 10-K years, and solvent: positive equity, net debt at most 3 times that normal EBIT, no 8-K Item 4.02 restatement in five years. New money goes in only while the gauge of buizz_bots.persona (forward P/E against its 10-year average, the Baa spread, VIX and the S&P 500 drawdown) reads 30% or colder; otherwise the cash waits in BIL. Up to 100 names at 1% of equity each, the cheapest first, as in the 104 companies he bought in 1939. A holding is sold after four years (timer:), when a bargain at least 50% better (EBIT/EV 1.5 times its own) can take its place (swap:), when it reaches 15 times normal EBIT (valuation:), or when it is no longer solvent or restates its accounts (thesis:); never on its price alone. The global search and the 2000 lockup-expiry short are left out (BRIEF.md)."
+command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
+timeframe = "1d"
+wake = "bar"
+universe = { top_dollar_volume = 3000, asset_class = "stock" }
+params = { max_names = 100, min_fall = 0.60, high_years = 3, normal_years = 5, max_ev_ebit = 8.0, full_ev_ebit = 15.0, max_debt_ebit = 3.0, min_market_cap = 50000000, hold_years = 4.0, swap_edge = 0.50, cold = 0.30, restatement_years = 5, cash_symbol = "BIL" }
+step_timeout = 1800
+
+[risk]
+max_gross_exposure = 1.0
