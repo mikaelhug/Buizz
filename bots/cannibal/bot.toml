@@ -1,4 +1,4 @@
-description = "Singleton-style cannibals: profitable companies shrinking their share count year over year, rebalanced quarterly."
+description = "SDK demo: the profitable companies that shrank their share count most over their last fiscal year, rebalanced quarterly. Its closest live product, PKW, has matched SPY since 2007; Fama and French (2008) find large repurchasers earn +0.28% a month among big stocks before costs. singleton is the research-faithful buyback bot"
 command = ["uv", "run", "--frozen", "--project", "..", "python", "bot.py"]
 timeframe = "1d"
 wake = "bar"

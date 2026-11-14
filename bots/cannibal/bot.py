@@ -1,45 +1,43 @@
-from collections import defaultdict
+from buizz_bots.caps import market_caps
+from buizz_bots.fundamentals import (
+    adjusted_shares,
+    amount,
+    consecutive_fiscal_ends,
+    domestic_annual,
+    histories_since,
+    year_end_shares,
+)
 
-from buizz_bots.fundamentals import adjusted_shares
+from buizz import Bot, Context, FundamentalPoint, Metric, run
 
-from buizz import Bot, Context, FundamentalPoint, History, run
-
+METRICS: list[Metric] = ["shares_outstanding", "net_income"]
 YEARS_NEEDED = 2
-MIN_GAP_DAYS = 300
-MAX_GAP_DAYS = 430
-HISTORY_BARS = 600
 
 
-def annual_series(points: list[FundamentalPoint], metric: str) -> dict[str, list[FundamentalPoint]]:
-    series: defaultdict[str, list[FundamentalPoint]] = defaultdict(list)
-    for point in points:
-        if point.metric == metric and point.period_type == "FY":
-            series[point.symbol].append(point)
-    return {symbol: sorted(found, key=lambda point: point.period_end, reverse=True) for symbol, found in series.items()}
+def profitable_share_counts(ctx: Context) -> dict[str, tuple[FundamentalPoint, FundamentalPoint]]:
+    annual = domestic_annual(ctx.fundamentals(ctx.universe, METRICS))
+    found: dict[str, tuple[FundamentalPoint, FundamentalPoint]] = {}
+    for symbol in ctx.universe:
+        ends = consecutive_fiscal_ends(annual.get((symbol, "net_income"), {}), ctx.session.date, YEARS_NEEDED)
+        if ends is None or (amount(annual, symbol, "net_income", ends[0]) or 0) <= 0:
+            continue
+        now, before = (year_end_shares(annual, symbol, end) for end in ends)
+        if now is not None and before is not None and before.value > 0:
+            found[symbol] = (now, before)
+    return found
 
 
-def share_change(shares: list[FundamentalPoint], raw: History, adjusted: History) -> float | None:
-    latest, prior = shares[0], shares[1]
-    if not MIN_GAP_DAYS <= (latest.period_end - prior.period_end).days <= MAX_GAP_DAYS:
-        return None
-    latest_shares = adjusted_shares(latest, raw, adjusted)
-    prior_shares = adjusted_shares(prior, raw, adjusted)
-    if latest_shares is None or prior_shares is None or prior_shares <= 0:
-        return None
-    return latest_shares / prior_shares - 1
-
-
-def shrinkers(ctx: Context, candidates: dict[str, list[FundamentalPoint]]) -> list[tuple[str, float]]:
+def shrinkers(ctx: Context) -> list[tuple[str, float]]:
+    candidates = profitable_share_counts(ctx)
     if not candidates:
         return []
-    raw = ctx.history(list(candidates), "1d", HISTORY_BARS, "raw")
-    adjusted = ctx.history(list(candidates), "1d", HISTORY_BARS, "split")
-    shrink_limit = -float(ctx.params["min_shrink"])
+    raw, adjusted = histories_since(ctx, sorted(candidates), min(before.filed for _, before in candidates.values()))
+    lines = market_caps(ctx, {symbol: now for symbol, (now, _) in candidates.items()}, raw, adjusted)
     changes: list[tuple[str, float]] = []
-    for symbol, shares in candidates.items():
-        change = share_change(shares, raw[symbol], adjusted[symbol])
-        if change is not None and change <= shrink_limit:
-            changes.append((symbol, change))
+    for symbol in lines:
+        now, before = (adjusted_shares(point, raw[symbol], adjusted[symbol]) for point in candidates[symbol])
+        if now is not None and before is not None and now / before - 1 <= -float(ctx.params["min_shrink"]):
+            changes.append((symbol, now / before - 1))
     return sorted(changes, key=lambda pair: pair[1])[: ctx.params["holdings"]]
 
 
@@ -49,17 +47,8 @@ class Cannibal(Bot):
         quarter = f"{today.year}Q{(today.month - 1) // 3 + 1}"
         if ctx.state.get("quarter") == quarter:
             return
-        points = ctx.fundamentals(ctx.universe, ["shares_outstanding", "net_income"])
-        if not points:
-            return
         ctx.state["quarter"] = quarter
-        profits = annual_series(points, "net_income")
-        candidates = {
-            symbol: found
-            for symbol, found in annual_series(points, "shares_outstanding").items()
-            if len(found) >= YEARS_NEEDED and symbol in profits and profits[symbol][0].value > 0
-        }
-        chosen = shrinkers(ctx, candidates)
+        chosen = shrinkers(ctx)
         weight = float(ctx.params["gross"]) / max(len(chosen), 1)
         ctx.rebalance(
             {symbol: weight for symbol, _ in chosen},
