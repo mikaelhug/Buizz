@@ -253,7 +253,7 @@ impl RunRecord {
         let mut books = Vec::with_capacity(self.dates.len());
         for (date, at, equity) in &self.dates {
             while let Some(entry) = entries.next_if(|entry| entry.at <= *at) {
-                portfolio.apply(&entry.kind);
+                portfolio.apply(entry.at, &entry.kind);
             }
             let held: BTreeMap<Symbol, f64> = portfolio
                 .open_positions()
