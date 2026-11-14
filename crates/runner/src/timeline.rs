@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use buizz_core::listing::Listings;
@@ -104,7 +104,23 @@ struct Loaded {
     symbols: BTreeSet<Symbol>,
     from: Timestamp,
     to: Timestamp,
-    bars: VecDeque<Bar>,
+    bars: BTreeMap<Timestamp, Vec<Bar>>,
+}
+
+impl Loaded {
+    fn add(&mut self, symbols: BTreeSet<Symbol>, bars: Vec<Bar>) {
+        let mut touched = BTreeSet::new();
+        for bar in bars {
+            touched.insert(bar.start);
+            self.bars.entry(bar.start).or_default().push(bar);
+        }
+        for start in touched {
+            if let Some(group) = self.bars.get_mut(&start) {
+                group.sort_by(|a, b| a.symbol.cmp(&b.symbol));
+            }
+        }
+        self.symbols.extend(symbols);
+    }
 }
 
 pub(crate) struct Timeline {
@@ -418,12 +434,12 @@ impl Timeline {
         point: &Point,
         visible_through: Option<Timestamp>,
     ) -> Result<Vec<Bar>, MarketError> {
-        if !self.covers(&self.loaded, point) {
+        if !spans(&self.loaded, point) {
             let prefetched = match self.prefetch.take() {
                 Some(task) => Some(task.await??),
                 None => None,
             };
-            self.loaded = match prefetched.filter(|loaded| self.covers(loaded, point)) {
+            self.loaded = match prefetched.filter(|loaded| spans(loaded, point)) {
                 Some(loaded) => loaded,
                 None => {
                     let to = self.chunk_end(&point.session, visible_through);
@@ -434,25 +450,30 @@ impl Timeline {
                 self.prefetch_after(self.loaded.to);
             }
         }
-        let queue = &mut self.loaded.bars;
-        while queue.front().is_some_and(|bar| bar.start < point.start) {
-            queue.pop_front();
+        let missing: BTreeSet<Symbol> = self
+            .tracked
+            .difference(&self.loaded.symbols)
+            .cloned()
+            .collect();
+        if !missing.is_empty() {
+            let bars = self
+                .market
+                .traded_bars(
+                    self.timeframe,
+                    missing.iter().cloned().collect(),
+                    point.start,
+                    self.loaded.to,
+                )
+                .await?;
+            self.loaded.add(missing, bars);
+            self.loaded.from = point.start;
         }
-        let current = queue
-            .iter()
-            .take_while(|bar| bar.start == point.start)
-            .count();
-        let tracked = &self.tracked;
-        Ok(queue
-            .drain(..current)
-            .filter(|bar| tracked.contains(&bar.symbol))
+        self.loaded.bars = self.loaded.bars.split_off(&point.start);
+        let current = self.loaded.bars.remove(&point.start).unwrap_or_default();
+        Ok(current
+            .into_iter()
+            .filter(|bar| self.tracked.contains(&bar.symbol))
             .collect())
-    }
-
-    fn covers(&self, loaded: &Loaded, point: &Point) -> bool {
-        loaded.from <= point.start
-            && point.start < loaded.to
-            && self.tracked.is_subset(&loaded.symbols)
     }
 
     fn prefetch_after(&mut self, from: Timestamp) {
@@ -513,10 +534,15 @@ async fn load(
     let bars = market
         .traded_bars(timeframe, tracked.iter().cloned().collect(), from, to)
         .await?;
-    Ok(Loaded {
-        symbols: tracked.clone(),
+    let mut loaded = Loaded {
         from,
         to,
-        bars: bars.into(),
-    })
+        ..Loaded::default()
+    };
+    loaded.add(tracked.clone(), bars);
+    Ok(loaded)
+}
+
+fn spans(loaded: &Loaded, point: &Point) -> bool {
+    loaded.from <= point.start && point.start < loaded.to
 }
