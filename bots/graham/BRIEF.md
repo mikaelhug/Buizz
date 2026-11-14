@@ -2,7 +2,9 @@
 
 Complex · Gaps: G14
 
-The net-net method (primary) and the 1976 rule (`method = "rule_1976"`) are in `bot.py`. This brief is what is left: Graham's defensive-investor criteria as a third `method`, blocked by G14.
+`bot.py` runs Graham-Newman's general portfolio (`method = "graham"`): net-nets below two-thirds of NCAV first, then the 1976 rule, in 30 slots of a stock share between 25% and 75% set each month by `buizz_bots.persona.temperature`, the rest in IEF (7 to 10 year Treasuries, his 7 to 8 year bonds), trimmed back when the stock book is more than 10 points above target. A name is sold at +50% (`price:`), at the end of the second calendar year, or on a dividend cut or omission read from the ex-dividend steps of `adjust = "all"` against `adjust = "split"` closes. `method = "net_net"` and `"rule_1976"` screen one list only, and `exit = "oppenheimer"` is Oppenheimer's 1986 cohort study.
+
+This brief is what is left: Graham's defensive-investor criteria as a third `method`, blocked by G14. Also left out on purpose: his arbitrage, reorganisation and liquidation book (36% to 48% of Graham-Newman in 1946), which needs deal-term recipes over 8-K Items 1.01, 2.01 and 8.01, and his refusal of names above 20 times trailing earnings as a sell rule.
 
 ## Sources
 - Graham (1973), *The Intelligent Investor*, 4th rev. ed.: ch. 5 (10–30 issues for the defensive investor), ch. 14 (defensive criteria).

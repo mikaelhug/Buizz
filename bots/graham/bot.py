@@ -3,7 +3,10 @@ from datetime import date, timedelta
 from itertools import pairwise
 from typing import Any, NamedTuple
 
+import numpy as np
 from buizz_bots.fundamentals import DOMESTIC_FORMS, in_dollars, shares_after, with_fourth_quarters
+from buizz_bots.monthly import session_days
+from buizz_bots.persona import Buy, Sell, stock_share, stock_weights, temperature, trade
 from buizz_bots.sessions import last_session_of_month
 
 from buizz import Bot, Context, FundamentalPoint, History, Metric, run, split_ratio
@@ -26,6 +29,12 @@ QUARTER_GAP_DAYS = range(80, 101)
 QUARTERS_PER_YEAR = 4
 DECEMBER = 12
 NOVEMBER = 11
+DIVIDEND_BARS = 756
+DIVIDEND_STEP = 1e-6
+PAYMENTS_COMPARED = 4
+MIN_PAYMENTS = 2
+OMISSION_GAPS = 1.5
+BLOCKING = {"timer", "thesis"}
 
 type Facts = dict[Metric, list[FundamentalPoint]]
 
@@ -34,6 +43,11 @@ class Pick(NamedTuple):
     symbol: str
     rank: float
     reason: str
+
+
+class Dividend(NamedTuple):
+    day: date
+    amount: float
 
 
 def domestic_facts(points: list[FundamentalPoint]) -> dict[str, Facts]:
@@ -188,93 +202,160 @@ def screen(ctx: Context) -> list[Pick]:
         return net_nets(ctx)
     if method == "rule_1976":
         return rule_1976(ctx)
-    raise ValueError(f"method must be net_net or rule_1976, not {method!r}")
+    if method == "graham":
+        found = net_nets(ctx)
+        listed = {pick.symbol for pick in found}
+        return found + [pick for pick in rule_1976(ctx) if pick.symbol not in listed]
+    raise ValueError(f"method must be graham, net_net or rule_1976, not {method!r}")
+
+
+def dividends(split: History, total: History) -> list[Dividend]:
+    if len(split.close) < MIN_PAYMENTS or not np.array_equal(split.start, total.start):
+        return []
+    ratio = total.close / split.close
+    steps = ratio[1:] / ratio[:-1]
+    days = session_days(split)
+    return [
+        Dividend(days[index + 1].item(), float(split.close[index] * (1 - 1 / steps[index])))
+        for index in np.flatnonzero(steps > 1 + DIVIDEND_STEP)
+    ]
+
+
+def dividend_break(paid: list[Dividend], entered: date, today: date, cut: float) -> str | None:
+    if len(paid) < MIN_PAYMENTS:
+        return None
+    recent = paid[-PAYMENTS_COMPARED - 1 :]
+    *before, latest = recent
+    usual = float(np.median([payment.amount for payment in before]))
+    if latest.day >= entered and latest.amount < usual * (1 - cut):
+        return f"dividend cut to {latest.amount:.4f} on {latest.day} from a usual {usual:.4f}"
+    gaps = [(second.day - first.day).days for first, second in pairwise(recent)]
+    due = latest.day + timedelta(days=round(OMISSION_GAPS * float(np.median(gaps))))
+    if entered <= due < today:
+        return f"dividend omitted: none since {latest.day}, next was due by {due}"
+    return None
+
+
+def temperature_share(ctx: Context) -> tuple[float, str]:
+    low, high = float(ctx.params["stock_low"]), float(ctx.params["stock_high"])
+    heat = temperature(ctx)
+    if heat is None:
+        return (low + high) / 2, "no market temperature, the 50-50 default"
+    return stock_share(heat, low, high), heat.why
 
 
 class Graham(Bot):
     def on_step(self, ctx: Context) -> None:
         exit_rule = ctx.params["exit"]
         if exit_rule == "graham":
-            entries = {
-                symbol: position.opened_at.date()
-                for symbol, position in ctx.portfolio.positions.items()
-                if position.qty > 0 and position.opened_at is not None
-            }
-            self.graham_exits(ctx, entries)
-            self.graham_buys(ctx, set(entries))
+            self.graham(ctx)
         elif exit_rule == "oppenheimer":
             self.oppenheimer_cohort(ctx)
         else:
             raise ValueError(f"exit must be graham or oppenheimer, not {exit_rule!r}")
 
-    def graham_exits(self, ctx: Context, entries: dict[str, date]) -> None:
+    def graham(self, ctx: Context) -> None:
+        bonds = ctx.params["bonds"]
+        stored: dict[str, str] = ctx.state.get("blocked", {})
+        blocked = {ctx.renames.get(symbol, symbol): exited for symbol, exited in stored.items()}
+        ctx.state["blocked"] = blocked
+        entries = {
+            symbol: position.opened_at.date()
+            for symbol, position in ctx.portfolio.positions.items()
+            if position.qty > 0 and position.opened_at is not None and symbol != bonds
+        }
+        sells = self.graham_exits(ctx, entries)
+        for sell in sells:
+            if sell.trigger in BLOCKING:
+                blocked[sell.symbol] = ctx.session.date.isoformat()
+        month = ctx.session.date.strftime("%Y-%m")
+        if ctx.state.get("month") == month:
+            if sells:
+                trade(ctx, sells, [], bonds)
+            return
+        ctx.state["month"] = month
+        share, why = temperature_share(ctx)
+        kept = set(entries) - {sell.symbol for sell in sells}
+        sells += self.split_trims(ctx, kept, share, why)
+        trade(ctx, sells, self.graham_buys(ctx, set(entries), share, why), bonds, share=share)
+
+    def graham_exits(self, ctx: Context, entries: dict[str, date]) -> list[Sell]:
         today = ctx.session.date
         gain = float(ctx.params["exit_gain"])
         years = int(ctx.params["exit_calendar_years"])
+        cut = float(ctx.params["dividend_cut"])
         year_end = today.month == DECEMBER and bool(entries) and last_session_of_month(ctx)
         selling = {order.symbol for order in ctx.portfolio.working if order.side == "sell"}
-        time_exits: dict[str, str] = ctx.state.setdefault("time_exits", {})
-        for symbol, entered in sorted(entries.items()):
-            if symbol in selling:
-                continue
+        watched = sorted(set(entries) - selling)
+        split = ctx.history(watched, "1d", DIVIDEND_BARS, "split") if watched else {}
+        total = ctx.history(watched, "1d", DIVIDEND_BARS, "all") if watched else {}
+        sells: list[Sell] = []
+        for symbol in watched:
+            entered = entries[symbol]
             cost = float(ctx.position(symbol).avg_cost)
             bar = ctx.bars.get(symbol)
             deadline = entered.year + years
+            paid = dividends(split[symbol], total[symbol]) if symbol in split and symbol in total else []
+            broken = dividend_break(paid, entered, today, cut)
             if bar is not None and bar.close >= cost * (1 + gain):
-                ctx.order_target_weight(
-                    symbol, 0, reason=f"price: +{gain:.0%} target, close {bar.close:.2f} against cost {cost:.2f}"
+                sells.append(
+                    Sell(symbol, "price", f"+{gain:.0%} target, close {bar.close:.2f} against cost {cost:.2f}")
                 )
             elif today.year > deadline or (today.year == deadline and year_end):
-                ctx.order_target_weight(
-                    symbol, 0, reason=f"{years}-year limit: bought {entered}, end of {deadline} reached"
-                )
-                time_exits[symbol] = today.isoformat()
+                sells.append(Sell(symbol, "timer", f"{years}-year limit: bought {entered}, end of {deadline} reached"))
+            elif broken is not None:
+                sells.append(Sell(symbol, "thesis", broken))
+        return sells
 
-    def graham_buys(self, ctx: Context, held: set[str]) -> None:
+    def split_trims(self, ctx: Context, kept: set[str], share: float, why: str) -> list[Sell]:
+        weights = {
+            symbol: weight for symbol, weight in stock_weights(ctx, ctx.params["bonds"]).items() if symbol in kept
+        }
+        held = sum(weights.values())
+        if held <= share + float(ctx.params["split_band"]):
+            return []
+        scale = share / held
+        detail = f"stock share {held:.0%} more than {ctx.params['split_band']:.0%} over its {share:.0%} target, {why}"
+        return [Sell(symbol, "valuation", detail, weight * scale) for symbol, weight in sorted(weights.items())]
+
+    def graham_buys(self, ctx: Context, held: set[str], share: float, why: str) -> list[Buy]:
         today = ctx.session.date
-        month = today.strftime("%Y-%m")
-        if ctx.state.get("month") == month:
-            return
-        ctx.state["month"] = month
         block = int(ctx.params["reentry_block_days"])
-        time_exits: dict[str, str] = ctx.state.setdefault("time_exits", {})
-        for symbol, exited in list(time_exits.items()):
+        blocked: dict[str, str] = ctx.state["blocked"]
+        for symbol, exited in list(blocked.items()):
             if (today - date.fromisoformat(exited)).days >= block:
-                del time_exits[symbol]
+                del blocked[symbol]
         names = int(ctx.params["min_names"])
-        slots = int(float(ctx.portfolio.cash) * names / float(ctx.portfolio.equity))
-        taken = held | set(time_exits) | {order.symbol for order in ctx.portfolio.working}
+        taken = held | set(blocked) | {order.symbol for order in ctx.portfolio.working}
         picks = [pick for pick in screen(ctx) if pick.symbol not in taken]
         ctx.log(
-            f"new qualifiers: {len(picks)}, cash for {max(slots, 0)} positions of 1/{names}, "
-            f"{len(time_exits)} blocked for {block} days after a time exit"
+            f"new qualifiers: {len(picks)}, stock share target {share:.0%} ({why}) in slots of 1/{names} of it, "
+            f"{len(blocked)} blocked for {block} days after an exit"
         )
-        for pick in picks[: max(slots, 0)]:
-            ctx.order_target_weight(pick.symbol, 1 / names, reason=pick.reason)
+        return [Buy(pick.symbol, share / names, f"{pick.reason}; stock share target {share:.0%}") for pick in picks]
 
     def oppenheimer_cohort(self, ctx: Context) -> None:
         today = ctx.session.date
         month_end = last_session_of_month(ctx)
         pending: dict[str, Any] | None = ctx.state.get("cohort")
         if pending is not None:
-            ranks: dict[str, float] = pending["picks"]
-            pending["picks"] = {ctx.renames.get(symbol, symbol): rank for symbol, rank in ranks.items()}
+            reasons: dict[str, str] = pending["picks"]
+            pending["picks"] = {ctx.renames.get(symbol, symbol): reason for symbol, reason in reasons.items()}
         late = pending is not None and today.year > pending["formed"]
         if (today.month == DECEMBER and month_end) or late:
             ctx.state.pop("cohort", None)
             formed = today.year if pending is None else int(pending["formed"])
-            picks: dict[str, float] = {} if pending is None else pending["picks"]
-            label = "price {:.0%} of NCAV" if ctx.params["method"] == "net_net" else "P/E {:.1f}"
+            picks: dict[str, str] = {} if pending is None else pending["picks"]
             ctx.rebalance(
                 dict.fromkeys(picks, 1 / len(picks)) if picks else {},
                 reason={
-                    symbol: f"{label.format(rank)} on the November {formed} close, {formed + 1} cohort"
-                    for symbol, rank in picks.items()
+                    symbol: f"{reason} on the November {formed} close, {formed + 1} cohort"
+                    for symbol, reason in picks.items()
                 },
                 exit_reason="12-month cohort ended",
             )
         elif today.month == NOVEMBER and month_end:
-            picks = {pick.symbol: pick.rank for pick in screen(ctx)}
+            picks = {pick.symbol: pick.reason for pick in screen(ctx)}
             ctx.state["cohort"] = {"formed": today.year, "picks": picks}
             ctx.log(f"qualifiers on the November close, bought at the turn of the year: {len(picks)}")
 

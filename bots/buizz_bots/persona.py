@@ -1,4 +1,4 @@
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable
 from datetime import date, timedelta
 from typing import Literal, NamedTuple
 
@@ -19,6 +19,7 @@ RESTATEMENT_ITEM = "4.02"
 TEMPERATURE_YEARS = 10
 YEAR_SESSIONS = 252
 DAYS_PER_YEAR = 365.25
+CASH_BAND = 0.05
 
 
 class Ladder(NamedTuple):
@@ -32,6 +33,7 @@ class Sell(NamedTuple):
     symbol: str
     trigger: Trigger
     detail: str
+    weight: float = 0.0
 
     @property
     def reason(self) -> str:
@@ -102,13 +104,19 @@ def ladder_weight(ctx: Context, ladder: Ladder, symbol: str, weight: float) -> f
     return weight + ladder.add_step
 
 
-def trade(ctx: Context, sells: Iterable[Sell], buys: Iterable[Buy], cash_symbol: str) -> None:
+def trade(ctx: Context, sells: Iterable[Sell], buys: Iterable[Buy], cash_symbol: str, share: float = 1.0) -> None:
     weights = stock_weights(ctx, cash_symbol)
+    sold = False
     for sell in sells:
-        weights.pop(sell.symbol, None)
-        if ctx.position(sell.symbol).qty > 0:
-            ctx.order_target_weight(sell.symbol, 0, reason=sell.reason)
-    free = 1 - sum(weights.values())
+        if ctx.position(sell.symbol).qty <= 0:
+            continue
+        sold = True
+        if sell.weight > 0:
+            weights[sell.symbol] = sell.weight
+        else:
+            weights.pop(sell.symbol, None)
+        ctx.order_target_weight(sell.symbol, sell.weight, reason=sell.reason)
+    free = share - sum(weights.values())
     chosen: list[Buy] = []
     for buy in buys:
         added = buy.weight - weights.get(buy.symbol, 0)
@@ -119,7 +127,9 @@ def trade(ctx: Context, sells: Iterable[Sell], buys: Iterable[Buy], cash_symbol:
     cash = ctx.position(cash_symbol)
     bar = ctx.bars.get(cash_symbol)
     held = 0 if bar is None else cash.qty * bar.close / float(ctx.portfolio.equity)
-    rest = max(free, 0)
+    rest = max(1 - sum(weights.values()), 0)
+    if not sold and not chosen and abs(rest - held) < CASH_BAND:
+        return
     park = f"cash residual: {rest:.1%} of equity not used by {len(weights)} holdings"
     if rest < held:
         ctx.order_target_weight(cash_symbol, rest, reason=park)
@@ -162,12 +172,3 @@ def temperature(ctx: Context, market: str = "SPY", years: int = TEMPERATURE_YEAR
 
 def stock_share(heat: Temperature, low: float, high: float) -> float:
     return high - (high - low) * heat.heat
-
-
-def held_since(ctx: Context, entries: dict[str, str]) -> Mapping[str, date]:
-    held = {symbol for symbol, position in ctx.portfolio.positions.items() if position.qty > 0}
-    for symbol in set(entries) - held:
-        del entries[symbol]
-    for symbol in held:
-        entries.setdefault(symbol, ctx.session.date.isoformat())
-    return {symbol: date.fromisoformat(entered) for symbol, entered in entries.items()}
