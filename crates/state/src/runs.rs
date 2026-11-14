@@ -25,7 +25,7 @@ const LIVE_RUN_CONFLICT: &str = "UNIQUE constraint failed: run.bot, run.variant"
 
 const RUN_COLUMNS: &str = "id, bot, mode, status, desired, config, created_at, started_at, \
     finished_at, clock, equity, metrics, result_hash, badges, bot_hash, engine_version, seed, \
-    data_watermark, message, live_stats, bot_processes, bot_seconds, bot_peak_memory, source_run, \
+    data_watermark, message, live_stats, bot_processes, bot_seconds, NULLIF(bot_peak_memory, 0), source_run, \
     behaviour_hash, recipe_versions, origin";
 
 fn tag_of<T: Serialize>(value: &T) -> Result<String> {
@@ -66,7 +66,7 @@ fn run_summary(row: &Row) -> rusqlite::Result<RunSummary> {
         usage: BotUsage {
             processes: row.get(20)?,
             seconds: row.get(21)?,
-            peak_memory: read_u64(row, 22)?,
+            peak_memory: read_optional(row, 22, read_u64)?,
         },
         source_run: row.get::<_, Option<i64>>(23)?.map(RunId),
         origin: read_enum(row, 26)?,
@@ -245,18 +245,18 @@ pub fn add_usage(
     connection: &Connection,
     run_id: RunId,
     seconds: f64,
-    peak_memory: u64,
+    peak_memory: Option<u64>,
 ) -> Result<BotUsage> {
     Ok(connection.query_row(
         "UPDATE run SET bot_processes = bot_processes + 1, bot_seconds = bot_seconds + ?, \
          bot_peak_memory = MAX(bot_peak_memory, ?) WHERE id = ? \
-         RETURNING bot_processes, bot_seconds, bot_peak_memory",
-        params![seconds, int(peak_memory)?, run_id.0],
+         RETURNING bot_processes, bot_seconds, NULLIF(bot_peak_memory, 0)",
+        params![seconds, int(peak_memory.unwrap_or(0))?, run_id.0],
         |row| {
             Ok(BotUsage {
                 processes: row.get(0)?,
                 seconds: row.get(1)?,
-                peak_memory: read_u64(row, 2)?,
+                peak_memory: read_optional(row, 2, read_u64)?,
             })
         },
     )?)
@@ -276,7 +276,7 @@ pub fn backtest_paces(connection: &Connection) -> Result<BTreeMap<String, f64>> 
 
 pub fn footprints(connection: &Connection) -> Result<Vec<BotFootprint>> {
     let mut statement = connection.prepare(
-        "SELECT bot, mode, COUNT(*), SUM(bot_processes), SUM(bot_seconds), MAX(bot_peak_memory) \
+        "SELECT bot, mode, COUNT(*), SUM(bot_processes), SUM(bot_seconds), NULLIF(MAX(bot_peak_memory), 0) \
          FROM run WHERE bot_processes > 0 GROUP BY bot, mode \
          ORDER BY MAX(bot_peak_memory) DESC, bot, mode",
     )?;
@@ -289,7 +289,7 @@ pub fn footprints(connection: &Connection) -> Result<Vec<BotFootprint>> {
                 usage: BotUsage {
                     processes: row.get(3)?,
                     seconds: row.get(4)?,
-                    peak_memory: read_u64(row, 5)?,
+                    peak_memory: read_optional(row, 5, read_u64)?,
                 },
             })
         })?

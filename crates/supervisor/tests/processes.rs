@@ -85,12 +85,15 @@ fn a_bots_behaviour_hash_covers_its_own_folder_and_the_shared_modules_it_imports
     assert_ne!(hashed().behaviour_hash, imported.behaviour_hash);
 }
 
+const SPINE_PEAK: usize = 512 << 20;
+
 fn gone(pid: u32) -> bool {
     killpg(Pid::from_raw(pid as i32), None) == Err(Errno::ESRCH)
 }
 
 #[tokio::test]
 async fn process_groups_logs_and_exits() {
+    drop(std::hint::black_box(vec![1u8; SPINE_PEAK]));
     let temp = tempfile::tempdir().unwrap();
     let bots = temp.path().join("bots");
 
@@ -152,7 +155,12 @@ async fn process_groups_logs_and_exits() {
         .parse()
         .unwrap();
     assert!(!gone(process.pid()));
-    process.kill().await.unwrap();
+    process.note_peak_memory();
+    let peak = process.kill().await.unwrap().unwrap().peak_memory;
+    assert!(
+        peak.is_some_and(|peak| peak < SPINE_PEAK as u64 / 4),
+        "the bot's peak is its own, not the spine's: {peak:?}"
+    );
     tokio::time::sleep(Duration::from_millis(200)).await;
     assert!(gone(process.pid()));
     assert!(nix::sys::signal::kill(Pid::from_raw(grandchild as i32), None) == Err(Errno::ESRCH));
@@ -169,7 +177,6 @@ async fn process_groups_logs_and_exits() {
         .unwrap();
     let reaped = crashing.wait().await.unwrap();
     assert_eq!(reaped.code, Some(3));
-    assert!(reaped.peak_memory > 0, "{reaped:?}");
 }
 
 const SECRET: &str = "BUIZZ_ADMIN_PASSWORD";

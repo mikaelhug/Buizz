@@ -6,6 +6,7 @@ use std::os::unix::process::CommandExt;
 use std::path::{Component, Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use buizz_core::api::ProcessSlots;
@@ -403,7 +404,7 @@ pub enum OutputStream {
 pub struct Reaped {
     pub code: Option<i32>,
     pub wall: Duration,
-    pub peak_memory: u64,
+    pub peak_memory: Option<u64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -415,6 +416,7 @@ pub enum ProcessEvent {
 
 pub struct BotProcess {
     pid: u32,
+    peak_memory: Arc<AtomicU64>,
     kill_grace: Duration,
     events: mpsc::Receiver<ProcessEvent>,
     exit: watch::Receiver<Option<Reaped>>,
@@ -439,6 +441,11 @@ fn signal_group(pid: u32, signal: Signal) -> Result<(), SupervisorError> {
 impl BotProcess {
     pub fn pid(&self) -> u32 {
         self.pid
+    }
+
+    pub fn note_peak_memory(&self) {
+        self.peak_memory
+            .fetch_max(group_peak_memory(self.pid), Ordering::Relaxed);
     }
 
     pub fn events(&mut self) -> &mut mpsc::Receiver<ProcessEvent> {
@@ -505,7 +512,34 @@ async fn pump_output(
     let _ = log.flush().await;
 }
 
-async fn reap(pid: u32, started: Instant) -> Reaped {
+fn group_peak_memory(group: u32) -> u64 {
+    fs::read_dir("/proc")
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|process| {
+            let path = process.path();
+            let stat = fs::read_to_string(path.join("stat")).ok()?;
+            let (_, fields) = stat.rsplit_once(')')?;
+            let pgrp: u32 = fields.split_whitespace().nth(2)?.parse().ok()?;
+            if pgrp != group {
+                return None;
+            }
+            let status = fs::read_to_string(path.join("status")).ok()?;
+            let kib: u64 = status
+                .lines()
+                .find_map(|line| line.strip_prefix("VmHWM:"))?
+                .trim()
+                .strip_suffix("kB")?
+                .trim()
+                .parse()
+                .ok()?;
+            Some(kib * 1024)
+        })
+        .sum()
+}
+
+async fn reap(pid: u32, started: Instant, measured: Arc<AtomicU64>) -> Reaped {
     let mut exits = signal(SignalKind::child()).ok();
     let reaped = loop {
         match wait4::try_wait4_pid(pid) {
@@ -526,7 +560,12 @@ async fn reap(pid: u32, started: Instant) -> Reaped {
     Reaped {
         code: reaped.and_then(|reaped| reaped.status.code()),
         wall: started.elapsed(),
-        peak_memory: reaped.map_or(0, |reaped| reaped.rusage.maxrss),
+        peak_memory: if cfg!(target_os = "linux") {
+            Some(measured.load(Ordering::Relaxed))
+        } else {
+            reaped.map(|reaped| reaped.rusage.maxrss)
+        }
+        .filter(|peak| *peak > 0),
     }
 }
 
@@ -647,17 +686,19 @@ impl Supervisor {
         );
         let (Some(Ok(stdout)), Some(Ok(stderr))) = piped else {
             let _ = signal_group(pid, Signal::SIGKILL);
-            reap(pid, started).await;
+            reap(pid, started, Arc::default()).await;
             return Err(spawn_failed(std::io::Error::other(
                 "the bot's output pipes cannot be read",
             )));
         };
         let (events_tx, events) = mpsc::channel(EVENT_BUFFER);
         let (exit_tx, exit) = watch::channel(None);
+        let peak_memory = Arc::new(AtomicU64::new(0));
+        let measured = peak_memory.clone();
         let _ = events_tx.try_send(ProcessEvent::Started { pid });
         tokio::spawn(async move {
             let pump = tokio::spawn(pump_output(stdout, stderr, log, events_tx.clone()));
-            let reaped = reap(pid, started).await;
+            let reaped = reap(pid, started, measured).await;
             let _ = signal_group(pid, Signal::SIGKILL);
             let _ = pump.await;
             let _ = exit_tx.send(Some(reaped));
@@ -665,6 +706,7 @@ impl Supervisor {
         });
         Ok(BotProcess {
             pid,
+            peak_memory,
             kill_grace: self.config.kill_grace,
             events,
             exit,

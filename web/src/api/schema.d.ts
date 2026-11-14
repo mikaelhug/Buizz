@@ -716,7 +716,7 @@ export interface components {
             /** Format: double */
             seconds: number;
             /** Format: int64 */
-            peak_memory: number;
+            peak_memory?: number | null;
         };
         /** @enum {string} */
         Cadence: "daily" | "quarterly";

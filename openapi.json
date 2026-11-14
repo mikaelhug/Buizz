@@ -1849,8 +1849,7 @@
         "type": "object",
         "required": [
           "processes",
-          "seconds",
-          "peak_memory"
+          "seconds"
         ],
         "properties": {
           "processes": {
@@ -1863,7 +1862,10 @@
             "format": "double"
           },
           "peak_memory": {
-            "type": "integer",
+            "type": [
+              "integer",
+              "null"
+            ],
             "format": "int64",
             "minimum": 0
           }

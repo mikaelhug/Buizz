@@ -242,7 +242,7 @@ pub struct RunSummary {
 pub struct BotUsage {
     pub processes: u32,
     pub seconds: f64,
-    pub peak_memory: u64,
+    pub peak_memory: Option<u64>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]

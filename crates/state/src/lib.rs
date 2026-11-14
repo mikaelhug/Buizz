@@ -234,7 +234,7 @@ impl StateStore {
         &self,
         run_id: RunId,
         seconds: f64,
-        peak_memory: u64,
+        peak_memory: Option<u64>,
     ) -> Result<BotUsage> {
         self.db
             .transaction(move |transaction| {

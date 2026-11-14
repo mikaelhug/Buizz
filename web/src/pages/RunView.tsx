@@ -362,7 +362,7 @@ function RunBar({ run, name, tab, botHash, behaviourHash, recent, liveParams, ga
             <dt>
               Bot peak
               <Info label="Bot processes">
-                The most memory any of this run's bot processes held, Python included, and how long they ran in all. A live run starts one process per session.
+                The most memory any of this run's bot processes held until the spine ended it, uv and Python together (a process that crashed is not measured), and how long they ran in all. A live run starts one process per session.
               </Info>
             </dt>
             <dd className="num">

@@ -255,7 +255,7 @@ async fn a_daily_live_bot_is_one_process_per_session_and_keeps_its_state_and_res
     assert_eq!(rest.order.tif, TimeInForce::Gtc);
     assert_eq!(rest.order.status, OrderStatus::Working);
 
-    assert!(run.usage.peak_memory > 0, "{:?}", run.usage);
+    assert!(run.usage.peak_memory.is_some(), "{:?}", run.usage);
     let processes: BotProcesses = spine.get("/api/data/processes").await;
     let footprint = processes
         .footprints

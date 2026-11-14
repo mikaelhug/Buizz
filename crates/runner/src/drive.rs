@@ -1164,8 +1164,15 @@ impl Driver {
     }
 
     async fn end_session(&mut self) -> Flow<()> {
+        self.end_bot(EndReason::SessionEnd, None).await
+    }
+
+    async fn end_bot(&mut self, reason: EndReason, message: Option<String>) -> Flow<()> {
+        if let Some(process) = self.process.as_ref() {
+            process.note_peak_memory();
+        }
         if let Some(link) = self.link.take() {
-            link.end(EndReason::SessionEnd, None).await;
+            link.end(reason, message).await;
         }
         self.stop_process().await
     }
@@ -1176,10 +1183,7 @@ impl Driver {
         self.engine.cancel_all(self.after);
         self.absorb();
         self.frame.discard();
-        if let Some(link) = self.link.take() {
-            link.end(reason, message.clone()).await;
-        }
-        self.stop_process().await?;
+        self.end_bot(reason, message.clone()).await?;
         self.control_tx.send_if_modified(|control| {
             let changed = control.desired != DesiredState::Paused;
             control.desired = DesiredState::Paused;
@@ -1198,11 +1202,8 @@ impl Driver {
 
     async fn dismiss_bot(&mut self) -> Flow<()> {
         self.frame.discard();
-        if let Some(link) = self.link.take() {
-            link.end(EndReason::RiskLimit, Some(DRAWDOWN_STOP.to_owned()))
-                .await;
-        }
-        self.stop_process().await
+        self.end_bot(EndReason::RiskLimit, Some(DRAWDOWN_STOP.to_owned()))
+            .await
     }
 
     async fn enter_session(&mut self, session: &Session) -> Flow<()> {
@@ -1907,10 +1908,7 @@ impl Driver {
         reason: EndReason,
         mut message: Option<String>,
     ) -> (Option<String>, Option<String>) {
-        if let Some(link) = self.link.take() {
-            link.end(reason, message.clone()).await;
-        }
-        if let Err(Exit::Failed(error)) = self.stop_process().await {
+        if let Err(Exit::Failed(error)) = self.end_bot(reason, message.clone()).await {
             tracing::warn!(run = %self.run.id, %error, "cannot record the bot's resource usage");
         }
         if matches!(status, Some(RunStatus::Cancelled | RunStatus::Failed)) {

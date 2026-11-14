@@ -478,7 +478,7 @@ function ProcessesPanel({ processes }: { processes: Resource<Schemas["BotProcess
       <header className="panel-head">
         <h2>Bot processes</h2>
         <Info label="Bot processes">
-          Each bot's measured peak memory, Python included, and how long its processes ran. Backtests run up to the backtest slots at once; live bots start one process per session and up to the live slots start at
+          Each bot's measured peak memory, uv and Python together, and how long its processes ran. Backtests run up to the backtest slots at once; live bots start one process per session and up to the live slots start at
           once, the earliest decision first. Under a memory limit every process reserves twice its bot's peak (the bot and the spine's copy of what it reads) until it exits, live start-ups go before waiting
           backtests, and backtests leave room for the largest live bot.
         </Info>

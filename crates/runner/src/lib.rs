@@ -136,8 +136,7 @@ impl Inner {
             footprints
                 .iter()
                 .find(|footprint| footprint.bot == bot && footprint.mode == wanted)
-                .map(|footprint| footprint.usage.peak_memory)
-                .filter(|peak| *peak > 0)
+                .and_then(|footprint| footprint.usage.peak_memory)
         };
         let measured = match mode {
             Mode::Live => peak(Mode::Live).or_else(|| peak(Mode::Backtest)),
