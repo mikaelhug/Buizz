@@ -325,7 +325,13 @@ impl Spine {
         if let Some(body) = body {
             request = request.json(&body);
         }
-        let response = request.send().await.expect("the spine answers");
+        let response = request.send().await.unwrap_or_else(|error| {
+            let log = std::fs::read(self.dir.path().join("spine.log")).unwrap_or_default();
+            let log = String::from_utf8_lossy(&log);
+            let tail: Vec<&str> = log.lines().rev().take(40).collect();
+            let tail: Vec<&str> = tail.into_iter().rev().collect();
+            panic!("the spine answers: {error}\n{}", tail.join("\n"))
+        });
         let status = response.status();
         (status, response.text().await.expect("a response body"))
     }
