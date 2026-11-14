@@ -74,7 +74,6 @@ WATCHED = "watched"
 ORIGINS = "origins"
 STEADINESS = "steadiness"
 STEADINESS_REACH = 64
-UNRANKED = "unranked"
 
 
 class Rules(NamedTuple):
@@ -152,6 +151,7 @@ class Steadiness(NamedTuple):
 
 class Watch(NamedTuple):
     day: str | None
+    filed: str | None
     before: float | None
     after: float | None
 
@@ -465,22 +465,20 @@ class Watchlist:
     checked: date | None
     watches: dict[str, Watch]
     origins: dict[str, str]
-    unranked: set[str]
+    filings: dict[str, date]
 
     @classmethod
     def load(cls, ctx: Context, held: list[str], records: Mapping[str, Record]) -> "Watchlist":
-        stored: list[str] = ctx.state.get(UNRANKED, [])
-        unranked = {ctx.renames.get(symbol, symbol) for symbol in stored}
         watches = {symbol: Watch(*fields) for symbol, fields in renamed(ctx, ctx.state.get(WATCHED, {})).items()}
         for symbol in held:
             if symbol not in watches:
-                ranked = None if symbol in unranked or symbol not in records else records[symbol].roc_cv
-                watches[symbol] = Watch(None, ranked, ranked)
+                ranked = records[symbol].roc_cv if symbol in records else None
+                watches[symbol] = Watch(None, None, ranked, ranked)
         origins: dict[str, str] = dict(ctx.state.get(ORIGINS, {}))
         for old, new in ctx.renames.items():
             origins[new] = origins.pop(old, old)
         checked = date.fromisoformat(ctx.state[CHECKED]) if CHECKED in ctx.state else None
-        return cls(checked, watches, origins, unranked)
+        return cls(checked, watches, origins, {})
 
     def fresh(
         self, ctx: Context, held: list[str], records: Mapping[str, Record], members: set[str] | None, memory: Memory
@@ -490,16 +488,19 @@ class Watchlist:
         if members is not None:
             before = set[str]() if self.checked is None else memory.members_on(ctx, self.checked)
             known = {symbol for symbol in watched if self.origins.get(symbol, symbol) in before}
-            self.unranked = (self.unranked | set(held).difference(members)) & watched
         cutoffs = ({} if self.checked is None else dict.fromkeys(known, self.checked)) | {
             symbol: date.fromisoformat(watch.day) for symbol, watch in self.watches.items() if watch.day is not None
         }
-        fresh = sorted(
-            {symbol for symbol, filed in latest_filings(ctx, watched).items() if filed >= cutoffs.get(symbol, filed)}
+        seen = {symbol: self.watches[symbol].filed for symbol in held if self.watches[symbol].filed is not None}
+        self.filings = latest_filings(ctx, watched)
+        return sorted(
+            {
+                symbol
+                for symbol, filed in self.filings.items()
+                if (filed.isoformat() != seen[symbol] if symbol in seen else filed >= cutoffs.get(symbol, filed))
+            }
             | {symbol for symbol in held if symbol not in records}
         )
-        self.unranked = self.unranked.difference(fresh)
-        return fresh
 
     def rank(
         self,
@@ -511,14 +512,15 @@ class Watchlist:
     ) -> Steadiness:
         memory.spreads |= {symbol: seen.roc_cv for symbol, seen in assessed.items()}
         if members is not None:
-            memory.spreads = {
-                symbol: memory.spreads[symbol] for symbol in members.union(assessed).difference(self.unranked)
-            }
+            memory.spreads = {symbol: memory.spreads[symbol] for symbol in members.union(assessed)}
             ctx.state[STEADINESS] = list(steadiness_of(memory.spreads.values()))
             self.checked = ctx.session.date
             memory.members = {self.checked: members}
             self.watches = {
-                symbol: Watch(None, memory.spreads.get(symbol), memory.spreads.get(symbol)) for symbol in held
+                symbol: self.watches[symbol]._replace(
+                    before=memory.spreads.get(symbol), after=memory.spreads.get(symbol)
+                )
+                for symbol in held
             }
             self.origins = {}
         else:
@@ -532,11 +534,16 @@ class Watchlist:
         if self.checked is not None:
             ctx.state[CHECKED] = self.checked.isoformat()
         ctx.state[WATCHED] = {
-            symbol: list(watch._replace(day=stepped) if symbol in held else watch)
+            symbol: list(
+                watch._replace(
+                    day=stepped, filed=filed.isoformat() if (filed := self.filings.get(symbol)) else watch.filed
+                )
+                if symbol in held
+                else watch
+            )
             for symbol, watch in self.watches.items()
         }
         ctx.state[ORIGINS] = self.origins
-        ctx.state[UNRANKED] = sorted(self.unranked)
 
 
 def requalified(ctx: Context, held: list[str], rules: Rules, memory: Memory) -> Review:
@@ -548,7 +555,7 @@ def requalified(ctx: Context, held: list[str], rules: Rules, memory: Memory) -> 
     if members is not None:
         records = {symbol: record for symbol, record in records.items() if symbol in members or symbol in held}
     fresh = watchlist.fresh(ctx, held, records, members, memory)
-    unscored = set[str]() if members is None else members.difference(memory.spreads, watchlist.unranked)
+    unscored = set[str]() if members is None else members.difference(memory.spreads)
     scored = sorted(unscored.union(fresh))
     assessed = assess(ctx, scored, rules) if scored else {}
     steadiness = watchlist.rank(ctx, held, members, assessed, memory)
