@@ -20,7 +20,7 @@ use chrono::{Datelike, NaiveDate, TimeDelta};
 use rust_decimal::{Decimal, RoundingStrategy};
 use serde::{Deserialize, Serialize};
 
-pub const ENGINE_VERSION: u32 = 11;
+pub const ENGINE_VERSION: u32 = 12;
 
 #[derive(Debug, thiserror::Error)]
 pub enum EngineError {
@@ -341,6 +341,17 @@ impl Engine {
 
     pub fn portfolio(&self) -> &Portfolio {
         &self.state.portfolio
+    }
+
+    pub fn date_positions(&mut self, ledger: &Portfolio) {
+        for (symbol, position) in &mut self.state.portfolio.positions {
+            position.opened_at = position.opened_at.or_else(|| {
+                ledger
+                    .positions
+                    .get(symbol)
+                    .and_then(|folded| folded.opened_at)
+            });
+        }
     }
 
     pub fn holdings(&self) -> Holdings {
@@ -1080,7 +1091,7 @@ impl Engine {
     }
 
     fn post(&mut self, at: Timestamp, kind: LedgerKind) {
-        self.state.portfolio.apply(&kind);
+        self.state.portfolio.apply(at, &kind);
         self.state.ledger_len += 1;
         let entry = LedgerEntry {
             seq: self.state.ledger_len,
@@ -1391,7 +1402,7 @@ mod tests {
         assert_eq!(expired.order_type, limit);
     }
 
-    fn hold_through(kind: CorporateActionKind) -> (Engine, Decimal, Outbox) {
+    fn hold_through(kind: CorporateActionKind) -> (Engine, Portfolio, Outbox) {
         let (first, second, third) = (session(20), session(21), session(22));
         let mut engine = Engine::new(&config("100000", "0"), first.open);
         step(
@@ -1416,7 +1427,7 @@ mod tests {
             vec![order("AAA-2", OrderSize::Qty { qty: -101 }, limit)],
         );
         engine.drain();
-        let cash = engine.portfolio().cash;
+        let before = engine.portfolio().clone();
         let action = CorporateAction {
             symbol: Symbol::new("AAA"),
             ex_date: third.date,
@@ -1438,7 +1449,7 @@ mod tests {
             risk_free_rate: None,
         });
         let outbox = engine.drain();
-        (engine, cash, outbox)
+        (engine, before, outbox)
     }
 
     #[test]
@@ -1446,7 +1457,7 @@ mod tests {
         let dec = |text: &str| text.parse::<Decimal>().unwrap();
         let (aaa, bbb) = (Symbol::new("AAA"), Symbol::new("BBB"));
 
-        let (engine, cash, _) =
+        let (engine, Portfolio { cash, .. }, _) =
             hold_through(CorporateActionKind::StockDividend { rate: dec("0.05") });
         assert_eq!(engine.portfolio().qty(&aaa), 106, "101 × 1.05 = 106.05");
         assert_eq!(
@@ -1455,7 +1466,7 @@ mod tests {
             "0.05 × 100 / 1.05"
         );
 
-        let (engine, cash, _) = hold_through(CorporateActionKind::SpinOff {
+        let (engine, Portfolio { cash, .. }, _) = hold_through(CorporateActionKind::SpinOff {
             new_symbol: bbb.clone(),
             old_rate: dec("3"),
             new_rate: dec("2"),
@@ -1474,7 +1485,7 @@ mod tests {
             cash + dec("10.00") + Decimal::from(101 * 60 + 67 * 31)
         );
 
-        let (engine, cash, outbox) =
+        let (engine, Portfolio { cash, .. }, outbox) =
             hold_through(CorporateActionKind::CashMerger { rate: dec("125") });
         assert_eq!(engine.portfolio().qty(&aaa), 0);
         assert_eq!(engine.portfolio().cash - cash, dec("12625.00"));
@@ -1486,33 +1497,55 @@ mod tests {
             "a working order for the acquired company is cancelled"
         );
 
-        let (engine, cash, _) = hold_through(CorporateActionKind::StockMerger {
+        let (engine, before, _) = hold_through(CorporateActionKind::StockMerger {
             acquirer: bbb.clone(),
             old_rate: dec("1"),
             new_rate: dec("0.5"),
             cash_rate: dec("10"),
         });
-        assert_eq!(engine.portfolio().qty(&aaa), 0);
-        assert_eq!(engine.portfolio().qty(&bbb), 50, "101 × 0.5 = 50.5");
+        let (portfolio, held) = (engine.portfolio(), &before.positions[&aaa]);
+        assert_eq!(portfolio.qty(&aaa), 0);
+        assert_eq!(portfolio.qty(&bbb), 50, "101 × 0.5 = 50.5");
         assert_eq!(
-            engine.portfolio().cash - cash,
+            portfolio.cash - before.cash,
             dec("1025.00"),
             "101 × 10 + 0.5 × 30"
         );
+        let carried = held.cost_basis * dec("1500") / dec("2525");
+        assert_eq!(
+            portfolio.positions[&bbb].cost_basis, carried,
+            "the acquirer's shares keep the part of the cost the 50 × 30 of stock is worth against the 1025 in cash"
+        );
+        assert_eq!(
+            portfolio.positions[&aaa].realized_pnl - held.realized_pnl,
+            dec("1025.00") + carried - held.cost_basis
+        );
+        assert_eq!(portfolio.positions[&bbb].opened_at, held.opened_at);
 
-        let (engine, cash, _) = hold_through(CorporateActionKind::WorthlessRemoval);
+        let (engine, Portfolio { cash, .. }, _) =
+            hold_through(CorporateActionKind::WorthlessRemoval);
         assert_eq!(engine.portfolio().qty(&aaa), 0);
         assert_eq!(engine.portfolio().cash, cash);
         assert_eq!(engine.portfolio().equity(), cash);
 
-        let (engine, cash, _) = hold_through(CorporateActionKind::NameChange {
+        let (engine, before, _) = hold_through(CorporateActionKind::NameChange {
             new_symbol: bbb.clone(),
         });
-        let portfolio = engine.portfolio();
+        let (portfolio, held) = (engine.portfolio(), &before.positions[&aaa]);
         assert_eq!(portfolio.qty(&aaa), 0, "the old ticker no longer trades");
         assert_eq!(portfolio.qty(&bbb), 101, "the renamed shares are held");
-        assert_eq!(portfolio.cash, cash);
-        assert_eq!(portfolio.equity(), cash + Decimal::from(101 * 31));
+        assert_eq!(portfolio.cash, before.cash);
+        assert_eq!(portfolio.equity(), before.cash + Decimal::from(101 * 31));
+        assert_eq!(
+            portfolio.positions[&aaa].realized_pnl, held.realized_pnl,
+            "a rename realises nothing"
+        );
+        let renamed = &engine.holdings().positions[0];
+        assert_eq!(
+            (renamed.avg_cost, Some(renamed.opened_at)),
+            (held.average_cost(), held.opened_at),
+            "the renamed position keeps the cost and the opening time it was bought at, not BBB's open"
+        );
     }
 
     #[test]

@@ -78,7 +78,7 @@ Any listed instrument is tradable, whatever the universe. An order for a symbol 
 
 `index = "sp500"` is the S&P 500 as of each session, rebuilt from Wikipedia's current constituents and its change log (see [Index membership](#index-membership)), limited to members with daily bars in the last 20 sessions.
 
-**Tickers.** A symbol names the company that traded under it at the clock, in the universe, in orders and in every query: `FB` in 2018 is Facebook (whose history Alpaca keeps under META), `META` then is not Facebook, and after June 2022 `FB` is whatever later took the ticker. A held position follows a name change into the new ticker, one share for one.
+**Tickers.** A symbol names the company that traded under it at the clock, in the universe, in orders and in every query: `FB` in 2018 is Facebook (whose history Alpaca keeps under META), `META` then is not Facebook, and after June 2022 `FB` is whatever later took the ticker. A held position follows a name change into the new ticker, one share for one, keeping its `avg_cost` and `opened_at`; a stock merger carries them into the acquirer's shares the same way, less the part the cash pays. State a bot keys by ticker follows a rename through `ctx.renames`.
 
 **Wake.** Every bar reaches the bot, but it is only stepped when its wake condition holds; bars that became visible between wakes arrive together at the next step (`ctx.bars` keeps the last bar per symbol).
 
@@ -111,7 +111,8 @@ Outside `on_step` only `params`, `universe`, `state`, `portfolio` and `position`
 | `ctx.universe` | Current symbols |
 | `ctx.bars` | `dict[symbol, Bar]` (`open`, `high`, `low`, `close`, `volume` floats): the latest bar of each symbol that became visible since the previous step |
 | `ctx.events` | `list[Event]`: the `Fill`, `OrderUpdate` and `CorporateAction` events since the previous step |
-| `ctx.portfolio` | `cash`, `equity`, `positions` (`qty`, `avg_cost`) and `working` orders (`WorkingOrder`: `client_id`, `symbol`, `side`, `qty`, `filled_qty` and `order_type`: `Market()`, `Limit(limit_price)`, `Stop(stop_price)`, `TrailingStop(trail, stop_price)` with the stop as it trails now, `MarketOnOpen()` or `MarketOnClose()`) as of the start of the step. Orders you place in this step are not reflected |
+| `ctx.renames` | `dict[old, new]` of the name changes among `ctx.events`, to rekey state a bot keeps by ticker: `{ctx.renames.get(s, s): v for s, v in ctx.state["entries"].items()}` |
+| `ctx.portfolio` | `cash`, `equity`, `positions` (`qty`, `avg_cost`, `opened_at`: when the position was opened from flat, `None` when flat) and `working` orders (`WorkingOrder`: `client_id`, `symbol`, `side`, `qty`, `filled_qty` and `order_type`: `Market()`, `Limit(limit_price)`, `Stop(stop_price)`, `TrailingStop(trail, stop_price)` with the stop as it trails now, `MarketOnOpen()` or `MarketOnClose()`) as of the start of the step. Orders you place in this step are not reflected |
 | `ctx.position(symbol)` | The `Position`, with `qty == 0` when flat |
 | `ctx.history(symbols, tf="1d", bars=1, adjust="raw")` | The last `bars` (1 to 10000) bars per symbol visible at the clock, as numpy arrays (`start` in ns, `open`, `high`, `low`, `close`, `volume`). Each call is a round trip to the spine |
 | `ctx.fundamentals(symbols, metrics)` | Every fundamental fact visible at the clock for the given metrics (`Metric` names, below) |

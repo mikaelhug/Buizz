@@ -85,9 +85,8 @@ class BollingerReversion(Bot):
         max_hold: int = params["max_hold"]
         today = ctx.session.date
         held = sorted(symbol for symbol, position in ctx.portfolio.positions.items() if position.qty != 0)
-        entries: dict[str, str] = {
-            symbol: ctx.state.get("entries", {}).get(symbol, today.isoformat()) for symbol in held
-        }
+        known = {ctx.renames.get(symbol, symbol): day for symbol, day in ctx.state.get("entries", {}).items()}
+        entries: dict[str, str] = {symbol: known.get(symbol, today.isoformat()) for symbol in held}
         symbols = sorted(set(ctx.universe) | set(held))
         history = ctx.history(symbols, "1d", rules.lookback, adjust="all")
         readings = read_signals(ctx, history, rules, held)

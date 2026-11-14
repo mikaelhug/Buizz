@@ -13,6 +13,7 @@ import numpy.typing as npt
 from buizz.errors import ProtocolError, StateTooLarge, UsageError
 from buizz.facts import RECIPES, Fact, FactQueries
 from buizz.wire import (
+    EPOCH,
     STATE_LIMIT,
     Ack,
     Adjust,
@@ -25,6 +26,7 @@ from buizz.wire import (
     CalendarResult,
     CompletenessRequest,
     CompletenessResult,
+    CorporateAction,
     EarningsRequest,
     EarningsResult,
     EtfHoldingsRequest,
@@ -93,6 +95,7 @@ from buizz.wire import (
     UniverseResult,
     WeightSize,
     WorkingOrder,
+    from_ns,
 )
 
 if TYPE_CHECKING:
@@ -100,7 +103,6 @@ if TYPE_CHECKING:
 
 type QueryFn = Callable[[Request], Result]
 
-EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 INTRADAY_STAMP = "%Y-%m-%dT%H:%M"
 MAX_HISTORY_BARS = 10_000
 MAX_UNIVERSE_SYMBOLS = 10_000
@@ -118,10 +120,6 @@ LOG_LEVELS: frozenset[str] = frozenset(get_args(LogLevel.__value__))
 AUCTIONS: dict[str, OrderType] = {"open": MarketOnOpen(), "close": MarketOnClose()}
 STATE_SCALARS = (str, bool)
 STATE_INT_RANGE = range(-(2**63), 2**64)
-
-
-def from_ns(ns: int) -> datetime:
-    return EPOCH + timedelta(microseconds=ns // 1000)
 
 
 def to_ns(moment: datetime) -> int:
@@ -595,6 +593,14 @@ class Context(FactQueries):
     @property
     def events(self) -> list[Event]:
         return self._current("ctx.events").events
+
+    @property
+    def renames(self) -> dict[str, str]:
+        return {
+            event.symbol: event.kind["new_symbol"]
+            for event in self.events
+            if isinstance(event, CorporateAction) and event.kind["type"] == "name_change"
+        }
 
     @property
     def portfolio(self) -> Portfolio:

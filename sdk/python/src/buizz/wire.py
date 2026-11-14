@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Literal
 
@@ -115,10 +115,22 @@ type Metric = Literal[
 ]
 
 
+EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
+
+
+def from_ns(ns: int) -> datetime:
+    return EPOCH + timedelta(microseconds=ns // 1000)
+
+
 class Position(msgspec.Struct, frozen=True):
     symbol: str
     qty: int
     avg_cost: Decimal
+    opened_ns: int = msgspec.field(name="opened_at", default=0)
+
+    @property
+    def opened_at(self) -> datetime | None:
+        return from_ns(self.opened_ns) if self.qty else None
 
 
 class Market(msgspec.Struct, frozen=True, tag_field="type", tag="market"):

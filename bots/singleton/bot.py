@@ -118,11 +118,13 @@ class Singleton(Bot):
     def on_step(self, ctx: Context) -> None:
         today = ctx.session.date
         month = f"{today:%Y-%m}"
+        cohorts: dict[str, list[str]] = ctx.state.setdefault("cohorts", {})
+        for formed, members in cohorts.items():
+            cohorts[formed] = [ctx.renames.get(symbol, symbol) for symbol in members]
         if ctx.state.get("month") == month:
             return
         ctx.state["month"] = month
         hold_months = int(ctx.params["hold_months"])
-        cohorts: dict[str, list[str]] = ctx.state.setdefault("cohorts", {})
         qualifiers = qualifiers_of(ctx)
         for formed, members in list(cohorts.items()):
             kept = [symbol for symbol in members if symbol not in qualifiers]

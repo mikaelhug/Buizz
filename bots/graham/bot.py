@@ -191,20 +191,19 @@ class Graham(Bot):
     def on_step(self, ctx: Context) -> None:
         exit_rule = ctx.params["exit"]
         if exit_rule == "graham":
-            held = {symbol for symbol, position in ctx.portfolio.positions.items() if position.qty > 0}
-            entries: dict[str, str] = ctx.state.setdefault("entries", {})
-            for symbol in set(entries) - held:
-                del entries[symbol]
-            for symbol in held:
-                entries.setdefault(symbol, ctx.session.date.isoformat())
+            entries = {
+                symbol: position.opened_at.date()
+                for symbol, position in ctx.portfolio.positions.items()
+                if position.qty > 0 and position.opened_at is not None
+            }
             self.graham_exits(ctx, entries)
-            self.graham_buys(ctx, held)
+            self.graham_buys(ctx, set(entries))
         elif exit_rule == "oppenheimer":
             self.oppenheimer_cohort(ctx)
         else:
             raise ValueError(f"exit must be graham or oppenheimer, not {exit_rule!r}")
 
-    def graham_exits(self, ctx: Context, entries: dict[str, str]) -> None:
+    def graham_exits(self, ctx: Context, entries: dict[str, date]) -> None:
         today = ctx.session.date
         gain = float(ctx.params["exit_gain"])
         years = int(ctx.params["exit_calendar_years"])
@@ -216,7 +215,7 @@ class Graham(Bot):
                 continue
             cost = float(ctx.position(symbol).avg_cost)
             bar = ctx.bars.get(symbol)
-            deadline = date.fromisoformat(entered).year + years
+            deadline = entered.year + years
             if bar is not None and bar.close >= cost * (1 + gain):
                 ctx.order_target_weight(
                     symbol, 0, reason=f"price: +{gain:.0%} target, close {bar.close:.2f} against cost {cost:.2f}"
@@ -253,6 +252,9 @@ class Graham(Bot):
         today = ctx.session.date
         month_end = last_session_of_month(ctx)
         pending: dict[str, Any] | None = ctx.state.get("cohort")
+        if pending is not None:
+            ranks: dict[str, float] = pending["picks"]
+            pending["picks"] = {ctx.renames.get(symbol, symbol): rank for symbol, rank in ranks.items()}
         late = pending is not None and today.year > pending["formed"]
         if (today.month == DECEMBER and month_end) or late:
             ctx.state.pop("cohort", None)

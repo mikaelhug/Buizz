@@ -358,6 +358,7 @@ pub struct PositionSnapshot {
     pub symbol: Symbol,
     pub qty: i64,
     pub avg_cost: Decimal,
+    pub opened_at: Timestamp,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -380,6 +381,7 @@ impl Holdings {
                     symbol: symbol.clone(),
                     qty: position.qty,
                     avg_cost: position.average_cost(),
+                    opened_at: position.opened_at.unwrap_or_default(),
                 })
                 .collect(),
             working: working

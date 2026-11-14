@@ -258,43 +258,90 @@ impl OpenTrip {
 pub fn round_trips(ledger: &[LedgerEntry]) -> Vec<RoundTrip> {
     let mut open: HashMap<&Symbol, OpenTrip> = HashMap::new();
     let mut closed = Vec::new();
-    for (entry, symbol, change, cash) in ledger.iter().flat_map(legs) {
-        let order = match &entry.kind {
-            LedgerKind::Fill { order_id, .. } => Some(*order_id),
-            _ => None,
-        };
-        let trip = open
-            .entry(symbol)
-            .or_insert_with(|| OpenTrip::new(0, Decimal::ZERO, entry.at, order));
-        let before = trip.qty;
-        let after = match change {
-            QtyChange::By(qty) => before + qty,
-            QtyChange::To(qty) => qty,
-        };
-        if before.signum() * after.signum() < 0 {
-            let closing =
-                cash * Decimal::from(before.abs()) / Decimal::from((after - before).abs());
-            closed.push(trip.close(symbol, trip.pnl + closing, entry.at, order));
-            *trip = OpenTrip::new(after, cash - closing, entry.at, order);
+    for entry in ledger {
+        if continue_trip(&mut open, entry) {
             continue;
         }
-        if before == 0 {
-            trip.opened_at = entry.at;
-            trip.opened_by = order;
-        }
-        trip.qty = after;
-        if after.abs() > trip.peak.abs() {
-            trip.peak = after;
-        }
-        trip.pnl += cash;
-        if before != 0 && after == 0 {
-            closed.push(trip.close(symbol, trip.pnl, entry.at, order));
-        }
-        if after == 0 {
-            open.remove(symbol);
+        for (entry, symbol, change, cash) in legs(entry) {
+            let order = match &entry.kind {
+                LedgerKind::Fill { order_id, .. } => Some(*order_id),
+                _ => None,
+            };
+            let trip = open
+                .entry(symbol)
+                .or_insert_with(|| OpenTrip::new(0, Decimal::ZERO, entry.at, order));
+            let before = trip.qty;
+            let after = match change {
+                QtyChange::By(qty) => before + qty,
+                QtyChange::To(qty) => qty,
+            };
+            if before.signum() * after.signum() < 0 {
+                let closing =
+                    cash * Decimal::from(before.abs()) / Decimal::from((after - before).abs());
+                closed.push(trip.close(symbol, trip.pnl + closing, entry.at, order));
+                *trip = OpenTrip::new(after, cash - closing, entry.at, order);
+                continue;
+            }
+            if before == 0 {
+                trip.opened_at = entry.at;
+                trip.opened_by = order;
+            }
+            trip.qty = after;
+            if after.abs() > trip.peak.abs() {
+                trip.peak = after;
+            }
+            trip.pnl += cash;
+            if before != 0 && after == 0 {
+                closed.push(trip.close(symbol, trip.pnl, entry.at, order));
+            }
+            if after == 0 {
+                open.remove(symbol);
+            }
         }
     }
     closed
+}
+
+fn continue_trip<'a>(open: &mut HashMap<&'a Symbol, OpenTrip>, entry: &'a LedgerEntry) -> bool {
+    let LedgerKind::Reorganization {
+        symbol,
+        qty_before,
+        qty_after: 0,
+        new_symbol: Some(new_symbol),
+        new_qty,
+        cash,
+        ..
+    } = &entry.kind
+    else {
+        return false;
+    };
+    let same_side = open
+        .get(new_symbol)
+        .is_none_or(|held| held.qty.signum() == new_qty.signum());
+    if *new_qty == 0 || *qty_before == 0 || !same_side {
+        return false;
+    }
+    let Some(mut trip) = open.remove(symbol) else {
+        return false;
+    };
+    let scaled = i128::from(trip.peak) * i128::from(*new_qty) / i128::from(*qty_before);
+    trip.peak = i64::try_from(scaled).unwrap_or(*new_qty);
+    trip.qty = *new_qty;
+    trip.pnl += *cash;
+    if let Some(held) = open.remove(new_symbol) {
+        let qty = held.qty + trip.qty;
+        trip.peak = [held.peak, trip.peak, qty]
+            .into_iter()
+            .max_by_key(|peak| peak.unsigned_abs())
+            .unwrap_or(qty);
+        trip.qty = qty;
+        trip.pnl += held.pnl;
+        if held.opened_at < trip.opened_at {
+            (trip.opened_at, trip.opened_by) = (held.opened_at, held.opened_by);
+        }
+    }
+    open.insert(new_symbol, trip);
+    true
 }
 
 enum QtyChange {
@@ -622,7 +669,7 @@ mod tests {
     }
 
     #[test]
-    fn a_flip_closes_one_round_trip_and_a_split_to_zero_closes_another() {
+    fn a_flip_or_a_split_to_zero_closes_a_round_trip_and_a_rename_carries_it() {
         let entry = |seq, kind| LedgerEntry {
             seq,
             at: Timestamp::from_datetime(chrono::DateTime::UNIX_EPOCH).unwrap(),
@@ -652,15 +699,37 @@ mod tests {
                     cash_in_lieu: Decimal::from(25),
                 },
             ),
+            entry(6, fill("FB", 10, 10)),
+            entry(
+                7,
+                LedgerKind::Reorganization {
+                    symbol: Symbol::new("FB"),
+                    qty_before: 10,
+                    qty_after: 0,
+                    new_symbol: Some(Symbol::new("META")),
+                    new_qty: 10,
+                    price: Decimal::from(14),
+                    cash: Decimal::ZERO,
+                },
+            ),
+            entry(8, fill("META", -10, 15)),
         ];
         let trips = round_trips(&ledger);
         assert_eq!(
             trips.iter().map(|trip| trip.pnl).collect::<Vec<_>>(),
-            [Decimal::from(200), Decimal::from(50), Decimal::from(-5)]
+            [
+                Decimal::from(200),
+                Decimal::from(50),
+                Decimal::from(-5),
+                Decimal::from(50)
+            ]
         );
         assert_eq!(
-            trips.iter().map(|trip| trip.qty).collect::<Vec<_>>(),
-            [100, -50, 3]
+            trips
+                .iter()
+                .map(|trip| (trip.symbol.as_str(), trip.qty))
+                .collect::<Vec<_>>(),
+            [("AAA", 100), ("AAA", -50), ("BBB", 3), ("META", 10)]
         );
     }
 }

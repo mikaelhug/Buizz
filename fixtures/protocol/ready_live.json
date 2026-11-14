@@ -7,6 +7,7 @@
     "positions": [
       {
         "avg_cost": "99.0495",
+        "opened_at": 1732199400000000000,
         "qty": 250,
         "symbol": "AAA"
       }

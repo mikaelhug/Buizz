@@ -56,6 +56,7 @@
     "positions": [
       {
         "avg_cost": "49.2246",
+        "opened_at": 1732199400000000000,
         "qty": 510,
         "symbol": "BBB"
       }

@@ -170,6 +170,7 @@ fn main() {
                     symbol: aaa.clone(),
                     qty: 250,
                     avg_cost: money("99.0495"),
+                    opened_at: at("2024-11-21T14:30:00Z"),
                 }],
                 working: vec![WorkingOrder {
                     order_id: OrderId(5),
@@ -232,6 +233,7 @@ fn main() {
                     symbol: bbb.clone(),
                     qty: 510,
                     avg_cost: money("49.2246"),
+                    opened_at: at("2024-11-21T14:30:00Z"),
                 }],
                 working: Vec::new(),
             }),

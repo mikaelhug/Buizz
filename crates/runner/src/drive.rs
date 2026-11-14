@@ -538,11 +538,21 @@ impl Driver {
         let checkpoint = inner.state.checkpoint(run.id).await?;
         let (engine, after, clock, last_step, bot_state, frame) = match checkpoint {
             Some(checkpoint) => (
-                Engine::restore(
-                    config,
-                    &checkpoint.engine_checkpoint,
-                    client_ids(&inner, run.id).await?,
-                )?,
+                {
+                    let mut engine = Engine::restore(
+                        config,
+                        &checkpoint.engine_checkpoint,
+                        client_ids(&inner, run.id).await?,
+                    )?;
+                    if engine
+                        .portfolio()
+                        .open_positions()
+                        .any(|(_, position)| position.opened_at.is_none())
+                    {
+                        engine.date_positions(&inner.state.portfolio(run.id).await?);
+                    }
+                    engine
+                },
                 checkpoint.clock,
                 Some(checkpoint.clock),
                 checkpoint.step_seq,

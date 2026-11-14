@@ -271,7 +271,7 @@ class Munger(Bot):
     def on_step(self, ctx: Context) -> None:
         month = f"{ctx.session.date:%Y-%m}"
         held = sorted(symbol for symbol, position in ctx.portfolio.positions.items() if position.qty > 0)
-        known: dict[str, str] = ctx.state.get("reports", {})
+        known = {ctx.renames.get(symbol, symbol): report for symbol, report in ctx.state.get("reports", {}).items()}
         reports = latest_reports(ctx, held) if held else {}
         fresh = [symbol for symbol in held if symbol in known and reports.get(symbol, known[symbol]) != known[symbol]]
         ctx.state["reports"] = {symbol: reports.get(symbol, known.get(symbol, "")) for symbol in held}

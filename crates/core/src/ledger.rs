@@ -107,6 +107,8 @@ pub struct Position {
     pub cost_basis: Decimal,
     pub last_price: Decimal,
     pub realized_pnl: Decimal,
+    #[serde(default)]
+    pub opened_at: Option<Timestamp>,
 }
 
 impl Position {
@@ -122,22 +124,30 @@ impl Position {
         }
     }
 
-    fn trade(&mut self, qty: i64, price: Decimal) {
-        let opening = self.qty == 0 || self.qty.signum() == qty.signum();
-        if opening {
-            self.cost_basis += Decimal::from(qty) * price;
+    fn trade(&mut self, qty: i64, price: Decimal, at: Timestamp) {
+        self.take(qty, Decimal::from(qty) * price, at);
+    }
+
+    fn take(&mut self, qty: i64, basis: Decimal, opened_at: Timestamp) {
+        if self.qty == 0 || self.qty.signum() == qty.signum() {
+            self.cost_basis += basis;
             self.qty += qty;
+            self.opened_at = Some(self.opened_at.map_or(opened_at, |held| held.min(opened_at)));
             return;
         }
         let closing = qty.abs().min(self.qty.abs()) * qty.signum();
         let released = self.cost_basis * Decimal::from(-closing) / Decimal::from(self.qty);
-        self.realized_pnl += Decimal::from(-closing) * price - released;
+        let used = basis * Decimal::from(closing) / Decimal::from(qty);
+        self.realized_pnl -= used + released;
         self.cost_basis -= released;
         self.qty += closing;
         let remainder = qty - closing;
         if remainder != 0 {
-            self.cost_basis = Decimal::from(remainder) * price;
+            self.cost_basis = basis - used;
             self.qty = remainder;
+            self.opened_at = Some(opened_at);
+        } else if self.qty == 0 {
+            self.opened_at = None;
         }
     }
 }
@@ -152,12 +162,12 @@ impl Portfolio {
     pub fn fold<'a>(entries: impl IntoIterator<Item = &'a LedgerEntry>) -> Self {
         let mut portfolio = Self::default();
         for entry in entries {
-            portfolio.apply(&entry.kind);
+            portfolio.apply(entry.at, &entry.kind);
         }
         portfolio
     }
 
-    pub fn apply(&mut self, kind: &LedgerKind) {
+    pub fn apply(&mut self, at: Timestamp, kind: &LedgerKind) {
         self.cash += kind.cash_delta();
         match kind {
             LedgerKind::Deposit { .. } | LedgerKind::Financing { .. } => {}
@@ -169,7 +179,7 @@ impl Portfolio {
                 ..
             } => {
                 let position = self.positions.entry(symbol.clone()).or_default();
-                position.trade(*qty, *price);
+                position.trade(*qty, *price, at);
                 position.realized_pnl -= *commission;
                 if position.last_price.is_zero() {
                     position.last_price = *price;
@@ -177,7 +187,7 @@ impl Portfolio {
             }
             LedgerKind::Liquidation { symbol, qty, price } => {
                 let position = self.positions.entry(symbol.clone()).or_default();
-                position.trade(*qty, *price);
+                position.trade(*qty, *price, at);
                 position.last_price = *price;
             }
             LedgerKind::Dividend { symbol, amount, .. } => {
@@ -209,6 +219,9 @@ impl Portfolio {
                     position.cost_basis -= released;
                 }
                 position.qty = *qty_after;
+                if *qty_after == 0 {
+                    position.opened_at = None;
+                }
                 position.last_price = round_price(position.last_price * *old_rate / *new_rate);
             }
             LedgerKind::Reorganization {
@@ -222,10 +235,22 @@ impl Portfolio {
             } => {
                 let transferred = Decimal::from(*new_qty) * *price;
                 let position = self.positions.entry(symbol.clone()).or_default();
-                if *qty_after == 0 {
-                    position.realized_pnl += *cash + transferred - position.cost_basis;
+                let opened_at = position.opened_at.unwrap_or(at);
+                let carried = (*qty_after == 0).then(|| {
+                    let value = *cash + transferred;
+                    let carried = if *new_qty == 0 {
+                        Decimal::ZERO
+                    } else if value.is_zero() {
+                        position.cost_basis
+                    } else {
+                        position.cost_basis * transferred / value
+                    };
+                    position.realized_pnl += *cash + carried - position.cost_basis;
                     position.cost_basis = Decimal::ZERO;
-                } else if *qty_before != 0 {
+                    position.opened_at = None;
+                    carried
+                });
+                if carried.is_none() && *qty_before != 0 {
                     position.cost_basis -= transferred;
                     position.realized_pnl += *cash;
                 }
@@ -234,7 +259,10 @@ impl Portfolio {
                     && *new_qty != 0
                 {
                     let received = self.positions.entry(new_symbol.clone()).or_default();
-                    received.trade(*new_qty, *price);
+                    match carried {
+                        Some(carried) => received.take(*new_qty, carried, opened_at),
+                        None => received.trade(*new_qty, *price, at),
+                    }
                     received.last_price = *price;
                 }
             }
