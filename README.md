@@ -90,7 +90,7 @@ The spine (`cargo run -p buizz-spine`) reads these environment variables. Empty 
 | `BUIZZ_TEXT_DIRS` | unset | Comma-separated directories, usually one per disk, where filings are kept as filed and as text (see `docs/architecture.md`, Where state lives); unset, documents are not harvested |
 | `BUIZZ_TEXT_FILL_LIMIT` | `0.9` | Share of a text volume's disk above which it takes no new files; the e2e spines set 1, since their volumes share the developer's disk |
 | `BUIZZ_LIVE_SLOTS` | `2` | Live bot processes that may start and take their first step of a session at once; backtests run on one fewer than the CPUs |
-| `RUST_LOG` | `info` | Log filter |
+| `RUST_LOG` | `info,html5ever=error` | Log filter (the HTML parser's warnings about malformed filings stay quiet) |
 
 `just dev` sets `BUIZZ_ADMIN_PASSWORD=buizz-dev-admin`, `BUIZZ_SECURE_COOKIES=false`, `BUIZZ_INGEST=false`, `BUIZZ_BIND=127.0.0.1:8080` and `BUIZZ_FIXTURE_DIR=fixtures/market`.
 

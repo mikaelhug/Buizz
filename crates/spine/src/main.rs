@@ -47,7 +47,8 @@ const START_CASH: Decimal = Decimal::from_parts(100_000, 0, 0, false, 0);
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+            EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| EnvFilter::new("info,html5ever=error")),
         )
         .with_ansi(std::io::stdout().is_terminal())
         .init();
