@@ -13,6 +13,7 @@ use buizz_core::api::{
 use buizz_core::market::{Adjustment, AdjustmentFactor, Symbol};
 use buizz_core::money::round_price;
 use buizz_core::order::{Fill, OrderId};
+use buizz_core::performance::Behaviour;
 use buizz_core::run::RunId;
 use buizz_core::time::Timestamp;
 use buizz_market::{ChartRequest, HistoryRequest};
@@ -150,6 +151,17 @@ fn average_fill_prices(fills: &[Fill]) -> HashMap<OrderId, Decimal> {
         .filter(|(_, (_, qty))| !qty.is_zero())
         .map(|(order_id, (value, qty))| (order_id, round_price(value / qty)))
         .collect()
+}
+
+#[utoipa::path(get, path = "/api/runs/{id}/behaviour", tag = "runs",
+    params(("id" = RunId, Path)),
+    responses((status = 200, body = Behaviour), (status = 404, body = ApiError)))]
+pub(crate) async fn run_behaviour(
+    State(app): State<AppState>,
+    Path(id): Path<RunId>,
+) -> Result<Json<Behaviour>, Failure> {
+    let run = require_run(&app, id).await?;
+    Ok(Json(app.runner.behaviour(&run).await?))
 }
 
 #[utoipa::path(get, path = "/api/runs/{id}/orders", tag = "runs",

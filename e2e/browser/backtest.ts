@@ -1,7 +1,7 @@
 import type { Page } from "playwright-core";
 import { env, openTab, panel, pill, signedIn } from "./session.ts";
 
-type Seen = { run: number; months: Record<string, string>; benchmarkReturn: string; trades: number; chart: string };
+type Seen = { run: number; months: Record<string, string>; benchmarkReturn: string; positions: string; trades: number; chart: string };
 
 async function customPeriodBacktest(page: Page): Promise<Seen> {
   await page.getByRole("link", { name: "red_green", exact: true }).click();
@@ -30,6 +30,9 @@ async function customPeriodBacktest(page: Page): Promise<Seen> {
   const months = Object.fromEntries(headings.map((heading, index) => [heading, cells[index] ?? ""]).filter(([heading, cell]) => heading && cell));
 
   const benchmarkReturn = await page.getByRole("region", { name: "Returns", exact: true }).locator(".metric-headline .metric-bench").textContent();
+  const positions = panel(page, "Behaviour").locator("tbody tr").filter({ has: page.getByRole("rowheader", { name: "Positions" }) }).locator("td").first();
+  await positions.waitFor();
+  const held = (await positions.textContent()) ?? "";
   await openTab(page, "Trades");
   const trades = panel(page, "Trades");
   await trades.locator(".metric", { hasText: "Net P&L" }).waitFor();
@@ -37,7 +40,7 @@ async function customPeriodBacktest(page: Page): Promise<Seen> {
   await trades.getByRole("link", { name: "AAA", exact: true }).first().click();
   const chart = page.locator("section.price-panel").getByRole("img");
   await page.waitForFunction(() => /fills/.test(document.querySelector("section.price-panel [role=img]")?.getAttribute("aria-label") ?? ""));
-  return { run, months, benchmarkReturn: benchmarkReturn ?? "", trades: tradeCount, chart: (await chart.getAttribute("aria-label")) ?? "" };
+  return { run, months, benchmarkReturn: benchmarkReturn ?? "", positions: held, trades: tradeCount, chart: (await chart.getAttribute("aria-label")) ?? "" };
 }
 
 await signedIn(customPeriodBacktest);

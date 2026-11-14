@@ -1,4 +1,5 @@
 use buizz_core::api::{EquitySeries, PositionView, PriceChart, RunSummary, SpineEvent, TradeView};
+use buizz_core::performance::Behaviour;
 use buizz_core::run::{CostModel, RiskLimits, RunConfig, RunId};
 use reqwest::StatusCode;
 use rust_decimal::prelude::ToPrimitive;
@@ -145,6 +146,28 @@ async fn assert_run_view_analysis(spine: &Spine, run: &RunSummary, seen: &Value)
         )),
         "the benchmark beside the run's return"
     );
+    let behaviour: Behaviour = spine.get(&format!("/api/runs/{}/behaviour", run.id)).await;
+    let held = behaviour.run.expect("a fingerprint of the finished run");
+    assert_eq!(
+        (
+            held.positions_median,
+            held.positions_min,
+            held.positions_max
+        ),
+        (Some(1.0), Some(0), Some(2)),
+        "no stock, then BBB, both, AAA alone and none again: {held:#?}"
+    );
+    assert_eq!(held.holdings, 4, "BBB twice and AAA twice: {held:#?}");
+    assert_eq!(
+        (held.sells_on_price, held.idle_months),
+        (Some(0.0), Some(0.0)),
+        "green-day exits carry no price: reason, and both months trade: {held:#?}"
+    );
+    assert!(
+        behaviour.references.is_empty(),
+        "one Berkshire quarter end before the period gives no reference"
+    );
+    assert_eq!(seen["positions"], json!("1 (0–2)"), "the behaviour panel");
     let trades: Vec<TradeView> = spine.get(&format!("/api/runs/{}/trades", run.id)).await;
     let metrics = run.metrics.as_ref().expect("metrics");
     assert_eq!(

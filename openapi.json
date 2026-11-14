@@ -822,6 +822,44 @@
         }
       }
     },
+    "/api/runs/{id}/behaviour": {
+      "get": {
+        "tags": [
+          "runs"
+        ],
+        "operationId": "run_behaviour",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/RunId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Behaviour"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/runs/{id}/cancel": {
       "post": {
         "tags": [
@@ -1537,6 +1575,30 @@
           }
         }
       },
+      "Behaviour": {
+        "type": "object",
+        "required": [
+          "references"
+        ],
+        "properties": {
+          "run": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Fingerprint"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "references": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReferenceFingerprint"
+            }
+          }
+        }
+      },
       "BotDetail": {
         "type": "object",
         "required": [
@@ -1778,6 +1840,13 @@
             "minimum": 0
           }
         }
+      },
+      "Cadence": {
+        "type": "string",
+        "enum": [
+          "daily",
+          "quarterly"
+        ]
       },
       "CancelRun": {
         "type": "object",
@@ -2466,6 +2535,34 @@
           "stopped"
         ]
       },
+      "DrawdownResponse": {
+        "type": "object",
+        "required": [
+          "label",
+          "from",
+          "to"
+        ],
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          },
+          "net_buying": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          }
+        }
+      },
       "Envelope": {
         "type": "object",
         "required": [
@@ -2878,6 +2975,139 @@
           },
           "feed": {
             "$ref": "#/components/schemas/Feed"
+          }
+        }
+      },
+      "Fingerprint": {
+        "type": "object",
+        "required": [
+          "cadence",
+          "from",
+          "to",
+          "observations",
+          "holdings",
+          "drawdowns"
+        ],
+        "properties": {
+          "cadence": {
+            "$ref": "#/components/schemas/Cadence"
+          },
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          },
+          "observations": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "positions_median": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "positions_min": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "positions_max": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "top_five_share": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "turnover": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "holding_months_median": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "holding_months_mean": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "holdings": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "stock_share": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "idle_months": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "idle_quarters": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "buys_into_weakness": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "sells_on_price": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "drawdowns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DrawdownResponse"
+            }
+          },
+          "beta": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
           }
         }
       },
@@ -4187,6 +4417,25 @@
           },
           "producer": {
             "type": "string"
+          }
+        }
+      },
+      "ReferenceFingerprint": {
+        "type": "object",
+        "required": [
+          "name",
+          "source",
+          "fingerprint"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "fingerprint": {
+            "$ref": "#/components/schemas/Fingerprint"
           }
         }
       },

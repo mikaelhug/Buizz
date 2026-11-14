@@ -13,6 +13,10 @@ use rust_decimal::prelude::ToPrimitive;
 
 use crate::active::Active;
 pub use crate::benchmark::buy_and_hold;
+pub use crate::fingerprint::{
+    Book, PRICE_MOVE_REASON, Trade, WEAK_MARKET_DRAWDOWN, WEAK_STOCK_DRAWDOWN, drawdown_from_high,
+    fingerprint, market_drawdowns,
+};
 pub use crate::live::{LiveInput, Source, backtest_curve, live, live_summary};
 pub use crate::research::{Screen, Screened, luck_sharpe, neighbourhood_sharpes, screen};
 pub use crate::study::{abnormal_stats, luck_t};
@@ -20,6 +24,7 @@ pub use crate::study::{abnormal_stats, luck_t};
 mod active;
 mod benchmark;
 mod envelope;
+mod fingerprint;
 mod live;
 mod research;
 mod study;
@@ -349,7 +354,7 @@ fn profit_factor(trips: &[RoundTrip]) -> Option<f64> {
         .flatten()
 }
 
-fn beta(returns: &[f64], benchmark: &[f64]) -> Option<f64> {
+pub fn beta(returns: &[f64], benchmark: &[f64]) -> Option<f64> {
     let variance = sample_covariance(benchmark, benchmark)?;
     if variance <= MIN_SPREAD * MIN_SPREAD {
         return None;

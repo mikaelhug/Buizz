@@ -1,3 +1,4 @@
+mod behaviour;
 mod commit;
 mod drive;
 mod link;
@@ -17,7 +18,7 @@ use buizz_core::api::{
 use buizz_core::market::{Instrument, StockIndex, Symbol, Timeframe};
 use buizz_core::money::CASH_DECIMALS;
 use buizz_core::ops::{ActionVerdict, CoverageGap, DataWarning};
-use buizz_core::performance::Metrics;
+use buizz_core::performance::{Behaviour, Metrics};
 use buizz_core::run::{
     DesiredState, MAX_SWEEP_VARIANTS, Mode, PeriodPreset, RunBadge, RunConfig, RunEvent,
     RunEventKind, RunId, RunStatus, UNIVERSE_SESSIONS, UniverseSpec, coerce_param,
@@ -521,6 +522,16 @@ impl Runner {
 
     pub async fn metrics(&self, run: &RunSummary) -> Result<Metrics, RunnerError> {
         report::metrics(&self.inner.market, &self.inner.state, run).await
+    }
+
+    pub async fn behaviour(&self, run: &RunSummary) -> Result<Behaviour, RunnerError> {
+        behaviour::behaviour(
+            &self.inner.market,
+            &self.inner.state,
+            run,
+            Timestamp::now().exchange_date(),
+        )
+        .await
     }
 
     pub async fn benchmark_metrics(

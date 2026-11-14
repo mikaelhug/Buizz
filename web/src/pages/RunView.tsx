@@ -8,6 +8,7 @@ import { useFrameBatch } from "../lib/useFrameBatch";
 import { PAGE_SIZE, usePaged } from "../lib/usePaged";
 import { useResource } from "../lib/useResource";
 import { chartSync } from "../ui/chart/sync";
+import { BehaviourPanel } from "../ui/Behaviour";
 import { EquityChart } from "../ui/EquityChart";
 import { Failure, LoadMore, Loading, StaleFailure } from "../ui/Feedback";
 import { METRICS, MetricGroups, MetricValue } from "../ui/Metrics";
@@ -639,6 +640,7 @@ function Overview({ run, live, symbol, gate, closeHref }: { run: Run; live: Live
         </section>
       )}
       {calendar && <MonthlyReturns calendar={calendar} benchmarkSymbol={run.config.benchmark} />}
+      <BehaviourPanel run={run} />
       <Setup run={run} />
     </div>
   );

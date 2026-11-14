@@ -388,6 +388,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/runs/{id}/behaviour": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["run_behaviour"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/runs/{id}/cancel": {
         parameters: {
             query?: never;
@@ -623,6 +639,10 @@ export interface components {
             benchmark_symbol: components["schemas"]["Symbol"];
             curve: components["schemas"]["LivePoint"][];
         };
+        Behaviour: {
+            run?: components["schemas"]["Fingerprint"] | null;
+            references: components["schemas"]["ReferenceFingerprint"][];
+        };
         BotDetail: {
             summary: components["schemas"]["BotSummary"];
             /** Format: int32 */
@@ -680,6 +700,8 @@ export interface components {
             /** Format: int64 */
             peak_memory: number;
         };
+        /** @enum {string} */
+        Cadence: "daily" | "quarterly";
         CancelRun: {
             reason?: string | null;
         };
@@ -862,6 +884,15 @@ export interface components {
         };
         /** @enum {string} */
         DesiredState: "running" | "paused" | "stopped";
+        DrawdownResponse: {
+            label: string;
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            /** Format: double */
+            net_buying?: number | null;
+        };
         Envelope: {
             source: components["schemas"]["RunId"];
             /** Format: int32 */
@@ -957,6 +988,44 @@ export interface components {
             price: string;
             commission: string;
             feed: components["schemas"]["Feed"];
+        };
+        Fingerprint: {
+            cadence: components["schemas"]["Cadence"];
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            /** Format: int32 */
+            observations: number;
+            /** Format: double */
+            positions_median?: number | null;
+            /** Format: int32 */
+            positions_min?: number | null;
+            /** Format: int32 */
+            positions_max?: number | null;
+            /** Format: double */
+            top_five_share?: number | null;
+            /** Format: double */
+            turnover?: number | null;
+            /** Format: double */
+            holding_months_median?: number | null;
+            /** Format: double */
+            holding_months_mean?: number | null;
+            /** Format: int32 */
+            holdings: number;
+            /** Format: double */
+            stock_share?: number | null;
+            /** Format: double */
+            idle_months?: number | null;
+            /** Format: double */
+            idle_quarters?: number | null;
+            /** Format: double */
+            buys_into_weakness?: number | null;
+            /** Format: double */
+            sells_on_price?: number | null;
+            drawdowns: components["schemas"]["DrawdownResponse"][];
+            /** Format: double */
+            beta?: number | null;
         };
         /** @enum {string} */
         GateCheck: "not_completed" | "data_warnings" | "drawdown_stop" | "few_trades" | "no_edge" | "trails_benchmark" | "deeper_drawdown" | "inconsistent_edge";
@@ -1279,6 +1348,11 @@ export interface components {
             version: number;
             state: components["schemas"]["RecipeState"];
             producer: string;
+        };
+        ReferenceFingerprint: {
+            name: string;
+            source: string;
+            fingerprint: components["schemas"]["Fingerprint"];
         };
         /** @enum {string} */
         RejectReason: "unknown_symbol" | "duplicate_client_id" | "zero_quantity" | "invalid_limit_price" | "no_price" | "not_shortable" | "max_position_weight" | "max_gross_exposure" | "invalid_size" | "no_stream_slot" | "invalid_stop_price" | "auction_closed" | "auction_unavailable";
@@ -2305,6 +2379,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RunSummary"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    run_behaviour: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["RunId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Behaviour"];
                 };
             };
             404: {

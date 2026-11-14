@@ -122,3 +122,54 @@ pub struct LiveStats {
     pub envelope: Option<Envelope>,
     pub curve: Vec<LivePoint>,
 }
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum Cadence {
+    Daily,
+    Quarterly,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct DrawdownResponse {
+    pub label: String,
+    pub from: NaiveDate,
+    pub to: NaiveDate,
+    pub net_buying: Option<f64>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct Fingerprint {
+    pub cadence: Cadence,
+    pub from: NaiveDate,
+    pub to: NaiveDate,
+    pub observations: u32,
+    pub positions_median: Option<f64>,
+    pub positions_min: Option<u32>,
+    pub positions_max: Option<u32>,
+    pub top_five_share: Option<f64>,
+    pub turnover: Option<f64>,
+    pub holding_months_median: Option<f64>,
+    pub holding_months_mean: Option<f64>,
+    pub holdings: u32,
+    pub stock_share: Option<f64>,
+    pub idle_months: Option<f64>,
+    pub idle_quarters: Option<f64>,
+    pub buys_into_weakness: Option<f64>,
+    pub sells_on_price: Option<f64>,
+    pub drawdowns: Vec<DrawdownResponse>,
+    pub beta: Option<f64>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct ReferenceFingerprint {
+    pub name: String,
+    pub source: String,
+    pub fingerprint: Fingerprint,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct Behaviour {
+    pub run: Option<Fingerprint>,
+    pub references: Vec<ReferenceFingerprint>,
+}

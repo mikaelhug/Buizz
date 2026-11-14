@@ -219,7 +219,7 @@ class Graham(Bot):
             deadline = date.fromisoformat(entered).year + years
             if bar is not None and bar.close >= cost * (1 + gain):
                 ctx.order_target_weight(
-                    symbol, 0, reason=f"+{gain:.0%} target: close {bar.close:.2f} against cost {cost:.2f}"
+                    symbol, 0, reason=f"price: +{gain:.0%} target, close {bar.close:.2f} against cost {cost:.2f}"
                 )
             elif today.year > deadline or (today.year == deadline and year_end):
                 ctx.order_target_weight(
