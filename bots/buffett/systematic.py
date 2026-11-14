@@ -23,9 +23,10 @@ from buizz_bots.fundamentals import (
     in_dollars,
     latest_filing,
     latest_shares,
+    quarterly,
+    ratio,
     total_debt,
     traded_today,
-    with_fourth_quarters,
     year_end_shares,
 )
 from buizz_bots.monthly import momentum
@@ -199,12 +200,6 @@ def cash_flow(year: Year, prior: Year | None) -> float | None:
     return year.income + year.depreciation - (year.working_capital - prior.working_capital) - year.capex
 
 
-def ratio(numerator: float | None, denominator: float | None) -> float | None:
-    if numerator is None or denominator is None or denominator <= 0:
-        return None
-    return numerator / denominator
-
-
 def per_share(value: float | None, year: Year | None) -> float | None:
     return None if year is None else ratio(value, year.shares)
 
@@ -349,21 +344,13 @@ def leverage(annual: Annual, symbol: str, now: Year) -> float:
 
 
 def quarterly_income(points: list[FundamentalPoint]) -> Quarterly:
-    durations = [
-        point
+    return quarterly(
+        (point, float(point.value))
         for point in points
         if point.metric == "net_income"
         and point.form in DOMESTIC_FORMS
         and in_dollars(point)
         and point.period_start is not None
-    ]
-    return with_fourth_quarters(
-        {point.period_end: float(point.value) for point in durations if point.period_type == "Q"},
-        [
-            (point.period_start, point.period_end, float(point.value))
-            for point in durations
-            if point.period_type == "FY" and point.period_start is not None
-        ],
     )
 
 

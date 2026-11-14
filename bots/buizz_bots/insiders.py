@@ -7,6 +7,7 @@ from decimal import Decimal
 from itertools import groupby
 
 from buizz import Context, InsiderTrade
+from buizz_bots.tickers import renamed
 
 OPEN_MARKET = {"P", "S"}
 
@@ -170,8 +171,11 @@ def sessions_since(ctx: Context, signals: dict[str, date]) -> dict[str, int]:
 
 def aged_out(ctx: Context, held: set[str]) -> tuple[dict[str, date], dict[str, int], list[str]]:
     hold = int(ctx.params["hold_sessions"])
-    renamed = {ctx.renames.get(symbol, symbol): day for symbol, day in ctx.state.get("signals", {}).items()}
-    signals = {symbol: date.fromisoformat(day) for symbol, day in renamed.items() if symbol in held}
+    signals = {
+        symbol: date.fromisoformat(day)
+        for symbol, day in renamed(ctx, ctx.state.get("signals", {})).items()
+        if symbol in held
+    }
     held_for = sessions_since(ctx, {symbol: signals[symbol] for symbol in held if symbol in signals})
     return signals, held_for, sorted(symbol for symbol in held if held_for.get(symbol, hold) >= hold)
 

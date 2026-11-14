@@ -20,13 +20,13 @@ from buizz_bots.fundamentals import (
     latest_shares,
     recent,
     refreshed,
-    total_debt,
 )
 from buizz_bots.industries import fama_french_49
 from buizz_bots.monthly import momentum
 from buizz_bots.quality_momentum import profitability
 from buizz_bots.ranks import percentiles, rank_z
 from buizz_bots.sessions import REBALANCED, first_step_or_month_end, week_ends
+from buizz_bots.value import NET_DEBT_METRICS, net_debt
 from buizz_bots.weekly import completed_week_closes
 
 from buizz import Bot, Context, History, Metric, run
@@ -34,13 +34,7 @@ from buizz import Bot, Context, History, Metric, run
 METRICS: list[Metric] = [
     "operating_income",
     "depreciation_amortization",
-    "long_term_debt",
-    "long_term_debt_noncurrent",
-    "short_term_debt",
-    "short_term_borrowings",
-    "current_long_term_debt",
-    "preferred_stock",
-    "cash_and_equivalents",
+    *NET_DEBT_METRICS,
     "equity",
     "gross_profit",
     "revenue",
@@ -68,8 +62,7 @@ def ebitda_to_ev(annual: Annual, symbol: str, end: date, cap: float) -> float | 
     depreciation = amount(annual, symbol, "depreciation_amortization", end)
     if income is None or depreciation is None:
         return None
-    debt = total_debt(annual, symbol, end) + amount_or_zero(annual, symbol, "preferred_stock", end)
-    value = cap + debt - amount_or_zero(annual, symbol, "cash_and_equivalents", end)
+    value = cap + net_debt(annual, symbol, end)
     return None if value <= 0 else (income + depreciation) / value
 
 
@@ -228,9 +221,10 @@ class MultiFactorComposite(Bot):
             }
             if ends is not None:
                 equity = amount(annual, symbol, "equity", ends[0])
+                book = None if equity is None else equity - amount_or_zero(annual, symbol, "preferred_stock", ends[0])
                 values |= {
                     "ebitda_ev": ebitda_to_ev(annual, symbol, ends[0], cap),
-                    "book_to_market": None if equity is None else equity / cap,
+                    "book_to_market": None if book is None else book / cap,
                     "gross_profitability": profitability(annual, symbol, today),
                     "accruals": accruals(annual, symbol, ends),
                 }

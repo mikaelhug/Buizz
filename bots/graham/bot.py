@@ -4,10 +4,18 @@ from itertools import pairwise
 from typing import Any, NamedTuple
 
 import numpy as np
-from buizz_bots.fundamentals import DOMESTIC_FORMS, in_dollars, shares_after, with_fourth_quarters
+from buizz_bots.fundamentals import (
+    DOMESTIC_FORMS,
+    MAX_QUARTER_AGE_DAYS,
+    in_dollars,
+    quarterly,
+    shares_after,
+    trailing_year,
+)
 from buizz_bots.monthly import session_days
-from buizz_bots.persona import Buy, Sell, stock_share, stock_weights, temperature, trade
+from buizz_bots.persona import Buy, Sell, latest_macro, stock_share, stock_weights, temperature, trade
 from buizz_bots.sessions import last_session_of_month
+from buizz_bots.tickers import renamed
 
 from buizz import Bot, Context, FundamentalPoint, History, Metric, run, split_ratio
 
@@ -22,11 +30,8 @@ NET_NET_METRICS: list[Metric] = [
     "shares_outstanding",
 ]
 RULE_1976_METRICS: list[Metric] = ["total_assets", "equity", "eps_diluted"]
-MAX_QUARTER_AGE_DAYS = 200
 HISTORY_BARS = 520
 AAA_LOOKBACK_DAYS = 100
-QUARTER_GAP_DAYS = range(80, 101)
-QUARTERS_PER_YEAR = 4
 DECEMBER = 12
 NOVEMBER = 11
 DIVIDEND_BARS = 756
@@ -99,24 +104,12 @@ def net_current_asset_value(facts: Facts, today: date) -> tuple[date, float] | N
 
 
 def trailing_eps(points: list[FundamentalPoint], raw: History, adjusted: History, today: date) -> float | None:
-    reported: dict[date, float] = {}
-    years: list[tuple[date, date, float]] = []
-    for point in points:
-        ratio = split_ratio(raw, adjusted, point.filed)
-        if ratio is None or point.period_start is None:
-            continue
-        per_share_today = float(point.value) / ratio
-        if point.period_type == "Q":
-            reported[point.period_end] = per_share_today
-        else:
-            years.append((point.period_start, point.period_end, per_share_today))
-    quarters = with_fourth_quarters(reported, years)
-    ends = sorted(quarters, reverse=True)[:QUARTERS_PER_YEAR]
-    if len(ends) < QUARTERS_PER_YEAR or (today - ends[0]).days > MAX_QUARTER_AGE_DAYS:
-        return None
-    if any((later - earlier).days not in QUARTER_GAP_DAYS for later, earlier in pairwise(ends)):
-        return None
-    return sum(quarters[end] for end in ends)
+    per_share_today = [
+        (point, float(point.value) / ratio)
+        for point in points
+        if point.period_start is not None and (ratio := split_ratio(raw, adjusted, point.filed)) is not None
+    ]
+    return trailing_year(quarterly(per_share_today), today)
 
 
 def split_histories(ctx: Context, symbols: list[str]) -> tuple[dict[str, History], dict[str, History]]:
@@ -158,15 +151,9 @@ def net_nets(ctx: Context) -> list[Pick]:
     return sorted(picks, key=lambda pick: pick.rank)
 
 
-def latest_aaa(ctx: Context) -> float | None:
-    today = ctx.session.date
-    points = ctx.macro(["aaa"], today - timedelta(days=AAA_LOOKBACK_DAYS), today)
-    return float(max(points, key=lambda point: point.date).value) if points else None
-
-
 def rule_1976(ctx: Context) -> list[Pick]:
     today = ctx.session.date
-    aaa = latest_aaa(ctx)
+    aaa = latest_macro(ctx, "aaa", AAA_LOOKBACK_DAYS)
     if aaa is None:
         ctx.log(f"no Moody's AAA yield in the {AAA_LOOKBACK_DAYS} days to {today}, no 1976 screen", "warn")
         return []
@@ -256,8 +243,7 @@ class Graham(Bot):
 
     def graham(self, ctx: Context) -> None:
         bonds = ctx.params["bonds"]
-        stored: dict[str, str] = ctx.state.get("blocked", {})
-        blocked = {ctx.renames.get(symbol, symbol): exited for symbol, exited in stored.items()}
+        blocked: dict[str, str] = renamed(ctx, ctx.state.get("blocked", {}))
         ctx.state["blocked"] = blocked
         entries = {
             symbol: position.opened_at.date()
@@ -340,7 +326,7 @@ class Graham(Bot):
         pending: dict[str, Any] | None = ctx.state.get("cohort")
         if pending is not None:
             reasons: dict[str, str] = pending["picks"]
-            pending["picks"] = {ctx.renames.get(symbol, symbol): reason for symbol, reason in reasons.items()}
+            pending["picks"] = renamed(ctx, reasons)
         late = pending is not None and today.year > pending["formed"]
         if (today.month == DECEMBER and month_end) or late:
             ctx.state.pop("cohort", None)

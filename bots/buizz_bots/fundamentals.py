@@ -14,6 +14,9 @@ TWO_FISCAL_YEARS_DAYS = MAX_STALENESS_DAYS + MAX_GAP_DAYS
 SHARES_AFTER_PERIOD_END_DAYS = 120
 QUARTER_TOLERANCE_DAYS = 7
 QUARTERS_BEFORE_THE_FOURTH = 3
+QUARTERS_PER_YEAR = 4
+MAX_QUARTER_AGE_DAYS = 200
+QUARTER_GAP_DAYS = range(80, 101)
 NON_MONETARY_UNITS: dict[Metric, str] = {"shares_outstanding": "shares", "eps_diluted": "USD/shares"}
 
 Annual = dict[tuple[str, Metric], dict[date, FundamentalPoint]]
@@ -99,6 +102,33 @@ def with_fourth_quarters(
         if len(inside) == QUARTERS_BEFORE_THE_FOURTH:
             filled[year_end] = value - sum(quarters[end] for end in inside)
     return filled
+
+
+def quarterly(durations: Iterable[tuple[FundamentalPoint, float]]) -> dict[date, float]:
+    found = list(durations)
+    return with_fourth_quarters(
+        {point.period_end: value for point, value in found if point.period_type == "Q"},
+        [
+            (point.period_start, point.period_end, value)
+            for point, value in found
+            if point.period_type == "FY" and point.period_start is not None
+        ],
+    )
+
+
+def trailing_year(quarters: Mapping[date, float], today: date) -> float | None:
+    ends = sorted(quarters, reverse=True)[:QUARTERS_PER_YEAR]
+    if len(ends) < QUARTERS_PER_YEAR or (today - ends[0]).days > MAX_QUARTER_AGE_DAYS:
+        return None
+    if any((later - earlier).days not in QUARTER_GAP_DAYS for later, earlier in pairwise(ends)):
+        return None
+    return sum(quarters[end] for end in ends)
+
+
+def ratio(numerator: float | None, denominator: float | None) -> float | None:
+    if numerator is None or denominator is None or denominator <= 0:
+        return None
+    return numerator / denominator
 
 
 def consecutive_fiscal_ends(period_ends: Iterable[date], today: date, years: int) -> list[date] | None:

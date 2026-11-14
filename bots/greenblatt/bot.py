@@ -1,11 +1,11 @@
 from collections import defaultdict
 from datetime import date
-from itertools import pairwise
 from typing import NamedTuple
 
 from buizz_bots.caps import market_caps
 from buizz_bots.fundamentals import (
     DOMESTIC_FORMS,
+    MAX_QUARTER_AGE_DAYS,
     Annual,
     amount_or_zero,
     by_symbol,
@@ -13,7 +13,8 @@ from buizz_bots.fundamentals import (
     histories_since,
     in_dollars,
     latest_shares,
-    with_fourth_quarters,
+    quarterly,
+    trailing_year,
 )
 from buizz_bots.ranks import highest_first, percentiles
 from buizz_bots.value import NET_DEBT_METRICS, excess_cash, net_debt, operating_companies
@@ -30,9 +31,6 @@ METRICS: list[Metric] = [
 ]
 CHUNK = 200
 LOOKBACK_DAYS = 730
-MAX_QUARTER_AGE_DAYS = 200
-QUARTER_GAP_DAYS = range(80, 101)
-QUARTERS_PER_YEAR = 4
 MONTHS_PER_YEAR = 12
 
 
@@ -56,21 +54,12 @@ class Lot(NamedTuple):
 
 
 def trailing_ebit(points: list[FundamentalPoint], today: date) -> float | None:
-    durations = [point for point in points if point.metric == "operating_income" and point.period_start is not None]
-    quarters = with_fourth_quarters(
-        {point.period_end: float(point.value) for point in durations if point.period_type == "Q"},
-        [
-            (point.period_start, point.period_end, float(point.value))
-            for point in durations
-            if point.period_type == "FY" and point.period_start is not None
-        ],
-    )
-    ends = sorted(quarters, reverse=True)[:QUARTERS_PER_YEAR]
-    if len(ends) < QUARTERS_PER_YEAR or (today - ends[0]).days > MAX_QUARTER_AGE_DAYS:
-        return None
-    if any((later - earlier).days not in QUARTER_GAP_DAYS for later, earlier in pairwise(ends)):
-        return None
-    return sum(quarters[end] for end in ends)
+    durations = [
+        (point, float(point.value))
+        for point in points
+        if point.metric == "operating_income" and point.period_start is not None
+    ]
+    return trailing_year(quarterly(durations), today)
 
 
 def balance_sheet(points: list[FundamentalPoint]) -> Annual:
@@ -129,15 +118,13 @@ def magic_formula(ctx: Context) -> tuple[list[str], dict[str, Score]]:
     return highest_first({symbol: roc[symbol] + earnings_yield[symbol] for symbol in scores}), scores
 
 
-def lots_of(ctx: Context, lots: dict[str, str]) -> list[Lot]:
+def lots_of(ctx: Context) -> list[Lot]:
     today = ctx.session.date
-    held: list[Lot] = []
-    for symbol, bought in lots.items():
-        position = ctx.position(symbol)
-        if symbol in ctx.bars and position.qty > 0:
-            gain = ctx.bars[symbol].close / float(position.avg_cost) - 1
-            held.append(Lot(symbol, (today - date.fromisoformat(bought)).days, gain))
-    return held
+    return [
+        Lot(symbol, (today - opened.date()).days, ctx.bars[symbol].close / float(position.avg_cost) - 1)
+        for symbol, position in sorted(ctx.portfolio.positions.items())
+        if position.qty > 0 and symbol in ctx.bars and (opened := position.opened_at) is not None
+    ]
 
 
 def due(ctx: Context, lot: Lot) -> str | None:
@@ -159,31 +146,18 @@ class Greenblatt(Bot):
             target = min(holdings, target + tranche)
             ctx.state["target"] = target
             ctx.state["next_tranche"] = month + int(ctx.params["tranche_months"])
-        lots: dict[str, str] = ctx.state.get("lots", {})
         sold: list[str] = []
-        for lot in lots_of(ctx, lots):
+        for lot in lots_of(ctx):
             reason = due(ctx, lot)
             if reason is not None:
                 ctx.order_target_weight(lot.symbol, 0, reason=reason)
                 sold.append(lot.symbol)
-        gone = sorted(lots[symbol] for symbol in lots if symbol not in sold and ctx.position(symbol).qty <= 0)
-        lots = {
-            symbol: bought for symbol, bought in lots.items() if symbol not in sold and ctx.position(symbol).qty > 0
-        }
-        renamed = sorted(
-            symbol
-            for symbol, position in ctx.portfolio.positions.items()
-            if position.qty > 0 and symbol not in lots and symbol not in sold
-        )
-        lots |= {
-            symbol: gone[index] if index < len(gone) else today.isoformat() for index, symbol in enumerate(renamed)
-        }
-        ctx.state["lots"] = lots
-        slots = target - len(lots)
+        held = {symbol for symbol, position in ctx.portfolio.positions.items() if position.qty > 0}
+        slots = target - len(held - set(sold))
         if slots <= 0:
             return
         ranked, scores = magic_formula(ctx)
-        chosen = [symbol for symbol in ranked if symbol not in lots and symbol not in sold][:slots]
+        chosen = [symbol for symbol in ranked if symbol not in held][:slots]
         proceeds = sum(ctx.position(symbol).qty * ctx.bars[symbol].close for symbol in sold)
         free = (float(ctx.portfolio.cash) + proceeds) / float(ctx.portfolio.equity)
         if not chosen or free <= 0:
@@ -199,7 +173,6 @@ class Greenblatt(Bot):
                     f"{score.roc:.0%}, EBIT/EV {score.earnings_yield:.1%}, market cap ${score.market_cap / 1e9:.1f}B"
                 ),
             )
-            lots[symbol] = today.isoformat()
 
 
 if __name__ == "__main__":

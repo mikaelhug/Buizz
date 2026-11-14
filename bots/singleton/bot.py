@@ -20,13 +20,23 @@ from buizz_bots.fundamentals import (
 )
 from buizz_bots.insiders import net_selling
 from buizz_bots.monthly import session_days
-from buizz_bots.persona import Buy, Ladder, Sell, ladder_weight, restated, stock_weights, trade
+from buizz_bots.persona import (
+    DAYS_PER_YEAR,
+    Buy,
+    Ladder,
+    Sell,
+    held_stocks,
+    ladder_weight,
+    latest_macro,
+    restated,
+    stock_weights,
+    trade,
+)
 
-from buizz import Bot, Context, FundamentalPoint, History, MacroSeries, Metric, run
+from buizz import Bot, Context, FundamentalPoint, History, Metric, run
 
 METRICS: list[Metric] = ["shares_outstanding", "share_repurchases", "net_income", "operating_cash_flow", "capex"]
 FISCAL_YEARS = 3
-DAYS_PER_YEAR = 365.25
 YEAR_AGO_DAYS = range(300, 431)
 MAX_COUNT_AGE_DAYS = 200
 INSIDER_DAYS = 365
@@ -164,12 +174,6 @@ def measure(
     )
 
 
-def latest_value(ctx: Context, series: MacroSeries) -> float | None:
-    today = ctx.session.date
-    points = ctx.macro([series], today - timedelta(days=MACRO_LOOKBACK_DAYS), today)
-    return float(points[-1].value) if points else None
-
-
 class Singleton(Bot):
     def on_step(self, ctx: Context) -> None:
         month = f"{ctx.session.date:%Y-%m}"
@@ -177,9 +181,7 @@ class Singleton(Bot):
             return
         ctx.state["month"] = month
         bills = ctx.params["bills"]
-        held = sorted(
-            symbol for symbol, position in ctx.portfolio.positions.items() if position.qty > 0 and symbol != bills
-        )
+        held = held_stocks(ctx, bills)
         measures = self.measures(ctx, sorted(set(ctx.universe) | set(held)), set(held))
         cheap = self.cheap(ctx, measures)
         watched = sorted(set(held) | set(cheap))
@@ -274,7 +276,7 @@ class Singleton(Bot):
 
     def cheap(self, ctx: Context, measures: dict[str, Measure]) -> dict[str, Measure]:
         shrink = float(ctx.params["min_shrink"])
-        bond = latest_value(ctx, "dgs10")
+        bond = latest_macro(ctx, "dgs10", MACRO_LOOKBACK_DAYS)
         hurdle_now = max((bond or 0) / 100, 1 / float(ctx.params["max_pe"]))
         return {
             symbol: measured
@@ -287,7 +289,8 @@ class Singleton(Bot):
         }
 
     def stock_share(self, ctx: Context) -> tuple[float, str]:
-        pe, bond = latest_value(ctx, "sp500_forward_pe"), latest_value(ctx, "dgs10")
+        pe = latest_macro(ctx, "sp500_forward_pe", MACRO_LOOKBACK_DAYS)
+        bond = latest_macro(ctx, "dgs10", MACRO_LOOKBACK_DAYS)
         if pe is None or bond is None or pe <= 0:
             return 1.0, "fully in stocks without a forward P/E or 10-year yield"
         if 100 / pe >= bond:

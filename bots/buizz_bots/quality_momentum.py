@@ -26,9 +26,9 @@ from buizz_bots.fundamentals import (
 from buizz_bots.monthly import momentum, momentum_sessions
 from buizz_bots.ranks import highest_first, rank_z
 from buizz_bots.sessions import REBALANCED, first_step_or_month_end
+from buizz_bots.value import FINANCIALS
 
 ANNUAL_METRICS: list[Metric] = ["gross_profit", "revenue", "cost_of_revenue", "total_assets"]
-FINANCIALS = range(6000, 6800)
 YEAR_DAYS = 365
 SUE_MIN_QUARTERS = 6
 SUE_MAX_AGE_DAYS = 240

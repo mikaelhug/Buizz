@@ -4,7 +4,7 @@ from typing import Literal, NamedTuple
 
 import numpy as np
 
-from buizz import Context, Metric
+from buizz import Context, MacroSeries, Metric
 from buizz_bots.fundamentals import DOMESTIC_FORMS, latest_filing
 
 Trigger = Literal["thesis", "valuation", "swap", "timer", "price"]
@@ -81,6 +81,18 @@ def restated(ctx: Context, symbols: Iterable[str], since: date) -> set[str]:
 def candidates(symbols: Iterable[str], gate: Callable[[str], float | None]) -> list[tuple[str, float]]:
     passed = [(symbol, score) for symbol in symbols if (score := gate(symbol)) is not None]
     return sorted(passed, key=lambda pair: (-pair[1], pair[0]))
+
+
+def held_stocks(ctx: Context, cash_symbol: str) -> list[str]:
+    return sorted(
+        symbol for symbol, position in ctx.portfolio.positions.items() if position.qty > 0 and symbol != cash_symbol
+    )
+
+
+def latest_macro(ctx: Context, series: MacroSeries, lookback_days: int) -> float | None:
+    today = ctx.session.date
+    points = ctx.macro([series], today - timedelta(days=lookback_days), today)
+    return float(max(points, key=lambda point: point.date).value) if points else None
 
 
 def stock_weights(ctx: Context, cash_symbol: str) -> dict[str, float]:

@@ -18,11 +18,14 @@ from buizz_bots.fundamentals import (
 )
 from buizz_bots.macro import latest_monthly
 from buizz_bots.persona import (
+    DAYS_PER_YEAR,
     Buy,
     Ladder,
     Sell,
     candidates,
+    held_stocks,
     ladder_weight,
+    latest_macro,
     new_filings,
     restated,
     stock_weights,
@@ -30,6 +33,8 @@ from buizz_bots.persona import (
 )
 from buizz_bots.ranks import percentiles
 from buizz_bots.sessions import week_ends
+from buizz_bots.tickers import renamed
+from buizz_bots.value import FINANCIALS
 from systematic import AnnualCache, rebalance
 
 from buizz import Bot, Context, InsiderTrade, MacroPoint, Metric, run, split_ratio
@@ -51,13 +56,11 @@ METRICS: list[Metric] = [
     "long_term_debt",
     "long_term_debt_noncurrent",
 ]
-FINANCIALS = range(6000, 7000)
 CHUNK = 200
 CPI_BASE_YEAR = 2014
 RATE_LOOKBACK_DAYS = 14
 RESTATEMENT_YEARS = 5
 INSIDER_DAYS = 365
-DAYS_PER_YEAR = 365.25
 DAYS_PER_MONTH = DAYS_PER_YEAR / 12
 PARK_ABOVE = 0.02
 RATIO_DIGITS = 4
@@ -143,14 +146,8 @@ def money(value: float) -> str:
     return f"${value / 1e6:,.0f}M"
 
 
-def latest_value(points: Iterable[MacroPoint]) -> float | None:
-    newest = max(points, key=lambda point: (point.date, point.published), default=None)
-    return None if newest is None else float(newest.value)
-
-
 def treasury_10y(ctx: Context) -> float | None:
-    today = ctx.session.date
-    found = latest_value(ctx.macro(["dgs10"], today - timedelta(days=RATE_LOOKBACK_DAYS), today))
+    found = latest_macro(ctx, "dgs10", RATE_LOOKBACK_DAYS)
     return None if found is None else found / 100
 
 
@@ -159,10 +156,10 @@ def price_level(ctx: Context) -> float:
     base_year = ctx.macro(["cpiaucns"], date(CPI_BASE_YEAR, 1, 1), date(CPI_BASE_YEAR, 12, 31))
     for point in sorted(base_year, key=lambda point: point.published):
         months[point.date] = point
-    latest = latest_value(latest_monthly(ctx, "cpiaucns", 1))
-    if latest is None or not months:
+    latest = latest_monthly(ctx, "cpiaucns", 1)
+    if not latest or not months:
         return 1.0
-    return latest / float(np.mean([float(point.value) for point in months.values()]))
+    return float(latest[-1].value) / float(np.mean([float(point.value) for point in months.values()]))
 
 
 def year_of(annual: Annual, symbol: str, end: date) -> Year | None:
@@ -376,16 +373,6 @@ def months_held(ctx: Context, symbol: str) -> str:
     if opened is None:
         return ""
     return f", held {(ctx.session.date - opened.date()).days / DAYS_PER_MONTH:.0f} months"
-
-
-def renamed(ctx: Context, kept: dict[str, Any]) -> dict[str, Any]:
-    return {ctx.renames.get(symbol, symbol): value for symbol, value in kept.items()}
-
-
-def held_stocks(ctx: Context, cash_symbol: str) -> list[str]:
-    return sorted(
-        symbol for symbol, position in ctx.portfolio.positions.items() if position.qty > 0 and symbol != cash_symbol
-    )
 
 
 def requalified(ctx: Context, held: list[str], rules: Rules) -> Review:

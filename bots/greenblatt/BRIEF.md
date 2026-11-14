@@ -1,6 +1,6 @@
 # greenblatt
 
-Medium · Gaps: none (G11 and gap 8 of the bot audit are caveats)
+Medium · Gaps: none (G11 is a caveat)
 
 The magic formula as Greenblatt publishes it, implemented in `bot.py`. It is the control for `munger` and `buffett`: if their persona rules cannot beat the published formula on the same data, they add nothing.
 
@@ -21,7 +21,7 @@ The magic formula as Greenblatt publishes it, implemented in `bot.py`. It is the
 - **Rank:** each company's percentile on both ratios, summed. This orders the same as Greenblatt's sum of ranks.
 - **Building the book:** 7 top-ranked names (`tranche_size`) every 3 months (`tranche_months`), until 28 are held after a year. Each buy is 1/28 of equity, funded from cash; the book is never rebalanced.
 - **Selling, the book's tax timing:** a lot below its cost is sold once held 358 days (`loser_days`), so the loss stays short-term. Every other lot is sold once held 367 days (`winner_days`), so the gain becomes long-term. Each sale is replaced at once by the best-ranked name not held and not just sold.
-- **Corporate actions:** a lot whose position vanished (acquired, delisted) is replaced. A position that appears under a new ticker keeps the vanished lot's date.
+- **Corporate actions:** a lot whose position vanished (acquired, delisted) is replaced. A lot's age is its position's `opened_at`, which follows a rename or a stock merger, so a renamed lot keeps its date.
 
 ## Departures from the book
 - Greenblatt does not define "excess cash". Here all cash and short-term investments count as excess: they leave working capital and are netted against debt.
@@ -30,5 +30,4 @@ The magic formula as Greenblatt publishes it, implemented in `bot.py`. It is the
 
 ## Caveats
 - G11: the universe is a dollar-volume ranking, not a point-in-time list of the largest 3,500 companies.
-- Gap 8 of the bot audit: lots are keyed by ticker. A rename is matched to the lot that vanished on the same step; two renames on one day could swap dates.
 - EDGAR XBRL starts in 2009 to 2011, so the 10-year preset has full data from its first day.

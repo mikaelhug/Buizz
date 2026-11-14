@@ -22,6 +22,7 @@ from buizz_bots.persona import (
     Sell,
     Temperature,
     candidates,
+    held_stocks,
     ladder_weight,
     new_filings,
     restated,
@@ -29,6 +30,7 @@ from buizz_bots.persona import (
     temperature,
     trade,
 )
+from buizz_bots.tickers import renamed
 from buizz_bots.value import EBIT_METRICS, NET_DEBT_METRICS, ebit, net_debt, operating_companies
 
 from buizz import Bot, Context, Metric, run
@@ -294,11 +296,9 @@ class Munger(Bot):
     def on_step(self, ctx: Context) -> None:
         today = ctx.session.date
         cash_symbol = str(ctx.params["cash_symbol"])
-        held = sorted(
-            symbol for symbol, position in ctx.portfolio.positions.items() if position.qty > 0 and symbol != cash_symbol
-        )
-        renamed = {ctx.renames.get(symbol, symbol): filed for symbol, filed in ctx.state.get("filings", {}).items()}
-        seen = {symbol: renamed[symbol] for symbol in held if symbol in renamed}
+        held = held_stocks(ctx, cash_symbol)
+        filings = renamed(ctx, ctx.state.get("filings", {}))
+        seen = {symbol: filings[symbol] for symbol in held if symbol in filings}
         fresh = new_filings(ctx, held, seen, FILING_METRIC)
         broken = restated(ctx, held, date.fromisoformat(ctx.state.get("checked", today.isoformat())))
         ctx.state["checked"] = today.isoformat()

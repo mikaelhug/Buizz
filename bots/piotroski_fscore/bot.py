@@ -19,12 +19,14 @@ from buizz_bots.fundamentals import (
     histories_since,
     latest_filing,
     latest_shares,
+    ratio,
     recent,
     refreshed,
     year_end_shares,
 )
 from buizz_bots.insiders import sessions_since
 from buizz_bots.sessions import last_session_of_month
+from buizz_bots.tickers import renamed
 
 from buizz import Bot, Context, History, Metric, run
 
@@ -59,12 +61,6 @@ class Score(NamedTuple):
     @property
     def f(self) -> int:
         return sum(self.signals.values())
-
-
-def ratio(numerator: float | None, denominator: float | None) -> float | None:
-    if numerator is None or denominator is None or denominator <= 0:
-        return None
-    return numerator / denominator
 
 
 def leverage(annual: Annual, symbol: str, end: date, start_assets: float) -> float | None:
@@ -130,7 +126,8 @@ class PiotroskiFscore(Bot):
 
     def on_step(self, ctx: Context) -> None:
         today = ctx.session.date
-        held: dict[str, list[str | int | float]] = ctx.state.setdefault("held", {})
+        held: dict[str, list[str | int | float]] = renamed(ctx, ctx.state.get("held", {}))
+        ctx.state["held"] = held
         first = FORMED not in ctx.state
         if not first and not last_session_of_month(ctx):
             return
