@@ -1,11 +1,13 @@
+from bisect import bisect_right
 from datetime import date, timedelta
 from typing import NamedTuple
 from zoneinfo import ZoneInfo
 
 import numpy as np
-from buizz_bots.fundamentals import DOMESTIC_FORMS, QUARTER_TOLERANCE_DAYS, by_symbol, in_dollars, with_fourth_quarters
+from buizz_bots.fundamentals import DOMESTIC_FORMS, QUARTER_TOLERANCE_DAYS, by_symbol, in_dollars, quarterly
 from buizz_bots.insiders import sessions_since
 from buizz_bots.quality_momentum import standardized_surprise
+from buizz_bots.tickers import renamed
 
 from buizz import Bot, Context, EarningsRelease, FundamentalPoint, History, run, split_ratio
 
@@ -16,6 +18,7 @@ MAX_QUARTER_AGE_DAYS = 100
 EPS_HISTORY_DAYS = 3 * 365 + 2 * MAX_QUARTER_AGE_DAYS
 ENTRY_CALENDAR_DAYS_PER_SESSION = 2
 SIDES = {1: "top", -1: "bottom"}
+STEPPED = "stepped"
 
 
 class Event(NamedTuple):
@@ -27,6 +30,13 @@ class Event(NamedTuple):
 
 class Surprise(NamedTuple):
     quarter: date
+    filed: date
+    sue: float
+
+
+class Measured(NamedTuple):
+    announced: date
+    public: date
     sue: float
 
 
@@ -47,13 +57,10 @@ def split_eps(points: list[FundamentalPoint], raw: History, split: History) -> l
 
 
 def quarterly_with_filed(adjusted: list[tuple[FundamentalPoint, float]]) -> dict[date, tuple[float, date]]:
-    quarters = {point.period_end: (value, point.filed) for point, value in adjusted if point.period_type == "Q"}
-    years = {point.period_end: (point, value) for point, value in adjusted if point.period_type == "FY"}
-    filled = with_fourth_quarters(
-        {end: value for end, (value, _) in quarters.items()},
-        [(point.period_start or end, end, value) for end, (point, value) in years.items()],
-    )
-    return {end: quarters[end] if end in quarters else (value, years[end][0].filed) for end, value in filled.items()}
+    filed = {point.period_end: point.filed for point, _ in adjusted if point.period_type == "FY"} | {
+        point.period_end: point.filed for point, _ in adjusted if point.period_type == "Q"
+    }
+    return {end: (value, filed[end]) for end, value in quarterly(adjusted).items()}
 
 
 def surprise(event: Event, eps: dict[date, tuple[float, date]], today: date) -> Surprise | None:
@@ -67,19 +74,38 @@ def surprise(event: Event, eps: dict[date, tuple[float, date]], today: date) -> 
     quarter = max(reported)
     known = {end: value for end, (value, _) in eps.items() if end <= quarter + timedelta(days=QUARTER_TOLERANCE_DAYS)}
     sue = standardized_surprise(known, today)
-    return None if sue is None else Surprise(quarter, sue)
+    return None if sue is None else Surprise(quarter, eps[quarter][1], sue)
+
+
+def public_lag(sessions: list[date], announced: date, filed: date) -> tuple[date, int] | None:
+    public = bisect_right(sessions, filed)
+    if public == len(sessions):
+        return None
+    return sessions[public], public + 1 - bisect_right(sessions, announced)
+
+
+def decide(
+    held: dict[str, list[str | int | float]], undecided: list[tuple[Event, Surprise]], cutoffs: tuple[float, float]
+) -> None:
+    low, high = cutoffs
+    for event, found in undecided:
+        side = 1 if found.sue >= high else -1 if found.sue <= low else 0
+        if side:
+            held[event.symbol] = [side, event.announced.isoformat(), round(found.sue, 4), found.quarter.isoformat()]
+        elif event.symbol in held:
+            del held[event.symbol]
 
 
 class PeadSue(Bot):
     def __init__(self) -> None:
-        self.sues: list[tuple[date, float]] = []
+        self.sues: list[Measured] = []
         self.done: set[str] = set()
         self.started = False
 
     def breakpoints(self, today: date, decile: float) -> tuple[float, float] | None:
         start = today - timedelta(days=BREAKPOINT_DAYS)
-        self.sues = [(day, value) for day, value in self.sues if day >= start]
-        values = [value for day, value in self.sues if day < today]
+        self.sues = [found for found in self.sues if found.announced >= start]
+        values = [found.sue for found in self.sues if found.public < today]
         if len(values) < MIN_BREAKPOINT_EVENTS:
             return None
         low, high = np.quantile(values, [decile, 1 - decile])
@@ -103,18 +129,20 @@ class PeadSue(Bot):
         today = ctx.session.date
         hold = int(ctx.params["hold_sessions"])
         entry_lag = int(ctx.params["entry_lag_sessions"])
-        held: dict[str, list[str | int | float]] = ctx.state.setdefault("held", {})
+        held: dict[str, list[str | int | float]] = renamed(ctx, ctx.state.get("held", {}))
+        ctx.state["held"] = held
         lookback = entry_lag * ENTRY_CALENDAR_DAYS_PER_SESSION if self.started else BREAKPOINT_DAYS
         self.started = True
-        since = today - timedelta(days=lookback)
-        events = [
-            event
-            for event in announcements(ctx.earnings(sorted(ctx.universe)), since)
-            if event.accession not in self.done
-        ]
+        recent = announcements(ctx.earnings(sorted(ctx.universe)), today - timedelta(days=lookback))
+        self.done &= {event.accession for event in recent}
+        events = [event for event in recent if event.accession not in self.done]
         age = sessions_since(ctx, {event.accession: event.announced for event in events})
         measured = self.surprises(ctx, events) if events else {}
-        cutoffs = self.breakpoints(today, float(ctx.params["decile"]))
+        first = min((event.announced for event in events), default=today)
+        sessions = [session.date for session in ctx.calendar(first, today)]
+        stepped = ctx.state.get(STEPPED)
+        ctx.state[STEPPED] = today.isoformat()
+        undecided: list[tuple[Event, Surprise]] = []
         for event in events:
             found = measured.get(event.accession)
             if found is None:
@@ -122,14 +150,17 @@ class PeadSue(Bot):
                     self.done.add(event.accession)
                 continue
             self.done.add(event.accession)
-            self.sues.append((event.announced, found.sue))
-            if cutoffs is None or age[event.accession] > entry_lag:
+            published = public_lag(sessions, event.announced, found.filed)
+            if published is None:
                 continue
-            side = 1 if found.sue >= cutoffs[1] else -1 if found.sue <= cutoffs[0] else 0
-            if side:
-                held[event.symbol] = [side, event.announced.isoformat(), round(found.sue, 4), found.quarter.isoformat()]
-            elif event.symbol in held:
-                del held[event.symbol]
+            public, lag = published
+            if lag <= entry_lag:
+                self.sues.append(Measured(event.announced, public, found.sue))
+            if age[event.accession] <= entry_lag and (stepped is None or public > date.fromisoformat(stepped)):
+                undecided.append((event, found))
+        cutoffs = self.breakpoints(today, float(ctx.params["decile"]))
+        if cutoffs is not None:
+            decide(held, undecided, cutoffs)
         held_for = sessions_since(ctx, {symbol: date.fromisoformat(str(entry[1])) for symbol, entry in held.items()})
         for symbol in [symbol for symbol, sessions in held_for.items() if sessions >= hold]:
             del held[symbol]
