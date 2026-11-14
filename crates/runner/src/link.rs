@@ -15,7 +15,7 @@ use buizz_core::time::Timestamp;
 use buizz_core::visibility::calendar_known_through;
 use buizz_core::wire;
 use buizz_ingest::recipe::RECIPES;
-use buizz_market::{FactsRequest, HistoryRequest, MarketStore};
+use buizz_market::{FactsRequest, HistoryRequest, MarketStore, Recall};
 use chrono::NaiveDate;
 
 const MAX_HISTORY_BARS: u32 = 10_000;
@@ -37,18 +37,20 @@ pub(crate) struct SessionUniverse<'a> {
     pub symbols: &'a [Symbol],
 }
 
-pub(crate) struct RecipeReads {
+pub(crate) struct Reads {
     mode: Mode,
     read: Vec<RecipeRead>,
     changed: bool,
+    recall: Option<Recall>,
 }
 
-impl RecipeReads {
+impl Reads {
     pub(crate) fn new(mode: Mode, read: Vec<RecipeRead>) -> Self {
         Self {
             mode,
             read,
             changed: false,
+            recall: (mode == Mode::Backtest).then(Recall::default),
         }
     }
 
@@ -146,7 +148,7 @@ impl BotLink {
         market: &MarketStore,
         contracts: &[CoverageContract],
         session: SessionUniverse<'_>,
-        reads: &mut RecipeReads,
+        reads: &mut Reads,
     ) -> Result<Ack, LinkError> {
         let (seq, clock) = (step.seq, step.clock);
         self.send(&SpineMessage::Step(Box::new(step))).await?;
@@ -306,7 +308,13 @@ impl Asked {
                         continue;
                     }
                     let earlier = market
-                        .macro_points(vec![series], HISTORY_START, clock.exchange_date(), clock)
+                        .macro_points(
+                            vec![series],
+                            HISTORY_START,
+                            clock.exchange_date(),
+                            clock,
+                            None,
+                        )
                         .await;
                     if earlier.is_ok_and(|earlier| earlier.is_empty()) {
                         let series = name(&series);
@@ -415,9 +423,11 @@ async fn answer(
     request: QueryRequest,
     clock: Timestamp,
     session: &SessionUniverse<'_>,
-    reads: &mut RecipeReads,
+    reads: &mut Reads,
     unbacked: &mut Vec<(String, String)>,
 ) -> Result<DataResult, String> {
+    let recall = reads.recall.clone();
+    let recall = recall.as_ref();
     match request {
         QueryRequest::History {
             symbols,
@@ -428,14 +438,15 @@ async fn answer(
             if !(1..=MAX_HISTORY_BARS).contains(&bars) {
                 return Err(format!("bars must be between 1 and {MAX_HISTORY_BARS}"));
             }
+            let request = HistoryRequest {
+                symbols,
+                timeframe,
+                bars,
+                adjust,
+                as_of: clock,
+            };
             let rows = market
-                .history(HistoryRequest {
-                    symbols,
-                    timeframe,
-                    bars,
-                    adjust,
-                    as_of: clock,
-                })
+                .history(request, recall)
                 .await
                 .map_err(|error| error.to_string())?;
             let bars = BarBuffer::from_rows(&rows).map_err(|error| error.to_string())?;
@@ -443,7 +454,7 @@ async fn answer(
         }
         QueryRequest::Fundamentals { symbols, metrics } => {
             let points = market
-                .fundamentals(symbols, metrics, clock)
+                .fundamentals(symbols, metrics, clock, recall)
                 .await
                 .map_err(|error| error.to_string())?;
             Ok(DataResult::Fundamentals { points })
@@ -541,7 +552,7 @@ async fn answer(
                 return Err(format!("macro from {from} is after to {to}"));
             }
             let points = market
-                .macro_points(series, from, to, clock)
+                .macro_points(series, from, to, clock, recall)
                 .await
                 .map_err(|error| error.to_string())?;
             Ok(DataResult::Macro { points })

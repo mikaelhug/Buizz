@@ -849,13 +849,16 @@ async fn a_member_whose_ticker_a_later_company_took_is_priced_as_alpaca_mapped_i
         let market = market.clone();
         async move {
             market
-                .history(HistoryRequest {
-                    symbols: vec![Symbol::new(REUSED)],
-                    timeframe: Timeframe::Day,
-                    bars: 100,
-                    adjust: Adjustment::Raw,
-                    as_of: stamp(as_of),
-                })
+                .history(
+                    HistoryRequest {
+                        symbols: vec![Symbol::new(REUSED)],
+                        timeframe: Timeframe::Day,
+                        bars: 100,
+                        adjust: Adjustment::Raw,
+                        as_of: stamp(as_of),
+                    },
+                    None,
+                )
                 .await
                 .unwrap()
                 .iter()
@@ -969,13 +972,16 @@ async fn a_member_alpaca_lists_only_under_its_later_ticker_is_priced_under_its_e
     ingest.tick(first_at).await.unwrap();
 
     let history = market
-        .history(HistoryRequest {
-            symbols: vec![Symbol::new(RENAMED)],
-            timeframe: Timeframe::Day,
-            bars: 100,
-            adjust: Adjustment::Raw,
-            as_of: stamp("2016-04-29T21:00:00Z"),
-        })
+        .history(
+            HistoryRequest {
+                symbols: vec![Symbol::new(RENAMED)],
+                timeframe: Timeframe::Day,
+                bars: 100,
+                adjust: Adjustment::Raw,
+                as_of: stamp("2016-04-29T21:00:00Z"),
+            },
+            None,
+        )
         .await
         .unwrap();
     assert_eq!(
@@ -1023,13 +1029,16 @@ async fn sessions_without_a_trade_are_not_prices_and_a_long_silence_ends_the_lis
         let market = market.clone();
         async move {
             market
-                .history(HistoryRequest {
-                    symbols: vec![Symbol::new(SILENT)],
-                    timeframe: Timeframe::Day,
-                    bars: 100,
-                    adjust: Adjustment::Raw,
-                    as_of: stamp(as_of),
-                })
+                .history(
+                    HistoryRequest {
+                        symbols: vec![Symbol::new(SILENT)],
+                        timeframe: Timeframe::Day,
+                        bars: 100,
+                        adjust: Adjustment::Raw,
+                        as_of: stamp(as_of),
+                    },
+                    None,
+                )
                 .await
                 .unwrap()
                 .iter()

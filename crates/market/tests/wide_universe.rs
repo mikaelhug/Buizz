@@ -13,13 +13,16 @@ const EX_DATES: [(u32, u32); 4] = [(11, 25), (11, 26), (11, 27), (12, 2)];
 
 async fn adjusted_history(store: &MarketStore, symbols: Vec<Symbol>) -> Vec<BarRow> {
     store
-        .history(HistoryRequest {
-            symbols,
-            timeframe: Timeframe::Day,
-            bars: 10,
-            adjust: Adjustment::All,
-            as_of: "2024-12-06T21:00:00Z".parse().unwrap(),
-        })
+        .history(
+            HistoryRequest {
+                symbols,
+                timeframe: Timeframe::Day,
+                bars: 10,
+                adjust: Adjustment::All,
+                as_of: "2024-12-06T21:00:00Z".parse().unwrap(),
+            },
+            None,
+        )
         .await
         .unwrap()
 }

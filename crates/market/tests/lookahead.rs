@@ -13,6 +13,7 @@ use buizz_core::run::UniverseSpec;
 use buizz_core::time::Timestamp;
 use buizz_market::{
     ActionWindow, ChartBars, ChartRequest, FILE_NAME, FactsRequest, HistoryRequest, MarketStore,
+    Recall,
 };
 use chrono::{Datelike, NaiveDate, TimeDelta};
 use rust_decimal::Decimal;
@@ -60,31 +61,49 @@ async fn history(
     adjust: Adjustment,
     as_of: Timestamp,
 ) -> Vec<BarRow> {
-    store
-        .history(HistoryRequest {
-            symbols: symbols.iter().map(|symbol| Symbol::new(symbol)).collect(),
-            timeframe,
-            bars,
-            adjust,
-            as_of,
-        })
-        .await
-        .unwrap()
+    recalled_history(store, None, symbols, timeframe, bars, adjust, as_of).await
 }
 
-async fn period_ends(store: &MarketStore, case: &Value) -> Vec<NaiveDate> {
+async fn recalled_history(
+    store: &MarketStore,
+    recall: Option<&Recall>,
+    symbols: &[&str],
+    timeframe: Timeframe,
+    bars: u32,
+    adjust: Adjustment,
+    as_of: Timestamp,
+) -> Vec<BarRow> {
+    let request = HistoryRequest {
+        symbols: symbols.iter().map(|symbol| Symbol::new(symbol)).collect(),
+        timeframe,
+        bars,
+        adjust,
+        as_of,
+    };
+    let rows = store.history(request.clone(), None).await.unwrap();
+    if recall.is_some() {
+        let recalled = store.history(request, recall).await.unwrap();
+        assert_eq!(
+            recalled, rows,
+            "a backtest's recall answers as the store does"
+        );
+    }
+    rows
+}
+
+async fn period_ends(store: &MarketStore, recall: &Recall, case: &Value) -> Vec<NaiveDate> {
     let metric: FundamentalMetric = serde_json::from_value(case["metric"].clone()).unwrap();
-    store
-        .fundamentals(
+    let ask = |recall| {
+        store.fundamentals(
             vec![Symbol::new(case["symbol"].as_str().unwrap())],
             vec![metric],
             at(&case["clock"]),
+            recall,
         )
-        .await
-        .unwrap()
-        .into_iter()
-        .map(|point| point.period_end)
-        .collect()
+    };
+    let points = ask(None).await.unwrap();
+    assert_eq!(ask(Some(recall)).await.unwrap(), points, "{case}");
+    points.into_iter().map(|point| point.period_end).collect()
 }
 
 async fn check_boundaries(store: &MarketStore, expected: &Value) {
@@ -97,11 +116,13 @@ async fn check_boundaries(store: &MarketStore, expected: &Value) {
         .await
         .unwrap();
 
+    let recall = Recall::default();
     for case in expected["daily"]["history"].as_array().unwrap() {
         let clock = at(&case["clock"]);
         let adjust: Adjustment = serde_json::from_value(case["adjust"].clone()).unwrap();
-        let rows = history(
+        let rows = recalled_history(
             store,
+            Some(&recall),
             &[case["symbol"].as_str().unwrap()],
             Timeframe::Day,
             u32::try_from(case["bars"].as_u64().unwrap()).unwrap(),
@@ -141,12 +162,17 @@ async fn check_boundaries(store: &MarketStore, expected: &Value) {
             .iter()
             .map(date)
             .collect();
-        assert_eq!(period_ends(store, case).await, expected_ends, "{case}");
+        assert_eq!(
+            period_ends(store, &recall, case).await,
+            expected_ends,
+            "{case}"
+        );
     }
 
     for case in expected["minute"]["daily_history"].as_array().unwrap() {
-        let rows = history(
+        let rows = recalled_history(
             store,
+            Some(&recall),
             &["AAA"],
             Timeframe::Day,
             1,
@@ -1166,6 +1192,7 @@ async fn reading_a_filing_again_replaces_the_facts_the_store_held_from_it() {
             vec![Symbol::new("BBB")],
             vec![FundamentalMetric::SharesOutstanding],
             "2025-01-01T00:00:00Z".parse().unwrap(),
+            None,
         )
         .await
         .unwrap()
@@ -1231,6 +1258,7 @@ async fn a_filer_tagging_error_or_an_old_reporting_currency_never_reaches_a_bot(
                 FundamentalMetric::LongTermDebt,
             ],
             "2025-01-01T00:00:00Z".parse().unwrap(),
+            None,
         )
         .await
         .unwrap()

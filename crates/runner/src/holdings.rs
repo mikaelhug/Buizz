@@ -128,7 +128,12 @@ impl Fundamentals {
                 continue;
             };
             let points = market
-                .fundamentals(symbols.iter().cloned().collect(), METRICS.to_vec(), as_of)
+                .fundamentals(
+                    symbols.iter().cloned().collect(),
+                    METRICS.to_vec(),
+                    as_of,
+                    None,
+                )
                 .await?;
             let mut by_symbol: HashMap<&Symbol, Vec<&FundamentalPoint>> = HashMap::new();
             for point in &points {

@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
+use std::sync::Arc;
 
 use buizz_core::api::{TextDocumentView, TextFileView};
 use buizz_core::listing::Listings;
@@ -32,6 +33,7 @@ use crate::codec::{
     ActionColumns, Dec, FeedColumn, IN_SYMBOLS, Params, Sym, Ts, Wire, placeholders, symbol_list,
     text_list, wire_name,
 };
+use crate::recall::Store;
 use crate::{AccessionProgress, ChartBars, ChartRequest, EtfDates, HistoryRequest, Result};
 
 const MINUTES_PER_SESSION: usize = 390;
@@ -342,7 +344,12 @@ fn unique(symbols: &[Symbol]) -> Vec<Symbol> {
         .collect()
 }
 
-fn is_visible(calendar: &Calendar, timeframe: Timeframe, bar: &Bar, as_of: Timestamp) -> bool {
+pub(crate) fn is_visible(
+    calendar: &Calendar,
+    timeframe: Timeframe,
+    bar: &Bar,
+    as_of: Timestamp,
+) -> bool {
     calendar
         .containing(bar.start)
         .is_some_and(|session| bar_visible_at(timeframe, bar.start, session) <= as_of)
@@ -423,6 +430,7 @@ fn listings_started(
         keys,
         HISTORY_START,
         as_of.exchange_date(),
+        CorporateActionKind::ends_listing,
     ) {
         let taken_over = matches!(action.kind, CorporateActionKind::NameChange { .. })
             && listings.renamed_into(&action.symbol, action.ex_date);
@@ -441,6 +449,7 @@ fn listing_actions(
     keys: &[Symbol],
     from: NaiveDate,
     to: NaiveDate,
+    keep: fn(&CorporateActionKind) -> bool,
 ) -> Vec<CorporateAction> {
     let mut ended: BTreeMap<Symbol, Vec<(NaiveDate, &Symbol)>> = BTreeMap::new();
     for key in keys {
@@ -452,7 +461,7 @@ fn listing_actions(
     let asked: BTreeSet<&Symbol> = keys.iter().collect();
     let stored: Vec<Symbol> = keys.iter().chain(ended.keys()).cloned().collect();
     let mut listed = Vec::new();
-    for action in actions.between(&stored, from, to) {
+    for action in actions.between(&stored, from, to, keep) {
         let owner = ended.get(&action.symbol).and_then(|ends| {
             ends.iter()
                 .find(|(until, _)| action.ex_date <= *until)
@@ -484,14 +493,14 @@ pub(crate) fn traded_actions(
     let renamed = |action: &CorporateAction| matches!(&action.kind, CorporateActionKind::NameChange { new_symbol } if *new_symbol != action.symbol);
     let resolved = resolve(listings, &symbols, from.pred_opt().unwrap_or(from));
     let keyed: Vec<CorporateAction> =
-        listing_actions(actions, calendar, &keys(&resolved), from, to)
+        listing_actions(actions, calendar, &keys(&resolved), from, to, |_| true)
             .into_iter()
             .filter(|action| !matches!(action.kind, CorporateActionKind::NameChange { .. }))
             .collect();
     let mut traded = relabel(&resolved, keyed, |action| &mut action.symbol);
     traded.extend(
         actions
-            .between(&symbols, from, to)
+            .between(&symbols, from, to, |_| true)
             .into_iter()
             .filter(renamed),
     );
@@ -560,7 +569,7 @@ pub(crate) fn chart(
     let older = visible.len() > request.bars;
     visible.drain(..visible.len().saturating_sub(request.bars));
     let splits = adjustment_factors(
-        connection,
+        |wanted| daily_prices(connection, wanted),
         calendar,
         actions,
         &keys,
@@ -592,6 +601,7 @@ pub(crate) fn history(
     listings: &Listings,
     actions: &Actions,
     request: &HistoryRequest,
+    mut recall: Option<&mut Store>,
 ) -> Result<Vec<BarRow>> {
     let count = request.bars as usize;
     if count == 0 {
@@ -601,15 +611,25 @@ pub(crate) fn history(
     let resolved = resolve(listings, &unique(&request.symbols), on);
     let keys = keys(&resolved);
     let listed_since = listings_started(actions, calendar, listings, &keys, request.as_of);
-    let visible = visible_bars(
-        connection,
-        calendar,
-        &listed_since,
-        request.timeframe,
-        keys,
-        count,
-        request.as_of,
-    )?;
+    let visible = match recall.as_deref_mut() {
+        Some(recall) if request.timeframe == Timeframe::Day => recall.visible(
+            connection,
+            calendar,
+            &listed_since,
+            keys,
+            count,
+            request.as_of,
+        )?,
+        _ => visible_bars(
+            connection,
+            calendar,
+            &listed_since,
+            request.timeframe,
+            keys,
+            count,
+            request.as_of,
+        )?,
+    };
     let earliest = visible
         .values()
         .filter_map(|bars| bars.first())
@@ -620,7 +640,10 @@ pub(crate) fn history(
     };
     let priced: Vec<Symbol> = visible.keys().cloned().collect();
     let factors = adjustment_factors(
-        connection,
+        |wanted| match recall {
+            Some(recall) => recall.prices(connection, wanted),
+            None => daily_prices(connection, wanted),
+        },
         calendar,
         actions,
         &priced,
@@ -673,7 +696,7 @@ pub(crate) fn split_adjusted_closes(
     };
     let priced: Vec<Symbol> = visible.keys().cloned().collect();
     let factors = adjustment_factors(
-        connection,
+        |wanted| daily_prices(connection, wanted),
         calendar,
         actions,
         &priced,
@@ -692,8 +715,11 @@ pub(crate) fn split_adjusted_closes(
     Ok(closes)
 }
 
+type Wanted = BTreeSet<(Symbol, NaiveDate)>;
+type DailyPrices = BTreeMap<(Symbol, NaiveDate), (Decimal, Decimal)>;
+
 fn adjustment_factors(
-    connection: &Connection,
+    prices: impl FnOnce(&Wanted) -> Result<DailyPrices>,
     calendar: &Calendar,
     actions: &Actions,
     symbols: &[Symbol],
@@ -707,14 +733,20 @@ fn adjustment_factors(
     if adjustment == Adjustment::Raw || after > as_of.exchange_date() {
         return Ok(BTreeMap::new());
     }
-    let actions: Vec<CorporateAction> =
-        listing_actions(actions, calendar, symbols, after, as_of.exchange_date())
-            .into_iter()
-            .filter(|action| {
-                corporate_action_visible_at(action.ex_date, calendar)
-                    .is_some_and(|visible_at| visible_at <= as_of)
-            })
-            .collect();
+    let actions: Vec<CorporateAction> = listing_actions(
+        actions,
+        calendar,
+        symbols,
+        after,
+        as_of.exchange_date(),
+        |_| true,
+    )
+    .into_iter()
+    .filter(|action| {
+        corporate_action_visible_at(action.ex_date, calendar)
+            .is_some_and(|visible_at| visible_at <= as_of)
+    })
+    .collect();
     let mut factors: BTreeMap<Symbol, Vec<AdjustmentFactor>> = BTreeMap::new();
     for action in &actions {
         if let Some(factor) = AdjustmentFactor::for_shares(action, adjustment) {
@@ -725,7 +757,7 @@ fn adjustment_factors(
         }
     }
     if adjustment == Adjustment::All {
-        for (symbol, factor) in distribution_factors(connection, calendar, &actions, as_of)? {
+        for (symbol, factor) in distribution_factors(prices, calendar, &actions, as_of)? {
             factors.entry(symbol).or_default().push(factor);
         }
     }
@@ -733,7 +765,7 @@ fn adjustment_factors(
 }
 
 fn distribution_factors(
-    connection: &Connection,
+    prices: impl FnOnce(&Wanted) -> Result<DailyPrices>,
     calendar: &Calendar,
     actions: &[CorporateAction],
     as_of: Timestamp,
@@ -766,7 +798,7 @@ fn distribution_factors(
             wanted.insert((new_symbol.clone(), session.date));
         }
     }
-    let prices = daily_prices(connection, &wanted)?;
+    let prices = prices(&wanted)?;
     let mut values: BTreeMap<(Symbol, NaiveDate), (Decimal, NaiveDate)> = BTreeMap::new();
     for (action, previous) in &distributions {
         let value = match &action.kind {
@@ -797,7 +829,7 @@ fn distribution_factors(
         .collect())
 }
 
-fn daily_prices(
+pub(crate) fn daily_prices(
     connection: &Connection,
     wanted: &BTreeSet<(Symbol, NaiveDate)>,
 ) -> Result<BTreeMap<(Symbol, NaiveDate), (Decimal, Decimal)>> {
@@ -839,6 +871,7 @@ impl Actions {
         symbols: &[Symbol],
         from: NaiveDate,
         to: NaiveDate,
+        keep: fn(&CorporateActionKind) -> bool,
     ) -> Vec<CorporateAction> {
         unique(symbols)
             .iter()
@@ -846,7 +879,7 @@ impl Actions {
             .flat_map(|actions| {
                 actions
                     .iter()
-                    .filter(|action| (from..=to).contains(&action.ex_date))
+                    .filter(|action| (from..=to).contains(&action.ex_date) && keep(&action.kind))
                     .cloned()
             })
             .collect()
@@ -1021,6 +1054,11 @@ pub(crate) fn fundamentals(
             })
         })?
         .collect::<duckdb::Result<Vec<_>>>()?;
+    sort_points(&mut points);
+    Ok(points)
+}
+
+pub(crate) fn sort_points(points: &mut [FundamentalPoint]) {
     points.sort_by(|a, b| {
         (
             &a.symbol,
@@ -1037,7 +1075,31 @@ pub(crate) fn fundamentals(
                 b.period_start,
             ))
     });
-    Ok(points)
+}
+
+pub(crate) fn fact_arrivals(
+    connection: &Connection,
+    symbols: &[Symbol],
+) -> Result<BTreeMap<Symbol, Vec<Timestamp>>> {
+    let mut arrivals: BTreeMap<Symbol, Vec<Timestamp>> = BTreeMap::new();
+    if symbols.is_empty() {
+        return Ok(arrivals);
+    }
+    let sql = format!(
+        "SELECT DISTINCT symbol, available_at FROM fundamental_fact WHERE symbol {IN_SYMBOLS} \
+         ORDER BY symbol, available_at"
+    );
+    let params: Params = vec![symbol_list(symbols)];
+    let mut statement = connection.prepare_cached(&sql)?;
+    let rows = statement
+        .query_map(params_from_iter(params.iter()), |row| {
+            Ok((row.get::<_, Sym>(0)?.0, row.get::<_, Ts>(1)?.0))
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    for (symbol, at) in rows {
+        arrivals.entry(symbol).or_default().push(at);
+    }
+    Ok(arrivals)
 }
 
 fn sessions_before(calendar: &Calendar, before: NaiveDate, count: u32) -> &[Session] {
@@ -1075,7 +1137,7 @@ pub(crate) fn liquidity(
         },
     )?;
     let factors = adjustment_factors(
-        connection,
+        |wanted| daily_prices(connection, wanted),
         calendar,
         actions,
         &keys,
@@ -2835,6 +2897,84 @@ pub(crate) fn earnings_insight_facts(
     Ok(facts)
 }
 
+pub(crate) type Vintage = (NaiveDate, NaiveDate, Option<Decimal>);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum MacroSource {
+    Rates,
+    Observations(MacroSeries),
+    Estimates(MacroSeries),
+}
+
+impl MacroSource {
+    fn series(self) -> MacroSeries {
+        match self {
+            Self::Rates => MacroSeries::Treasury3m,
+            Self::Observations(series) | Self::Estimates(series) => series,
+        }
+    }
+}
+
+pub(crate) fn macro_vintages(
+    connection: &Connection,
+    source: MacroSource,
+    dates: Option<(NaiveDate, NaiveDate)>,
+) -> Result<Vec<Vintage>> {
+    let within = |column: &str| match dates {
+        Some(_) => format!("AND {column} BETWEEN ? AND ?"),
+        None => String::new(),
+    };
+    let (sql, mut params): (String, Params) = match source {
+        MacroSource::Rates => (
+            format!(
+                "SELECT date, date, percent FROM rate_daily WHERE true {} ORDER BY date",
+                within("date")
+            ),
+            Params::new(),
+        ),
+        MacroSource::Observations(series) => (
+            format!(
+                "SELECT date, published, value FROM macro_observation WHERE series = ? {} \
+                 ORDER BY date, published",
+                within("date")
+            ),
+            vec![Box::new(wire_name(&series)) as Box<dyn ToSql>],
+        ),
+        MacroSource::Estimates(series) => {
+            let Some((metric, scope)) = series.estimate() else {
+                return Ok(Vec::new());
+            };
+            (
+                format!(
+                    "SELECT r.issue_date, r.published, f.value FROM earnings_insight_fact f \
+                     JOIN earnings_insight r USING (report) WHERE f.metric = ? AND f.scope = ? \
+                     AND f.period = '' {} ORDER BY r.issue_date, r.published, r.report",
+                    within("r.issue_date")
+                ),
+                vec![
+                    Box::new(wire_name(&metric)) as Box<dyn ToSql>,
+                    Box::new(wire_name(&scope)),
+                ],
+            )
+        }
+    };
+    if let Some((from, to)) = dates {
+        params.push(Box::new(from));
+        params.push(Box::new(to));
+    }
+    let normalize = matches!(source, MacroSource::Estimates(_));
+    let mut statement = connection.prepare_cached(&sql)?;
+    let vintages = statement
+        .query_map(params_from_iter(params.iter()), |row| {
+            let value = row
+                .get::<_, Option<Dec>>(2)?
+                .map(|Dec(value)| if normalize { value.normalize() } else { value });
+            Ok((row.get(0)?, row.get(1)?, value))
+        })?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    Ok(vintages)
+}
+
 pub(crate) fn macro_points(
     connection: &Connection,
     calendar: &Calendar,
@@ -2842,69 +2982,57 @@ pub(crate) fn macro_points(
     from: NaiveDate,
     to: NaiveDate,
     as_of: Timestamp,
+    mut recall: Option<&mut Store>,
 ) -> Result<Vec<MacroPoint>> {
     let Some(cutoff) = published_before(as_of, calendar) else {
         return Ok(Vec::new());
     };
-    let mut known: Vec<(MacroSeries, NaiveDate, NaiveDate, Decimal)> = Vec::new();
     let wanted: BTreeSet<MacroSeries> = series.iter().copied().collect();
+    let mut sources = Vec::new();
     if wanted.contains(&MacroSeries::Treasury3m) {
-        known.extend(
-            risk_free_rates(connection, from, to)?
-                .into_iter()
-                .filter(|rate| rate.date < cutoff)
-                .map(|rate| (MacroSeries::Treasury3m, rate.date, rate.date, rate.percent)),
-        );
+        sources.push(MacroSource::Rates);
     }
-    let mut statement = connection.prepare_cached(
-        "SELECT date, published, value FROM (SELECT date, published, value, \
-         row_number() OVER (PARTITION BY date ORDER BY published DESC) AS vintage \
-         FROM macro_observation WHERE series = ? AND date BETWEEN ? AND ? AND published < ?) \
-         WHERE vintage = 1 AND value IS NOT NULL ORDER BY date",
-    )?;
-    for id in wanted.iter().filter(|id| **id != MacroSeries::Treasury3m) {
-        let rows = statement
-            .query_map(params![wire_name(id), from, to, cutoff], |row| {
-                Ok((*id, row.get(0)?, row.get(1)?, row.get::<_, Dec>(2)?.0))
-            })?
-            .collect::<duckdb::Result<Vec<_>>>()?;
-        known.extend(rows);
-    }
-    let mut statement = connection.prepare_cached(
-        "SELECT date, published, value FROM (SELECT r.issue_date AS date, r.published, f.value, \
-         row_number() OVER (PARTITION BY r.issue_date ORDER BY r.published DESC, r.report DESC) \
-         AS vintage FROM earnings_insight_fact f JOIN earnings_insight r USING (report) \
-         WHERE f.metric = ? AND f.scope = ? AND f.period = '' \
-         AND r.issue_date BETWEEN ? AND ? AND r.published < ?) WHERE vintage = 1 ORDER BY date",
-    )?;
-    for (id, (metric, scope)) in wanted.iter().filter_map(|id| Some((id, id.estimate()?))) {
-        let rows = statement
-            .query_map(
-                params![wire_name(&metric), wire_name(&scope), from, to, cutoff],
-                |row| {
-                    Ok((
-                        *id,
-                        row.get(0)?,
-                        row.get(1)?,
-                        row.get::<_, Dec>(2)?.0.normalize(),
-                    ))
-                },
-            )?
-            .collect::<duckdb::Result<Vec<_>>>()?;
-        known.extend(rows);
-    }
-    Ok(known
-        .into_iter()
-        .filter_map(|(series, date, published, value)| {
+    sources.extend(
+        wanted
+            .iter()
+            .filter(|id| **id != MacroSeries::Treasury3m)
+            .map(|id| MacroSource::Observations(*id)),
+    );
+    sources.extend(
+        wanted
+            .iter()
+            .filter(|id| id.estimate().is_some())
+            .map(|id| MacroSource::Estimates(*id)),
+    );
+    let mut points = Vec::new();
+    for source in sources {
+        let vintages = match recall.as_deref_mut() {
+            Some(recall) => recall.vintages(connection, source)?,
+            None => Arc::new(macro_vintages(connection, source, Some((from, to)))?),
+        };
+        let first = vintages.partition_point(|(date, _, _)| *date < from);
+        let mut known: Vec<Vintage> = Vec::new();
+        for vintage in vintages[first..]
+            .iter()
+            .take_while(|(date, _, _)| *date <= to)
+            .filter(|(_, published, _)| *published < cutoff)
+        {
+            match known.last_mut() {
+                Some(last) if last.0 == vintage.0 => *last = *vintage,
+                _ => known.push(*vintage),
+            }
+        }
+        points.extend(known.into_iter().filter_map(|(date, published, value)| {
             Some(MacroPoint {
-                series,
+                series: source.series(),
                 date,
-                value,
+                value: value?,
                 published,
                 available_at: published_visible_at(published, calendar)?,
             })
-        })
-        .collect())
+        }));
+    }
+    Ok(points)
 }
 
 pub(crate) fn fomc_meetings(connection: &Connection) -> Result<Vec<FomcMeeting>> {
@@ -3421,7 +3549,7 @@ pub(crate) fn unexplained_moves(
         })?
         .collect::<duckdb::Result<Vec<_>>>()?;
     let explained: BTreeSet<(Symbol, NaiveDate)> = actions
-        .between(&symbols, from, to)
+        .between(&symbols, from, to, |_| true)
         .into_iter()
         .map(|action| (action.symbol, action.ex_date))
         .collect();

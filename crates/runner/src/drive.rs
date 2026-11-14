@@ -34,7 +34,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, watch};
 
 use crate::commit::Committer;
-use crate::link::{BotLink, LinkError, RecipeReads, SessionUniverse};
+use crate::link::{BotLink, LinkError, Reads, SessionUniverse};
 use crate::queue::Place;
 use crate::timeline::{Point, Timeline};
 use crate::{Inner, describe, gate_symbols, report};
@@ -544,7 +544,7 @@ struct Driver {
     unshown_equity: Option<EquityPoint>,
     day_mark: Option<Timestamp>,
     unbacked: BTreeSet<String>,
-    reads: RecipeReads,
+    reads: Reads,
 }
 
 impl Driver {
@@ -628,7 +628,7 @@ impl Driver {
             committer: Committer::spawn(Arc::clone(&inner), run.id, run.mode, last_step),
             day_mark,
             unbacked: BTreeSet::new(),
-            reads: RecipeReads::new(
+            reads: Reads::new(
                 run.mode,
                 run.reproducibility
                     .as_ref()

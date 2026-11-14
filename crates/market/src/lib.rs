@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::ops::RangeInclusive;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, PoisonError, RwLock};
+use std::sync::{Arc, Mutex, PoisonError, RwLock};
 
 use buizz_core::api::{
     TextDocumentText, TextDocumentView, TextFolder, TextListing, TextVolumeView,
@@ -44,6 +44,7 @@ mod fixture;
 mod lane;
 mod migrate;
 mod read;
+mod recall;
 mod recipe;
 mod restore;
 mod text;
@@ -140,6 +141,13 @@ pub struct HistoryRequest {
     pub bars: u32,
     pub adjust: Adjustment,
     pub as_of: Timestamp,
+}
+
+#[derive(Clone, Default)]
+pub struct Recall(Arc<Mutex<recall::Store>>);
+
+fn lock(store: &Mutex<recall::Store>) -> std::sync::MutexGuard<'_, recall::Store> {
+    store.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1488,15 +1496,28 @@ impl MarketStore {
             .await
     }
 
-    pub async fn history(&self, request: HistoryRequest) -> Result<Vec<BarRow>> {
+    pub async fn history(
+        &self,
+        request: HistoryRequest,
+        recall: Option<&Recall>,
+    ) -> Result<Vec<BarRow>> {
         let (calendar, listings, actions) = (
             self.shared.calendar(),
             self.shared.listings(),
             self.shared.actions(),
         );
+        let recall = recall.map(|recall| Arc::clone(&recall.0));
         self.readers
             .run(move |connection| {
-                read::history(connection, &calendar, &listings, &actions, &request)
+                let mut store = recall.as_ref().map(|recall| lock(recall));
+                read::history(
+                    connection,
+                    &calendar,
+                    &listings,
+                    &actions,
+                    &request,
+                    store.as_deref_mut(),
+                )
             })
             .await
     }
@@ -1538,14 +1559,21 @@ impl MarketStore {
         symbols: Vec<Symbol>,
         metrics: Vec<FundamentalMetric>,
         as_of: Timestamp,
+        recall: Option<&Recall>,
     ) -> Result<Vec<FundamentalPoint>> {
         let (calendar, listings) = (self.shared.calendar(), self.shared.listings());
+        let recall = recall.map(|recall| Arc::clone(&recall.0));
         self.readers
             .run(move |connection| {
                 let resolved =
                     read::resolve(&listings, &symbols, read::listed_on(&calendar, as_of));
-                let points =
-                    read::fundamentals(connection, &read::keys(&resolved), &metrics, as_of)?;
+                let keys = read::keys(&resolved);
+                let points = match recall {
+                    Some(recall) => {
+                        lock(&recall).fundamentals(connection, &keys, &metrics, as_of)?
+                    }
+                    None => read::fundamentals(connection, &keys, &metrics, as_of)?,
+                };
                 Ok(read::relabel(&resolved, points, |point| &mut point.symbol))
             })
             .await
@@ -1557,7 +1585,7 @@ impl MarketStore {
         from: NaiveDate,
         to: NaiveDate,
     ) -> Result<Vec<CorporateAction>> {
-        Ok(self.shared.actions().between(&symbols, from, to))
+        Ok(self.shared.actions().between(&symbols, from, to, |_| true))
     }
 
     pub async fn traded_actions(
@@ -2111,11 +2139,22 @@ impl MarketStore {
         from: NaiveDate,
         to: NaiveDate,
         as_of: Timestamp,
+        recall: Option<&Recall>,
     ) -> Result<Vec<MacroPoint>> {
         let calendar = self.shared.calendar();
+        let recall = recall.map(|recall| Arc::clone(&recall.0));
         self.readers
             .run(move |connection| {
-                read::macro_points(connection, &calendar, &series, from, to, as_of)
+                let mut store = recall.as_ref().map(|recall| lock(recall));
+                read::macro_points(
+                    connection,
+                    &calendar,
+                    &series,
+                    from,
+                    to,
+                    as_of,
+                    store.as_deref_mut(),
+                )
             })
             .await
     }

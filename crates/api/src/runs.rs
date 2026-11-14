@@ -231,13 +231,16 @@ async fn latest_closes(
     };
     let rows = app
         .market
-        .history(HistoryRequest {
-            symbols,
-            timeframe: run.config.timeframe,
-            bars: 1,
-            adjust: Adjustment::Raw,
-            as_of: clock,
-        })
+        .history(
+            HistoryRequest {
+                symbols,
+                timeframe: run.config.timeframe,
+                bars: 1,
+                adjust: Adjustment::Raw,
+                as_of: clock,
+            },
+            None,
+        )
         .await?;
     Ok(rows
         .into_iter()

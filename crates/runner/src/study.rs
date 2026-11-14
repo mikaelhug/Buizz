@@ -349,13 +349,16 @@ async fn prices(
 ) -> Result<Series, RunnerError> {
     let bars = calendar.between(from.date, as_of.exchange_date()).len();
     let read = |adjust| {
-        market.history(HistoryRequest {
-            symbols: vec![symbol.clone()],
-            timeframe: Timeframe::Day,
-            bars: u32::try_from(bars).unwrap_or(u32::MAX),
-            adjust,
-            as_of,
-        })
+        market.history(
+            HistoryRequest {
+                symbols: vec![symbol.clone()],
+                timeframe: Timeframe::Day,
+                bars: u32::try_from(bars).unwrap_or(u32::MAX),
+                adjust,
+                as_of,
+            },
+            None,
+        )
     };
     let (raw, adjusted) = futures::try_join!(read(Adjustment::Raw), read(Adjustment::All))?;
     let raw_opens: BTreeMap<NaiveDate, f64> = raw
