@@ -29,6 +29,19 @@ pub const LISTS: [(&str, &str, &str); 8] = [
     ("CPH", "FIRST_NORTH", "FNDK"),
     ("ICE", "FIRST_NORTH", "FNIS"),
 ];
+pub const INDICES: [(&str, &str, &str, &str); 11] = [
+    ("IX555", "OMXSPI", "OMX Stockholm All-Share", "SEK"),
+    ("IX447", "OMXS30", "OMX Stockholm 30", "SEK"),
+    ("IX2158", "OMXHPI", "OMX Helsinki All-Share", "EUR"),
+    ("IX557", "OMXCPI", "OMX Copenhagen All-Share", "DKK"),
+    ("IX458", "OMXIPI", "OMX Iceland All-Share", "ISK"),
+    ("IX3434", "OMXN40", "OMX Nordic 40", "EUR"),
+    ("IX6782", "OMXSGI", "OMX Stockholm All-Share Gross", "SEK"),
+    ("IX3210", "OMXS30GI", "OMX Stockholm 30 Gross", "SEK"),
+    ("IX2160", "OMXHGI", "OMX Helsinki All-Share Gross", "EUR"),
+    ("IX658", "OMXCGI", "OMX Copenhagen All-Share Gross", "DKK"),
+    ("IX850", "OMXIGI", "OMX Iceland All-Share Gross", "ISK"),
+];
 const OK: u16 = 200;
 const DATE_FORMAT: &str = "%Y-%m-%d";
 
@@ -142,6 +155,19 @@ impl NasdaqNordicClient {
                     .filter(|listing| seen.insert(listing.listing.clone())),
             );
         }
+        listings.extend(
+            INDICES
+                .iter()
+                .map(|(id, symbol, name, currency)| NordicListing {
+                    listing: Symbol::new(id),
+                    mic: None,
+                    isin: None,
+                    symbol: (*symbol).to_owned(),
+                    name: (*name).to_owned(),
+                    currency: (*currency).to_owned(),
+                    sector: None,
+                }),
+        );
         Ok(listings)
     }
 
@@ -151,6 +177,7 @@ impl NasdaqNordicClient {
         from: NaiveDate,
         to: NaiveDate,
     ) -> Result<NordicBars, SourceError> {
+        let index = INDICES.iter().any(|(id, ..)| listing.as_str() == *id);
         let request = self
             .http
             .client()
@@ -160,11 +187,14 @@ impl NasdaqNordicClient {
             ))
             .header(ACCEPT, "application/json")
             .query(&[
-                ("assetClass", "SHARES".to_owned()),
+                (
+                    "assetClass",
+                    if index { "INDEXES" } else { "SHARES" }.to_owned(),
+                ),
                 ("fromDate", from.format(DATE_FORMAT).to_string()),
                 ("toDate", to.format(DATE_FORMAT).to_string()),
             ]);
-        normalize_chart(&self.http.fetch(request).await?)
+        normalize_chart(&self.http.fetch(request).await?, index)
     }
 }
 
@@ -197,8 +227,8 @@ pub fn normalize_listings(body: &[u8], mic: &str) -> Result<Vec<NordicListing>, 
         .filter(|share| !share.orderbook_id.trim().is_empty())
         .map(|share| NordicListing {
             listing: Symbol::new(&share.orderbook_id),
-            mic: mic.to_owned(),
-            isin: share.isin.trim().to_owned(),
+            mic: Some(mic.to_owned()),
+            isin: Some(share.isin.trim().to_owned()).filter(|isin| !isin.is_empty()),
             symbol: share.symbol.trim().to_owned(),
             name: share.full_name.trim().to_owned(),
             currency: share.currency.trim().to_owned(),
@@ -207,7 +237,7 @@ pub fn normalize_listings(body: &[u8], mic: &str) -> Result<Vec<NordicListing>, 
         .collect())
 }
 
-pub fn normalize_chart(body: &[u8]) -> Result<NordicBars, SourceError> {
+pub fn normalize_chart(body: &[u8], index: bool) -> Result<NordicBars, SourceError> {
     let points = unwrap(decode_json::<Envelope<Chart>>(body)?)?
         .and_then(|chart| chart.points)
         .unwrap_or_default();
@@ -224,7 +254,7 @@ pub fn normalize_chart(body: &[u8]) -> Result<NordicBars, SourceError> {
             high: &day.high,
             low: &day.low,
             close: &day.close,
-            volume: &day.volume,
+            volume: (!index).then_some(day.volume.as_str()),
         })
     }));
     daily.skipped += undated;

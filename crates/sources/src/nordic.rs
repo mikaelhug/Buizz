@@ -12,7 +12,7 @@ pub(crate) struct DayRow<'a> {
     pub high: &'a str,
     pub low: &'a str,
     pub close: &'a str,
-    pub volume: &'a str,
+    pub volume: Option<&'a str>,
 }
 
 fn digits(text: &str) -> String {
@@ -31,7 +31,10 @@ impl DayRow<'_> {
             high: price(self.high)?,
             low: price(self.low)?,
             close: price(self.close)?,
-            volume: digits(self.volume).parse().ok()?,
+            volume: match self.volume {
+                Some(volume) => Some(digits(volume).parse().ok()?),
+                None => None,
+            },
         })
     }
 }

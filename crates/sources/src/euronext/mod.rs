@@ -144,12 +144,12 @@ pub fn normalize_listings(text: &str) -> Result<Vec<NordicListing>, SourceError>
             let isin = field(row, 1);
             (!isin.is_empty()).then(|| NordicListing {
                 listing: listing_id(&isin, mic),
-                mic: (*mic).to_owned(),
+                mic: Some((*mic).to_owned()),
                 symbol: field(row, 2),
                 name: field(row, 0),
                 currency: field(row, 4),
                 sector: None,
-                isin,
+                isin: Some(isin),
             })
         })
         .collect())
@@ -174,7 +174,7 @@ pub fn normalize_history(text: &str) -> Result<NordicBars, SourceError> {
             high: field(2),
             low: field(3),
             close: field(4),
-            volume: field(5),
+            volume: Some(field(5)),
         })
     }));
     daily.skipped += undated;

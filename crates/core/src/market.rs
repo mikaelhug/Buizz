@@ -1054,8 +1054,8 @@ pub struct TradingHaltRecord {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NordicListing {
     pub listing: Symbol,
-    pub mic: String,
-    pub isin: String,
+    pub mic: Option<String>,
+    pub isin: Option<String>,
     pub symbol: String,
     pub name: String,
     pub currency: String,
@@ -1069,7 +1069,7 @@ pub struct NordicBar {
     pub high: Decimal,
     pub low: Decimal,
     pub close: Decimal,
-    pub volume: u64,
+    pub volume: Option<u64>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

@@ -824,7 +824,7 @@ impl Ingest {
         for (source, scope) in [
             (
                 DataSource::NasdaqNordic,
-                "every listed Nasdaq Nordic share, from the 10 years Nasdaq still serves",
+                "every listed Nasdaq Nordic share and its 11 benchmark indices, from the 10 years Nasdaq still serves",
             ),
             (
                 DataSource::Euronext,

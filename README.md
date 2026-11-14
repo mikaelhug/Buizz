@@ -76,7 +76,7 @@ The spine (`cargo run -p buizz-spine`) reads these environment variables. Empty 
 | `WIKIMEDIA_URL` | `https://wikimedia.org` | Wikimedia REST endpoint for daily page views |
 | `NASDAQ_TRADER_URL` | `https://www.nasdaqtrader.com` | NASDAQ Trader's symbol directory, read daily to tell ETFs from stocks, and its trade halt feed, read every 5 minutes by the `trading_halts` job |
 | `SSGA_URL` | `https://www.ssga.com` | State Street's SPDR fund files, read daily by the `etf_holdings` job for holdings and shares outstanding; free, no key |
-| `NASDAQ_NORDIC_URL` | `https://api.nasdaq.com` | Nasdaq Nordic's share lists and daily prices for Stockholm, Helsinki, Copenhagen and Iceland, archived after 18:00 Stockholm time by the `nasdaq_nordic` job; the last 10 years only, split-adjusted as of each read, no dividends, no delisted companies; free, no key |
+| `NASDAQ_NORDIC_URL` | `https://api.nasdaq.com` | Nasdaq Nordic's share lists and daily prices for Stockholm, Helsinki, Copenhagen and Iceland, and 11 benchmark indices (the gross ones are the dividend-inclusive benchmark), archived after 18:00 Stockholm time by the `nasdaq_nordic` job; the last 10 years only, split-adjusted as of each read, no dividends, no delisted companies; free, no key |
 | `EURONEXT_URL` | `https://live.euronext.com` | Euronext's Oslo share list and unadjusted daily prices, archived the same way by the `euronext_oslo` job; the last 2 years only; free, no key |
 | `ECB_URL` | `https://data-api.ecb.europa.eu` | The ECB's daily euro rates of SEK, NOK, DKK, ISK and USD since 1999, read daily by the `fx_rates` job; free, no key |
 | `IBKR_FTP_ADDRESS` | `ftp2.interactivebrokers.com:21` | Interactive Brokers' public short stock FTP server, read daily by the `borrow` job |

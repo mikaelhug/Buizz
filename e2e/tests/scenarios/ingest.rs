@@ -134,8 +134,8 @@ async fn an_empty_spine_backfills_backs_off_rejects_a_bad_tiingo_tail_and_restar
     );
     assert_eq!(
         message(&jobs, "nasdaq_nordic"),
-        "Nasdaq Nordic: 4 rows; 2 listed, 2 new or changed, 1 skipped without a full price",
-        "Ericsson's five recorded days less the one without an open; Investor has none"
+        "Nasdaq Nordic: 4 rows; 13 listed, 13 new or changed, 1 skipped without a full price",
+        "two shares and the 11 benchmark indices; Ericsson's five recorded days less the one without an open, none for the others"
     );
     assert_eq!(
         message(&jobs, "euronext_oslo"),
