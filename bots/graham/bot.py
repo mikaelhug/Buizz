@@ -48,6 +48,7 @@ class Pick(NamedTuple):
     symbol: str
     rank: float
     reason: str
+    rule: str
 
 
 class Dividend(NamedTuple):
@@ -139,6 +140,7 @@ def net_nets(ctx: Context) -> list[Pick]:
     if not candidates:
         return []
     raw, adjusted = split_histories(ctx, list(candidates))
+    rule = f"net-net: price at most {limit:.0%} of net current asset value"
     picks: list[Pick] = []
     for symbol, (day, ncav, shares) in candidates.items():
         ratio = split_ratio(raw[symbol], adjusted[symbol], shares.filed)
@@ -147,7 +149,7 @@ def net_nets(ctx: Context) -> list[Pick]:
         price_to_ncav = float(shares.value) * ratio * ctx.bars[symbol].close / ncav
         if price_to_ncav <= limit:
             reason = f"price {price_to_ncav:.0%} of NCAV ${ncav / 1e6:,.1f}M at {day}, shares on {shares.period_end}"
-            picks.append(Pick(symbol, price_to_ncav, reason))
+            picks.append(Pick(symbol, price_to_ncav, reason, rule))
     return sorted(picks, key=lambda pick: pick.rank)
 
 
@@ -171,6 +173,7 @@ def rule_1976(ctx: Context) -> list[Pick]:
     if not candidates:
         return []
     raw, adjusted = split_histories(ctx, list(candidates))
+    rule = f"1976 rule: P/E at most {max_pe:.1f} (AAA {aaa:.2f}%), equity at least {min_equity:.0%} of assets"
     picks: list[Pick] = []
     for symbol, (equity_share, eps_points) in candidates.items():
         eps = trailing_eps(eps_points, raw[symbol], adjusted[symbol], today)
@@ -179,7 +182,7 @@ def rule_1976(ctx: Context) -> list[Pick]:
         pe = ctx.bars[symbol].close / eps
         if pe <= max_pe:
             reason = f"P/E {pe:.1f} at most {max_pe:.1f} (AAA {aaa:.2f}%), equity {equity_share:.0%} of assets"
-            picks.append(Pick(symbol, pe, reason))
+            picks.append(Pick(symbol, pe, reason, rule))
     return sorted(picks, key=lambda pick: pick.rank)
 
 
@@ -325,25 +328,33 @@ class Graham(Bot):
         month_end = last_session_of_month(ctx)
         pending: dict[str, Any] | None = ctx.state.get("cohort")
         if pending is not None:
-            reasons: dict[str, str] = pending["picks"]
-            pending["picks"] = renamed(ctx, reasons)
+            picked: dict[str, int] = pending["picks"]
+            pending["picks"] = renamed(ctx, picked)
         late = pending is not None and today.year > pending["formed"]
         if (today.month == DECEMBER and month_end) or late:
             ctx.state.pop("cohort", None)
             formed = today.year if pending is None else int(pending["formed"])
-            picks: dict[str, str] = {} if pending is None else pending["picks"]
+            picks: dict[str, int] = {} if pending is None else pending["picks"]
+            rules: list[str] = [] if pending is None else pending["rules"]
             ctx.rebalance(
                 dict.fromkeys(picks, 1 / len(picks)) if picks else {},
                 reason={
-                    symbol: f"{reason} on the November {formed} close, {formed + 1} cohort"
-                    for symbol, reason in picks.items()
+                    symbol: f"{rules[rule]} on the November {formed} close, {formed + 1} cohort"
+                    for symbol, rule in picks.items()
                 },
                 exit_reason="12-month cohort ended",
             )
         elif today.month == NOVEMBER and month_end:
-            picks = {pick.symbol: pick.reason for pick in screen(ctx)}
-            ctx.state["cohort"] = {"formed": today.year, "picks": picks}
-            ctx.log(f"qualifiers on the November close, bought at the turn of the year: {len(picks)}")
+            found = screen(ctx)
+            rules = list(dict.fromkeys(pick.rule for pick in found))
+            for pick in found:
+                ctx.log(f"November qualifier {pick.symbol}: {pick.reason}")
+            ctx.state["cohort"] = {
+                "formed": today.year,
+                "rules": rules,
+                "picks": {pick.symbol: rules.index(pick.rule) for pick in found},
+            }
+            ctx.log(f"qualifiers on the November close, bought at the turn of the year: {len(found)}")
 
 
 if __name__ == "__main__":

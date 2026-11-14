@@ -1,3 +1,5 @@
+import bisect
+import math
 from collections import defaultdict
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
@@ -6,12 +8,15 @@ from typing import Any, NamedTuple
 
 import numpy as np
 from buizz_bots.fundamentals import (
+    DOMESTIC_FORMS,
     Annual,
     amount,
     amount_or_zero,
+    by_symbol,
     consecutive_fiscal_ends,
     domestic_annual,
     histories_since,
+    latest_filing,
     total_debt,
     traded_today,
     year_end_shares,
@@ -26,7 +31,6 @@ from buizz_bots.persona import (
     held_stocks,
     ladder_weight,
     latest_macro,
-    new_filings,
     restated,
     stock_weights,
     trade,
@@ -64,6 +68,13 @@ INSIDER_DAYS = 365
 DAYS_PER_MONTH = DAYS_PER_YEAR / 12
 PARK_ABOVE = 0.02
 RATIO_DIGITS = 4
+FILING_METRIC: Metric = "operating_income"
+CHECKED = "checked"
+WATCHED = "watched"
+ORIGINS = "origins"
+STEADINESS = "steadiness"
+STEADINESS_REACH = 64
+UNRANKED = "unranked"
 
 
 class Rules(NamedTuple):
@@ -119,6 +130,41 @@ class Prices(NamedTuple):
     hurdle: float
     hurdle_why: str
     rate: float | None
+
+
+class Steadiness(NamedTuple):
+    below: int
+    middle: list[float]
+    above: int
+
+    @property
+    def records(self) -> int:
+        return self.below + len(self.middle) + self.above
+
+    @property
+    def median(self) -> float:
+        if not self.records:
+            return 0.0
+        low, high = ((self.records - 1) // 2, self.records // 2)
+        last = len(self.middle) - 1
+        return float(np.mean([self.middle[min(max(rank - self.below, 0), last)] for rank in (low, high)]))
+
+
+class Watch(NamedTuple):
+    day: str | None
+    before: float | None
+    after: float | None
+
+
+class Memory:
+    def __init__(self) -> None:
+        self.spreads: dict[str, float | None] = {}
+        self.members: dict[date, set[str]] = {}
+
+    def members_on(self, ctx: Context, day: date) -> set[str]:
+        if day not in self.members:
+            self.members[day] = set(ctx.universe_at(day, int(ctx.params["owner_universe"]), asset_class="stock"))
+        return self.members[day]
 
 
 @dataclass
@@ -303,22 +349,17 @@ def insider_net_sale(trades: Iterable[InsiderTrade]) -> float:
     return net / (net + sum(stake for _, stake in stakes.values())) if net > 0 else 0.0
 
 
-def qualify(ctx: Context, symbols: list[str], spreads: dict[str, float], rules: Rules) -> dict[str, Record | str]:
+def judge(
+    ctx: Context, assessed: Mapping[str, Assessment], steadiness: Steadiness, rules: Rules
+) -> dict[str, Record | str]:
     today = ctx.session.date
-    assessed = assess(ctx, symbols, rules)
-    for symbol, seen in assessed.items():
-        if seen.roc_cv is None:
-            spreads.pop(symbol, None)
-        else:
-            spreads[symbol] = seen.roc_cv
-    median = float(np.median(list(spreads.values()))) if spreads else 0.0
     outcomes: dict[str, Record | str] = {}
     for symbol, seen in assessed.items():
         outcome = seen.outcome
-        if isinstance(outcome, Record) and outcome.roc_cv > median:
+        if isinstance(outcome, Record) and outcome.roc_cv > steadiness.median:
             outcome = (
                 f"return on capital varies {outcome.roc_cv:.2f} (std/mean), outside the steadier half "
-                f"of {len(spreads)} records (median {median:.2f})"
+                f"of {steadiness.records} records (median {steadiness.median:.2f})"
             )
         outcomes[symbol] = outcome
     passed = sorted(symbol for symbol, outcome in outcomes.items() if isinstance(outcome, Record))
@@ -375,22 +416,143 @@ def months_held(ctx: Context, symbol: str) -> str:
     return f", held {(ctx.session.date - opened.date()).days / DAYS_PER_MONTH:.0f} months"
 
 
-def requalified(ctx: Context, held: list[str], rules: Rules) -> Review:
-    today = ctx.session.date
-    seen: dict[str, str] = renamed(ctx, ctx.state.get("seen", {}))
-    spreads: dict[str, float] = renamed(ctx, ctx.state.get("roc_cv", {}))
-    records = {symbol: Record(*fields) for symbol, fields in renamed(ctx, ctx.state.get("records", {})).items()}
-    watched = set(held)
-    if "seen" not in ctx.state or week_ends(ctx):
-        members = set(ctx.universe_at(today, int(ctx.params["owner_universe"]), asset_class="stock"))
-        watched |= members
-        seen = {symbol: filed for symbol, filed in seen.items() if symbol in watched}
-        spreads = {symbol: spread for symbol, spread in spreads.items() if symbol in members}
-        records = {symbol: record for symbol, record in records.items() if symbol in watched}
-    fresh = set(new_filings(ctx, watched, seen, "operating_income")) | {
-        symbol for symbol in held if symbol not in records
+def latest_filings(ctx: Context, symbols: set[str]) -> dict[str, date]:
+    if not symbols:
+        return {}
+    grouped = by_symbol(ctx.fundamentals(sorted(symbols), [FILING_METRIC]))
+    return {
+        symbol: filed for symbol in symbols if (filed := latest_filing(grouped[symbol], DOMESTIC_FORMS)) is not None
     }
-    outcomes = qualify(ctx, sorted(fresh), spreads, rules) if fresh else {}
+
+
+def steadiness_of(spreads: Iterable[float | None]) -> Steadiness:
+    ordered = sorted(spread for spread in spreads if spread is not None)
+    centre = len(ordered) // 2
+    low, high = max(centre - STEADINESS_REACH, 0), min(centre + STEADINESS_REACH + 1, len(ordered))
+    return Steadiness(low, ordered[low:high], len(ordered) - high)
+
+
+def rescored(steadiness: Steadiness, changes: Iterable[Watch]) -> Steadiness:
+    below, middle, above = steadiness.below, list(steadiness.middle), steadiness.above
+    floor = middle[0] if below else -math.inf
+    ceiling = middle[-1] if above else math.inf
+    for change in changes:
+        if change.before is None:
+            pass
+        elif change.before < floor:
+            below -= 1
+        elif change.before > ceiling:
+            above -= 1
+        elif change.before in middle:
+            middle.remove(change.before)
+        elif change.before == floor:
+            below -= 1
+        else:
+            above -= 1
+        if change.after is None:
+            pass
+        elif change.after < floor:
+            below += 1
+        elif change.after > ceiling:
+            above += 1
+        else:
+            bisect.insort(middle, change.after)
+    return Steadiness(below, middle, above)
+
+
+@dataclass
+class Watchlist:
+    checked: date | None
+    watches: dict[str, Watch]
+    origins: dict[str, str]
+    unranked: set[str]
+
+    @classmethod
+    def load(cls, ctx: Context, held: list[str], records: Mapping[str, Record]) -> "Watchlist":
+        stored: list[str] = ctx.state.get(UNRANKED, [])
+        unranked = {ctx.renames.get(symbol, symbol) for symbol in stored}
+        watches = {symbol: Watch(*fields) for symbol, fields in renamed(ctx, ctx.state.get(WATCHED, {})).items()}
+        for symbol in held:
+            if symbol not in watches:
+                ranked = None if symbol in unranked or symbol not in records else records[symbol].roc_cv
+                watches[symbol] = Watch(None, ranked, ranked)
+        origins: dict[str, str] = dict(ctx.state.get(ORIGINS, {}))
+        for old, new in ctx.renames.items():
+            origins[new] = origins.pop(old, old)
+        checked = date.fromisoformat(ctx.state[CHECKED]) if CHECKED in ctx.state else None
+        return cls(checked, watches, origins, unranked)
+
+    def fresh(
+        self, ctx: Context, held: list[str], records: Mapping[str, Record], members: set[str] | None, memory: Memory
+    ) -> list[str]:
+        watched = set(held) if members is None else members.union(held)
+        known = set(held)
+        if members is not None:
+            before = set[str]() if self.checked is None else memory.members_on(ctx, self.checked)
+            known = {symbol for symbol in watched if self.origins.get(symbol, symbol) in before}
+            self.unranked = (self.unranked | set(held).difference(members)) & watched
+        cutoffs = ({} if self.checked is None else dict.fromkeys(known, self.checked)) | {
+            symbol: date.fromisoformat(watch.day) for symbol, watch in self.watches.items() if watch.day is not None
+        }
+        fresh = sorted(
+            {symbol for symbol, filed in latest_filings(ctx, watched).items() if filed >= cutoffs.get(symbol, filed)}
+            | {symbol for symbol in held if symbol not in records}
+        )
+        self.unranked = self.unranked.difference(fresh)
+        return fresh
+
+    def rank(
+        self,
+        ctx: Context,
+        held: list[str],
+        members: set[str] | None,
+        assessed: Mapping[str, Assessment],
+        memory: Memory,
+    ) -> Steadiness:
+        memory.spreads |= {symbol: seen.roc_cv for symbol, seen in assessed.items()}
+        if members is not None:
+            memory.spreads = {
+                symbol: memory.spreads[symbol] for symbol in members.union(assessed).difference(self.unranked)
+            }
+            ctx.state[STEADINESS] = list(steadiness_of(memory.spreads.values()))
+            self.checked = ctx.session.date
+            memory.members = {self.checked: members}
+            self.watches = {
+                symbol: Watch(None, memory.spreads.get(symbol), memory.spreads.get(symbol)) for symbol in held
+            }
+            self.origins = {}
+        else:
+            self.watches |= {
+                symbol: self.watches[symbol]._replace(after=seen.roc_cv) for symbol, seen in assessed.items()
+            }
+        return rescored(Steadiness(*ctx.state[STEADINESS]), self.watches.values())
+
+    def save(self, ctx: Context, held: list[str]) -> None:
+        stepped = ctx.session.date.isoformat()
+        if self.checked is not None:
+            ctx.state[CHECKED] = self.checked.isoformat()
+        ctx.state[WATCHED] = {
+            symbol: list(watch._replace(day=stepped) if symbol in held else watch)
+            for symbol, watch in self.watches.items()
+        }
+        ctx.state[ORIGINS] = self.origins
+        ctx.state[UNRANKED] = sorted(self.unranked)
+
+
+def requalified(ctx: Context, held: list[str], rules: Rules, memory: Memory) -> Review:
+    today = ctx.session.date
+    records = {symbol: Record(*fields) for symbol, fields in renamed(ctx, ctx.state.get("records", {})).items()}
+    watchlist = Watchlist.load(ctx, held, records)
+    memory.spreads = renamed(ctx, memory.spreads)
+    members = memory.members_on(ctx, today) if watchlist.checked is None or week_ends(ctx) else None
+    if members is not None:
+        records = {symbol: record for symbol, record in records.items() if symbol in members or symbol in held}
+    fresh = watchlist.fresh(ctx, held, records, members, memory)
+    unscored = set[str]() if members is None else members.difference(memory.spreads, watchlist.unranked)
+    scored = sorted(unscored.union(fresh))
+    assessed = assess(ctx, scored, rules) if scored else {}
+    steadiness = watchlist.rank(ctx, held, members, assessed, memory)
+    outcomes = judge(ctx, {symbol: assessed[symbol] for symbol in fresh}, steadiness, rules) if fresh else {}
     for symbol, outcome in outcomes.items():
         if isinstance(outcome, Record):
             records[symbol] = outcome
@@ -403,8 +565,7 @@ def requalified(ctx: Context, held: list[str], rules: Rules) -> Review:
     flagged = restated(ctx, sorted(records), since)
     for symbol in flagged:
         records.pop(symbol, None)
-    ctx.state["seen"] = seen
-    ctx.state["roc_cv"] = spreads
+    watchlist.save(ctx, held)
     ctx.state["records"] = {symbol: list(record) for symbol, record in records.items()}
     failures = {symbol: outcome for symbol, outcome in outcomes.items() if isinstance(outcome, str)}
     return Review(records, failures, flagged)
@@ -511,12 +672,12 @@ def new_names(
     return [], buys
 
 
-def owner(ctx: Context) -> None:
+def owner(ctx: Context, memory: Memory) -> None:
     params = ctx.params
     cash_symbol = str(params["cash_symbol"])
     rules = rules_of(params)
     held = held_stocks(ctx, cash_symbol)
-    review = requalified(ctx, held, rules)
+    review = requalified(ctx, held, rules, memory)
     prices = prices_of(ctx, review.records, rules.min_yield)
     sells = thesis_sells(ctx, held, review, prices)
     sold = {sell.symbol for sell in sells}
@@ -535,6 +696,7 @@ def owner(ctx: Context) -> None:
 class Buffett(Bot):
     def __init__(self) -> None:
         self.cache: AnnualCache = {}
+        self.memory = Memory()
 
     def on_start(self, ctx: Context) -> None:
         variant = ctx.params["variant"]
@@ -545,7 +707,7 @@ class Buffett(Bot):
         if ctx.params["variant"] == "systematic":
             rebalance(ctx, self.cache)
         else:
-            owner(ctx)
+            owner(ctx, self.memory)
 
 
 if __name__ == "__main__":
