@@ -30,6 +30,7 @@ async function customPeriodBacktest(page: Page): Promise<Seen> {
   const months = Object.fromEntries(headings.map((heading, index) => [heading, cells[index] ?? ""]).filter(([heading, cell]) => heading && cell));
 
   const benchmarkReturn = await page.getByRole("region", { name: "Returns", exact: true }).locator(".metric-headline .metric-bench").textContent();
+  await panel(page, "Behaviour").locator("thead .cell-sub", { hasText: `→ ${env("PERIOD_TO")}` }).first().waitFor();
   const positions = panel(page, "Behaviour").locator("tbody tr").filter({ has: page.getByRole("rowheader", { name: "Positions" }) }).locator("td").first();
   await positions.waitFor();
   const held = (await positions.textContent()) ?? "";
