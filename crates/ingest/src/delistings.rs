@@ -6,7 +6,7 @@ use buizz_core::market::{
 };
 use buizz_core::time::Timestamp;
 use buizz_sources::alpaca::{AlpacaClient, HISTORY_START, Tickers};
-use buizz_sources::edgar::EdgarClient;
+use buizz_sources::edgar::{EdgarClient, plausible_ticker};
 use buizz_sources::http::SourceError;
 use chrono::{Datelike, NaiveDate, TimeDelta};
 
@@ -197,7 +197,11 @@ impl Ingest {
                 None => Vec::new(),
             };
             if tickers.is_empty() {
-                tickers.clone_from(&submissions.tickers);
+                tickers = submissions
+                    .tickers
+                    .iter()
+                    .filter_map(|ticker| plausible_ticker(ticker.as_str()))
+                    .collect();
             }
             checks.extend(notice_checks(notice, &tickers));
         }
@@ -247,63 +251,67 @@ impl Ingest {
                 batch.more_remains("delistings");
                 break;
             }
-            let key = FetchKey::new(
-                DataSource::Alpaca,
-                Dataset::Delistings,
-                Some(&delisting.ticker),
-                Some((floor, delisting.filed)),
-            );
-            let listing = match delisted_listing(alpaca, calendar, floor, target, &delisting).await
-            {
-                Ok(listing) => listing,
-                Err(error) => {
-                    self.record_failure(now, &key, &error).await?;
-                    if batch.source_error(delisting.ticker.as_str(), &error) {
-                        break;
-                    }
-                    continue;
-                }
-            };
-            self.record_fetched(now, &key, listing.len()).await?;
-            let (outcome, listed) = match listing.last() {
-                None => (DelistingOutcome::NoBars, None),
-                Some(last) => match self.stored_listing(&delisting.ticker, last).await? {
-                    Some(held) => (DelistingOutcome::Held, Some(held)),
-                    None => {
-                        let last_session = last.start.exchange_date();
-                        let ended = Symbol::ended(&delisting.ticker, last_session);
-                        self.market
-                            .upsert_instruments(
-                                DataSource::Alpaca,
-                                vec![Instrument {
+            let (outcome, listed) = if plausible_ticker(delisting.ticker.as_str()).is_none() {
+                (DelistingOutcome::NoTicker, None)
+            } else {
+                let key = FetchKey::new(
+                    DataSource::Alpaca,
+                    Dataset::Delistings,
+                    Some(&delisting.ticker),
+                    Some((floor, delisting.filed)),
+                );
+                let listing =
+                    match delisted_listing(alpaca, calendar, floor, target, &delisting).await {
+                        Ok(listing) => listing,
+                        Err(error) => {
+                            self.record_failure(now, &key, &error).await?;
+                            if batch.source_error(delisting.ticker.as_str(), &error) {
+                                break;
+                            }
+                            continue;
+                        }
+                    };
+                self.record_fetched(now, &key, listing.len()).await?;
+                match listing.last() {
+                    None => (DelistingOutcome::NoBars, None),
+                    Some(last) => match self.stored_listing(&delisting.ticker, last).await? {
+                        Some(held) => (DelistingOutcome::Held, Some(held)),
+                        None => {
+                            let last_session = last.start.exchange_date();
+                            let ended = Symbol::ended(&delisting.ticker, last_session);
+                            self.market
+                                .upsert_instruments(
+                                    DataSource::Alpaca,
+                                    vec![Instrument {
+                                        symbol: ended.clone(),
+                                        name: String::new(),
+                                        exchange: String::new(),
+                                        asset_class: AssetClass::Stock,
+                                        active: false,
+                                        shortable: false,
+                                        first_session: None,
+                                        last_session: Some(last_session),
+                                    }],
+                                )
+                                .await?;
+                            let bars = listing
+                                .into_iter()
+                                .map(|bar| Bar {
                                     symbol: ended.clone(),
-                                    name: String::new(),
-                                    exchange: String::new(),
-                                    asset_class: AssetClass::Stock,
-                                    active: false,
-                                    shortable: false,
-                                    first_session: None,
-                                    last_session: Some(last_session),
-                                }],
-                            )
-                            .await?;
-                        let bars = listing
-                            .into_iter()
-                            .map(|bar| Bar {
-                                symbol: ended.clone(),
-                                ..bar
-                            })
-                            .collect();
-                        let rows = self
-                            .market
-                            .upsert_bars(DataSource::Alpaca, Timeframe::Day, bars)
-                            .await?
-                            .rows;
-                        batch.success(rows);
-                        stored = true;
-                        (DelistingOutcome::Stored, Some(ended))
-                    }
-                },
+                                    ..bar
+                                })
+                                .collect();
+                            let rows = self
+                                .market
+                                .upsert_bars(DataSource::Alpaca, Timeframe::Day, bars)
+                                .await?
+                                .rows;
+                            batch.success(rows);
+                            stored = true;
+                            (DelistingOutcome::Stored, Some(ended))
+                        }
+                    },
+                }
             };
             let checks = delisting
                 .accessions

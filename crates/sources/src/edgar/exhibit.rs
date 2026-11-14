@@ -92,20 +92,25 @@ pub fn cover_tickers(report: &str) -> Vec<Symbol> {
         for token in values.iter().flat_map(|value| {
             value.split(|letter: char| letter == ',' || letter == ';' || letter.is_whitespace())
         }) {
-            let ticker = token.trim().to_ascii_uppercase().replace('-', ".");
-            let (root, class) = ticker.split_once('.').unwrap_or((&ticker, ""));
-            let plausible = (1..=5).contains(&root.len())
-                && root.chars().all(|letter| letter.is_ascii_uppercase())
-                && class.len() <= 2
-                && class.chars().all(|letter| letter.is_ascii_alphanumeric())
-                && !NOT_TICKERS.contains(&root);
-            let symbol = Symbol::new(&ticker);
-            if plausible && !tickers.contains(&symbol) {
+            if let Some(symbol) = plausible_ticker(token)
+                && !tickers.contains(&symbol)
+            {
                 tickers.push(symbol);
             }
         }
     }
     tickers
+}
+
+pub fn plausible_ticker(token: &str) -> Option<Symbol> {
+    let ticker = token.trim().to_ascii_uppercase().replace('-', ".");
+    let (root, class) = ticker.split_once('.').unwrap_or((&ticker, ""));
+    let plausible = (1..=5).contains(&root.len())
+        && root.chars().all(|letter| letter.is_ascii_uppercase())
+        && class.len() <= 2
+        && class.chars().all(|letter| letter.is_ascii_alphanumeric())
+        && !NOT_TICKERS.contains(&root);
+    plausible.then(|| Symbol::new(&ticker))
 }
 
 pub fn press_release_document(index: &str) -> Option<IndexedDocument> {
