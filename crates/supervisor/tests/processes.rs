@@ -3,6 +3,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use buizz_core::run::{BotManifest, RunId};
+use buizz_core::time::Timestamp;
 use buizz_supervisor::{
     BotSpec, Launch, ProcessEvent, Supervisor, SupervisorConfig, SupervisorError, behaviour_hash,
     bot_hash, load_bot, scan_bots,
@@ -126,6 +127,7 @@ async fn process_groups_logs_and_exits() {
         log_dir: temp.path().join("logs"),
         backtest_slots: 2,
         live_slots: 1,
+        bot_memory: None,
         restart_delay: Duration::from_millis(10),
         kill_grace: Duration::from_secs(2),
     });
@@ -191,6 +193,7 @@ async fn bots_see_only_the_protocol_and_toolchain_environment() {
         log_dir: temp.path().join("logs"),
         backtest_slots: 1,
         live_slots: 1,
+        bot_memory: None,
         restart_delay: Duration::from_millis(10),
         kill_grace: Duration::from_secs(2),
     });
@@ -228,4 +231,38 @@ fn bots_load_by_name_only_from_direct_children_of_the_bots_folder() {
             Err(SupervisorError::NoSuchBot(_))
         ));
     }
+}
+
+#[tokio::test]
+async fn bot_starts_share_the_memory_budget_and_the_earliest_live_deadline_goes_first() {
+    const GB: u64 = 1 << 30;
+    let temp = tempfile::tempdir().unwrap();
+    let supervisor = Supervisor::new(SupervisorConfig {
+        spine_url: "ws://127.0.0.1:1".into(),
+        log_dir: temp.path().join("logs"),
+        backtest_slots: 3,
+        live_slots: 4,
+        bot_memory: Some(4 * GB),
+        restart_delay: Duration::from_millis(10),
+        kill_grace: Duration::from_secs(2),
+    });
+    let at = |seconds: i64| Timestamp::from_nanos(seconds * 1_000_000_000);
+    let soon = Duration::from_millis(50);
+    let backtest = supervisor.backtest_slot(3 * GB).await;
+    let (start, deciding) = supervisor.live_slot(at(100), GB).await;
+    drop(start);
+    let mut tomorrow = Box::pin(supervisor.live_slot(at(200), GB));
+    let mut today = Box::pin(supervisor.live_slot(at(150), GB));
+    let mut queued = Box::pin(supervisor.backtest_slot(GB));
+    assert!(tokio::time::timeout(soon, &mut tomorrow).await.is_err());
+    assert!(tokio::time::timeout(soon, &mut today).await.is_err());
+    assert!(tokio::time::timeout(soon, &mut queued).await.is_err());
+    drop(deciding);
+    let today = tokio::time::timeout(soon, today).await.unwrap();
+    assert!(tokio::time::timeout(soon, &mut tomorrow).await.is_err());
+    drop(today);
+    let tomorrow = tokio::time::timeout(soon, tomorrow).await.unwrap();
+    assert!(tokio::time::timeout(soon, &mut queued).await.is_err());
+    drop((backtest, tomorrow));
+    tokio::time::timeout(soon, queued).await.unwrap();
 }

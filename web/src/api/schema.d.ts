@@ -68,6 +68,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/bots/live": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["go_live_screened"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/bots/{name}": {
         parameters: {
             query?: never;
@@ -1344,6 +1360,8 @@ export interface components {
             backtest: number;
             /** Format: int32 */
             live: number;
+            /** Format: int64 */
+            bot_memory?: number | null;
         };
         RecipeContract: {
             recipe: string;
@@ -1493,6 +1511,17 @@ export interface components {
         ScopeKind: "indexed" | "recorder" | "derived" | "on_demand";
         /** @enum {string} */
         ScopeUnit: "symbols" | "listings" | "series" | "lists" | "days" | "sessions" | "settlements" | "files" | "articles" | "filings" | "sections" | "quarters";
+        ScreenedLive: {
+            started: components["schemas"]["ScreenedVariant"][];
+            skipped: components["schemas"]["ScreenedVariant"][];
+        };
+        ScreenedVariant: {
+            bot: string;
+            from_run?: components["schemas"]["RunId"] | null;
+            params?: Record<string, never> | null;
+            run_id?: components["schemas"]["RunId"] | null;
+            reason?: string | null;
+        };
         Screening: {
             preset: components["schemas"]["PeriodPreset"];
             /** Format: int32 */
@@ -1873,6 +1902,25 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BotSummary"][];
+                };
+            };
+        };
+    };
+    go_live_screened: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScreenedLive"];
                 };
             };
         };

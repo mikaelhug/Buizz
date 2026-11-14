@@ -67,6 +67,36 @@ impl Fetched {
     }
 }
 
+type InstrumentMap = Arc<BTreeMap<Symbol, Instrument>>;
+
+#[derive(Default)]
+pub(crate) struct Instruments(tokio::sync::Mutex<Option<(Arc<Listings>, InstrumentMap)>>);
+
+impl Instruments {
+    async fn current(
+        &self,
+        market: &MarketStore,
+    ) -> Result<(Arc<Listings>, InstrumentMap), MarketError> {
+        let listings = market.listings();
+        let mut cached = self.0.lock().await;
+        if let Some((seen, map)) = cached.as_ref()
+            && Arc::ptr_eq(seen, &listings)
+        {
+            return Ok((listings, Arc::clone(map)));
+        }
+        let map: InstrumentMap = Arc::new(
+            market
+                .instruments()
+                .await?
+                .into_iter()
+                .map(|instrument| (instrument.symbol.clone(), instrument))
+                .collect(),
+        );
+        *cached = Some((Arc::clone(&listings), Arc::clone(&map)));
+        Ok((listings, map))
+    }
+}
+
 type Upcoming = (NaiveDate, JoinHandle<Result<Fetched, MarketError>>);
 
 #[derive(Default)]
@@ -87,7 +117,8 @@ pub(crate) struct Timeline {
     start: NaiveDate,
     end: Option<NaiveDate>,
     calendar: Calendar,
-    instruments: BTreeMap<Symbol, Instrument>,
+    shared: Arc<Instruments>,
+    instruments: InstrumentMap,
     listings: Arc<Listings>,
     session: SessionData,
     upcoming: Option<Upcoming>,
@@ -97,9 +128,14 @@ pub(crate) struct Timeline {
 }
 
 impl Timeline {
-    pub(crate) async fn open(market: MarketStore, config: &RunConfig) -> Result<Self, MarketError> {
+    pub(crate) async fn open(
+        market: MarketStore,
+        shared: Arc<Instruments>,
+        config: &RunConfig,
+    ) -> Result<Self, MarketError> {
         let mut timeline = Self {
             market,
+            shared,
             timeframe: config.timeframe,
             wake: config.wake,
             universe: config.universe.clone(),
@@ -108,7 +144,7 @@ impl Timeline {
             start: config.start,
             end: config.end,
             calendar: Calendar::default(),
-            instruments: BTreeMap::new(),
+            instruments: Arc::default(),
             listings: Arc::default(),
             session: SessionData::default(),
             upcoming: None,
@@ -122,14 +158,7 @@ impl Timeline {
 
     pub(crate) async fn refresh(&mut self) -> Result<(), MarketError> {
         self.calendar = self.market.calendar(NaiveDate::MIN, NaiveDate::MAX).await?;
-        self.instruments = self
-            .market
-            .instruments()
-            .await?
-            .into_iter()
-            .map(|instrument| (instrument.symbol.clone(), instrument))
-            .collect();
-        self.listings = self.market.listings();
+        (self.listings, self.instruments) = self.shared.current(&self.market).await?;
         Ok(())
     }
 

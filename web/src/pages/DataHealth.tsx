@@ -478,11 +478,14 @@ function ProcessesPanel({ processes }: { processes: Resource<Schemas["BotProcess
       <header className="panel-head">
         <h2>Bot processes</h2>
         <Info label="Bot processes">
-          Each bot's measured peak memory, Python included, and how long its processes ran. Backtests run up to the backtest slots at once; live bots start one process per session and up to the live slots start at once.
+          Each bot's measured peak memory, Python included, and how long its processes ran. Backtests run up to the backtest slots at once; live bots start one process per session and up to the live slots start at
+          once, the earliest decision first. Under a memory limit every process reserves twice its bot's peak (the bot and the spine's copy of what it reads) until it exits, live start-ups go before waiting
+          backtests, and backtests leave room for the largest live bot.
         </Info>
         {processes.data && (
           <span className="muted">
-            {fmt.integer(processes.data.slots.backtest)} backtest · {fmt.integer(processes.data.slots.live)} live slots
+            {fmt.integer(processes.data.slots.backtest)} backtest · {fmt.integer(processes.data.slots.live)} live slots ·{" "}
+            {processes.data.slots.bot_memory === null || processes.data.slots.bot_memory === undefined ? "no memory limit" : `${fmt.memory(processes.data.slots.bot_memory)} for bots`}
           </span>
         )}
       </header>

@@ -19,13 +19,15 @@ pub use pump::LATE_BAR_GRACE;
 
 #[derive(Debug, thiserror::Error)]
 pub enum FeedError {
-    #[error("stream symbol cap exceeded: {requested} requested, {available} free")]
+    #[error(
+        "the 1m stream has {available} free symbol slots and this run needs {requested}; add a stream account or stop a 1m run first"
+    )]
     CapExceeded {
         requested: usize,
         available: usize,
         holders: Vec<FeedHolder>,
     },
-    #[error("live feed is not configured")]
+    #[error("live feed is not configured: live 1m runs and before-close steps need an Alpaca key")]
     Unavailable,
     #[error(transparent)]
     Source(#[from] SourceError),

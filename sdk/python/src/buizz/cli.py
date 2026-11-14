@@ -147,6 +147,29 @@ def list_bots(api: Api) -> None:
         print(f"{bot['name']:<20} {bot['stage']:<9} {bot['timeframe']:<4} {len(bot['live'])} live")
 
 
+def variant_line(variant: dict[str, Any]) -> str:
+    chosen: dict[str, Any] = variant.get("params") or {}
+    params = " ".join(f"{name}={value}" for name, value in chosen.items())
+    source = "" if variant.get("from_run") is None else f" from #{variant['from_run']}"
+    return f"{variant['bot']}{' ' + params if params else ''}{source}"
+
+
+def live_screened(api: Api) -> int:
+    outcome = api.call("POST", "/api/bots/live")
+    print(f"started {len(outcome['started'])}:")
+    for variant in outcome["started"]:
+        print(f"  {variant_line(variant)} -> run #{variant['run_id']}")
+    declined = [variant for variant in outcome["skipped"] if variant.get("from_run") is not None]
+    unscreened = [variant["bot"] for variant in outcome["skipped"] if variant.get("from_run") is None]
+    if declined:
+        print(f"not started {len(declined)}:")
+        for variant in declined:
+            print(f"  {variant_line(variant)}: {variant['reason']}")
+    if unscreened:
+        print(f"no variant passes the gate ({len(unscreened)}): {', '.join(unscreened)}")
+    return 0
+
+
 def trade_summary(api: Api, run_id: int) -> list[str]:
     orders: list[dict[str, Any]] = []
     after: int | None = None
@@ -311,6 +334,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="buizz")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("bots", help="list bots")
+    commands.add_parser(
+        "live-screened", help="put every variant that passes the screening gate live, up to three per bot"
+    )
     run = commands.add_parser("backtest", help="backtest a bot folder")
     run.add_argument("bot", help="bots/<name>")
     run.add_argument("--from", dest="start", required=True, metavar="YYYY-MM-DD")
@@ -375,6 +401,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "bots":
             list_bots(api)
             return 0
+        if args.command == "live-screened":
+            return live_screened(api)
         if args.command == "sweep":
             return sweep(api, args)
         if args.command == "event-study":

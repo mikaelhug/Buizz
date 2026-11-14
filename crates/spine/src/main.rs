@@ -178,6 +178,7 @@ async fn serve() -> Result<()> {
         backtest_slots: std::thread::available_parallelism()
             .map_or(1, |cpus| usize::from(cpus).saturating_sub(1)),
         live_slots: config.live_slots,
+        bot_memory: config.bot_memory,
         restart_delay: Duration::from_secs(1),
         kill_grace: Duration::from_secs(10),
     });

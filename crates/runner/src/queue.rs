@@ -2,8 +2,8 @@ use std::collections::BTreeSet;
 use std::sync::{Mutex, PoisonError};
 
 use buizz_core::run::{RunId, RunOrigin};
-use buizz_supervisor::Supervisor;
-use tokio::sync::{Notify, OwnedSemaphorePermit};
+use buizz_supervisor::{BacktestSlot, Supervisor};
+use tokio::sync::Notify;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct Place {
@@ -49,7 +49,12 @@ impl BacktestQueue {
         self.waiting.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    pub(crate) async fn slot(&self, place: Place, supervisor: &Supervisor) -> OwnedSemaphorePermit {
+    pub(crate) async fn slot(
+        &self,
+        place: Place,
+        supervisor: &Supervisor,
+        memory: u64,
+    ) -> BacktestSlot {
         self.waiting().insert(place);
         self.turn.notify_waiters();
         let _waiting = Waiting { queue: self, place };
@@ -59,7 +64,7 @@ impl BacktestQueue {
             turn.as_mut().enable();
             if self.waiting().first() == Some(&place) {
                 tokio::select! {
-                    slot = supervisor.backtest_slot() => return slot,
+                    slot = supervisor.backtest_slot(memory) => return slot,
                     () = &mut turn => {}
                 }
             } else {

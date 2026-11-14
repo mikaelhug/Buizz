@@ -479,6 +479,34 @@ impl Runner {
             presets: researched,
         })
     }
+
+    pub(crate) async fn passing_variants(
+        &self,
+        spec: &BotSpec,
+        benchmarks: &Benchmarks,
+    ) -> Result<Vec<RunSummary>, RunnerError> {
+        let mut presets = self.screened_runs(spec).await?;
+        let Some(runs) = gate_preset(&presets).and_then(|preset| presets.remove(&preset)) else {
+            return Ok(Vec::new());
+        };
+        let gated = gated(&runs, benchmarks).await?;
+        let mut passing: Vec<(bool, f64, RunSummary)> = runs
+            .into_iter()
+            .zip(&gated.judged)
+            .zip(&gated.neighbourhood)
+            .filter(|((run, judged), _)| {
+                run.status == RunStatus::Completed && judged.screen.failed_checks.is_empty()
+            })
+            .map(|((run, _), neighbourhood)| {
+                let sharpe = neighbourhood
+                    .or_else(|| run.metrics.as_ref().and_then(|metrics| metrics.sharpe))
+                    .unwrap_or(f64::NEG_INFINITY);
+                (gated.plateau == Some(run.id), sharpe, run)
+            })
+            .collect();
+        passing.sort_by(|left, right| right.0.cmp(&left.0).then(right.1.total_cmp(&left.1)));
+        Ok(passing.into_iter().map(|(.., run)| run).collect())
+    }
 }
 
 async fn preset_research(

@@ -770,6 +770,16 @@
   color: var(--text-2);
 }
 
+.screened-list {
+  max-height: 40vh;
+  margin: 0;
+  padding-left: var(--sp-4);
+  overflow-y: auto;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+
 .dialog-actions {
   display: flex;
   justify-content: flex-end;

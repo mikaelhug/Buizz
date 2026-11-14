@@ -2,6 +2,14 @@
   font-variant-numeric: tabular-nums;
 }
 
+.bots-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-left: auto;
+}
+
 .desk {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);

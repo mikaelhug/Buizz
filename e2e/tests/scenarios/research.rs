@@ -9,21 +9,12 @@ use crate::fake::FakeProviders;
 use crate::spine::{Options, Spine, USERNAME, eventually, now};
 use crate::world::{World, repository};
 
-async fn cli_sweep(spine: &Spine) -> Vec<String> {
+async fn cli(spine: &Spine, args: &[&str]) -> Vec<String> {
     let output = Command::new("uv")
         .args(["run", "--frozen", "--quiet", "--project"])
         .arg(repository().join("sdk/python"))
-        .args([
-            "buizz",
-            "sweep",
-            "bots/sma_cross",
-            "--preset",
-            "1y",
-            "--grid",
-            "fast=5,10",
-            "--grid",
-            "slow=20,40.0",
-        ])
+        .arg("buizz")
+        .args(args)
         .env("BUIZZ_URL", &spine.base)
         .env("BUIZZ_ADMIN_USERNAME", USERNAME)
         .env("BUIZZ_ADMIN_PASSWORD", &spine.password)
@@ -59,7 +50,20 @@ async fn a_swept_grid_runs_once_and_two_of_its_variants_go_live_side_by_side() {
             json!({"preset": "1y", "params": {"fast": 5, "slow": 20}, "start_cash": "50000"}),
         )
         .await;
-    let printed = cli_sweep(&spine).await;
+    let printed = cli(
+        &spine,
+        &[
+            "sweep",
+            "bots/sma_cross",
+            "--preset",
+            "1y",
+            "--grid",
+            "fast=5,10",
+            "--grid",
+            "slow=20,40.0",
+        ],
+    )
+    .await;
     assert!(
         printed[0].starts_with("4 runs queued for sma_cross 1y")
             && printed[0].ends_with(", 0 already run"),
@@ -183,6 +187,13 @@ async fn a_swept_grid_runs_once_and_two_of_its_variants_go_live_side_by_side() {
     );
     let defaults: RunSummary = spine.post("/api/bots/sma_cross/live", json!({})).await;
     assert_eq!(defaults.source_run, None);
+
+    let printed = cli(&spine, &["live-screened"]).await;
+    assert_eq!(
+        printed,
+        ["started 0:", "no variant passes the gate (1): sma_cross"],
+        "the 1y screen of this world passes no variant, so nothing more goes live"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]

@@ -22,7 +22,7 @@ import { StatusPill } from "../ui/Status";
 import { SubPeriods } from "../ui/SubPeriods";
 import { Ago, matches, moveBetweenRows, PageSearch, SortHeader, type SortColumns, useSort } from "../ui/Table";
 import { notify } from "../ui/Toaster";
-import { goLive, isRunning, pauseRun, resumeRun, undoPause, useLiveControls } from "./BotActions";
+import { goLive, isRunning, pauseRun, resumeRun, ScreenedLiveButton, undoPause, useLiveControls } from "./BotActions";
 import { launchBacktest, launchSweep } from "./Launch";
 import { GoLiveButton, Overview } from "./Overview";
 import { type Preset, SWEEP_PRESETS } from "./SweepDialog";
@@ -187,7 +187,10 @@ export function BotGrid() {
           <h1>Bots</h1>
           <StateLine entries={all} />
         </div>
-        <PageSearch label="Search bots" value={filter} onChange={setFilter} />
+        <div className="bots-head-actions">
+          <ScreenedLiveButton onStarted={(names) => names.forEach(refreshBot)} />
+          <PageSearch label="Search bots" value={filter} onChange={setFilter} />
+        </div>
       </header>
       <StaleFailure resource={bots} />
       <Overview entries={all} jobs={jobs.data} marks={marks} />

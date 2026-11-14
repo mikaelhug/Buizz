@@ -122,6 +122,25 @@
         }
       }
     },
+    "/api/bots/live": {
+      "post": {
+        "tags": [
+          "bots"
+        ],
+        "operationId": "go_live_screened",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScreenedLive"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/bots/{name}": {
       "get": {
         "tags": [
@@ -4405,6 +4424,14 @@
             "type": "integer",
             "format": "int32",
             "minimum": 0
+          },
+          "bot_memory": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
           }
         }
       },
@@ -5111,6 +5138,70 @@
           "sections",
           "quarters"
         ]
+      },
+      "ScreenedLive": {
+        "type": "object",
+        "required": [
+          "started",
+          "skipped"
+        ],
+        "properties": {
+          "started": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScreenedVariant"
+            }
+          },
+          "skipped": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScreenedVariant"
+            }
+          }
+        }
+      },
+      "ScreenedVariant": {
+        "type": "object",
+        "required": [
+          "bot"
+        ],
+        "properties": {
+          "bot": {
+            "type": "string"
+          },
+          "from_run": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RunId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "params": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "run_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RunId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
       },
       "Screening": {
         "type": "object",

@@ -1,3 +1,5 @@
+mod admission;
+
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::fs;
 use std::os::unix::process::CommandExt;
@@ -9,6 +11,7 @@ use std::time::Duration;
 use buizz_core::api::ProcessSlots;
 use buizz_core::protocol::{ENV_RUN_ID, ENV_RUN_TOKEN, ENV_SPINE_URL};
 use buizz_core::run::{BotCode, BotManifest, RunId};
+use buizz_core::time::Timestamp;
 use nix::errno::Errno;
 use nix::sys::signal::{Signal, killpg};
 use nix::unistd::Pid;
@@ -16,8 +19,11 @@ use tokio::fs::{File, OpenOptions};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{ChildStderr, ChildStdout};
 use tokio::signal::unix::{SignalKind, signal};
-use tokio::sync::{OwnedSemaphorePermit, Semaphore, mpsc, watch};
+use tokio::sync::{mpsc, watch};
 use tokio::time::Instant;
+
+use crate::admission::Admission;
+pub use crate::admission::{BacktestSlot, LiveStart, Reservation, UNMEASURED_RESERVATION};
 
 const EVENT_BUFFER: usize = 1024;
 const RESTART_WINDOW: Duration = Duration::from_secs(600);
@@ -375,6 +381,7 @@ pub struct SupervisorConfig {
     pub log_dir: PathBuf,
     pub backtest_slots: usize,
     pub live_slots: usize,
+    pub bot_memory: Option<u64>,
     pub restart_delay: Duration,
     pub kill_grace: Duration,
 }
@@ -551,46 +558,38 @@ impl Restarts {
 #[derive(Clone)]
 pub struct Supervisor {
     config: Arc<SupervisorConfig>,
-    backtest_slots: Arc<Semaphore>,
-    live_slots: Arc<Semaphore>,
+    admission: Admission,
 }
 
 impl Supervisor {
     pub fn new(config: SupervisorConfig) -> Self {
-        let config = SupervisorConfig {
-            backtest_slots: config.backtest_slots.max(1),
-            live_slots: config.live_slots.max(1),
-            ..config
-        };
+        let admission = Admission::new(admission::Limits {
+            backtests: config.backtest_slots.max(1),
+            live_starts: config.live_slots.max(1),
+            memory: config.bot_memory,
+        });
         Self {
-            backtest_slots: Arc::new(Semaphore::new(config.backtest_slots)),
-            live_slots: Arc::new(Semaphore::new(config.live_slots)),
             config: Arc::new(config),
+            admission,
         }
     }
 
     pub fn slots(&self) -> ProcessSlots {
+        let limits = self.admission.limits();
         let count = |slots: usize| u32::try_from(slots).unwrap_or(u32::MAX);
         ProcessSlots {
-            backtest: count(self.config.backtest_slots),
-            live: count(self.config.live_slots),
+            backtest: count(limits.backtests),
+            live: count(limits.live_starts),
+            bot_memory: limits.memory,
         }
     }
 
-    pub async fn backtest_slot(&self) -> OwnedSemaphorePermit {
-        self.backtest_slots
-            .clone()
-            .acquire_owned()
-            .await
-            .expect("backtest semaphore is never closed")
+    pub async fn backtest_slot(&self, memory: u64) -> BacktestSlot {
+        self.admission.backtest(memory).await
     }
 
-    pub async fn live_slot(&self) -> OwnedSemaphorePermit {
-        self.live_slots
-            .clone()
-            .acquire_owned()
-            .await
-            .expect("live semaphore is never closed")
+    pub async fn live_slot(&self, deadline: Timestamp, memory: u64) -> (LiveStart, Reservation) {
+        self.admission.live(deadline, memory).await
     }
 
     pub fn restarts(&self) -> Restarts {

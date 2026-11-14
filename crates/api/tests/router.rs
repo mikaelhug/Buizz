@@ -87,6 +87,7 @@ async fn spine() -> Spine {
         log_dir: data.path().join("logs"),
         backtest_slots: 1,
         live_slots: 1,
+        bot_memory: None,
         restart_delay: Duration::from_secs(1),
         kill_grace: Duration::from_secs(1),
     });

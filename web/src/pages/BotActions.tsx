@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api, errorMessage, must, type Schemas } from "../api/client";
+import { paramsText } from "../lib/format";
 import { Modal } from "../ui/Dialog";
 import { Icon } from "../ui/Icon";
 import { Info } from "../ui/Popover";
@@ -110,6 +111,85 @@ export function BotActions({ name, live: liveRun, onChanged }: Props) {
       </Info>
       {controls.dialog}
     </span>
+  );
+}
+
+type Screened = Schemas["ScreenedLive"];
+type ScreenedVariant = Schemas["ScreenedVariant"];
+
+function variantLine(variant: ScreenedVariant): string {
+  const params = variant.params ? paramsText(variant.params) : "";
+  const source = variant.from_run === null || variant.from_run === undefined ? "" : ` from #${variant.from_run}`;
+  return `${variant.bot}${params ? ` ${params}` : ""}${source}`;
+}
+
+export function ScreenedLiveButton({ onStarted }: { onStarted: (bots: string[]) => void }) {
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<Screened>();
+
+  const start = async () => {
+    setBusy(true);
+    try {
+      const outcome = await must(api.POST("/api/bots/live"));
+      setAsking(false);
+      setResult(outcome);
+      onStarted([...new Set(outcome.started.map((variant) => variant.bot))]);
+    } catch (error) {
+      notify(errorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const unscreened = result?.skipped.filter((variant) => variant.from_run === null || variant.from_run === undefined) ?? [];
+  const declined = result?.skipped.filter((variant) => variant.from_run !== null && variant.from_run !== undefined) ?? [];
+
+  return (
+    <>
+      <button type="button" className="btn btn-sm" disabled={busy} onClick={() => setAsking(true)}>
+        <Icon name="play" />
+        Go live with screened
+      </button>
+      {asking && (
+        <Modal title="Go live with every screened variant?" confirmLabel="Go live" busy={busy} onConfirm={() => void start()} onCancel={() => setAsking(false)}>
+          <p className="dialog-message">
+            Every variant that passes the screening gate on its bot's gate period starts a live paper run from its backtest, the plateau first, up to three live variants per bot. Variants already live are left as
+            they are.
+          </p>
+        </Modal>
+      )}
+      {result && (
+        <Modal title={`${result.started.length} variants went live`} confirmLabel="Done" onConfirm={() => setResult(undefined)} onCancel={() => setResult(undefined)}>
+          {result.started.length > 0 && (
+            <ul className="screened-list">
+              {result.started.map((variant) => (
+                <li key={`${variant.bot}-${variant.from_run}`}>
+                  {variantLine(variant)} · run #{variant.run_id}
+                </li>
+              ))}
+            </ul>
+          )}
+          {declined.length > 0 && (
+            <>
+              <p className="dialog-message">Not started:</p>
+              <ul className="screened-list">
+                {declined.map((variant) => (
+                  <li key={`${variant.bot}-${variant.from_run}`}>
+                    {variantLine(variant)}: {variant.reason}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {unscreened.length > 0 && (
+            <p className="dialog-message">
+              {unscreened.length} bots have no variant that passes the gate: {unscreened.map((variant) => variant.bot).join(", ")}.
+            </p>
+          )}
+        </Modal>
+      )}
+    </>
   );
 }
 

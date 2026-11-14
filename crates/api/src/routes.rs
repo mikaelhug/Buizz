@@ -14,6 +14,7 @@ pub(crate) fn protected_routes() -> OpenApiRouter<Api> {
         .routes(routes!(bots::research))
         .routes(routes!(bots::periods))
         .routes(routes!(bots::go_live))
+        .routes(routes!(bots::go_live_screened))
         .routes(routes!(bots::league))
         .routes(routes!(runs::list_runs))
         .routes(routes!(runs::run_detail))

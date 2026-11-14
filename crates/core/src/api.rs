@@ -158,6 +158,22 @@ pub struct GoLive {
     pub from_run: Option<RunId>,
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct ScreenedVariant {
+    pub bot: String,
+    pub from_run: Option<RunId>,
+    #[schema(value_type = Option<Object>)]
+    pub params: Option<Map<String, Value>>,
+    pub run_id: Option<RunId>,
+    pub reason: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct ScreenedLive {
+    pub started: Vec<ScreenedVariant>,
+    pub skipped: Vec<ScreenedVariant>,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CancelRun {
@@ -233,6 +249,7 @@ pub struct BotUsage {
 pub struct ProcessSlots {
     pub backtest: u32,
     pub live: u32,
+    pub bot_memory: Option<u64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]

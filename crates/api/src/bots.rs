@@ -3,10 +3,12 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use buizz_core::api::{
     ApiError, BotDetail, BotStage, BotStatus, BotSummary, CancelledBacktests, GoLive, League,
-    LiveSummary, Research, RunSummary, StartBacktest, StartSweep, SweepStarted,
+    LiveSummary, Research, RunSummary, ScreenedLive, StartBacktest, StartSweep, SweepStarted,
 };
 use buizz_core::performance::LiveVerdict;
-use buizz_core::run::{DesiredState, Mode, PeriodPreset, PresetPeriod, RunBadge, RunStatus};
+use buizz_core::run::{
+    DesiredState, Mode, PeriodPreset, PresetPeriod, RunBadge, RunOrigin, RunStatus,
+};
 use buizz_core::time::Timestamp;
 use buizz_runner::Benchmarks;
 use buizz_state::RunFilter;
@@ -254,6 +256,14 @@ pub(crate) async fn research(
     Ok(Json(app.runner.research(&name).await?))
 }
 
+#[utoipa::path(post, path = "/api/bots/live", tag = "bots",
+    responses((status = 200, body = ScreenedLive)))]
+pub(crate) async fn go_live_screened(
+    State(app): State<AppState>,
+) -> Result<Json<ScreenedLive>, Failure> {
+    Ok(Json(app.runner.go_live_screened().await?))
+}
+
 #[utoipa::path(post, path = "/api/bots/{name}/live", tag = "bots",
     params(("name" = String, Path)),
     request_body = GoLive,
@@ -267,5 +277,9 @@ pub(crate) async fn go_live(
     Path(name): Path<String>,
     JsonBody(request): JsonBody<GoLive>,
 ) -> Result<Json<RunSummary>, Failure> {
-    Ok(Json(app.runner.go_live(&name, request.from_run).await?))
+    Ok(Json(
+        app.runner
+            .go_live(&name, request.from_run, RunOrigin::Request)
+            .await?,
+    ))
 }

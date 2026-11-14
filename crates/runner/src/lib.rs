@@ -15,16 +15,17 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use axum::extract::ws::WebSocket;
 use buizz_core::api::{
-    ProcessSlots, RunSummary, SparkPoint, SpineEvent, StartBacktest, StartSweep, SweepStarted,
+    ProcessSlots, RunSummary, ScreenedLive, ScreenedVariant, SparkPoint, SpineEvent, StartBacktest,
+    StartSweep, SweepStarted,
 };
 use buizz_core::market::{Instrument, StockIndex, Symbol, Timeframe};
 use buizz_core::money::CASH_DECIMALS;
 use buizz_core::ops::{ActionVerdict, CoverageGap, DataWarning};
 use buizz_core::performance::{Behaviour, Metrics};
 use buizz_core::run::{
-    DesiredState, LogLevel, MAX_SWEEP_VARIANTS, Mode, Period, PeriodPreset, RunBadge, RunConfig,
-    RunEvent, RunEventKind, RunId, RunOrigin, RunStatus, UNIVERSE_SESSIONS, UniverseSpec,
-    coerce_param,
+    DesiredState, LogLevel, MAX_LIVE_VARIANTS, MAX_SWEEP_VARIANTS, Mode, Period, PeriodPreset,
+    RunBadge, RunConfig, RunEvent, RunEventKind, RunId, RunOrigin, RunStatus, UNIVERSE_SESSIONS,
+    UniverseSpec, coerce_param,
 };
 use buizz_core::time::Timestamp;
 use buizz_engine::ENGINE_VERSION;
@@ -32,7 +33,9 @@ use buizz_feed::{FeedError, FeedLease, FeedManager};
 use buizz_ingest::{Ingest, IngestError};
 use buizz_market::{MarketError, MarketStore};
 use buizz_state::{NewRun, RunFilter, StateError, StateStore};
-use buizz_supervisor::{BotScan, BotSpec, Supervisor, SupervisorError, load_bot, scan_bots};
+use buizz_supervisor::{
+    BotScan, BotSpec, Supervisor, SupervisorError, UNMEASURED_RESERVATION, load_bot, scan_bots,
+};
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use serde_json::{Map, Value};
@@ -112,6 +115,7 @@ pub(crate) struct Inner {
     queue: queue::BacktestQueue,
     queueing: tokio::sync::Mutex<()>,
     unscreened: Mutex<BTreeMap<String, String>>,
+    instruments: Arc<timeline::Instruments>,
 }
 
 impl Inner {
@@ -124,6 +128,22 @@ impl Inner {
             Err(SupervisorError::NoSuchBot(name)) => Err(RunnerError::UnknownBot(name)),
             loaded => Ok(loaded?),
         }
+    }
+
+    async fn memory_need(&self, bot: &str, mode: Mode) -> Result<u64, StateError> {
+        let footprints = self.state.footprints().await?;
+        let peak = |wanted: Mode| {
+            footprints
+                .iter()
+                .find(|footprint| footprint.bot == bot && footprint.mode == wanted)
+                .map(|footprint| footprint.usage.peak_memory)
+                .filter(|peak| *peak > 0)
+        };
+        let measured = match mode {
+            Mode::Live => peak(Mode::Live).or_else(|| peak(Mode::Backtest)),
+            Mode::Backtest => peak(Mode::Backtest),
+        };
+        Ok(measured.map_or(UNMEASURED_RESERVATION, |peak| peak * 2))
     }
 
     fn issue_token(&self, run_id: RunId) -> String {
@@ -195,6 +215,7 @@ impl Runner {
                 queue: queue::BacktestQueue::default(),
                 queueing: tokio::sync::Mutex::default(),
                 unscreened: Mutex::default(),
+                instruments: Arc::default(),
             }),
         }
     }
@@ -595,6 +616,7 @@ impl Runner {
         &self,
         bot: &str,
         from_run: Option<RunId>,
+        origin: RunOrigin,
     ) -> Result<RunSummary, RunnerError> {
         let spec = self.inner.bot(bot).await?;
         let today = Timestamp::now().exchange_date();
@@ -635,7 +657,7 @@ impl Runner {
                 vec![config],
                 &spec,
                 RunStatus::Starting,
-                RunOrigin::Request,
+                origin,
                 Vec::new(),
                 from_run,
             )
@@ -653,6 +675,68 @@ impl Runner {
             streamed.and_then(|universe| self.inner.feed.acquire(run.id, &run.bot, universe).ok());
         self.spawn(run.clone(), spec, lease);
         Ok(run)
+    }
+
+    pub async fn go_live_screened(&self) -> Result<ScreenedLive, RunnerError> {
+        let benchmarks = self.benchmarks();
+        let live = self
+            .inner
+            .state
+            .runs(RunFilter {
+                mode: Some(Mode::Live),
+                statuses: RunStatus::ACTIVE.to_vec(),
+                ..RunFilter::default()
+            })
+            .await?;
+        let mut outcome = ScreenedLive::default();
+        for spec in self.bots().bots {
+            let mut variants: Vec<&Map<String, Value>> = live
+                .iter()
+                .filter(|run| run.bot == spec.name)
+                .map(|run| &run.config.params)
+                .collect();
+            let passing = self.passing_variants(&spec, &benchmarks).await?;
+            if passing.is_empty() {
+                outcome.skipped.push(ScreenedVariant {
+                    bot: spec.name.clone(),
+                    from_run: None,
+                    params: None,
+                    run_id: None,
+                    reason: Some("no variant passes the screening gate".to_owned()),
+                });
+            }
+            for source in &passing {
+                let skip = if variants.contains(&&source.config.params) {
+                    Some("already live".to_owned())
+                } else if variants.len() >= MAX_LIVE_VARIANTS as usize {
+                    Some(format!("the bot has {MAX_LIVE_VARIANTS} live variants"))
+                } else {
+                    None
+                };
+                let started = match skip {
+                    Some(reason) => Err(reason),
+                    None => self
+                        .go_live(&spec.name, Some(source.id), RunOrigin::Screening)
+                        .await
+                        .map_err(|error| error.to_string()),
+                };
+                let variant = ScreenedVariant {
+                    bot: spec.name.clone(),
+                    from_run: Some(source.id),
+                    params: Some(source.config.params.clone()),
+                    run_id: started.as_ref().ok().map(|run| run.id),
+                    reason: started.as_ref().err().cloned(),
+                };
+                match started {
+                    Ok(_) => {
+                        variants.push(&source.config.params);
+                        outcome.started.push(variant);
+                    }
+                    Err(_) => outcome.skipped.push(variant),
+                }
+            }
+        }
+        Ok(outcome)
     }
 
     pub async fn pause(&self, run_id: RunId) -> Result<RunSummary, RunnerError> {

@@ -37,7 +37,7 @@ async fn a_full_stream_refuses_a_run_an_oversized_order_is_rejected_and_a_drawdo
     assert_eq!(
         refusal.error,
         format!(
-            "stream symbol cap exceeded: 29 requested, 28 free; held by tape (run {}, 2 symbols)",
+            "the 1m stream has 28 free symbol slots and this run needs 29; add a stream account or stop a 1m run first; held by tape (run {}, 2 symbols)",
             holder.id
         )
     );

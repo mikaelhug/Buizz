@@ -70,7 +70,9 @@ export function RunBadges({ run }: { run: Schemas["RunSummary"] }) {
     <>
       {run.origin === "screening" && (
         <Explain label="Automatic screening" className="badge badge-button" trigger="Automatic screening">
-          The spine queued this backtest of the bot's default params on the 10-year preset by itself, at start-up, because the bot's current code had none queued, running or completed.
+          {run.mode === "live"
+            ? "This variant went live with every screened variant at once, from its backtest that passes the screening gate."
+            : "The spine queued this backtest of the bot's default params on the 10-year preset by itself, at start-up, because the bot's current code had none queued, running or completed."}
         </Explain>
       )}
       {run.badges.map((badge) => (

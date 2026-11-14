@@ -61,9 +61,51 @@ pub struct Config {
     pub duckdb_threads: usize,
     pub live_slots: usize,
     pub auto_screen: bool,
+    pub bot_memory: Option<u64>,
 }
 
 const MIN_ADMIN_PASSWORD_CHARS: usize = 12;
+const SPINE_MEMORY: u64 = 512 << 20;
+const CGROUP_MEMORY_LIMITS: [&str; 2] = [
+    "/sys/fs/cgroup/memory.max",
+    "/sys/fs/cgroup/memory/memory.limit_in_bytes",
+];
+const UNLIMITED_MEMORY: u64 = 1 << 60;
+
+fn memory_limit() -> Option<u64> {
+    CGROUP_MEMORY_LIMITS
+        .iter()
+        .find_map(|path| {
+            std::fs::read_to_string(path)
+                .ok()?
+                .trim()
+                .parse::<u64>()
+                .ok()
+        })
+        .filter(|limit| *limit < UNLIMITED_MEMORY)
+}
+
+fn memory_bytes(text: &str) -> Option<u64> {
+    let text = text.trim();
+    let split = text
+        .find(|c: char| !c.is_ascii_digit() && c != '.')
+        .unwrap_or(text.len());
+    let (amount, unit) = text.split_at(split);
+    let scale: f64 = match unit.trim().to_ascii_lowercase().as_str() {
+        "" | "b" => 1.0,
+        "kb" => 1e3,
+        "mb" => 1e6,
+        "gb" => 1e9,
+        "tb" => 1e12,
+        "kib" => 1024.0,
+        "mib" => 1024.0 * 1024.0,
+        "gib" => 1024.0 * 1024.0 * 1024.0,
+        "tib" => 1024.0 * 1024.0 * 1024.0 * 1024.0,
+        _ => return None,
+    };
+    let amount: f64 = amount.parse().ok()?;
+    Some((amount * scale) as u64)
+}
 
 fn var(name: &str) -> Option<String> {
     std::env::var(name)
@@ -156,6 +198,10 @@ impl Config {
             Some(keys) => stream_keys(&keys)?,
             None => alpaca.iter().cloned().collect(),
         };
+        let duckdb_memory_text = var_or("BUIZZ_DUCKDB_MEMORY", "1GB");
+        let duckdb_memory = memory_bytes(&duckdb_memory_text).with_context(|| {
+            format!("BUIZZ_DUCKDB_MEMORY must be an amount such as 1GB, got {duckdb_memory_text:?}")
+        })?;
         Ok(Self {
             bind,
             data_dir: data_dir(),
@@ -251,13 +297,18 @@ impl Config {
                     .map(Symbol::new)
                     .collect()
             }),
-            duckdb_memory: var_or("BUIZZ_DUCKDB_MEMORY", "1GB"),
+            bot_memory: memory_limit()
+                .map(|limit| limit.saturating_sub(duckdb_memory + SPINE_MEMORY)),
+            duckdb_memory: duckdb_memory_text,
             duckdb_threads: var_or("BUIZZ_DUCKDB_THREADS", "2")
                 .parse()
                 .context("BUIZZ_DUCKDB_THREADS must be a whole number")?,
-            live_slots: var_or("BUIZZ_LIVE_SLOTS", "2")
-                .parse()
-                .context("BUIZZ_LIVE_SLOTS must be a whole number")?,
+            live_slots: match var("BUIZZ_LIVE_SLOTS") {
+                Some(slots) => slots
+                    .parse()
+                    .context("BUIZZ_LIVE_SLOTS must be a whole number")?,
+                None => std::thread::available_parallelism().map_or(1, usize::from),
+            },
             auto_screen: flag("BUIZZ_AUTO_SCREEN", true)?,
         })
     }

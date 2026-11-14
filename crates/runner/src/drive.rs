@@ -24,13 +24,14 @@ use buizz_ingest::IngestError;
 use buizz_market::MarketError;
 use buizz_state::{RunOutcome, StateError, StepCommit};
 use buizz_supervisor::{
-    BotProcess, BotSpec, OutputStream, ProcessEvent, Reaped, Restarts, SupervisorError, load_bot,
+    BacktestSlot, BotProcess, BotSpec, LiveStart, OutputStream, ProcessEvent, Reaped, Reservation,
+    Restarts, SupervisorError, load_bot,
 };
 use chrono::{NaiveDate, TimeDelta};
 use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
 use serde::{Deserialize, Serialize};
-use tokio::sync::{OwnedSemaphorePermit, mpsc, watch};
+use tokio::sync::{mpsc, watch};
 
 use crate::commit::Committer;
 use crate::link::{BotLink, LinkError, RecipeReads, SessionUniverse};
@@ -250,7 +251,7 @@ pub(crate) async fn run(mut launch: Launch) {
     inner.forget(run_id, &token);
 }
 
-type Prepared = (Option<OwnedSemaphorePermit>, BTreeSet<Symbol>);
+type Prepared = (Option<BacktestSlot>, BTreeSet<Symbol>);
 
 async fn prepare(
     inner: &Inner,
@@ -274,8 +275,9 @@ async fn prepare(
         .unwrap_or_else(|| crate::median(paces.values().copied()))
         * (run.config.end.unwrap_or(run.config.start) - run.config.start).num_days() as f64;
     let place = Place::new(run.origin, expected, run.id);
+    let memory = inner.memory_need(&run.bot, Mode::Backtest).await?;
     tokio::select! {
-        slot = inner.queue.slot(place, &inner.supervisor) => Ok((Some(slot), minutes)),
+        slot = inner.queue.slot(place, &inner.supervisor, memory) => Ok((Some(slot), minutes)),
         exit = interrupted(control) => Err(exit),
     }
 }
@@ -525,7 +527,8 @@ struct Driver {
     minutes: BTreeSet<Symbol>,
     link: Option<BotLink>,
     process: Option<BotProcess>,
-    live_slot: Option<OwnedSemaphorePermit>,
+    live_slot: Option<LiveStart>,
+    reservation: Option<Reservation>,
     restarts: Restarts,
     respawn_at: Option<tokio::time::Instant>,
     status: RunStatus,
@@ -556,7 +559,8 @@ impl Driver {
             lease,
         } = launch;
         let config = &run.config;
-        let timeline = Timeline::open(inner.market.clone(), config).await?;
+        let timeline =
+            Timeline::open(inner.market.clone(), Arc::clone(&inner.instruments), config).await?;
         let checkpoint = inner.state.checkpoint(run.id).await?;
         let (engine, after, clock, last_step, bot_state, frame) = match checkpoint {
             Some(checkpoint) => (
@@ -640,6 +644,7 @@ impl Driver {
             link: None,
             process: None,
             live_slot: None,
+            reservation: None,
             restarts: inner.supervisor.restarts(),
             respawn_at: None,
             status: run.status,
@@ -1015,13 +1020,15 @@ impl Driver {
         if self.live() {
             let supervisor = self.inner.supervisor.clone();
             let respawn_at = self.respawn_at.take();
+            let memory = self.inner.memory_need(&self.run.bot, Mode::Live).await?;
+            let deadline = self.deadline();
             let mut ready = std::pin::pin!(async {
                 if let Some(at) = respawn_at {
                     tokio::time::sleep_until(at).await;
                 }
-                supervisor.live_slot().await
+                supervisor.live_slot(deadline, memory).await
             });
-            let slot = loop {
+            let (slot, reservation) = loop {
                 tokio::select! {
                     slot = &mut ready => break slot,
                     _ = self.control.changed() => {
@@ -1036,6 +1043,7 @@ impl Driver {
                 return Ok(());
             }
             self.live_slot = Some(slot);
+            self.reservation = Some(reservation);
         }
         let launch = buizz_supervisor::Launch {
             run_id: self.run.id,
@@ -1055,8 +1063,37 @@ impl Driver {
         }
     }
 
+    fn deadline(&self) -> Timestamp {
+        let clock = self.after;
+        match (self.run.config.timeframe, self.session) {
+            (Timeframe::Minute, _) => clock + TimeDelta::minutes(1),
+            (Timeframe::Day, Some(session)) if clock < session.close => session.close,
+            (Timeframe::Day, _) => open_auction_session(clock, self.timeline.calendar())
+                .map_or(clock, |session| session.open),
+        }
+    }
+
+    fn note_late(&mut self, clock: Timestamp, deadline: Timestamp) {
+        let answered = Timestamp::now();
+        if self.run.config.timeframe != Timeframe::Day || answered <= deadline {
+            return;
+        }
+        let missed = match self.session {
+            Some(session) if clock < session.close => "the session's close",
+            _ => "the next session's open",
+        };
+        let late = (answered - deadline).num_seconds();
+        self.note(RunEventKind::Log {
+            level: LogLevel::Warn,
+            message: format!(
+                "the bot answered its step of {clock} at {answered}, {late} s after {missed} at {deadline}; its orders keep the decision time {clock} as a backtest would, but a broker would no longer have taken them in time"
+            ),
+        });
+    }
+
     async fn crashed(&mut self, message: String) -> Flow<()> {
         self.live_slot = None;
+        self.reservation = None;
         match self.restarts.after_crash() {
             Some((attempt, delay)) => {
                 self.respawn_at = Some(tokio::time::Instant::now() + delay);
@@ -1079,9 +1116,12 @@ impl Driver {
     async fn stop_process(&mut self) -> Flow<()> {
         self.live_slot = None;
         let Some(process) = self.process.take() else {
+            self.reservation = None;
             return Ok(());
         };
-        match process.finish(EXIT_GRACE).await {
+        let finished = process.finish(EXIT_GRACE).await;
+        self.reservation = None;
+        match finished {
             Ok(Some(reaped)) => self.record_usage(reaped).await,
             Ok(None) => Ok(()),
             Err(error) => {
@@ -1584,6 +1624,7 @@ impl Driver {
             Vec::new()
         });
         let asked = self.visible_through();
+        let deadline = self.deadline();
         let Some(link) = self.link.as_mut() else {
             return Ok(());
         };
@@ -1627,6 +1668,9 @@ impl Driver {
                     self.pending.dirty = true;
                 }
                 self.live_slot = None;
+                if self.live() {
+                    self.note_late(clock, deadline);
+                }
                 self.arrived_while_deciding = asked.zip(self.visible_through());
                 self.frame.discard();
                 self.frame.holdings = Some(holdings);
@@ -1784,6 +1828,7 @@ impl Driver {
             Some(ProcessEvent::Exited(reaped)) => {
                 self.link = None;
                 self.process = None;
+                self.reservation = None;
                 self.record(RunEventKind::BotExited { code: reaped.code })
                     .await?;
                 self.record_usage(reaped).await?;
@@ -1798,6 +1843,7 @@ impl Driver {
             }
             None => {
                 self.process = None;
+                self.reservation = None;
                 return Ok(());
             }
         };
