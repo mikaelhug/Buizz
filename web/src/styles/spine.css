@@ -537,6 +537,20 @@ span.health-key {
   color: var(--down);
 }
 
+.fill-meter.contract-paused {
+  background: var(--surface-2);
+}
+
+.fill-meter.contract-paused .fill-meter-bar {
+  background: color-mix(in srgb, var(--muted) 35%, transparent);
+}
+
+.contract-paused.state-text,
+.fill-state.contract-paused,
+.ingest-off .fill-stop {
+  color: var(--muted);
+}
+
 .contract-scope,
 .contract-reason {
   display: block;
@@ -834,6 +848,10 @@ span.health-key {
 
 .spark-tail {
   fill: color-mix(in srgb, var(--down) 70%, transparent);
+}
+
+.ingest-off .spark-tail {
+  fill: color-mix(in srgb, var(--muted) 60%, transparent);
 }
 
 .fill-untracked {

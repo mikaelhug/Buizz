@@ -736,7 +736,7 @@ export interface components {
             per_share: string;
         };
         /** @enum {string} */
-        ContractState: "complete" | "filling" | "stalled";
+        ContractState: "complete" | "filling" | "paused" | "stalled";
         CostModel: {
             /** @default 0.005 */
             commission_per_share: string;

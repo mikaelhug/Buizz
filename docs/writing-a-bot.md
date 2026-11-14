@@ -131,7 +131,7 @@ Outside `on_step` only `params`, `universe`, `state`, `portfolio` and `position`
 | `ctx.etf_holdings(etfs, since)` | `EtfHoldings`: SPDR ETF holdings and shares outstanding dated on or after `since`, see below |
 | `ctx.fails_to_deliver(symbols, since)` | `list[FailToDeliver]`: the SEC's fails-to-deliver balances for settlement dates on or after `since`, as public at the clock, see below |
 | `ctx.page_views(symbols, since)` | `list[PageViews]`: daily Wikipedia views of each company's article on or after `since`, as public at the clock, see below |
-| `ctx.completeness(datasets, start, end)` | `list[Completeness]`: per dataset and source, whether the spine holds everything that dataset's scope expects for `start`–`end` (clipped to the clock), with `complete_through` and `state` (`complete`, `filling` or `stalled`) |
+| `ctx.completeness(datasets, start, end)` | `list[Completeness]`: per dataset and source, whether the spine holds everything that dataset's scope expects for `start`–`end` (clipped to the clock), with `complete_through` and `state` (`complete`, `filling`, `stalled`, or `paused` on a spine with ingest off) |
 | `ctx.universe_at(on, top_dollar_volume, *, asset_class=None, index=None)` | The symbols a `top_dollar_volume` universe of that size (optionally of one `asset_class`), or the `index` universe, held on the date `on`, see below |
 | `ctx.macro(series, start, end)` | The rate, macro and S&P 500 valuation observations dated `start` to `end` as known at the clock (`MacroPoint`: `series`, `date`, `value`, `published`, `available_at`), see below |
 | `ctx.fomc(start, end)` | The FOMC announcements dated `start` to `end` known at the clock (`FomcAnnouncement`: `date`, `scheduled`, `statement_at`, `available_at`), see below |

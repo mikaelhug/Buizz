@@ -392,6 +392,7 @@ pub enum ScopeUnit {
 pub enum ContractState {
     Complete,
     Filling,
+    Paused,
     Stalled,
 }
 

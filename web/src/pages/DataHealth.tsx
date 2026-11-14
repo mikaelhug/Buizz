@@ -9,7 +9,7 @@ import { Card, Stat } from "../ui/Kit";
 import { Info } from "../ui/Popover";
 import { StatusPill } from "../ui/Status";
 import { Ago, matches, SortHeader, type SortColumns, TableFilter, useFlash, useSort } from "../ui/Table";
-import { DataSpine } from "./DataSpine";
+import { DATASETS, DataSpine, SOURCES } from "./DataSpine";
 import "../styles/data.css";
 
 const COVERAGE_ROWS_SHOWN = 200;
@@ -106,6 +106,7 @@ function DataSummary({ health, jobs, feed, stale }: { health: Schemas["DataHealt
   const contracts = health?.contracts ?? [];
   const complete = contracts.filter((item) => item.state === "complete").length;
   const stalled = contracts.filter((item) => item.state === "stalled").length;
+  const paused = contracts.filter((item) => item.state === "paused").length;
   const failing = jobs?.filter((job) => job.last_outcome === "failed").length ?? 0;
   const healthy = jobs?.filter((job) => !job.stale && job.last_outcome !== "failed").length;
   const warnings = health?.warnings.length;
@@ -116,13 +117,13 @@ function DataSummary({ health, jobs, feed, stale }: { health: Schemas["DataHealt
           label="Contracts"
           value={health ? `${fmt.integer(complete)} of ${fmt.integer(contracts.length)} complete` : ABSENT}
           tone={stalled > 0 ? "down" : undefined}
-          sub={health ? `${fmt.integer(contracts.length - complete - stalled)} filling · ${fmt.integer(stalled)} stalled` : undefined}
+          sub={health ? (paused > 0 ? `${fmt.integer(paused)} paused, ingest off` : `${fmt.integer(contracts.length - complete - stalled)} filling · ${fmt.integer(stalled)} stalled`) : undefined}
         />
       </Card>
       <Card label="Jobs">
         <Stat
           label="Jobs"
-          value={jobs && healthy !== undefined ? `${fmt.integer(healthy)} of ${fmt.integer(jobs.length)} healthy` : ABSENT}
+          value={jobs && healthy !== undefined ? (health?.ingest_enabled === false ? `${fmt.integer(jobs.length)} not scheduled` : `${fmt.integer(healthy)} of ${fmt.integer(jobs.length)} healthy`) : ABSENT}
           tone={failing > 0 ? "down" : undefined}
           sub={health?.ingest_enabled === false ? "ingest is off" : `${fmt.integer(stale)} stale · ${fmt.integer(failing)} failing`}
         />
@@ -339,17 +340,17 @@ function ContractsPanel({ health }: { health: Resource<Schemas["DataHealth"]> })
         <ul className="backfill">
           {rows.map((row) => {
             const done = row.state === "complete";
-            const name = `${label(row.dataset)} (${label(row.source)})`;
+            const name = `${DATASETS[row.dataset].name} (${SOURCES[row.source].name})`;
             return (
               <li key={`${row.dataset}-${row.source}`}>
                 <span className="backfill-name">
-                  <span className="dataset">{label(row.dataset)}</span>
-                  <span className="muted">{label(row.source)}</span>
+                  <span className="dataset">{DATASETS[row.dataset].name}</span>
+                  <span className="muted">{SOURCES[row.source].name}</span>
                 </span>
                 <Meter value={row.done} max={Math.max(1, row.expected)} name={name} tone={done ? "done" : "accent"} />
                 <span className="backfill-figure num">
                   {fmt.integer(row.done)}/{fmt.integer(row.expected)}
-                  <span className={done ? "up" : row.state === "stalled" ? "down" : "muted"}>{done ? "Complete" : row.state === "stalled" ? "Stalled" : row.eta ? `ETA ${row.eta}` : fmt.percent(share(row.done, row.expected))}</span>
+                  <span className={done ? "up" : row.state === "stalled" ? "down" : "muted"}>{done ? "Complete" : row.state === "stalled" ? "Stalled" : row.state === "paused" ? "Ingest off" : row.eta ? `ETA ${row.eta}` : fmt.percent(share(row.done, row.expected))}</span>
                 </span>
               </li>
             );
@@ -541,9 +542,9 @@ type CoverageRow = Schemas["Coverage"];
 type CoverageColumn = "dataset" | "symbol" | "source" | "first" | "last" | "updated";
 
 const COVERAGE_COLUMNS: SortColumns<CoverageRow, CoverageColumn> = {
-  dataset: { value: (row) => label(row.dataset) },
+  dataset: { value: (row) => DATASETS[row.dataset].name },
   symbol: { value: (row) => row.symbol },
-  source: { value: (row) => label(row.source) },
+  source: { value: (row) => SOURCES[row.source].name },
   first: { value: (row) => row.first },
   last: { value: (row) => row.last, descending: true },
   updated: { value: (row) => Date.parse(row.updated_at), descending: true },
@@ -558,7 +559,7 @@ function CoveragePanel({ health }: { health: Resource<Schemas["DataHealth"]> }) 
   const needle = useDeferredValue(query);
   const sorting = useSort("coverage", COVERAGE_COLUMNS, { key: "dataset", descending: false });
   const flash = useFlash(health.data?.coverage, coverageKey);
-  const matching = sorting.order((health.data?.coverage ?? []).filter((row) => matches(needle, row.symbol, label(row.dataset), label(row.source))));
+  const matching = sorting.order((health.data?.coverage ?? []).filter((row) => matches(needle, row.symbol, DATASETS[row.dataset].name, SOURCES[row.source].name)));
   const rows = matching.slice(0, COVERAGE_ROWS_SHOWN);
   return (
     <section className="panel coverage-panel">
@@ -599,9 +600,9 @@ function CoveragePanel({ health }: { health: Resource<Schemas["DataHealth"]> }) 
               <tbody>
                 {rows.map((row) => (
                   <tr key={coverageKey(row)} {...flash.row(coverageKey(row))}>
-                    <td>{label(row.dataset)}</td>
+                    <td>{DATASETS[row.dataset].name}</td>
                     <td className="sym">{row.symbol ?? ABSENT}</td>
-                    <td>{label(row.source)}</td>
+                    <td>{SOURCES[row.source].name}</td>
                     <td className="num">{row.first}</td>
                     <td className="num">{row.last}</td>
                     <td className="muted">

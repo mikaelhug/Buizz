@@ -33,7 +33,7 @@ const DOMAINS: Record<Domain, { name: string; caption: string }> = {
 
 const DOMAIN_ORDER: Domain[] = ["prices", "reference", "filings", "macro", "alternative"];
 
-const DATASETS: Record<Dataset, { name: string; caption: string }> = {
+export const DATASETS: Record<Dataset, { name: string; caption: string }> = {
   bars1d: { name: "Daily prices", caption: "open, high, low, close and volume per session" },
   bars1m: { name: "Minute prices", caption: "intraday bars for the symbols bots use, kept current" },
   corporate_actions: { name: "Splits, dividends & mergers", caption: "corporate actions, cross-checked between sources" },
@@ -69,7 +69,7 @@ const DATASETS: Record<Dataset, { name: string; caption: string }> = {
   page_views: { name: "Wikipedia page views", caption: "daily views of each S&P 500 company's article" },
 };
 
-const SOURCES: Record<Source, { name: string; caption: string }> = {
+export const SOURCES: Record<Source, { name: string; caption: string }> = {
   alpaca: { name: "Alpaca", caption: "prices, actions, listings, news, option chains" },
   alpaca_stream: { name: "Alpaca stream", caption: "live minute bars" },
   tiingo: { name: "Tiingo", caption: "price history before 2016" },
@@ -164,10 +164,11 @@ function datasetSources(entry: DatasetSpine, jobs: Job[]): Source[] {
 const CONTRACT: Record<ContractState, { text: string; about: string }> = {
   complete: { text: "complete", about: "Everything its scope expects is stored; failed items are quarantined and shown." },
   filling: { text: "filling", about: "Its jobs are still reading what the scope expects; the end date comes from the pace measured over the last 30 days." },
+  paused: { text: "ingest off", about: "Something it expects is missing, and nothing reads it because ingest is off on this spine; runs use the data already stored." },
   stalled: { text: "stalled", about: "Something it expects is missing and nothing is moving: a job is failing or late, or no progress in three days." },
 };
 
-const CONTRACT_RANK: ContractState[] = ["stalled", "filling", "complete"];
+const CONTRACT_RANK: ContractState[] = ["stalled", "filling", "paused", "complete"];
 
 const UNITS: Record<Unit, string> = {
   symbols: "symbols",
@@ -328,7 +329,7 @@ export function DataSpine() {
         })}
       </nav>
       {filters.source && <SourcePanel source={filters.source} data={data} jobs={allJobs} feed={feed.data} onClose={() => setSourceParam("")} />}
-      <section className="spine-board" aria-label="Datasets">
+      <section className={data.ingest_enabled ? "spine-board" : "spine-board ingest-off"} aria-label="Datasets">
         <header className="spine-board-head">
           <h2>
             Datasets
@@ -354,7 +355,7 @@ export function DataSpine() {
             </span>
             <span role="columnheader">
               Complete
-              <Info label="Complete">Each dataset declares its scope: the symbols, filings or days it should hold, from its source's own index, from when recording began, or from the layer below. The bar is how much of that scope is stored; filling shows the end date its measured pace gives, stalled means nothing is moving. Red marks are months inside a dataset's range with no data from any source.</Info>
+              <Info label="Complete">Each dataset declares its scope: the symbols, filings or days it should hold, from its source's own index, from when recording began, or from the layer below. The bar is how much of that scope is stored; filling shows the end date its measured pace gives, stalled means nothing is moving, and ingest off means this spine reads nothing new. Red marks are months inside a dataset's range with no data from any source.</Info>
             </span>
             <span role="columnheader">Status</span>
           </div>
@@ -437,13 +438,15 @@ function Summary({ data, states, sources, feed, health, onHealth }: SummaryProps
   const contracts = data.datasets.flatMap((entry) => entry.markets.flatMap((market) => market.contracts));
   const complete = contracts.filter((contract) => contract.state === "complete").length;
   const stalled = contracts.filter((contract) => contract.state === "stalled").length;
+  const paused = contracts.filter((contract) => contract.state === "paused").length;
+  const pending = [...(stalled > 0 ? [`${fmt.integer(stalled)} stalled`] : []), ...(paused > 0 ? [`${fmt.integer(paused)} paused, ingest off`] : [])];
   return (
     <section className="spine-summary" aria-label="Spine health">
       <dl className="summary-figures">
         <Figure value={fmt.integer(data.datasets.length)} label="datasets" />
         <Figure value={fmt.integer(sources)} label="sources" />
         <Figure value={fmt.integer(symbols)} label="symbols priced" />
-        <Figure value={`${fmt.integer(complete)}/${fmt.integer(contracts.length)}`} label={stalled > 0 ? `complete, ${fmt.integer(stalled)} stalled` : "complete"} />
+        <Figure value={`${fmt.integer(complete)}/${fmt.integer(contracts.length)}`} label={["complete", ...pending].join(", ")} />
         <Figure value={data.markets.map((market) => MARKETS[market].short).join(" · ")} label={data.markets.length === 1 ? "market" : "markets"} />
       </dl>
       <div className="summary-health">
@@ -662,7 +665,7 @@ function FillMeter({ contract, empty, gaps, stop }: { contract: Contract | undef
           not tracked
         </span>
       )}
-      {stop && <span className="fill-gaps">stops {monthOf(stop)}</span>}
+      {stop && <span className="fill-gaps fill-stop">stops {monthOf(stop)}</span>}
       {gaps > 0 && <span className="fill-gaps num">{gaps} empty mo.</span>}
     </span>
   );

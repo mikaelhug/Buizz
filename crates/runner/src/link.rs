@@ -366,6 +366,12 @@ fn incomplete(
             let through = contract
                 .complete_through
                 .map_or(String::new(), |through| format!(", complete through {through}"));
+            let state = contract
+                .reason
+                .as_ref()
+                .map_or(name(&contract.state), |reason| {
+                    format!("{} ({reason})", name(&contract.state))
+                });
             (
                 format!("coverage {dataset} {source}"),
                 format!(
@@ -373,7 +379,7 @@ fn incomplete(
                     contract.done,
                     contract.expected,
                     name(&contract.unit),
-                    name(&contract.state),
+                    state,
                 ),
             )
         })

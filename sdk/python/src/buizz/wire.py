@@ -578,7 +578,7 @@ class CompletenessFrame(msgspec.Struct, frozen=True):
     source: str
     complete: bool
     complete_through: date | None
-    state: Literal["complete", "filling", "stalled"]
+    state: Literal["complete", "filling", "paused", "stalled"]
 
 
 class CompletenessResult(msgspec.Struct, frozen=True, tag_field="kind", tag="completeness"):

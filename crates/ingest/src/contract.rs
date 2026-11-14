@@ -241,8 +241,6 @@ impl Ingest {
             Some(format!("{failed} failed on their last read"))
         } else if pending == 0 {
             None
-        } else if !self.config.enabled {
-            Some("ingest is off on this spine".to_owned())
         } else if jobs.is_empty() && scope.kind == ScopeKind::Recorder {
             still_since.map(|since| format!("nothing recorded since {}", since.exchange_date()))
         } else if waiting {
@@ -251,9 +249,14 @@ impl Ingest {
             still_since.map(|since| format!("no progress since {}", since.exchange_date()))
         };
         let state = match (&stalled, pending) {
-            (Some(_), _) => ContractState::Stalled,
             (None, 0) => ContractState::Complete,
+            _ if !self.config.enabled => ContractState::Paused,
+            (Some(_), _) => ContractState::Stalled,
             (None, _) => ContractState::Filling,
+        };
+        let reason = match state {
+            ContractState::Paused => Some("ingest is off on this spine".to_owned()),
+            _ => stalled,
         };
         let eta = per_day
             .filter(|_| state == ContractState::Filling)
@@ -277,7 +280,7 @@ impl Ingest {
             state,
             per_day,
             eta,
-            reason: stalled,
+            reason,
             recipe,
         }
     }
