@@ -197,12 +197,23 @@ impl Ingest {
             }
             self.ran_since_boot.lock().await.insert(spec.name);
             let run_id = self.state.start_job(spec.name, now).await?;
+            let job_started = tokio::time::Instant::now();
             let work = match self.run(spec.name, now).await {
                 Ok(work) => work,
                 Err(error) => Work::failed(error.to_string()),
             };
+            let seconds = job_started.elapsed().as_secs_f64();
             if work.outcome == JobOutcome::Failed {
-                tracing::error!(job = spec.name, message = %work.message, "ingest job failed");
+                tracing::error!(job = spec.name, seconds, message = %work.message, "ingest job failed");
+            } else {
+                tracing::info!(
+                    job = spec.name,
+                    outcome = ?work.outcome,
+                    rows = work.rows,
+                    seconds,
+                    message = %work.message,
+                    "ingest job finished"
+                );
             }
             let finished = finished_at();
             self.state
