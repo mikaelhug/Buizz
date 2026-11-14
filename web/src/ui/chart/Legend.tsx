@@ -42,7 +42,19 @@ function Toggle({ name, swatch, hidden, onToggle }: { name: string; swatch: Seri
 export function Legend({ readout, names, hidden, exposure, envelope, onToggle }: Props) {
   return (
     <div className="chart-legend">
-      <time className="legend-time">{readout.time === undefined ? "" : wallDate(readout.time, readout.intraday)}</time>
+      <div className="legend-head">
+        <time className="legend-time">{readout.time === undefined ? "" : wallDate(readout.time, readout.intraday)}</time>
+        {exposure && readout.exposure !== undefined && (
+          <span className="legend-note">
+            Gross exposure <span className="num">{fmt.percent(readout.exposure)}</span>
+          </span>
+        )}
+        {readout.marks.map((mark) => (
+          <span key={mark.id} className={`legend-note legend-mark-${mark.kind}`}>
+            {mark.text}
+          </span>
+        ))}
+      </div>
       {SERIES.map((key) => {
         const reading = readout[key];
         return (
@@ -68,16 +80,6 @@ export function Legend({ readout, names, hidden, exposure, envelope, onToggle }:
           <span />
         </div>
       )}
-      {exposure && readout.exposure !== undefined && (
-        <div className="legend-row legend-note">
-          Gross exposure <span className="num">{fmt.percent(readout.exposure)}</span>
-        </div>
-      )}
-      {readout.marks.map((mark) => (
-        <div key={mark.id} className={`legend-row legend-note legend-mark-${mark.kind}`}>
-          {mark.text}
-        </div>
-      ))}
     </div>
   );
 }

@@ -37,6 +37,21 @@
   z-index: 0;
   height: 420px;
   border-radius: var(--r-sm);
+  user-select: none;
+}
+
+.chart-brush {
+  position: absolute;
+  top: 0;
+  z-index: 3;
+  border-inline: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  pointer-events: none;
+}
+
+.chart-panning,
+.chart-panning * {
+  cursor: grabbing !important;
 }
 
 .chart-stage-tall .equity-chart {
@@ -49,27 +64,30 @@
 }
 
 .chart-legend {
-  position: absolute;
-  top: 24px;
-  left: var(--sp-3);
-  z-index: 1;
   display: grid;
   grid-template-columns: repeat(4, auto);
+  justify-content: start;
   column-gap: var(--sp-3);
   row-gap: 1px;
-  padding: var(--sp-1) var(--sp-2) var(--sp-1) var(--sp-1);
-  border-radius: var(--r-sm);
-  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  margin-bottom: var(--sp-2);
   color: var(--text-2);
   font-size: var(--fs-sm);
   line-height: 18px;
-  pointer-events: none;
+}
+
+.legend-head {
+  display: flex;
+  grid-column: 1 / -1;
+  gap: var(--sp-3);
+  min-width: 0;
+  height: 18px;
+  padding-left: var(--sp-1);
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .legend-time {
-  grid-column: 1 / -1;
-  min-height: 18px;
-  padding-left: var(--sp-1);
+  flex: none;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
@@ -92,7 +110,6 @@
   font-weight: var(--fw-medium);
   text-align: left;
   cursor: pointer;
-  pointer-events: auto;
 }
 
 .legend-toggle:hover {
@@ -144,10 +161,9 @@
 }
 
 .legend-note {
-  display: block;
-  grid-column: 1 / -1;
-  padding-left: var(--sp-1);
+  overflow: hidden;
   color: var(--muted);
+  text-overflow: ellipsis;
 }
 
 .legend-note .num {
@@ -171,7 +187,6 @@
 
 .price-legend {
   display: block;
-  max-width: calc(100% - 80px);
 }
 
 .legend-ohlc {
@@ -180,10 +195,6 @@
   gap: 0 var(--sp-3);
   padding-left: var(--sp-1);
   color: var(--text);
-}
-
-.legend-fill {
-  white-space: normal;
 }
 
 .legend-fill.up {
@@ -205,23 +216,20 @@
 }
 
 @media (max-width: 640px) {
-  .price-legend {
-    max-width: none;
-  }
-
   .chart-toolbar-end {
     margin-left: 0;
   }
 
   .chart-legend {
-    position: static;
     margin-bottom: var(--sp-1);
-    padding: 0;
-    background: none;
     font-size: var(--fs-xs);
     line-height: 16px;
-    grid-template-columns: minmax(0, 1fr) repeat(3, auto);
+    grid-template-columns: minmax(0, 1fr) repeat(2, auto);
     column-gap: var(--sp-2);
+  }
+
+  .legend-drawdown {
+    display: none;
   }
 
   .legend-toggle {
@@ -231,10 +239,6 @@
   .legend-name {
     overflow: hidden;
     text-overflow: ellipsis;
-  }
-
-  .legend-note {
-    white-space: normal;
   }
 
   .equity-chart {

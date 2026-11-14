@@ -3,6 +3,26 @@ import { env, openTab, panel, pill, signedIn } from "./session.ts";
 
 type Seen = { run: number; months: Record<string, string>; benchmarkReturn: string; positions: string; trades: number; chart: string };
 
+async function zoomThenReset(page: Page): Promise<void> {
+  const equity = page.getByRole("region", { name: "Equity", exact: true });
+  const plot = equity.locator(".equity-chart");
+  const reset = equity.getByRole("button", { name: "Reset", exact: true });
+  await plot.scrollIntoViewIfNeeded();
+  const box = await plot.boundingBox();
+  if (!box) {
+    throw new Error("the equity chart is not on screen");
+  }
+  const y = box.y + box.height / 3;
+  await page.mouse.move(box.x + box.width * 0.3, y);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.6, y, { steps: 8 });
+  await equity.locator(".chart-brush:not([hidden])").waitFor();
+  await page.mouse.up();
+  await reset.waitFor();
+  await plot.dblclick({ position: { x: box.width / 2, y: box.height / 3 } });
+  await reset.waitFor({ state: "detached" });
+}
+
 async function customPeriodBacktest(page: Page): Promise<Seen> {
   await page.getByRole("link", { name: "red_green", exact: true }).click();
   await page.locator(".detail-head").getByRole("button", { name: "Backtest" }).click();
@@ -21,6 +41,7 @@ async function customPeriodBacktest(page: Page): Promise<Seen> {
   }
   const head = page.locator(".run-bar").filter({ has: page.getByRole("heading", { name: `Run #${run}`, exact: true }) });
   await pill(head, "completed").waitFor();
+  await zoomThenReset(page);
 
   const monthly = panel(page, "Monthly returns").locator("table");
   const year = monthly.locator("tbody tr").first();

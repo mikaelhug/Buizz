@@ -71,11 +71,10 @@
 }
 
 .compare-legend {
-  top: 8px;
   grid-template-columns: repeat(3, auto);
-  justify-content: start;
 }
 
+.compare-legend .legend-swatch,
 .compare-legend .compare-swatch {
   align-self: center;
   margin-right: 0;
@@ -122,10 +121,5 @@
 @media (max-width: 640px) {
   .compare-host {
     height: 300px;
-  }
-
-  .compare-legend {
-    position: static;
-    margin-bottom: var(--sp-2);
   }
 }

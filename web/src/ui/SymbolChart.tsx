@@ -22,12 +22,13 @@ import { ABSENT, fmt, tone } from "../lib/format";
 import { themeColor, useColorScheme } from "../lib/theme";
 import { useFrameBatch } from "../lib/useFrameBatch";
 import { useResource } from "../lib/useResource";
-import { chartOptions, followReducedMotion, followWidth, KEY_HINT, moneyFormat, panZoom, paneTitle, type PaneTitle, themedOptions, themeTitles, USER_INPUTS } from "./chart/base";
+import { chartOptions, clearTitles, followSize, KEY_HINT, moneyFormat, panZoom, paneTitle, type PaneTitle, themedOptions, themeTitles, USER_INPUTS } from "./chart/base";
 import { money, wallDate } from "./chart/format";
 import { asOf, DAY_SECONDS, firstFrom, type Preset, presetStart, presetsWithin, wallTime } from "./chart/model";
 import type { ChartSync, Link } from "./chart/sync";
 import { RangePresets, SCALE_MODES, type ScaleMode, ScaleSwitch } from "./chart/Toolbar";
 import { Failure, Loading, StaleFailure } from "./Feedback";
+import { brushZoom, fitPrices } from "./chart/zoom";
 import "../styles/chart.css";
 
 type PriceChart = Schemas["PriceChart"];
@@ -216,9 +217,7 @@ export function SymbolChart({ runId, symbol, sync }: Props) {
     if (!current || last === undefined) {
       return;
     }
-    for (const pane of current.api.panes()) {
-      pane.priceScale("right").applyOptions({ autoScale: true });
-    }
+    fitPrices(current.api);
     const start = presetStart(next, last);
     if (start === undefined) {
       current.api.timeScale().fitContent();
@@ -337,7 +336,6 @@ export function SymbolChart({ runId, symbol, sync }: Props) {
     const api = createChart(element, chartOptions((time: Time) => wallDate(Number(time), !model.current.daily)));
     const candles = api.addSeries(CandlestickSeries, { priceFormat: moneyFormat, priceLineVisible: false });
     const volume = api.addSeries(HistogramSeries, { priceFormat: { type: "volume" }, priceLineVisible: false, lastValueVisible: false }, PANE.volume);
-    volume.priceScale().applyOptions({ scaleMargins: { top: 0.25, bottom: 0 } });
     const [pricePane, volumePane] = api.panes();
     pricePane?.setStretchFactor(STRETCH.price);
     volumePane?.setStretchFactor(STRETCH.volume);
@@ -346,7 +344,7 @@ export function SymbolChart({ runId, symbol, sync }: Props) {
       candles,
       volume,
       markers: createSeriesMarkers(candles, []),
-      titles: volumePane ? [paneTitle(volumePane, "Volume")] : [],
+      titles: volumePane ? [paneTitle(volumePane, "Volume", 0)] : [],
     };
     model.current = emptyModel();
 
@@ -381,12 +379,17 @@ export function SymbolChart({ runId, symbol, sync }: Props) {
       userDriven.current = true;
       leading.current = true;
     };
-    const stopMotion = followReducedMotion(api);
-    const stopWidth = followWidth(element, () => {
-      if (preset.current !== null) {
-        applyPreset(preset.current);
-      }
-    });
+    const stopSize = followSize(
+      api,
+      element,
+      () => {
+        if (preset.current !== null) {
+          applyPreset(preset.current);
+        }
+      },
+      () => clearTitles(drawn.current?.titles ?? []),
+    );
+    const stopBrush = brushZoom(api, element);
     api.subscribeCrosshairMove(onCrosshair);
     api.subscribeDblClick(onDoubleClick);
     api.timeScale().subscribeVisibleLogicalRangeChange(onRange);
@@ -394,8 +397,8 @@ export function SymbolChart({ runId, symbol, sync }: Props) {
       element.addEventListener(type, engage, { capture: true, passive: true });
     }
     return () => {
-      stopMotion();
-      stopWidth();
+      stopSize();
+      stopBrush();
       for (const type of USER_INPUTS) {
         element.removeEventListener(type, engage, { capture: true });
       }
@@ -596,7 +599,20 @@ function PriceLegend({ readout, position }: { readout: Readout; position: Schema
   ];
   return (
     <div className="chart-legend price-legend">
-      <time className="legend-time">{wallDate(shown.time, !daily)}</time>
+      <div className="legend-head">
+        <time className="legend-time">{wallDate(shown.time, !daily)}</time>
+        {fills.map((fill) => (
+          <span key={`${fill.order_id}-${fill.at}`} className={`legend-note legend-fill ${fill.qty > 0 ? "up" : "down"}`} title={fill.reason ? `${fillText(fill)} · ${fill.reason}` : fillText(fill)}>
+            {fillText(fill)}
+            {fill.reason && <span className="legend-reason"> · {fill.reason}</span>}
+          </span>
+        ))}
+        {position && (
+          <span className="legend-note">
+            Avg entry <span className="num">{fmt.price(position.avg_cost)}</span> for <span className="num">{fmt.integer(position.qty)}</span> shares
+          </span>
+        )}
+      </div>
       <div className="legend-ohlc num">
         {values.map(([key, value]) => (
           <span key={key}>
@@ -610,17 +626,6 @@ function PriceLegend({ readout, position }: { readout: Readout; position: Schema
           <span className="legend-key">Vol</span> {fmt.integer(Math.round(shown.volume))}
         </span>
       </div>
-      {fills.map((fill) => (
-        <div key={`${fill.order_id}-${fill.at}`} className={`legend-note legend-fill ${fill.qty > 0 ? "up" : "down"}`}>
-          {fillText(fill)}
-          {fill.reason && <span className="legend-reason"> · {fill.reason}</span>}
-        </div>
-      ))}
-      {position && (
-        <div className="legend-note">
-          Avg entry <span className="num">{fmt.price(position.avg_cost)}</span> for <span className="num">{fmt.integer(position.qty)}</span> shares
-        </div>
-      )}
     </div>
   );
 }

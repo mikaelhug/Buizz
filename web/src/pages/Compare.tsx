@@ -1,5 +1,5 @@
 import { createChart, type IChartApi, type ISeriesApi, LineSeries, LineStyle, type MouseEventParams, type Time } from "lightweight-charts";
-import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type KeyboardEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { api, must, type Schemas } from "../api/client";
 import { useSpineEvents } from "../api/stream";
 import { ABSENT, fmt, paramsText, tone } from "../lib/format";
@@ -9,9 +9,11 @@ import { themeColor, useColorScheme } from "../lib/theme";
 import { useFrameBatch } from "../lib/useFrameBatch";
 import { useResource } from "../lib/useResource";
 import { Breadcrumbs } from "../ui/Breadcrumbs";
-import { chartOptions, followReducedMotion, themedOptions } from "../ui/chart/base";
+import { chartOptions, KEY_HINT, panZoom, themedOptions, USER_INPUTS } from "../ui/chart/base";
 import { change, changeTickmarks, wallDate } from "../ui/chart/format";
 import { asOf, isIntraday, type Line, wallTime } from "../ui/chart/model";
+import { RangePresets } from "../ui/chart/Toolbar";
+import { brushZoom, fitPrices, showSpan } from "../ui/chart/zoom";
 import { Failure, Loading, StaleFailure } from "../ui/Feedback";
 import { METRICS, type MetricKey, type Metrics } from "../ui/Metrics";
 import { Info } from "../ui/Popover";
@@ -189,6 +191,9 @@ function CompareChart({ entries }: { entries: Compared[] }) {
   const benchmark = useMemo(() => returns(entries[0]?.benchmark ?? []), [entries]);
   const intraday = lines.some(isIntraday);
   const [readout, setReadout] = useState<Readout>({ time: undefined, values: [], benchmark: undefined });
+  const [zoomed, setZoomed] = useState(false);
+  const userDriven = useRef(false);
+  const hintId = useId();
   const latest = useRef({ lines, benchmark });
   latest.current = { lines, benchmark };
 
@@ -196,6 +201,19 @@ function CompareChart({ entries }: { entries: Compared[] }) {
     const at = (line: Line) => (time === undefined ? line.at(-1) : asOf(line, time))?.value;
     return { time, values: latest.current.lines.map(at), benchmark: at(latest.current.benchmark) };
   };
+
+  const showAll = useCallback(() => {
+    const drawn = chart.current;
+    userDriven.current = false;
+    setZoomed(false);
+    const all = [...latest.current.lines, latest.current.benchmark];
+    const first = Math.min(...all.flatMap((line) => (line[0] ? [line[0].time] : [])));
+    const last = Math.max(...all.flatMap((line) => line.slice(-1).map((sample) => sample.time)));
+    if (drawn && Number.isFinite(first) && Number.isFinite(last)) {
+      fitPrices(drawn.api);
+      showSpan(drawn.api, first, last);
+    }
+  }, []);
 
   useEffect(() => {
     const element = host.current;
@@ -207,15 +225,38 @@ function CompareChart({ entries }: { entries: Compared[] }) {
     const benchmarkLine = api.addSeries(LineSeries, { lineWidth: 2, lineStyle: LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false, priceFormat: format });
     const series = entries.map(() => api.addSeries(LineSeries, { lineWidth: 2, priceLineVisible: false, priceFormat: format, crosshairMarkerRadius: 3 }));
     chart.current = { api, lines: series, benchmark: benchmarkLine };
+    userDriven.current = false;
     const onCrosshair = (param: MouseEventParams) => setReadout(read(param.point && param.time !== undefined ? Number(param.time) : undefined));
+    const onRange = () => {
+      if (userDriven.current) {
+        setZoomed(true);
+      }
+    };
+    const engage = () => {
+      userDriven.current = true;
+    };
     api.subscribeCrosshairMove(onCrosshair);
-    const stopMotion = followReducedMotion(api);
+    const onSize = () => {
+      if (!userDriven.current) {
+        requestAnimationFrame(showAll);
+      }
+    };
+    api.subscribeDblClick(showAll);
+    api.timeScale().subscribeVisibleLogicalRangeChange(onRange);
+    api.timeScale().subscribeSizeChange(onSize);
+    for (const type of USER_INPUTS) {
+      element.addEventListener(type, engage, { capture: true, passive: true });
+    }
+    const stopBrush = brushZoom(api, element);
     return () => {
-      stopMotion();
+      stopBrush();
+      for (const type of USER_INPUTS) {
+        element.removeEventListener(type, engage, { capture: true });
+      }
       api.remove();
       chart.current = null;
     };
-  }, [entries.length, intraday]);
+  }, [entries.length, intraday, showAll]);
 
   useEffect(() => {
     const drawn = chart.current;
@@ -234,17 +275,41 @@ function CompareChart({ entries }: { entries: Compared[] }) {
     }
     drawn.benchmark.setData(benchmark);
     drawn.lines.forEach((line, index) => line.setData(lines[index] ?? []));
+    if (!userDriven.current) {
+      showAll();
+    }
     setReadout(read(undefined));
-  }, [lines, benchmark]);
+  }, [lines, benchmark, showAll]);
 
-  useEffect(() => chart.current?.api.timeScale().fitContent(), [entries.length, intraday]);
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const timeScale = chart.current?.api.timeScale();
+    const range = timeScale?.getVisibleLogicalRange();
+    if (!timeScale || !range || event.altKey || event.ctrlKey || event.metaKey) {
+      return;
+    }
+    if (event.key === "0") {
+      event.preventDefault();
+      showAll();
+      return;
+    }
+    const next = panZoom(event.key, range);
+    if (next) {
+      event.preventDefault();
+      timeScale.setVisibleLogicalRange(next);
+    }
+  };
 
   const description = entries.map((entry, index) => `${label(entry.run)} ${fmt.change(lines[index]?.at(-1)?.value)}`).join(", ");
 
   return (
     <div className="compare-chart">
+      <div className="chart-toolbar">
+        <RangePresets presets={[]} active={zoomed ? null : "All"} resetTitle="Show every run's whole period (double-click the chart)" onPick={showAll} />
+      </div>
       <div className="chart-legend compare-legend" aria-hidden="true">
-        <span className="legend-time">{readout.time === undefined ? "Latest" : wallDate(readout.time, intraday)}</span>
+        <div className="legend-head">
+          <span className="legend-time">{readout.time === undefined ? "Latest" : wallDate(readout.time, intraday)}</span>
+        </div>
         {entries.map((entry, index) => (
           <span key={entry.run.id} className="legend-row" style={chip(index)}>
             <span className="compare-swatch" />
@@ -258,7 +323,10 @@ function CompareChart({ entries }: { entries: Compared[] }) {
           <span className={`num ${tone(readout.benchmark) ?? ""}`}>{fmt.change(readout.benchmark)}</span>
         </span>
       </div>
-      <div ref={host} className="chart-host compare-host" role="img" aria-label={`Returns compared: ${description}`} />
+      <div ref={host} className="equity-chart compare-host" tabIndex={0} onKeyDown={onKeyDown} role="img" aria-label={`Returns compared: ${description}`} aria-describedby={hintId} />
+      <p id={hintId} className="visually-hidden">
+        {KEY_HINT}
+      </p>
     </div>
   );
 }

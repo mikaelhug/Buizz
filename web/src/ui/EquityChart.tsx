@@ -20,7 +20,7 @@ import { type KeyboardEvent, useCallback, useEffect, useId, useMemo, useRef, use
 import type { Schemas } from "../api/client";
 import { fmt } from "../lib/format";
 import { themeColor, useColorScheme } from "../lib/theme";
-import { chartOptions, followReducedMotion, followWidth, KEY_HINT, moneyFormat, panZoom, paneTitle, type PaneTitle, themedOptions, themeTitles, USER_INPUTS } from "./chart/base";
+import { chartOptions, clearTitles, followSize, KEY_HINT, moneyFormat, panZoom, paneTitle, type PaneTitle, themedOptions, themeTitles, USER_INPUTS } from "./chart/base";
 import { money, ratioTickmarks, wallDate } from "./chart/format";
 import { Legend, type Readout, type Reading, type SeriesKey } from "./chart/Legend";
 import {
@@ -44,6 +44,7 @@ import {
 } from "./chart/model";
 import type { ChartSync, Link } from "./chart/sync";
 import { RangePresets, SCALE_MODES, type ScaleMode, ScaleSwitch } from "./chart/Toolbar";
+import { brushZoom, fitPrices, showSpan } from "./chart/zoom";
 import "../styles/chart.css";
 
 type Props = {
@@ -70,6 +71,19 @@ const MARK_STYLE: Record<MarkKind, { position: SeriesMarkerBarPosition; shape: S
 const capAtZero: AutoscaleInfoProvider = (base) => {
   const info = base();
   return info?.priceRange ? { ...info, priceRange: { minValue: Math.min(info.priceRange.minValue, 0), maxValue: 0 } } : info;
+};
+
+const MIN_SPAN = 0.01;
+
+const minimumSpan: AutoscaleInfoProvider = (base) => {
+  const info = base();
+  if (!info?.priceRange) {
+    return info;
+  }
+  const { minValue, maxValue } = info.priceRange;
+  const middle = (minValue + maxValue) / 2;
+  const half = Math.max((maxValue - minValue) / 2, (Math.abs(middle) * MIN_SPAN) / 2);
+  return { ...info, priceRange: { minValue: middle - half, maxValue: middle + half } };
 };
 
 const floorAtZero: AutoscaleInfoProvider = (base) => {
@@ -156,6 +170,10 @@ function summary(model: Model, names: Record<SeriesKey, string>): string {
   return `Equity from ${wallDate(first, model.intraday)} to ${wallDate(last, model.intraday)}. ${describe("strategy")}; ${describe("benchmark")}.`;
 }
 
+function paneTitles(drawn: Chart | null): PaneTitle[] {
+  return drawn ? [...drawn.titles, ...(drawn.exposure ? [drawn.exposure.title] : [])] : [];
+}
+
 function floorLine(envelope: Schemas["LivePoint"][] | undefined): Sample[] {
   return (envelope ?? []).flatMap((point) => (point.floor === null || point.floor === undefined ? [] : [{ time: wallTime(point.at), value: Number(point.floor) }]));
 }
@@ -218,15 +236,8 @@ export function EquityChart({ runId, points, benchmark, bot, benchmarkSymbol, ev
       if (!drawn || !Number.isFinite(last)) {
         return;
       }
-      for (const pane of drawn.api.panes()) {
-        pane.priceScale("right").applyOptions({ autoScale: true });
-      }
-      const start = presetStart(next, last);
-      if (start === undefined) {
-        drawn.api.timeScale().fitContent();
-      } else {
-        drawn.api.timeScale().setVisibleRange({ from: start as UTCTimestamp, to: last as UTCTimestamp });
-      }
+      fitPrices(drawn.api);
+      showSpan(drawn.api, presetStart(next, last) ?? firstTime(model.current), last);
     },
     [],
   );
@@ -257,6 +268,7 @@ export function EquityChart({ runId, points, benchmark, bot, benchmarkSymbol, ev
       priceLineVisible: false,
       lastValueVisible: false,
       crosshairMarkerRadius: 3,
+      autoscaleInfoProvider: minimumSpan,
     });
     const floorSeries = api.addSeries(LineSeries, {
       priceFormat: moneyFormat,
@@ -265,8 +277,9 @@ export function EquityChart({ runId, points, benchmark, bot, benchmarkSymbol, ev
       priceLineVisible: false,
       lastValueVisible: false,
       crosshairMarkerVisible: false,
+      autoscaleInfoProvider: minimumSpan,
     });
-    const equity = api.addSeries(LineSeries, { lineWidth: 2, priceLineVisible: false, priceFormat: moneyFormat, crosshairMarkerRadius: 4 });
+    const equity = api.addSeries(LineSeries, { lineWidth: 2, priceLineVisible: false, priceFormat: moneyFormat, crosshairMarkerRadius: 4, autoscaleInfoProvider: minimumSpan });
     const benchmarkDrawdown = api.addSeries(
       LineSeries,
       { lineWidth: 1, lineStyle: LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false, priceFormat: ratioFormat, autoscaleInfoProvider: capAtZero, crosshairMarkerRadius: 3 },
@@ -287,14 +300,10 @@ export function EquityChart({ runId, points, benchmark, bot, benchmarkSymbol, ev
       },
       PANE.drawdown,
     );
-    drawdown.priceScale().applyOptions({ scaleMargins: { top: 0.2, bottom: 0.04 } });
     const [equityPane, drawdownPane] = api.panes();
     equityPane?.setStretchFactor(STRETCH.equity);
     drawdownPane?.setStretchFactor(STRETCH.drawdown);
-    const titles = [
-      ...(equityPane ? [paneTitle(equityPane, "Equity")] : []),
-      ...(drawdownPane ? [paneTitle(drawdownPane, "Drawdown from peak")] : []),
-    ];
+    const titles = drawdownPane ? [paneTitle(drawdownPane, "Drawdown from peak", 0.04)] : [];
     chart.current = { api, equity, benchmark: benchmarkSeries, floor: floorSeries, drawdown, benchmarkDrawdown, markers: createSeriesMarkers(equity, []), titles };
     model.current = emptyModel();
 
@@ -322,12 +331,17 @@ export function EquityChart({ runId, points, benchmark, bot, benchmarkSymbol, ev
       userDriven.current = true;
       leading.current = true;
     };
-    const stopMotion = followReducedMotion(api);
-    const stopWidth = followWidth(element, () => {
-      if (preset.current !== null) {
-        applyPreset(preset.current);
-      }
-    });
+    const stopSize = followSize(
+      api,
+      element,
+      () => {
+        if (preset.current !== null) {
+          applyPreset(preset.current);
+        }
+      },
+      () => clearTitles(paneTitles(chart.current)),
+    );
+    const stopBrush = brushZoom(api, element);
     api.subscribeCrosshairMove(onCrosshair);
     api.subscribeDblClick(onDoubleClick);
     api.timeScale().subscribeVisibleLogicalRangeChange(onRange);
@@ -335,8 +349,8 @@ export function EquityChart({ runId, points, benchmark, bot, benchmarkSymbol, ev
       element.addEventListener(type, engage, { capture: true, passive: true });
     }
     return () => {
-      stopMotion();
-      stopWidth();
+      stopSize();
+      stopBrush();
       for (const type of USER_INPUTS) {
         element.removeEventListener(type, engage, { capture: true });
       }
@@ -391,17 +405,17 @@ export function EquityChart({ runId, points, benchmark, bot, benchmarkSymbol, ev
       PANE.exposure,
     );
     series.setData(model.current.strategy.exposure);
-    series.priceScale().applyOptions({ scaleMargins: { top: 0.28, bottom: 0 } });
     const pane = drawn.api.panes()[PANE.exposure];
     pane?.setStretchFactor(STRETCH.exposure);
-    drawn.exposure = pane
-      ? { series, title: paneTitle(pane, "Gross exposure") }
-      : undefined;
+    drawn.exposure = pane ? { series, title: paneTitle(pane, "Gross exposure", 0) } : undefined;
+    const fit = requestAnimationFrame(() => clearTitles(paneTitles(drawn)));
     refresh();
     return () => {
+      cancelAnimationFrame(fit);
       drawn.exposure = undefined;
       if (chart.current === drawn) {
         drawn.api.removePane(PANE.exposure);
+        requestAnimationFrame(() => clearTitles(paneTitles(drawn)));
       }
     };
   }, [exposure, refresh]);
@@ -423,7 +437,7 @@ export function EquityChart({ runId, points, benchmark, bot, benchmarkSymbol, ev
     drawn.drawdown.applyOptions({ bottomLineColor: down, bottomFillColor1: themeColor("--down", 0.08), bottomFillColor2: themeColor("--down", 0.32) });
     drawn.exposure?.series.applyOptions({ lineColor: accent, topColor: themeColor("--accent", 0.22), bottomColor: themeColor("--accent", 0.02) });
     drawn.startLine?.applyOptions({ color: muted });
-    themeTitles([...drawn.titles, ...(drawn.exposure ? [drawn.exposure.title] : [])]);
+    themeTitles(paneTitles(drawn));
     drawMarks();
   }, [scheme, exposure, drawMarks]);
 

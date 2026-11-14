@@ -12,18 +12,30 @@ import {
 import { themeColor, themeFont } from "../../lib/theme";
 import { change, changeTickmarks, money, moneyTickmarks } from "./format";
 
-export type PaneTitle = { plugin: ITextWatermarkPluginApi<Time>; text: string };
+export type PaneTitle = { plugin: ITextWatermarkPluginApi<Time>; text: string; pane: IPaneApi<Time>; bottom: number };
 
 export const moneyFormat = { type: "custom", formatter: money, tickmarksFormatter: moneyTickmarks, minMove: 0.01 } as const;
 
-export function paneTitle(pane: IPaneApi<Time>, text: string): PaneTitle {
-  return { plugin: createTextWatermark(pane, { horzAlign: "left", vertAlign: "top", lines: [{ text, fontSize: 11, lineHeight: 24 }] }), text };
+const TITLE_BAND_PX = 22;
+const TITLE_LINE = { fontSize: 11, lineHeight: TITLE_BAND_PX } as const;
+
+export function paneTitle(pane: IPaneApi<Time>, text: string, bottom: number): PaneTitle {
+  return { plugin: createTextWatermark(pane, { horzAlign: "left", vertAlign: "top", lines: [{ text, ...TITLE_LINE }] }), text, pane, bottom };
 }
 
 export function themeTitles(titles: PaneTitle[]) {
-  const color = themeColor("--muted");
+  const color = themeColor("--text-2");
   for (const title of titles) {
-    title.plugin.applyOptions({ lines: [{ text: title.text, color, fontFamily: themeFont(), fontSize: 11, lineHeight: 24 }] });
+    title.plugin.applyOptions({ lines: [{ text: title.text, color, fontFamily: themeFont(), ...TITLE_LINE }] });
+  }
+}
+
+export function clearTitles(titles: PaneTitle[]) {
+  for (const title of titles) {
+    const height = title.pane.getHeight();
+    if (height > TITLE_BAND_PX * 2) {
+      title.pane.priceScale("right").applyOptions({ scaleMargins: { top: TITLE_BAND_PX / height, bottom: title.bottom } });
+    }
   }
 }
 
@@ -32,40 +44,44 @@ const ZOOM_STEP = 0.8;
 
 export const USER_INPUTS = ["wheel", "pointerdown", "touchstart", "keydown"] as const;
 
-export const KEY_HINT = "Arrow keys pan, plus and minus zoom, 0 shows everything. Drag to pan, scroll or pinch to zoom, drag an axis to rescale it and double-click to reset.";
-
-const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)");
+export const KEY_HINT =
+  "Drag across the chart to zoom into that range, shift-drag to pan, scroll or pinch to zoom, drag an axis to rescale it, and double-click to show everything. Arrow keys pan, plus and minus zoom, 0 shows everything.";
 
 export function chartOptions(timeFormatter: (time: Time) => string): DeepPartial<ChartOptions> {
   return {
     autoSize: true,
-    layout: { attributionLogo: false, panes: { enableResize: true } },
-    handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+    layout: { attributionLogo: false, panes: { enableResize: false } },
+    handleScroll: { mouseWheel: true, pressedMouseMove: false, horzTouchDrag: true, vertTouchDrag: false },
     handleScale: { mouseWheel: true, pinch: true, axisPressedMouseMove: { time: true, price: true }, axisDoubleClickReset: { time: true, price: true } },
-    kineticScroll: { touch: true, mouse: !reducedMotion().matches },
-    rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.22, bottom: 0.06 } },
-    timeScale: { borderVisible: false, enableConflation: true, minBarSpacing: 0.01, rightOffset: 2 },
+    kineticScroll: { touch: true, mouse: false },
+    rightPriceScale: { borderVisible: false, minimumWidth: 64, scaleMargins: { top: 0.08, bottom: 0.06 } },
+    timeScale: { borderVisible: false, enableConflation: true, minBarSpacing: 0.01, rightOffsetPixels: 12 },
     localization: { timeFormatter, percentageFormatter: change, tickmarksPercentageFormatter: changeTickmarks },
   };
 }
 
-export function followReducedMotion(api: IChartApi): () => void {
-  const motion = reducedMotion();
-  const onMotion = () => api.applyOptions({ kineticScroll: { mouse: !motion.matches } });
-  motion.addEventListener("change", onMotion);
-  return () => motion.removeEventListener("change", onMotion);
-}
-
-export function followWidth(element: HTMLElement, onWidth: () => void): () => void {
-  let width = element.clientWidth;
-  const observer = new ResizeObserver(() => {
-    if (element.clientWidth !== width) {
-      width = element.clientWidth;
+export function followSize(api: IChartApi, element: HTMLElement, onWidth: () => void, onHeight: () => void): () => void {
+  let width = api.timeScale().width();
+  let height = element.clientHeight;
+  const onPlot = () => {
+    if (api.timeScale().width() !== width) {
+      width = api.timeScale().width();
       requestAnimationFrame(onWidth);
     }
+  };
+  const observer = new ResizeObserver(() => {
+    if (element.clientHeight !== height) {
+      height = element.clientHeight;
+      requestAnimationFrame(onHeight);
+    }
   });
+  api.timeScale().subscribeSizeChange(onPlot);
   observer.observe(element);
-  return () => observer.disconnect();
+  requestAnimationFrame(onHeight);
+  return () => {
+    api.timeScale().unsubscribeSizeChange(onPlot);
+    observer.disconnect();
+  };
 }
 
 export function themedOptions(): DeepPartial<ChartOptions> {
@@ -76,7 +92,7 @@ export function themedOptions(): DeepPartial<ChartOptions> {
       textColor: themeColor("--muted"),
       fontFamily: themeFont(),
       fontSize: 11,
-      panes: { separatorColor: themeColor("--border"), separatorHoverColor: themeColor("--border-strong") },
+      panes: { separatorColor: themeColor("--border-strong") },
     },
     grid: { vertLines: { color: themeColor("--grid") }, horzLines: { color: themeColor("--grid") } },
     crosshair: { vertLine: crosshair, horzLine: crosshair },
